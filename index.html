@@ -5,25 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <!-- ===== SEO ===== -->
-<title>Todoist 2026 Planner 🐥 – Kế hoạch năm, mục tiêu & thói quen hàng ngày</title>
-<meta name="description" content="Todoist 2026 Planner – ứng dụng lập kế hoạch tiếng Việt miễn phí: quản lý mục tiêu năm, tháng, tuần, theo dõi thói quen 31 ngày, checklist công việc và nhật ký reflection. Giao diện pastel dễ thương, hoạt động 100% offline, lưu dữ liệu trên trình duyệt." />
+<title>TaskFlow-Todoist – Kế hoạch năm, mục tiêu & thói quen hàng ngày</title>
+<meta name="description" content="TaskFlow-Todoist – ứng dụng lập kế hoạch tiếng Việt miễn phí: quản lý mục tiêu năm, tháng, tuần, theo dõi thói quen 31 ngày, checklist công việc và nhật ký reflection. Giao diện pastel dễ thương, hoạt động 100% offline, lưu dữ liệu trên trình duyệt." />
 <meta name="keywords" content="planner 2026, kế hoạch năm, quản lý mục tiêu, habit tracker, thói quen, todoist, lập kế hoạch, kế hoạch tháng, kế hoạch tuần, reflection, nhật ký, tiếng việt, offline, pastel" />
 <meta name="author" content="Hung Pham" />
 <meta name="robots" content="index, follow" />
 <meta name="theme-color" content="#EFE6D5" />
-<link rel="canonical" href="https://hungphammanh06.github.io/Todoist/" />
+<link rel="canonical" href="https://hungphammanh06.github.io/TaskFlow-Todoist/" />
 
 <!-- ===== Open Graph / Facebook ===== -->
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="vi_VN" />
-<meta property="og:title" content="Todoist 2026 Planner 🐥 – Kế hoạch năm, mục tiêu & thói quen" />
+<meta property="og:title" content="TaskFlow-Todoist – Kế hoạch năm, mục tiêu & thói quen" />
 <meta property="og:description" content="Planner tiếng Việt miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, checklist & reflection. Giao diện pastel dễ thương, offline 100%." />
-<meta property="og:url" content="https://hungphammanh06.github.io/Todoist/" />
-<meta property="og:site_name" content="Todoist 2026 Planner" />
+<meta property="og:url" content="https://hungphammanh06.github.io/TaskFlow-Todoist/" />
+<meta property="og:site_name" content="TaskFlow-Todoist" />
 
 <!-- ===== Twitter ===== -->
 <meta name="twitter:card" content="summary" />
-<meta name="twitter:title" content="Todoist 2026 Planner 🐥 – Kế hoạch năm, mục tiêu & thói quen" />
+<meta name="twitter:title" content="TaskFlow-Todoist – Kế hoạch năm, mục tiêu & thói quen" />
 <meta name="twitter:description" content="Planner tiếng Việt miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, checklist & reflection. Offline 100%." />
 
 <!-- ===== Favicon (emoji) ===== -->
@@ -31,8 +31,8 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=Quicksand:wght@600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/styles.css?v=8" />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=Quicksand:wght@600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/styles.css?v=15" />
 </head>
 <body>
 <div class="bricks bricks-top" aria-hidden="true"></div>
@@ -41,24 +41,50 @@
   <div class="brand">
     <span class="brand-chick" aria-hidden="true">🐥</span>
     <div class="brand-text">
-      <h1 id="brandTitle">January Planner</h1>
+      <h1 id="brandTitle">TaskFlow-Todoist</h1>
       <p id="brandSub">Kế hoạch tháng 1 · 2026</p>
     </div>
   </div>
-  <nav class="tabs" id="navTabs" role="tablist" aria-label="Điều hướng kế hoạch"></nav>
-  <button type="button" class="btn-reset" data-action="reset" title="Xoá toàn bộ dữ liệu đã lưu">↺ Đặt lại</button>
-  <button type="button" class="btn-now" id="btnNow" data-action="gotoday" title="Quay lại tháng hiện tại" hidden>⏱ Quay lại tháng này</button>
-  <div class="now" id="nowBox" aria-label="Ngày giờ hiện tại"><span aria-hidden="true">🕗</span><span id="nowText"></span></div>
+  <nav class="month-nav" aria-label="Chuyển tháng trong năm" data-i18n-aria="navMonths">
+    <button type="button" class="btn-month" data-action="prevmonth" title="Tháng trước" aria-label="Tháng trước" data-i18n-title="prevMonth" data-i18n-aria="prevMonth">‹</button>
+    <select id="monthSelect" class="month-select" data-action="monthselect" aria-label="Chọn tháng" data-i18n-aria="selectMonth"></select>
+    <button type="button" class="btn-month" data-action="nextmonth" title="Tháng sau" aria-label="Tháng sau" data-i18n-title="nextMonth" data-i18n-aria="nextMonth">›</button>
+  </nav>
+  <nav class="tabs" id="navTabs" role="tablist" aria-label="Điều hướng kế hoạch" data-i18n-aria="navPlan"></nav>
+  <button type="button" class="btn-reset" data-action="reset" title="Xoá toàn bộ dữ liệu đã lưu" data-i18n-title="resetTitle" data-i18n="resetTxt">↺ Đặt lại</button>
+  <button type="button" class="btn-now" id="btnNow" data-action="gotoday" title="Về hôm nay & tuần hiện tại" data-i18n-title="todayTitle" data-i18n="todayTxt">📍 Hôm nay</button>
+  <div class="now" id="nowBox" aria-label="Ngày giờ hiện tại" data-i18n-aria="nowAria"><span aria-hidden="true">🕗</span><span id="nowText"></span></div>
+  <div class="header-controls">
+    <div class="theme-picker" role="group" aria-label="Chọn chủ đề màu">
+      <button type="button" class="theme-dot dot-cream" data-action="theme" data-theme="cream" title="Cream" aria-label="Chủ đề kem"></button>
+      <button type="button" class="theme-dot dot-mint" data-action="theme" data-theme="mint" title="Mint" aria-label="Chủ đề bạc hà"></button>
+      <button type="button" class="theme-dot dot-lavender" data-action="theme" data-theme="lavender" title="Lavender" aria-label="Chủ đề oải hương"></button>
+      <button type="button" class="theme-dot dot-peach" data-action="theme" data-theme="peach" title="Peach" aria-label="Chủ đề đào"></button>
+    </div>
+    <button type="button" class="lang-btn" id="langBtn" data-action="lang" title="Đổi ngôn ngữ / Switch language">EN</button>
+  </div>
 </header>
 
 <main class="container">
-  <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng"></section>
-  <section id="view-year" class="view" role="tabpanel" aria-label="Kế hoạch năm"></section>
-  <section id="view-week" class="view" role="tabpanel" aria-label="Kế hoạch tuần"></section>
+  <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng" data-i18n-aria="viewOverview">
+    <div class="landing-hero">
+      <video class="landing-video" src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260314_131748_f2ca2a28-fed7-44c8-b9a9-bd9acdd5ec31.mp4" autoplay loop muted playsinline aria-hidden="true"></video>
+      <div class="landing-overlay" aria-hidden="true"></div>
+      <div class="landing-inner">
+        <p class="landing-logo">TaskFlow-Todoist</p>
+        <h2 class="landing-title">Where <em>dreams</em> rise through <em>the silence.</em></h2>
+        <p class="landing-sub">We&rsquo;re designing tools for deep thinkers, bold creators, and quiet rebels. Amid the chaos, we build digital spaces for sharp focus and inspired work.</p>
+        <button type="button" class="landing-cta" data-action="journey">Begin Journey</button>
+      </div>
+    </div>
+    <div id="ov-content"></div>
+  </section>
+  <section id="view-year" class="view" role="tabpanel" aria-label="Kế hoạch năm" data-i18n-aria="viewYear"></section>
+  <section id="view-week" class="view" role="tabpanel" aria-label="Kế hoạch tuần" data-i18n-aria="viewWeek"></section>
 </main>
 
 <footer class="bricks bricks-bottom" aria-hidden="true"></footer>
 
-<script src="js/app.js?v=8"></script>
+<script src="js/app.js?v=17"></script>
 </body>
 </html>
