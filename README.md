@@ -13,7 +13,7 @@ Giao diện pastel kawaii · Hoạt động **100% offline** · Dữ liệu lưu
 [![Offline](https://img.shields.io/badge/Offline-Ready-7FAFD3?style=flat-square)]()
 [![MIT License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-**🚀 Demo:** [https://hungphammanh06.github.io/TaskFlow-Todoist/](https://hungphammanh06.github.io/TaskFlow-Todoist/)
+**🚀 Demo:** [https://hungphammanh06.github.io/Todoist/](https://hungphammanh06.github.io/Todoist/)
 
 </div>
 
@@ -139,7 +139,7 @@ TaskFlow-Todoist/
 
 ## 🤝 Đóng góp
 
-Mọi ý tưởng, báo lỗi hay pull request đều được hoan nghênh! Hãy mở [issue](https://github.com/HungPhamManh06/TaskFlow-Todoist/issues) hoặc gửi pull request.
+Mọi ý tưởng, báo lỗi hay pull request đều được hoan nghênh! Hãy mở [issue](https://github.com/HungPhamManh06/Todoist/issues) hoặc gửi pull request.
 
 ---
 
