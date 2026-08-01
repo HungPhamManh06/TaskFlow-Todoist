@@ -129,7 +129,7 @@ function updateBrand() {
   if (t) t.textContent = MONTH_NAMES[PLAN_MONTH] + ' Planner';
   const s = document.getElementById('brandSub');
   if (s) s.textContent = 'Kế hoạch tháng ' + (PLAN_MONTH + 1) + ' · ' + PLAN_YEAR;
-  document.title = MONTH_NAMES[PLAN_MONTH] + ' Planner 🐥';
+  document.title = MONTH_NAMES[PLAN_MONTH] + ' Planner · Todoist 2026 🐥';
 }
 
 /* ============================ Kế hoạch năm ============================ */
