@@ -1,0 +1,14 @@
+# Freebuff nội bộ (database, cache)
+.freebuff/
+*.db
+*.db-shm
+*.db-wal
+
+# Backup & build tạm
+index.backup-slim.html
+_preview.html
+
+# Hệ điều hành
+Thumbs.db
+.DS_Store
+desktop.ini

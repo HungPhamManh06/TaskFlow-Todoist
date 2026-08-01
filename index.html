@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>January Planner 🐥</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=Quicksand:wght@600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css?v=7" />
+</head>
+<body>
+<div class="bricks bricks-top" aria-hidden="true"></div>
+
+<header class="site-header">
+  <div class="brand">
+    <span class="brand-chick" aria-hidden="true">🐥</span>
+    <div class="brand-text">
+      <h1 id="brandTitle">January Planner</h1>
+      <p id="brandSub">Kế hoạch tháng 1 · 2026</p>
+    </div>
+  </div>
+  <nav class="tabs" id="navTabs" role="tablist" aria-label="Điều hướng kế hoạch"></nav>
+  <button type="button" class="btn-reset" data-action="reset" title="Xoá toàn bộ dữ liệu đã lưu">↺ Đặt lại</button>
+  <button type="button" class="btn-now" id="btnNow" data-action="gotoday" title="Quay lại tháng hiện tại" hidden>⏱ Quay lại tháng này</button>
+  <div class="now" id="nowBox" aria-label="Ngày giờ hiện tại"><span aria-hidden="true">🕗</span><span id="nowText"></span></div>
+</header>
+
+<main class="container">
+  <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng"></section>
+  <section id="view-year" class="view" role="tabpanel" aria-label="Kế hoạch năm"></section>
+  <section id="view-week" class="view" role="tabpanel" aria-label="Kế hoạch tuần"></section>
+</main>
+
+<footer class="bricks bricks-bottom" aria-hidden="true"></footer>
+
+<script src="app.js?v=7"></script>
+</body>
+</html>
