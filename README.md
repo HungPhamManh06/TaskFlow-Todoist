@@ -72,6 +72,20 @@ Tất cả dữ liệu được lưu an toàn trong **localStorage** của trìn
 - ♿ Hỗ trợ **aria-label**, `role=checkbox`, điều hướng bằng Tab
 - 📱 **Responsive** trên mobile, tablet và desktop
 
+### 📦 PWA — cài đặt như app thật
+- 📲 **Cài đặt offline**: mở trang → chọn "Cài đặt ứng dụng" (Chrome/Edge) — app chạy ngoài cửa sổ trình duyệt, **hoạt động offline 100%**
+- 🔔 **Nhắc việc hằng ngày**: bật nút 🔔 trong header, chọn giờ — trình duyệt nhắc điểm danh thói quen mỗi ngày (kể cả khi app đã đóng, nhờ Periodic Background Sync)
+- 🖼️ Icon pastel kawaii đầy đủ kích thước (192/512/maskable) cho Android & iOS
+
+### 💾 Dữ liệu của bạn — sao lưu & in
+- 📤 **Xuất JSON**: sao lưu toàn bộ 12 tháng + năm thành 1 file (khôi phục bất cứ lúc nào)
+- 📥 **Nhập JSON**: khôi phục dữ liệu từ file sao lưu (ghi đè)
+- 📊 **Xuất CSV**: mọi mục tiêu/thói quen/task/reflection thành bảng 7 section — dán thẳng vào **Google Sheets**
+- 🖨️ **In / PDF**: in view đang mở (Tổng quan/Năm/Tuần) tối ưu A4 ngang, checkbox hiện ☐/☑, ẩn nút thao tác
+
+### 📈 Analytics (GA4)
+- Theo dõi **lượt truy cập, người dùng quay lại, tạo mục tiêu/thói quen/task, cài đặt PWA** — cấu hình Measurement ID trong `js/app.js`
+
 ---
 
 ## 🚀 Cách chạy
@@ -90,6 +104,44 @@ npx serve .
 Mở trình duyệt tại `http://localhost:8080`.
 
 > ⚠️ Lưu ý: dữ liệu lưu trong localStorage **theo từng trình duyệt** — dùng đúng một trình duyệt để giữ dữ liệu liên tục.
+
+---
+
+## ☁️ Đồng bộ đám mây (Supabase)
+
+Từ phiên bản này, app hỗ trợ **đồng bộ dữ liệu đa thiết bị qua Supabase** (Postgres đám mây miễn phí):
+
+- 🔄 **Đồng bộ 2 chiều** — mọi mục tiêu/thói quen/reflection/streak được đẩy lên đám mây và kéo về tự động
+- 📤 **Nâng cấp dữ liệu cũ** — dữ liệu đang nằm trong localStorage được tự động đẩy lên server lần đầu kết nối
+- 📱 **Đa thiết bị** — mở cùng tài khoản trên điện thoại/laptop/PC là thấy cùng một bản kế hoạch
+- 🚫 **Offline-first** — chưa cấu hình hoặc mất mạng vẫn dùng bình thường (localStorage là nguồn chính, Supabase là bản sao)
+
+### ⚙️ Cách kích hoạt (khoảng 10 phút)
+
+1. **Tạo project miễn phí** tại [supabase.com](https://supabase.com) → **New Project**
+2. **Chạy schema**: mở **SQL Editor → New query**, dán toàn bộ nội dung [`supabase/schema.sql`](supabase/schema.sql) rồi bấm **Run** (tạo bảng `planner_state` + Row Level Security + trigger `updated_at`)
+3. **Lấy key**: vào **Project Settings → API**, copy **Project URL** và **anon public key**
+4. **Dán vào config**: mở [`js/supabase-config.js`](js/supabase-config.js) và điền 2 giá trị:
+   ```js
+   const SUPABASE_CONFIG = {
+     url: 'https://xxxx.supabase.co',     // Project URL
+     anonKey: 'eyJhbGciOiJIUzI1NiIs...', // anon public key
+     autoAnonymous: true
+   };
+   ```
+5. **Bật đăng nhập ẩn danh** (tuỳ chọn nhưng khuyên dùng): **Authentication → Sign In / Up → Anonymous sign-ins → Enable**
+6. **Bật đăng nhập Google** (tuỳ chọn — nút ☁️ sẽ hiện *Tiếp tục với Google*):
+   - **Authentication → Providers → Google → Enable**
+   - Điền **Client ID / Client Secret** tạo tại [console.cloud.google.com](https://console.cloud.google.com) → *APIs & Services → Credentials → OAuth client ID* (loại **Web application**; authorized JavaScript origins gồm `https://<tên-trang>.github.io` và `http://localhost:8777` nếu chạy local; authorized redirect URIs để mặc định của Supabase)
+   - Dưới bảng cấu hình, thêm **Redirect URL** của trang vào danh sách — thường là `https://<tên-trang>.github.io/Todoist/` (kèm slash cuối) hoặc `http://localhost:8777/`
+   - Khi đăng nhập Google, app sẽ **quay về đúng URL** đang mở (có thể ghi đè qua `redirectTo` trong `js/supabase-config.js`)
+
+> 💡 Dùng **anonymous** cho trải nghiệm "tự đồng bộ, không cần tài khoản". Muốn đồng bộ giữa **nhiều thiết bị** thì đăng nhập qua nút ☁️ trên thanh header — **Google OAuth** (nhanh nhất) hoặc **email/password**.
+
+### 🧪 Kiểm tra
+```bash
+node test-sync.js   # 4 test: no-config, pull+migrate, push debounce, clearAll
+```
 
 ---
 
@@ -131,7 +183,11 @@ TaskFlow-Todoist/
 ├── css/
 │   └── styles.css      # Toàn bộ giao diện pastel kawaii + 4 chủ đề màu
 ├── js/
-│   └── app.js          # Logic ứng dụng (vanilla JS, không framework)
+│   ├── app.js          # Logic ứng dụng (vanilla JS, không framework)
+│   ├── sync.js         # Engine đồng bộ Supabase (pull/push/migrate, offline-first)
+│   └── supabase-config.js # Điền Project URL + anon key tại đây
+├── supabase/
+│   └── schema.sql      # Bảng planner_state + RLS + trigger (chạy trong SQL Editor)
 ├── vercel.json         # Cấu hình triển khai Vercel
 ├── render.yaml         # Blueprint triển khai Render (Static Site)
 ├── README.md
@@ -163,9 +219,11 @@ TaskFlow-Todoist/
 - [x] **Streak & heatmap** kiểu GitHub + streak đa tháng
 - [x] **Nút "Hôm nay"** + tự nhảy tuần hiện tại
 - [x] **4 chủ đề màu** pastel + toggle ngôn ngữ **VI/EN**
-- [ ] Xuất/nhập dữ liệu JSON + CSV (đồng bộ Google Sheets)
-- [ ] Chế độ in / PDF
-- [ ] PWA — cài đặt offline & nhắc việc
+- [x] **Xuất/nhập JSON + CSV** (đồng bộ Google Sheets)
+- [x] **Chế độ in / PDF** (A4 ngang, checkbox ☐/☑)
+- [x] **PWA** — cài đặt offline, chạy như app thật & nhắc việc hằng ngày
+- [x] **Analytics GA4** — lượt truy cập, quay lại, tạo mục tiêu/thói quen
+- [ ] Đăng nhập & đồng bộ đa thiết bị (Supabase)
 
 ---
 

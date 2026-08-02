@@ -212,6 +212,7 @@ let yearState = loadYearState() || defaultYearState();
 
 function saveYear() {
   try { localStorage.setItem(yearKey(), JSON.stringify(yearState)); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push(yearKey());
 }
 
 function yearGoalStats() {
@@ -285,6 +286,7 @@ function loadMonthStateOrCreate(y, m) {
 
 function saveMonthState(y, m, s) {
   try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(s)); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push('planner-' + y + '-' + (m + 1));
 }
 
 function toggleMonthGoal(m, id) {
@@ -509,12 +511,48 @@ const I18N = {
     lineAria: 'Biểu đồ tiến độ 12 tháng',
     lineMonthT: 'Tháng {n}: {p}%',
     resetConfirm: 'Xoá toàn bộ dữ liệu đã lưu của 12 tháng và đặt lại mặc định?',
+    dataTitle: '💾 Dữ liệu của bạn',
+    exportJson: '📤 Xuất JSON (sao lưu)',
+    importJson: '📥 Nhập JSON (khôi phục)',
+    exportCsv: '📊 Xuất CSV (Google Sheets)',
+    printTitle: 'In / Lưu PDF',
+    remindTitle: '🔔 Nhắc việc hằng ngày',
+    remindTimeLbl: 'Giờ nhắc',
+    remindOn: 'Bật nhắc',
+    remindOff: 'Tắt nhắc',
+    remindNote: 'Trình duyệt sẽ nhắc bạn một lần mỗi ngày để điểm danh thói quen.',
+    remindEnabled: 'Đã bật nhắc việc hằng ngày lúc {t}.',
+    remindDisabled: 'Đã tắt nhắc việc.',
+    remindDenied: 'Trình duyệt đang chặn thông báo. Hãy cho phép thông báo để nhận nhắc việc.',
+    remindBody: 'Hôm nay bạn đã hoàn thành những mục tiêu nào? Vào điểm danh thói quen nhé! 🐥',
+    importConfirm: 'Nhập file sẽ GHI ĐÈ dữ liệu hiện tại. Bạn chắc chắn muốn tiếp tục?',
+    importError: 'File không hợp lệ — không phải file sao lưu TaskFlow-Todoist.',
+    importOk: 'Đã nhập dữ liệu thành công! Trang sẽ tải lại.',
     rm0: 'Điều gì tôi đã làm tốt và muốn tiếp tục phát huy?',
     rm1: 'Bài học quan trọng nhất tôi rút ra được là gì?',
     rm2: 'Tôi biết ơn về việc ...',
     rm3: 'Ba mục tiêu tôi cần tập trung trong năm tiếp theo là?',
     rw3: 'Ba mục tiêu tôi cần tập trung trong tuần tiếp theo là?',
     rq3: 'Ba mục tiêu tôi cần tập trung trong quý tới là?',
+    closeBtn: 'Đóng',
+    syncTitle: '☁️ Đồng bộ đám mây',
+    syncDesc: 'Đăng nhập để đồng bộ dữ liệu giữa các thiết bị. Dữ liệu hiện tại sẽ tự động được nâng cấp lên đám mây.',
+    syncLogin: 'Đăng nhập',
+    syncSignup: 'Tạo tài khoản',
+    syncLogout: 'Đăng xuất',
+    syncStatusOff: 'Chưa cấu hình Supabase',
+    syncStatusConnecting: 'Đang kết nối...',
+    syncStatusSyncing: 'Đang đồng bộ...',
+    syncStatusReady: 'Đã đồng bộ ✓',
+    syncStatusSignedOut: 'Chưa đăng nhập',
+    syncStatusError: 'Lỗi đồng bộ',
+    syncNeedEmail: 'Vui lòng nhập email và mật khẩu',
+    syncLoginErr: 'Đăng nhập thất bại — kiểm tra lại email/mật khẩu',
+    syncSignupOk: 'Đã tạo tài khoản! Kiểm tra email để xác nhận nếu cần.',
+    syncGoogle: 'Tiếp tục với Google',
+    syncOr: 'hoặc bằng email',
+    syncGoogleErr: 'Không mở được Google. Kiểm tra lại cấu hình Supabase và provider Google.',
+    syncNeedConfig: 'Chưa cấu hình Supabase — điền Project URL & anon key trong js/supabase-config.js',
   },
   en: {
     navMonths: 'Navigate months',
@@ -626,12 +664,48 @@ const I18N = {
     lineAria: '12-month progress chart',
     lineMonthT: 'Month {n}: {p}%',
     resetConfirm: 'Delete all saved data for 12 months and reset to defaults?',
+    dataTitle: '💾 Your data',
+    exportJson: '📤 Export JSON (backup)',
+    importJson: '📥 Import JSON (restore)',
+    exportCsv: '📊 Export CSV (Google Sheets)',
+    printTitle: 'Print / Save PDF',
+    remindTitle: '🔔 Daily reminder',
+    remindTimeLbl: 'Remind at',
+    remindOn: 'Turn on',
+    remindOff: 'Turn off',
+    remindNote: 'Your browser will remind you once a day to check in on your habits.',
+    remindEnabled: 'Daily reminder enabled at {t}.',
+    remindDisabled: 'Daily reminder turned off.',
+    remindDenied: 'Your browser blocks notifications. Allow them to get reminders.',
+    remindBody: 'What goals did you complete today? Time to check in on your habits! 🐥',
+    importConfirm: 'Importing will OVERWRITE your current data. Continue?',
+    importError: 'Invalid file — not a TaskFlow-Todoist backup.',
+    importOk: 'Data imported successfully! The page will reload.',
     rm0: 'What did I do well that I want to keep doing?',
     rm1: 'What is the most important lesson I learned?',
     rm2: 'I am grateful for ...',
     rm3: 'Three goals I should focus on next year?',
     rw3: 'Three goals I should focus on next week?',
     rq3: 'Three goals I should focus on next quarter?',
+    closeBtn: 'Close',
+    syncTitle: '☁️ Cloud sync',
+    syncDesc: 'Sign in to sync data across devices. Your existing data will be automatically upgraded to the cloud.',
+    syncLogin: 'Sign in',
+    syncSignup: 'Create account',
+    syncLogout: 'Sign out',
+    syncStatusOff: 'Supabase not configured',
+    syncStatusConnecting: 'Connecting...',
+    syncStatusSyncing: 'Syncing...',
+    syncStatusReady: 'Synced ✓',
+    syncStatusSignedOut: 'Signed out',
+    syncStatusError: 'Sync error',
+    syncNeedEmail: 'Please enter email and password',
+    syncLoginErr: 'Sign in failed — check email/password',
+    syncSignupOk: 'Account created! Check your email to confirm if needed.',
+    syncGoogle: 'Continue with Google',
+    syncOr: 'or use email',
+    syncGoogleErr: 'Could not open Google. Check your Supabase config and Google provider.',
+    syncNeedConfig: 'Supabase not configured — fill in Project URL & anon key in js/supabase-config.js',
   },
 };
 
@@ -668,6 +742,7 @@ function setLang(l) {
   if (l !== 'vi' && l !== 'en') l = 'vi';
   LANG = l;
   try { localStorage.setItem('planner-lang', l); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push('planner-lang');
   applyStaticI18N();
   updateBrand();
   buildNav();
@@ -689,9 +764,259 @@ function setTheme(th) {
   if (!THEMES.includes(th)) th = 'cream';
   THEME = th;
   try { localStorage.setItem('planner-theme', th); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push('planner-theme');
   document.documentElement.dataset.theme = th;
   document.querySelectorAll('.theme-dot').forEach((d) => d.classList.toggle('active', d.dataset.theme === th));
 }
+
+/* ============================ Analytics (GA4) ============================ */
+
+// 👉 Thay 'G-XXXXXXXXXX' bằng Measurement ID của bạn:
+// Google Analytics → Quản trị → Luồng dữ liệu → Web → đo ID (định dạng G-XXXXXXXXXX)
+const GA4_ID = 'G-XXXXXXXXXX';
+const GA4_ENABLED = !!(GA4_ID && !GA4_ID.startsWith('G-XXXX'));
+
+function initAnalytics() {
+  if (!GA4_ENABLED) return;
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { dataLayer.push(arguments); };
+  const s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA4_ID;
+  document.head.appendChild(s);
+  gtag('js', new Date());
+  gtag('config', GA4_ID, { anonymize_ip: true });
+  try {
+    const now = Date.now();
+    if (!localStorage.getItem('planner-ga-first')) {
+      localStorage.setItem('planner-ga-first', '1');
+      gtag('event', 'first_visit');
+    } else {
+      const last = localStorage.getItem('planner-ga-last');
+      if (last) {
+        gtag('event', 'return_visit', {
+          days_since: Math.max(0, Math.floor((now - new Date(last).getTime()) / 86400000)),
+        });
+      }
+    }
+    localStorage.setItem('planner-ga-last', new Date().toISOString());
+  } catch (e) { /* ẩn */ }
+}
+
+function trackEvent(name, params) {
+  if (!GA4_ENABLED || !window.gtag) return;
+  try { gtag('event', name, params || {}); } catch (e) { /* ẩn */ }
+}
+
+/* ============================ PWA ============================ */
+
+function registerSW() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => { /* ẩn */ });
+  });
+}
+
+window.addEventListener('appinstalled', () => trackEvent('pwa_install'));
+
+/* ---------- Nhắc việc hằng ngày ---------- */
+
+function getRemindTime() {
+  try { return localStorage.getItem('planner-remind'); } catch (e) { return null; }
+}
+function setRemindTime(v) {
+  try { if (v) localStorage.setItem('planner-remind', v); else localStorage.removeItem('planner-remind'); } catch (e) { /* ẩn */ }
+}
+
+function requestRemindPermission() {
+  if (!('Notification' in window)) return Promise.resolve(true);
+  if (Notification.permission === 'granted') return Promise.resolve(true);
+  const p = Notification.requestPermission();
+  if (p && typeof p.then === 'function') return p.then((v) => v === 'granted');
+  return Promise.resolve(true);
+}
+
+function registerPeriodicReminder() {
+  if (!('serviceWorker' in navigator) || !('periodicSync' in navigator.serviceWorker)) return;
+  navigator.serviceWorker.ready.then((reg) => {
+    if (!('periodicSync' in reg)) return;
+    navigator.permissions.query({ name: 'periodic-background-sync' }).then((status) => {
+      if (status.state !== 'granted') return;
+      const res = reg.periodicSync.register('daily-reminder', { minInterval: 24 * 60 * 60 * 1000 });
+      if (res && typeof res.catch === 'function') res.catch(() => { /* ẩn */ });
+    }).catch(() => { /* ẩn */ });
+  }).catch(() => { /* ẩn */ });
+}
+
+function enableReminder() {
+  const input = document.getElementById('remindTime');
+  const time = input && input.value ? input.value : '20:00';
+  requestRemindPermission().then((granted) => {
+    if (!granted) { alert(t('remindDenied')); return; }
+    setRemindTime(time);
+    registerPeriodicReminder();
+    alert(t('remindEnabled', { t: time }));
+    trackEvent('reminder_enabled');
+  });
+}
+
+function disableReminder() {
+  setRemindTime(null);
+  alert(t('remindDisabled'));
+  trackEvent('reminder_disabled');
+}
+
+let lastRemindDay = '';
+function checkDailyReminder() {
+  const time = getRemindTime();
+  if (!time) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const now = new Date();
+  const dayKey = now.toDateString();
+  if (lastRemindDay === dayKey) return;
+  const [hh, mm] = time.split(':').map(Number);
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm, 0, 0);
+  if (now < target) return;
+  try {
+    if (localStorage.getItem('planner-remind-shown') === dayKey) return;
+    localStorage.setItem('planner-remind-shown', dayKey);
+  } catch (e) { /* ẩn */ }
+  lastRemindDay = dayKey;
+  new Notification('TaskFlow-Todoist 🐥', {
+    body: t('remindBody'),
+    icon: './icons/icon-192.png',
+    tag: 'daily-reminder',
+  });
+}
+
+/* ============================ Xuất / Nhập dữ liệu ============================ */
+
+function collectAllData() {
+  const out = { app: 'taskflow-todoist', version: 1, exportedAt: new Date().toISOString(), keys: {} };
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('planner-') || k === LEGACY_KEY) out.keys[k] = localStorage.getItem(k);
+    }
+  } catch (e) { /* ẩn */ }
+  return out;
+}
+
+function downloadFile(name, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+
+function exportJSON() {
+  const date = new Date().toISOString().slice(0, 10);
+  downloadFile('taskflow-todoist-backup-' + date + '.json', JSON.stringify(collectAllData(), null, 2), 'application/json');
+  trackEvent('export_json');
+}
+
+function csvRow(row) {
+  return row.map((c) => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(',');
+}
+
+function exportCSV() {
+  const rows = [];
+  const push = (row) => rows.push(csvRow(row));
+
+  push(['TaskFlow-Todoist Export', new Date().toISOString(), 'Sheet chia nhỏ theo Section để lọc trong Google Sheets']);
+
+  push([]);
+  push(['MonthlyGoals', 'Month', 'Kind', 'Text', 'Done']);
+  for (let m = 0; m < 12; m++) {
+    loadMonthStateOrCreate(PLAN_YEAR, m).monthlyGoals.forEach((g) => push(['MonthlyGoals', m + 1, g.kind, g.text, g.done ? 1 : 0]));
+  }
+
+  push([]);
+  push(['Habits', 'Month', 'Habit', 'Day', 'Done']);
+  for (let m = 0; m < 12; m++) {
+    loadMonthStateOrCreate(PLAN_YEAR, m).habits.forEach((h) => {
+      if (Array.isArray(h.days)) h.days.forEach((v, d) => { if (v) push(['Habits', m + 1, h.name, d + 1, 1]); });
+    });
+  }
+
+  push([]);
+  push(['Tasks', 'Month', 'Week', 'Day', 'Date', 'Kind', 'Text', 'Done']);
+  for (let m = 0; m < 12; m++) {
+    const s = loadMonthStateOrCreate(PLAN_YEAR, m);
+    s.weeks.forEach((w) => {
+      w.days.forEach((d, di) => {
+        d.tasks.forEach((tk) => push(['Tasks', m + 1, w.n, di + 1, d.date, tk.kind, tk.text, tk.done ? 1 : 0]));
+      });
+    });
+  }
+
+  push([]);
+  push(['MonthReflections', 'Month', 'Section', 'Index', 'Text']);
+  for (let m = 0; m < 12; m++) {
+    const s = loadMonthStateOrCreate(PLAN_YEAR, m);
+    if (s.reflections && Array.isArray(s.reflections.overview)) {
+      s.reflections.overview.forEach((r, i) => push(['MonthReflections', m + 1, 'overview', i + 1, r]));
+      s.reflections.weeks.forEach((w, wi) => w.forEach((r, i) => push(['MonthReflections', m + 1, 'week' + (wi + 1), i + 1, r])));
+    }
+  }
+
+  push([]);
+  push(['YearGoals', 'Kind', 'Text', 'Done']);
+  yearState.goals.forEach((g) => push(['YearGoals', g.kind, g.text, g.done ? 1 : 0]));
+
+  push([]);
+  push(['YearReflections', 'Scope', 'Index', 'Text']);
+  Object.keys(yearState.reflections).forEach((scope) => {
+    yearState.reflections[scope].forEach((r, i) => push(['YearReflections', scope, i + 1, r]));
+  });
+
+  push([]);
+  push(['YearNotes', 'Month', 'Note']);
+  yearState.monthNotes.forEach((n, m) => push(['YearNotes', m + 1, n]));
+
+  const date = new Date().toISOString().slice(0, 10);
+  downloadFile('taskflow-todoist-data-' + date + '.csv', rows.join('\r\n') + '\r\n', 'text/csv;charset=utf-8');
+  trackEvent('export_csv');
+}
+
+function importJSONFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!data || data.app !== 'taskflow-todoist' || !data.keys || typeof data.keys !== 'object') throw new Error('bad');
+      if (!confirm(t('importConfirm'))) return;
+      Object.keys(data.keys).forEach((k) => {
+        try { localStorage.setItem(k, data.keys[k]); } catch (e) { /* ẩn */ }
+      });
+      alert(t('importOk'));
+      location.reload();
+    } catch (e) {
+      alert(t('importError'));
+    }
+  };
+  reader.onerror = () => alert(t('importError'));
+  reader.readAsText(file);
+}
+
+function togglePop(id) {
+  const p = document.getElementById(id);
+  if (!p) return;
+  p.hidden = !p.hidden;
+  if (id === 'remindPop' && !p.hidden) {
+    const input = document.getElementById('remindTime');
+    if (input) input.value = getRemindTime() || '20:00';
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.header-pop') || e.target.closest('.remind-wrap') || e.target.closest('.data-wrap')) return;
+  document.querySelectorAll('.header-pop').forEach((p) => { p.hidden = true; });
+});
 
 /* ============================ Confetti ============================ */
 
@@ -846,6 +1171,7 @@ let state = loadState() || defaultState();
 
 function save() {
   try { localStorage.setItem(monthKey(), JSON.stringify(state)); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push(monthKey());
 }
 
 /* ============================ Tính toán ============================ */
@@ -1463,6 +1789,7 @@ function addGoal(kind, text) {
   state.monthlyGoals.push({ id: 'g' + Date.now(), text, kind, done: false });
   renderOverview();
   save();
+  trackEvent('create_goal', { kind });
   return true;
 }
 
@@ -1480,6 +1807,7 @@ function addHabit(name) {
   state.habits.push({ id: 'h' + Date.now(), name, days: Array.from({ length: NUM_DAYS }, () => false) });
   renderOverview();
   save();
+  trackEvent('create_habit');
   return true;
 }
 
@@ -2017,6 +2345,7 @@ document.addEventListener('click', (e) => {
     w.days[+el.dataset.day].tasks.push({ kind: el.dataset.kind, done: false, text: '' });
     renderWeek();
     save();
+    trackEvent('create_task', { kind: el.dataset.kind });
   } else if (act === 'deltask') {
     const w = state.weeks[+el.dataset.week - 1];
     w.days[+el.dataset.day].tasks.splice(+el.dataset.task, 1);
@@ -2028,21 +2357,25 @@ document.addEventListener('click', (e) => {
       state.monthlyGoals.push({ id: 'g' + Date.now(), text: '', kind: el.dataset.kind, done: false });
       renderOverview();
       save();
+      trackEvent('create_goal', { scope: 'month' });
     } else if (scope === 'w') {
       const w = state.weeks[+el.dataset.week - 1];
       w.goals.push({ text: '', kind: el.dataset.kind, done: false });
       renderWeek();
       save();
+      trackEvent('create_goal', { scope: 'week' });
     } else if (scope === 'y') {
       yearState.goals.push({ id: 'yg' + Date.now(), text: '', kind: el.dataset.kind, done: false });
       renderYear();
       saveYear();
+      trackEvent('create_goal', { scope: 'year' });
     } else if (scope === 'ym') {
       const s = loadMonthStateOrCreate(PLAN_YEAR, +el.dataset.month);
       s.monthlyGoals.push({ id: 'g' + Date.now(), text: '', kind: el.dataset.kind, done: false });
       saveMonthState(PLAN_YEAR, +el.dataset.month, s);
       invalidateYearCache();
       renderYear();
+      trackEvent('create_goal', { scope: 'month' });
     } else {
       showGoalAdd(el.dataset.kind);
     }
@@ -2079,10 +2412,43 @@ document.addEventListener('click', (e) => {
     }
   } else if (act === 'delhabit') {
     removeHabit(el.dataset.id);
+  } else if (act === 'sync-toggle') {
+    toggleSyncModal();
+  } else if (act === 'sync-close') {
+    closeSyncModal();
+  } else if (act === 'sync-signup') {
+    doSyncSignup();
+  } else if (act === 'sync-google') {
+    doSyncGoogle();
+  } else if (act === 'sync-logout') {
+    doSyncLogout();
   } else if (act === 'theme') {
     setTheme(el.dataset.theme);
   } else if (act === 'lang') {
     setLang(LANG === 'vi' ? 'en' : 'vi');
+  } else if (act === 'remind-toggle') {
+    togglePop('remindPop');
+  } else if (act === 'remind-on') {
+    enableReminder();
+    togglePop('remindPop');
+  } else if (act === 'remind-off') {
+    disableReminder();
+    togglePop('remindPop');
+  } else if (act === 'data-toggle') {
+    togglePop('dataPop');
+  } else if (act === 'export-json') {
+    togglePop('dataPop');
+    exportJSON();
+  } else if (act === 'import-json') {
+    togglePop('dataPop');
+    const fi = document.getElementById('importFile');
+    if (fi) fi.click();
+  } else if (act === 'export-csv') {
+    togglePop('dataPop');
+    exportCSV();
+  } else if (act === 'print') {
+    trackEvent('print');
+    window.print();
   } else if (act === 'reset') {
     if (confirm(t('resetConfirm'))) {
       try {
@@ -2090,6 +2456,7 @@ document.addEventListener('click', (e) => {
         localStorage.removeItem(LEGACY_KEY);
         localStorage.removeItem(yearKey());
       } catch (err) { /* ẩn */ }
+      if (window.Sync && window.Sync.clearAll) window.Sync.clearAll();
       yearState = defaultYearState();
       state = defaultState();
       setView(state.view, state.currentWeek);
@@ -2357,6 +2724,124 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('focus', syncNow);
 
+/* ============================ Đồng bộ đám mây (Supabase) ============================ */
+
+function syncStatusText(s) {
+  switch (s) {
+    case 'connecting': return t('syncStatusConnecting');
+    case 'syncing': return t('syncStatusSyncing');
+    case 'ready': return t('syncStatusReady');
+    case 'signedout': return t('syncStatusSignedOut');
+    case 'error': return t('syncStatusError');
+    default: return t('syncStatusOff');
+  }
+}
+
+function updateSyncStatus() {
+  const st = document.getElementById('syncStatus');
+  if (!st) return;
+  const s = (window.Sync && window.Sync.getStatus) ? window.Sync.getStatus() : 'off';
+  st.textContent = syncStatusText(s);
+  st.dataset.status = s;
+  const dot = document.getElementById('syncDot');
+  if (dot) dot.dataset.status = s;
+  const btn = document.getElementById('syncBtn');
+  if (btn) {
+    btn.dataset.status = s;
+    btn.title = t('syncTitle') + ' — ' + syncStatusText(s);
+  }
+  const lo = document.getElementById('syncLogoutBtn');
+  if (lo) lo.hidden = (s !== 'ready' && s !== 'syncing' && s !== 'connecting');
+}
+
+function toggleSyncModal() {
+  const m = document.getElementById('syncModal');
+  if (!m) return;
+  m.hidden = !m.hidden;
+  if (!m.hidden) updateSyncStatus();
+}
+
+function closeSyncModal() {
+  const m = document.getElementById('syncModal');
+  if (m) m.hidden = true;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const m = document.getElementById('syncModal');
+    if (m && !m.hidden) m.hidden = true;
+  }
+});
+document.addEventListener('click', (e) => {
+  const m = document.getElementById('syncModal');
+  if (m && !m.hidden && e.target === m) m.hidden = true;
+});
+
+function syncFormValues() {
+  const em = document.getElementById('syncEmail');
+  const pw = document.getElementById('syncPass');
+  return { email: em ? em.value.trim() : '', pass: pw ? pw.value : '' };
+}
+
+async function doSyncSignup() {
+  if (!window.Sync) return;
+  const { email, pass } = syncFormValues();
+  if (!email || !pass) { alert(t('syncNeedEmail')); return; }
+  const r = await window.Sync.signup(email, pass);
+  updateSyncStatus();
+  if (r && r.ok) alert(t('syncSignupOk'));
+}
+
+async function doSyncLogin() {
+  if (!window.Sync) return;
+  const { email, pass } = syncFormValues();
+  if (!email || !pass) { alert(t('syncNeedEmail')); return; }
+  const r = await window.Sync.login(email, pass);
+  updateSyncStatus();
+  if (!(r && r.ok)) alert(t('syncLoginErr'));
+  else closeSyncModal();
+}
+
+async function doSyncGoogle() {
+  if (!window.Sync) return;
+  const s = window.Sync.getStatus();
+  if (s === 'off') { alert(t('syncNeedConfig')); return; }
+  const r = await window.Sync.loginWithGoogle();
+  if (!(r && r.ok)) alert(t('syncGoogleErr'));
+  else closeSyncModal();
+}
+
+function doSyncLogout() {
+  if (window.Sync) { window.Sync.logout(); updateSyncStatus(); }
+}
+
+function handleSyncChange(keys) {
+  // Đã có dữ liệu remote mới được ghi vào localStorage — áp dụng ngay vào giao diện.
+  // QUAN TRỌNG: nạp lại state tháng/năm TRƯỚC khi gọi setLang() — vì setLang() kết thúc bằng
+  // save() ghi biến global `state`; nếu state vẫn là bản cũ (rỗng), save() sẽ đè mất dữ liệu
+  // remote vừa pull từ pullAll và đẩy dữ liệu cũ lên server.
+  const cur = monthKey();
+  const yk = yearKey();
+  const monthHit = keys.indexOf(cur) >= 0;
+  const yearHit = keys.indexOf(yk) >= 0;
+  if (yearHit) { yearState = loadYearState() || defaultYearState(); invalidateYearCache(); }
+  if (monthHit) { state = loadState() || defaultState(); }
+  if (monthHit || yearHit) {
+    setView(state.view, state.currentWeek);
+    updateNav();
+  }
+  // Áp dụng ngôn ngữ/chủ đề sau khi đã nạp lại state (an toàn với save() bên trong setLang)
+  if (keys.indexOf('planner-lang') >= 0) {
+    const l = localStorage.getItem('planner-lang');
+    if (l && l !== LANG) setLang(l);
+  }
+  if (keys.indexOf('planner-theme') >= 0) {
+    const th = localStorage.getItem('planner-theme');
+    if (th && th !== THEME) setTheme(th);
+  }
+  updateSyncStatus();
+}
+
 /* ============================ Khởi động ============================ */
 
 const ti0 = nowInfo();
@@ -2373,3 +2858,29 @@ updateNowBtn();
 renderClock();
 buildNav();
 setView(state.view, state.currentWeek);
+
+/* ---------- Khởi động đồng bộ đám mây (Supabase) ---------- */
+if (window.Sync) {
+  window.Sync.onStatus(updateSyncStatus);
+  window.Sync.onRemoteChange(handleSyncChange);
+  const f = document.getElementById('syncForm');
+  if (f) f.addEventListener('submit', (e) => { e.preventDefault(); doSyncLogin(); });
+  updateSyncStatus();
+  window.Sync.init();
+}
+
+/* ---------- Khởi động phụ trợ (PWA, Analytics, Nhắc việc, Import) ---------- */
+
+initAnalytics();
+registerSW();
+setInterval(checkDailyReminder, 30000);
+if (getRemindTime()) registerPeriodicReminder();
+
+const importFileInput = document.getElementById('importFile');
+if (importFileInput) {
+  importFileInput.addEventListener('change', () => {
+    const f = importFileInput.files && importFileInput.files[0];
+    if (f) importJSONFile(f);
+    importFileInput.value = '';
+  });
+}
