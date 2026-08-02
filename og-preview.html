@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<title>OG Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    font-family: 'Nunito', 'Segoe UI', sans-serif;
+    color: #4A403A;
+    background:
+      radial-gradient(700px 380px at 90% -60px, rgba(243, 154, 130, .35), transparent 60%),
+      radial-gradient(600px 340px at -40px 90%, rgba(168, 195, 160, .4), transparent 60%),
+      #EFE6D5;
+    display: flex;
+    align-items: center;
+    padding: 0 64px;
+    position: relative;
+  }
+  .bricks {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 18px;
+    background:
+      linear-gradient(90deg, #D9CDB6 24px, transparent 24px) 0 0 / 48px 100%,
+      linear-gradient(90deg, #E3D9C4 24px, transparent 24px) 24px 0 / 48px 100%;
+  }
+  .left { width: 640px; }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 24px; }
+  .brand .chick { font-size: 34px; }
+  .badge {
+    display: inline-block;
+    margin-top: 18px;
+    background: #fff;
+    border: 2px solid #E4DAC8;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-weight: 800;
+    font-size: 16px;
+  }
+  h1 {
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 52px;
+    line-height: 1.14;
+    margin-top: 20px;
+    color: #4A403A;
+  }
+  h1 em { font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-weight: 400; color: #D97E60; }
+  .sub {
+    margin-top: 14px;
+    font-size: 20px;
+    font-weight: 700;
+    color: #8B7F73;
+    line-height: 1.5;
+  }
+  .cta {
+    display: inline-block;
+    margin-top: 22px;
+    background: linear-gradient(135deg, #F39A82, #EF8C6F);
+    color: #fff;
+    font-weight: 800;
+    font-size: 18px;
+    border-radius: 999px;
+    padding: 12px 24px;
+  }
+  .card {
+    margin-left: auto;
+    width: 430px;
+    background: #FFFDF8;
+    border: 2px solid #E4DAC8;
+    border-radius: 20px;
+    padding: 22px 24px;
+    box-shadow: 0 22px 48px rgba(74, 64, 58, .18);
+    transform: rotate(2.5deg);
+  }
+  .card-head { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; margin-bottom: 16px; }
+  .card-head .chick { font-size: 26px; }
+  .row { display: grid; grid-template-columns: 150px 1fr 44px; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; margin-bottom: 12px; }
+  .bar { height: 12px; border-radius: 999px; background: linear-gradient(90deg, #F8B195, #F39A82); }
+  .bar.green { background: linear-gradient(90deg, #BFD3B4, #A8C3A0); }
+  .foot { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 12px; border-top: 2px dashed #E4DAC8; font-weight: 800; font-size: 14px; color: #D97E60; }
+</style>
+</head>
+<body>
+  <div class="bricks"></div>
+  <div class="left">
+    <div class="brand"><span class="chick">🐥</span>TaskFlow-Todoist</div>
+    <div class="badge">🎀 100% miễn phí · Offline</div>
+    <h1>Kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương nhất</em></h1>
+    <div class="sub">Mục tiêu · Habit tracker 31 ngày + streak 🔥 · Checklist &amp; Reflection</div>
+    <div class="cta">🐥 Mở kế hoạch miễn phí</div>
+  </div>
+  <div class="card">
+    <div class="card-head"><span class="chick">🐥</span>Thói quen tháng 1</div>
+    <div class="row"><span>Dậy lúc 5H sáng</span><span class="bar"></span><b>88%</b></div>
+    <div class="row"><span>Đọc sách 1H</span><span class="bar green" style="width:71%"></span><b>71%</b></div>
+    <div class="row"><span>Chạy bộ</span><span class="bar" style="width:54%"></span><b>54%</b></div>
+    <div class="foot"><span>🔥 Streak 7 ngày</span><span>🏆 12 ngày</span></div>
+  </div>
+</body>
+</html>

@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /* ============================ Dữ liệu ============================ */
 
@@ -553,6 +553,27 @@ const I18N = {
     syncOr: 'hoặc bằng email',
     syncGoogleErr: 'Không mở được Google. Kiểm tra lại cấu hình Supabase và provider Google.',
     syncNeedConfig: 'Chưa cấu hình Supabase — điền Project URL & anon key trong js/supabase-config.js',
+    homeTitle: 'Về trang giới thiệu',
+    obGoalTitle: 'Mục tiêu số 1 của năm nay là gì?',
+    obGoalSub: 'Gợi ý nhanh — chọn một mục tiêu, hoặc tự gõ ở dưới:',
+    obGoalPh: 'VD: Tiết kiệm 20 triệu',
+    obNext: 'Tiếp tục →',
+    obHabitTitle: '2 thói quen muốn xây dựng?',
+    obHabitSub: 'Mỗi ngày tích ✓ một ô — app tự tính %, streak 🔥 và heatmap.',
+    obHabitPh1: 'Thói quen 1 — VD: Dậy lúc 5H sáng',
+    obHabitPh2: 'Thói quen 2 — VD: Đọc sách 30 phút',
+    obThemeTitle: 'Chọn chủ đề màu cho kế hoạch',
+    obThemeSub: 'Đổi bất cứ lúc nào bằng 4 chấm màu trên thanh trên.',
+    obDone: 'Bắt đầu kế hoạch 🚀',
+    obSkip: 'Bỏ qua phần giới thiệu',
+    obSugg1: 'Tiết kiệm 20 triệu',
+    obSugg2: 'Đọc 24 cuốn sách',
+    obSugg3: 'Chạy bộ 100 buổi',
+    obSugg4: 'Học tiếng Anh giao tiếp',
+    emptyGoalsT: 'Chưa có mục tiêu nào',
+    emptyGoalsH: 'Bấm "+ Thêm mục tiêu" phía dưới để bắt đầu.',
+    emptyHabitsT: 'Chưa có thói quen nào',
+    emptyHabitsH: 'Nhập tên thói quen ở ô bên trên rồi bấm "+ Thêm thói quen".',
   },
   en: {
     navMonths: 'Navigate months',
@@ -706,6 +727,27 @@ const I18N = {
     syncOr: 'or use email',
     syncGoogleErr: 'Could not open Google. Check your Supabase config and Google provider.',
     syncNeedConfig: 'Supabase not configured — fill in Project URL & anon key in js/supabase-config.js',
+    homeTitle: 'Back to the intro page',
+    obGoalTitle: 'What is your #1 goal this year?',
+    obGoalSub: 'Quick picks — choose one, or type your own below:',
+    obGoalPh: 'e.g. Save 20 million VND',
+    obNext: 'Continue →',
+    obHabitTitle: '2 habits you want to build?',
+    obHabitSub: 'Tick ✓ one cell every day — app tracks %, streak 🔥 and heatmap.',
+    obHabitPh1: 'Habit 1 — e.g. Wake up at 5AM',
+    obHabitPh2: 'Habit 2 — e.g. Read 30 minutes',
+    obThemeTitle: 'Pick a color theme',
+    obThemeSub: 'Change anytime via the 4 color dots up top.',
+    obDone: 'Start planning 🚀',
+    obSkip: 'Skip intro',
+    obSugg1: 'Save 20 million VND',
+    obSugg2: 'Read 24 books',
+    obSugg3: 'Run 100 times',
+    obSugg4: 'Speak English fluently',
+    emptyGoalsT: 'No goals yet',
+    emptyGoalsH: 'Tap "+ Add goal" below to get started.',
+    emptyHabitsT: 'No habits yet',
+    emptyHabitsH: 'Type a habit in the box above, then tap "+ Add habit".',
   },
 };
 
@@ -1372,6 +1414,14 @@ function goalsPanelHTML(ms) {
   </div>`;
 }
 
+function emptyStateHTML(icon, titleKey, hintKey) {
+  return `<div class="empty-state">
+    <span class="empty-icon" aria-hidden="true">${icon}</span>
+    <p class="empty-title">${t(titleKey)}</p>
+    <p class="empty-hint">${t(hintKey)}</p>
+  </div>`;
+}
+
 function goalBlockHTML(kind, goals) {
   const label = t(kind === 'priority' ? 'priLbl' : 'regLbl');
   const mod = kind === 'priority' ? 'pink' : 'blue';
@@ -1386,7 +1436,7 @@ function goalBlockHTML(kind, goals) {
             <button type="button" class="mini-btn" data-action="editgoal" data-id="${g.id}" title="${t('editGoalAria')}" aria-label="${t('editGoalAria')}">✏️</button>
             <button type="button" class="mini-btn" data-action="delgoal" data-scope="m" data-id="${g.id}" title="${t('delGoalAria')}" aria-label="${t('delGoalAria')}">🗑</button>
           </span>
-        </li>`).join('') || `<li class="goal-item"><span class="empty-cell">${t('noGoals')}</span></li>`}
+        </li>`).join('') || `<li class="goal-item empty-item">${emptyStateHTML('🎯', 'emptyGoalsT', 'emptyGoalsH')}</li>`}
       </ul>
       <div class="goal-add-wrap">
         <button type="button" class="mini-btn add-btn" data-action="addgoal" data-kind="${kind}">${t('addGoal')}</button>
@@ -1450,7 +1500,7 @@ function habitPanelHTML() {
             }).join('') : `<tr>
               <td class="sticky name-col"></td>
               <td class="sticky pct-col"></td>
-              <td colspan="${NUM_DAYS}" class="empty-cell">${t('noHabits')}</td>
+              <td colspan="${NUM_DAYS}" class="empty-cell">${emptyStateHTML('🐥', 'emptyHabitsT', 'emptyHabitsH')}</td>
             </tr>`}
           </tbody>
         </table>
@@ -2449,6 +2499,20 @@ document.addEventListener('click', (e) => {
   } else if (act === 'print') {
     trackEvent('print');
     window.print();
+  } else if (act === 'ob-goal') {
+    trackEvent('onboarding_goal');
+    obDoGoal();
+  } else if (act === 'ob-habits') {
+    trackEvent('onboarding_habits');
+    obDoHabits();
+  } else if (act === 'ob-theme') {
+    obDoTheme(e.target.dataset.theme);
+  } else if (act === 'ob-done') {
+    trackEvent('onboarding_done');
+    obFinish();
+  } else if (act === 'ob-skip') {
+    trackEvent('onboarding_skip');
+    obFinish();
   } else if (act === 'reset') {
     if (confirm(t('resetConfirm'))) {
       try {
@@ -2842,6 +2906,99 @@ function handleSyncChange(keys) {
   updateSyncStatus();
 }
 
+/* ============================ Onboarding 3 bước (lần dùng đầu) ============================ */
+
+const ONBOARD_KEY = 'planner-onboarded';
+let obStep = 1;
+
+function obHasAnyData() {
+  try {
+    if (localStorage.getItem(monthKey())) return true;
+    if (localStorage.getItem(yearKey())) return true;
+  } catch (e) { /* ẩn */ }
+  return false;
+}
+
+function obNeeded() {
+  try {
+    if (localStorage.getItem(ONBOARD_KEY)) return false;
+    return true; // chưa từng thấy onboarding
+  } catch (e) { return false; }
+}
+
+function obGoStep(n) {
+  obStep = n;
+  document.querySelectorAll('.ob-step').forEach((el) => { el.hidden = +el.dataset.obStep !== n; });
+  document.querySelectorAll('.ob-dot').forEach((el) => { el.classList.toggle('active', +el.dataset.obDot <= n); });
+  const focus = n === 1 ? 'obGoalInput' : n === 2 ? 'obHabit1' : null;
+  const el = focus && document.getElementById(focus);
+  if (el) el.focus();
+}
+
+function startOnboarding() {
+  const m = document.getElementById('onboardModal');
+  if (!m) return;
+  const chips = document.getElementById('obGoalChips');
+  if (chips) {
+    chips.innerHTML = [1, 2, 3, 4].map((i) =>
+      `<button type="button" class="ob-chip" data-sugg="${i}">${t('obSugg' + i)}</button>`).join('');
+    chips.querySelectorAll('.ob-chip').forEach((b) => {
+      b.addEventListener('click', () => {
+        const inp = document.getElementById('obGoalInput');
+        if (inp) { inp.value = b.textContent.trim(); inp.focus(); }
+      });
+    });
+  }
+  const ph = { obGoalInput: 'obGoalPh', obHabit1: 'obHabitPh1', obHabit2: 'obHabitPh2' };
+  Object.keys(ph).forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.placeholder = t(ph[id]);
+  });
+  obGoStep(1);
+  m.hidden = false;
+}
+
+function obFinish() {
+  try { localStorage.setItem(ONBOARD_KEY, '1'); } catch (e) { /* ẩn */ }
+  const m = document.getElementById('onboardModal');
+  if (m) m.hidden = true;
+  setView(state.view, state.currentWeek);
+}
+
+function obDoGoal() {
+  const inp = document.getElementById('obGoalInput');
+  const text = (inp ? inp.value.trim() : '');
+  if (text) {
+    yearState.goals[0] = { id: 'yg0', text: text, kind: 'priority', done: false };
+    invalidateYearCache();
+    saveYear();
+  }
+  obGoStep(2);
+}
+
+function obDoHabits() {
+  const names = [1, 2].map((i) => {
+    const el = document.getElementById('obHabit' + i);
+    return el ? el.value.trim() : '';
+  }).filter(Boolean);
+  if (names.length) {
+    names.forEach((name, i) => {
+      state.habits.unshift({ id: 'oh' + Date.now() + i, name: name, target: 100, days: Array(NUM_DAYS).fill(false) });
+    });
+    save();
+  }
+  obGoStep(3);
+}
+
+function obDoTheme(th) { setTheme(th); }
+
+function maybeStartOnboarding() {
+  if (!obNeeded()) return;
+  // Người dùng đã có dữ liệu (đang dùng thật) → không hiện onboarding, chỉ đánh dấu.
+  if (obHasAnyData()) { try { localStorage.setItem(ONBOARD_KEY, '1'); } catch (e) { /* ẩn */ } return; }
+  startOnboarding();
+}
+
 /* ============================ Khởi động ============================ */
 
 const ti0 = nowInfo();
@@ -2851,6 +3008,9 @@ if (ti0.inRange) {
 }
 lastRealWeek = ti0.inRange ? ti0.week : null;
 lastDayKey = ti0.now.toDateString();
+// QUAN TRỌNG: quyết định onboarding TRƯỚC khi bất kỳ save() nào chạy
+// (setView() dưới đây gọi save() → sẽ ghi default state, làm "có dữ liệu")
+maybeStartOnboarding();
 setTheme(THEME);
 applyStaticI18N();
 updateBrand();
@@ -2858,6 +3018,7 @@ updateNowBtn();
 renderClock();
 buildNav();
 setView(state.view, state.currentWeek);
+
 
 /* ---------- Khởi động đồng bộ đám mây (Supabase) ---------- */
 if (window.Sync) {

@@ -120,7 +120,9 @@ Từ phiên bản này, app hỗ trợ **đồng bộ dữ liệu đa thiết b�
 
 1. **Tạo project miễn phí** tại [supabase.com](https://supabase.com) → **New Project**
 2. **Chạy schema**: mở **SQL Editor → New query**, dán toàn bộ nội dung [`supabase/schema.sql`](supabase/schema.sql) rồi bấm **Run** (tạo bảng `planner_state` + Row Level Security + trigger `updated_at`)
-3. **Lấy key**: vào **Project Settings → API**, copy **Project URL** và **anon public key**
+3. **Lấy key** (giao diện mới của Supabase):
+   - Cách nhanh: bấm nút **Connect** ở góc trên → mục *Use the Supabase client library* → copy **Project URL** + **anon public key**
+   - Hoặc: **Settings (⚙️) → API Keys → tab Legacy API Keys** → copy **Project URL** + **anon public key** (dạng `eyJhbGciOiJIUzI1NiIs...`)
 4. **Dán vào config**: mở [`js/supabase-config.js`](js/supabase-config.js) và điền 2 giá trị:
    ```js
    const SUPABASE_CONFIG = {

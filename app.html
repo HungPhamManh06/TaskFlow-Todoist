@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- ===== SEO ===== -->
+  <title>TaskFlow-Todoist – Kế hoạch năm, mục tiêu & thói quen hàng ngày</title>
+  <meta name="description"
+    content="TaskFlow-Todoist – ứng dụng lập kế hoạch tiếng Việt miễn phí: quản lý mục tiêu năm, tháng, tuần, theo dõi thói quen 31 ngày, checklist công việc và nhật ký reflection. Giao diện pastel dễ thương, hoạt động 100% offline, lưu dữ liệu trên trình duyệt." />
+  <meta name="keywords"
+    content="planner 2026, kế hoạch năm, quản lý mục tiêu, habit tracker, thói quen, todoist, lập kế hoạch, kế hoạch tháng, kế hoạch tuần, reflection, nhật ký, tiếng việt, offline, pastel" />
+  <meta name="author" content="Hung Pham" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#EFE6D5" />
+  <link rel="canonical" href="https://hungphammanh06.github.io/Todoist/app.html" />
+
+  <!-- ===== PWA ===== -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="TaskFlow" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <!-- ===== Open Graph / Facebook ===== -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="vi_VN" />
+  <meta property="og:title" content="TaskFlow-Todoist – Kế hoạch năm, mục tiêu & thói quen" />
+  <meta property="og:description"
+    content="Planner tiếng Việt miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, checklist & reflection. Giao diện pastel dễ thương, offline 100%." />
+  <meta property="og:url" content="https://hungphammanh06.github.io/Todoist/app.html" />
+  <meta property="og:site_name" content="TaskFlow-Todoist" />
+
+  <!-- ===== Twitter ===== -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="TaskFlow-Todoist – Kế hoạch năm, mục tiêu & thói quen" />
+  <meta name="twitter:description"
+    content="Planner tiếng Việt miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, checklist & reflection. Offline 100%." />
+
+  <!-- ===== Favicon (emoji) ===== -->
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐥</text></svg>" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=Quicksand:wght@600;700&family=Instrument+Serif:ital@0;1&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css?v=18" />
+</head>
+
+<body>
+  <div class="bricks bricks-top" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-chick" aria-hidden="true">🐥</span>
+      <div class="brand-text">
+        <h1 id="brandTitle">TaskFlow-Todoist</h1>
+        <p id="brandSub">Kế hoạch tháng 1 · 2026</p>
+      </div>
+    </div>
+    <nav class="month-nav" aria-label="Chuyển tháng trong năm" data-i18n-aria="navMonths">
+      <button type="button" class="btn-month" data-action="prevmonth" title="Tháng trước" aria-label="Tháng trước"
+        data-i18n-title="prevMonth" data-i18n-aria="prevMonth">‹</button>
+      <select id="monthSelect" class="month-select" data-action="monthselect" aria-label="Chọn tháng"
+        data-i18n-aria="selectMonth"></select>
+      <button type="button" class="btn-month" data-action="nextmonth" title="Tháng sau" aria-label="Tháng sau"
+        data-i18n-title="nextMonth" data-i18n-aria="nextMonth">›</button>
+    </nav>
+    <nav class="tabs" id="navTabs" role="tablist" aria-label="Điều hướng kế hoạch" data-i18n-aria="navPlan"></nav>
+    <button type="button" class="btn-reset" data-action="reset" title="Xoá toàn bộ dữ liệu đã lưu"
+      data-i18n-title="resetTitle" data-i18n="resetTxt">↺ Đặt lại</button>
+    <button type="button" class="btn-now" id="btnNow" data-action="gotoday" title="Về hôm nay & tuần hiện tại"
+      data-i18n-title="todayTitle" data-i18n="todayTxt">📍 Hôm nay</button>
+    <div class="now" id="nowBox" aria-label="Ngày giờ hiện tại" data-i18n-aria="nowAria"><span
+        aria-hidden="true">🕗</span><span id="nowText"></span></div>
+    <div class="header-controls">
+      <div class="remind-wrap">
+        <button type="button" class="btn-icon" id="btnRemind" data-action="remind-toggle" title="Nhắc việc hằng ngày"
+          data-i18n-title="remindTitle" data-i18n-aria="remindTitle">🔔</button>
+        <div class="header-pop remind-pop" id="remindPop" hidden>
+          <strong data-i18n="remindTitle">🔔 Nhắc việc hằng ngày</strong>
+          <label class="pop-field"><span data-i18n="remindTimeLbl">Giờ nhắc</span>
+            <input type="time" id="remindTime" value="20:00" />
+          </label>
+          <div class="pop-actions">
+            <button type="button" class="pop-btn primary" data-action="remind-on" data-i18n="remindOn">Bật</button>
+            <button type="button" class="pop-btn" data-action="remind-off" data-i18n="remindOff">Tắt</button>
+          </div>
+          <p class="pop-note" data-i18n="remindNote">Trình duyệt sẽ nhắc bạn một lần mỗi ngày để điểm danh thói quen.</p>
+        </div>
+      </div>
+      <div class="data-wrap">
+        <button type="button" class="btn-icon" id="btnData" data-action="data-toggle" title="Xuất / nhập dữ liệu"
+          data-i18n-title="dataTitle" data-i18n-aria="dataTitle">💾</button>
+        <div class="header-pop data-pop" id="dataPop" hidden>
+          <strong data-i18n="dataTitle">💾 Dữ liệu của bạn</strong>
+          <button type="button" class="pop-btn" data-action="export-json" data-i18n="exportJson">📤 Xuất JSON (sao lưu)</button>
+          <button type="button" class="pop-btn" data-action="import-json" data-i18n="importJson">📥 Nhập JSON (khôi phục)</button>
+          <button type="button" class="pop-btn" data-action="export-csv" data-i18n="exportCsv">📊 Xuất CSV (Google Sheets)</button>
+        </div>
+      </div>
+      <button type="button" class="btn-icon" data-action="print" title="In / Lưu PDF"
+        data-i18n-title="printTitle" data-i18n-aria="printTitle">🖨️</button>
+      <button type="button" class="btn-icon sync-wrap" id="syncBtn" data-action="sync-toggle"
+        title="Đồng bộ đám mây" data-i18n-title="syncTitle" data-i18n-aria="syncTitle">☁️<span
+          class="sync-dot" id="syncDot" aria-hidden="true"></span></button>
+      <div class="theme-picker" role="group" aria-label="Chọn chủ đề màu">
+        <button type="button" class="theme-dot dot-cream" data-action="theme" data-theme="cream" title="Cream"
+          aria-label="Chủ đề kem"></button>
+        <button type="button" class="theme-dot dot-mint" data-action="theme" data-theme="mint" title="Mint"
+          aria-label="Chủ đề bạc hà"></button>
+        <button type="button" class="theme-dot dot-lavender" data-action="theme" data-theme="lavender" title="Lavender"
+          aria-label="Chủ đề oải hương"></button>
+        <button type="button" class="theme-dot dot-peach" data-action="theme" data-theme="peach" title="Peach"
+          aria-label="Chủ đề đào"></button>
+      </div>
+      <button type="button" class="lang-btn" id="langBtn" data-action="lang"
+        title="Đổi ngôn ngữ / Switch language">EN</button>
+      <a class="btn-icon home-link" href="index.html" title="Về trang giới thiệu" data-i18n-title="homeTitle"
+        data-i18n-aria="homeTitle">🏠</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng" data-i18n-aria="viewOverview">
+      <div class="landing-hero">
+        <video class="landing-video"
+          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260314_131748_f2ca2a28-fed7-44c8-b9a9-bd9acdd5ec31.mp4"
+          autoplay loop muted playsinline aria-hidden="true"></video>
+        <div class="landing-overlay" aria-hidden="true"></div>
+        <div class="landing-inner">
+          <p class="landing-logo">TaskFlow-Todoist</p>
+          <h2 class="landing-title">Where <em>dreams</em> rise through <em>the silence.</em></h2>
+          <p class="landing-sub">We&rsquo;re designing tools for deep thinkers, bold creators, and quiet rebels. Amid
+            the chaos, we build digital spaces for sharp focus and inspired work.</p>
+          <button type="button" class="landing-cta" data-action="journey">Begin Journey</button>
+        </div>
+      </div>
+      <div id="ov-content"></div>
+    </section>
+    <section id="view-year" class="view" role="tabpanel" aria-label="Kế hoạch năm" data-i18n-aria="viewYear"></section>
+    <section id="view-week" class="view" role="tabpanel" aria-label="Kế hoạch tuần" data-i18n-aria="viewWeek"></section>
+  </main>
+
+  <footer class="bricks bricks-bottom" aria-hidden="true"></footer>
+
+  <input type="file" id="importFile" accept=".json,application/json" hidden />
+
+  <div class="sync-modal" id="syncModal" hidden>
+    <div class="sync-modal-card">
+      <button type="button" class="sync-close" data-action="sync-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h3 class="sync-modal-title">☁️ <span data-i18n="syncTitle">Đồng bộ đám mây</span></h3>
+      <p class="sync-desc" data-i18n="syncDesc">Đăng nhập để đồng bộ dữ liệu giữa các thiết bị. Dữ liệu hiện tại sẽ tự
+        động được nâng cấp lên đám mây.</p>
+      <p class="sync-status" id="syncStatus"></p>
+      <button type="button" class="pop-btn sync-google" data-action="sync-google">
+        <svg class="sync-g-logo" aria-hidden="true" viewBox="0 0 48 48">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        <span data-i18n="syncGoogle">Tiếp tục với Google</span>
+      </button>
+      <div class="sync-or"><span data-i18n="syncOr">hoặc bằng email</span></div>
+      <form class="sync-form" id="syncForm">
+        <input type="email" id="syncEmail" placeholder="Email" autocomplete="email" aria-label="Email" />
+        <input type="password" id="syncPass" placeholder="Mật khẩu" autocomplete="current-password"
+          aria-label="Mật khẩu" />
+        <div class="sync-actions">
+          <button type="submit" class="pop-btn primary" data-i18n="syncLogin">Đăng nhập</button>
+          <button type="button" class="pop-btn" data-action="sync-signup" data-i18n="syncSignup">Tạo tài
+            khoản</button>
+        </div>
+      </form>
+      <button type="button" class="pop-btn sync-logout" id="syncLogoutBtn" data-action="sync-logout" hidden
+        data-i18n="syncLogout">Đăng xuất</button>
+    </div>
+  </div>
+
+  <!-- ===== Onboarding 3 bước (lần dùng đầu) ===== -->
+  <div class="onboard-modal" id="onboardModal" hidden>
+    <div class="onboard-card">
+      <div class="ob-steps" aria-hidden="true">
+        <span class="ob-dot" data-ob-dot="1"></span><span class="ob-dot" data-ob-dot="2"></span><span
+          class="ob-dot" data-ob-dot="3"></span>
+      </div>
+
+      <section class="ob-step" data-ob-step="1">
+        <div class="ob-emoji" aria-hidden="true">🎯</div>
+        <h3 class="ob-title" data-i18n="obGoalTitle">Mục tiêu số 1 của năm là gì?</h3>
+        <p class="ob-sub" data-i18n="obGoalSub">Gợi ý nhanh — chọn một mục tiêu, hoặc tự gõ ở dưới:</p>
+        <div class="ob-chips" id="obGoalChips"></div>
+        <input class="inline-input ob-input" id="obGoalInput" maxlength="80" autocomplete="off" />
+        <button type="button" class="pop-btn primary ob-cta" data-action="ob-goal" data-i18n="obNext">Tiếp tục
+          →</button>
+      </section>
+
+      <section class="ob-step" data-ob-step="2" hidden>
+        <div class="ob-emoji" aria-hidden="true">🐥</div>
+        <h3 class="ob-title" data-i18n="obHabitTitle">2 thói quen muốn xây dựng?</h3>
+        <p class="ob-sub" data-i18n="obHabitSub">Mỗi ngày tích ✓ một ô — app tự tính %, streak 🔥 và heatmap.</p>
+        <input class="inline-input ob-input" id="obHabit1" maxlength="60" autocomplete="off" />
+        <input class="inline-input ob-input" id="obHabit2" maxlength="60" autocomplete="off" />
+        <button type="button" class="pop-btn primary ob-cta" data-action="ob-habits" data-i18n="obNext">Tiếp tục
+          →</button>
+      </section>
+
+      <section class="ob-step" data-ob-step="3" hidden>
+        <div class="ob-emoji" aria-hidden="true">🎨</div>
+        <h3 class="ob-title" data-i18n="obThemeTitle">Chọn chủ đề màu cho kế hoạch</h3>
+        <p class="ob-sub" data-i18n="obThemeSub">Đổi bất cứ lúc nào bằng 4 chấm màu trên thanh trên.</p>
+        <div class="theme-picker ob-themes" role="group" aria-label="Chọn chủ đề màu">
+          <button type="button" class="theme-dot dot-cream" data-action="ob-theme" data-theme="cream"
+            aria-label="Cream"></button>
+          <button type="button" class="theme-dot dot-mint" data-action="ob-theme" data-theme="mint"
+            aria-label="Mint"></button>
+          <button type="button" class="theme-dot dot-lavender" data-action="ob-theme" data-theme="lavender"
+            aria-label="Lavender"></button>
+          <button type="button" class="theme-dot dot-peach" data-action="ob-theme" data-theme="peach"
+            aria-label="Peach"></button>
+        </div>
+        <button type="button" class="pop-btn primary ob-cta" data-action="ob-done" data-i18n="obDone">Bắt đầu kế
+          hoạch 🚀</button>
+      </section>
+
+      <button type="button" class="ob-skip" data-action="ob-skip" data-i18n="obSkip">Bỏ qua phần giới thiệu</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/app.js?v=20"></script>
+</body>
+
+</html>

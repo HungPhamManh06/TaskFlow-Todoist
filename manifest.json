@@ -4,7 +4,7 @@
   "description": "Ứng dụng lập kế hoạch cá nhân miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, streak & heatmap, nhật ký reflection. Offline 100%, dữ liệu lưu trên trình duyệt.",
   "lang": "vi",
   "dir": "ltr",
-  "start_url": "./",
+  "start_url": "./app.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
@@ -35,12 +35,12 @@
     {
       "name": "Tổng quan tháng",
       "short_name": "Tháng",
-      "url": "./?view=overview"
+      "url": "./app.html?view=overview"
     },
     {
       "name": "Kế hoạch năm",
       "short_name": "Năm",
-      "url": "./?view=year"
+      "url": "./app.html?view=year"
     }
   ]
 }
