@@ -208,7 +208,7 @@ function loadYearState() {
   }
 }
 
-let yearState = loadYearState() || defaultYearState();
+let yearState = bootYearState();
 
 function saveYear() {
   try { localStorage.setItem(yearKey(), JSON.stringify(yearState)); } catch (e) { /* ẩn */ }
@@ -1264,7 +1264,69 @@ function loadState() {
 }
 
 initPlan(new Date());
-let state = loadState() || defaultState();
+
+// Đã đăng nhập tài khoản? (có token đăng nhập) — dùng để phân biệt:
+//   · Khách vãng lai (chưa có tài khoản, chưa có dữ liệu) → hiện dữ liệu mẫu (demo)
+//   · Đã đăng nhập + chưa có dữ liệu → hiện state TRỐNG (tài khoản mới = dữ liệu mới, không demo)
+function hasAccount() {
+  try { return !!localStorage.getItem('planner-token'); } catch (e) { return false; }
+}
+
+function emptyState() {
+  const ti = nowInfo();
+  return {
+    view: 'overview',
+    currentWeek: ti.inRange ? ti.week : 1,
+    goalTab: 'priority',
+    monthKey: monthKey(),
+    monthlyGoals: [],
+    habits: [],
+    weeks: Array.from({ length: NUM_WEEKS }, (_, wi) => {
+      const start = PLAN_START;
+      return {
+        n: wi + 1,
+        goals: [],
+        days: Array.from({ length: 7 }, (_, di) => {
+          const dt = new Date(start.getTime() + (wi * 7 + di) * 86400000);
+          return {
+            tasks: [
+              { kind: 'priority', done: false, text: '' },
+              { kind: 'priority', done: false, text: '' },
+              { kind: 'regular', done: false, text: '' },
+              { kind: 'regular', done: false, text: '' },
+              { kind: 'regular', done: false, text: '' },
+            ],
+            date: `${dt.getDate()}/${dt.getMonth() + 1}`,
+            yy: dt.getFullYear() % 100,
+            sticky: null,
+            note: '',
+          };
+        }),
+      };
+    }),
+    reflections: {
+      overview: ['', '', '', ''],
+      weeks: Array.from({ length: NUM_WEEKS }, () => ['', '', '', '']),
+    },
+  };
+}
+
+function emptyYearState() {
+  return {
+    year: new Date().getFullYear(),
+    goals: [],
+    reflections: {
+      year: ['', '', '', ''],
+      q1: ['', '', '', ''], q2: ['', '', '', ''], q3: ['', '', '', ''], q4: ['', '', '', ''],
+    },
+    monthNotes: Array.from({ length: 12 }, () => ''),
+  };
+}
+
+function bootState() { return loadState() || (hasAccount() ? emptyState() : defaultState()); }
+function bootYearState() { return loadYearState() || (hasAccount() ? emptyYearState() : defaultYearState()); }
+
+let state = bootState();
 
 function save() {
   try { localStorage.setItem(monthKey(), JSON.stringify(state)); } catch (e) { /* ẩn */ }
@@ -2538,7 +2600,7 @@ function openMonth(m) {
   if (m === now.getMonth() && PLAN_YEAR === now.getFullYear()) viewedMonth = null;
   else viewedMonth = m;
   initPlan(new Date(PLAN_YEAR, m, 1));
-  state = loadState() || defaultState();
+  state = bootState();
   state.view = 'overview';
   updateBrand();
   updateNowBtn();
@@ -2744,8 +2806,8 @@ document.addEventListener('click', (e) => {
         localStorage.removeItem(yearKey());
       } catch (err) { /* ẩn */ }
       if (window.Sync && window.Sync.clearAll) window.Sync.clearAll();
-      yearState = defaultYearState();
-      state = defaultState();
+      yearState = hasAccount() ? emptyYearState() : defaultYearState();
+      state = hasAccount() ? emptyState() : defaultState();
       setView(state.view, state.currentWeek);
     }
   }
@@ -2965,7 +3027,7 @@ function refreshToday() {
     if (viewedMonth === now.getMonth() && PLAN_YEAR === now.getFullYear()) {
       viewedMonth = null;
       initPlan(now);
-      state = loadState() || defaultState();
+      state = bootState();
       updateBrand();
       updateNowBtn();
       buildNav();
@@ -2979,7 +3041,7 @@ function refreshToday() {
   const jump = state.view === 'week' && ti.inRange && ti.week !== state.currentWeek && state.currentWeek === lastRealWeek;
   lastRealWeek = ti.inRange ? ti.week : null;
   if (monthKey() !== prevKey) {
-    state = loadState() || defaultState();
+    state = bootState();
     updateBrand();
     updateNowBtn();
     buildNav();
@@ -3159,8 +3221,8 @@ function handleSyncChange(keys) {
   const yk = yearKey();
   const monthHit = keys.indexOf(cur) >= 0;
   const yearHit = keys.indexOf(yk) >= 0;
-  if (yearHit) { yearState = loadYearState() || defaultYearState(); invalidateYearCache(); }
-  if (monthHit) { state = loadState() || defaultState(); }
+  if (yearHit) { yearState = bootYearState(); invalidateYearCache(); }
+  if (monthHit) { state = bootState(); }
   if (monthHit || yearHit) {
     setView(state.view, state.currentWeek);
     updateNav();
