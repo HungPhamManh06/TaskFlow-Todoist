@@ -1,0 +1,46 @@
+{
+  "name": "TaskFlow-Todoist – Kế hoạch năm, mục tiêu & thói quen",
+  "short_name": "TaskFlow",
+  "description": "Ứng dụng lập kế hoạch cá nhân miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, streak & heatmap, nhật ký reflection. Offline 100%, dữ liệu lưu trên trình duyệt.",
+  "lang": "vi",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#EFE6D5",
+  "theme_color": "#EFE6D5",
+  "categories": ["productivity", "lifestyle", "education"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tổng quan tháng",
+      "short_name": "Tháng",
+      "url": "./?view=overview"
+    },
+    {
+      "name": "Kế hoạch năm",
+      "short_name": "Năm",
+      "url": "./?view=year"
+    }
+  ]
+}

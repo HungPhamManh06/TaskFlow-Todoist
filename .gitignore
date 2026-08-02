@@ -7,6 +7,7 @@
 # Backup & build tạm
 index.backup-slim.html
 _preview.html
+build-preview.js
 
 # Log server local
 dev2.log
