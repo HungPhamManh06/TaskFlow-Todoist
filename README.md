@@ -93,6 +93,36 @@ Mở trình duyệt tại `http://localhost:8080`.
 
 ---
 
+## ☁️ Triển khai lên mạng (Vercel & Render)
+
+Trang web là **static site thuần** (HTML/CSS/JS) — không cần build, không cần server. Có thể triển khai miễn phí trên cả Vercel và Render.
+
+### 🚀 Vercel
+
+**Cách 1 — Import từ GitHub (nhanh nhất, không cần cài đặt):**
+1. Đăng nhập [vercel.com](https://vercel.com) (nên đăng nhập bằng GitHub)
+2. **Add New → Project** → chọn repo `Todoist` → Vercel tự nhận là static site → **Deploy**
+3. Xong! Link có dạng `https://todoist-xxx.vercel.app` — có thể đổi tên miền tuỳ ý trong **Settings → Domains**
+
+**Cách 2 — Bằng Vercel CLI (tự động hoá):**
+```bash
+npm i -g vercel   # cài CLI
+vercel login      # đăng nhập (mở trình duyệt)
+vercel --prod     # deploy production
+```
+
+> Cấu hình sẵn trong [`vercel.json`](vercel.json): clean URLs + header bảo mật. Khi push code lên GitHub, Vercel **tự deploy lại** nếu đã import repo (git integration).
+
+### 🦩 Render
+
+1. Đăng nhập [render.com](https://render.com) (đăng nhập bằng GitHub)
+2. **New → Blueprint** → chọn repo `Todoist` → Render đọc [`render.yaml`](render.yaml) và tự tạo **Static Site** → **Apply**
+3. Xong! Link có dạng `https://taskflow-todoist.onrender.com`
+
+> 💡 Mẹo: dùng **Vercel** cho domain chính (tốc độ + phân tích), **Render** làm bản sao dự phòng. Dữ liệu lưu trong localStorage theo từng trình duyệt nên hai bản deploy là độc lập nhau.
+
+---
+
 ## 📂 Cấu trúc dự án
 
 ```
@@ -102,6 +132,8 @@ TaskFlow-Todoist/
 │   └── styles.css      # Toàn bộ giao diện pastel kawaii + 4 chủ đề màu
 ├── js/
 │   └── app.js          # Logic ứng dụng (vanilla JS, không framework)
+├── vercel.json         # Cấu hình triển khai Vercel
+├── render.yaml         # Blueprint triển khai Render (Static Site)
 ├── README.md
 └── .gitignore
 ```
