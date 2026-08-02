@@ -112,7 +112,7 @@ Mở trình duyệt tại `http://localhost:8080`.
 App hỗ trợ **đồng bộ dữ liệu đa thiết bị qua backend riêng** (Node.js + Express + Postgres trên Render):
 
 - 🔄 **Đồng bộ 2 chiều** — mọi mục tiêu/thói quen/reflection/streak được đẩy lên đám mây và kéo về tự động
-- 📤 **Nâng cấp dữ liệu cũ** — dữ liệu đang nằm trong localStorage được tự động đẩy lên server lần đầu kết nối
+- 🆕 **Tài khoản mới = dữ liệu mới** — khi tạo tài khoản mới (hoặc đăng nhập tài khoản khác), dữ liệu local của tài khoản trước bị xoá, app kéo đúng dữ liệu của tài khoản đang dùng — không trộn lẫn giữa các tài khoản trên cùng thiết bị
 - 📱 **Đa thiết bị** — mở cùng tài khoản trên điện thoại/laptop/PC là thấy cùng một bản kế hoạch
 - 👤 **Tài khoản username/password** — đăng ký đơn giản, không cần email xác nhận (hết lo rate limit email)
 - 🚫 **Offline-first** — chưa cấu hình hoặc mất mạng vẫn dùng bình thường (localStorage là nguồn chính, backend là bản sao)

@@ -3116,6 +3116,8 @@ async function doSyncSignup() {
     trackEvent('signup');
     alert(t('syncSignupOk'));
     closeSyncModal();
+    // Dữ liệu local đã được làm sạch → reload để app khởi động lại với dữ liệu mới của tài khoản vừa tạo
+    location.reload();
   } else {
     alert(syncErrorText(r && r.error));
   }

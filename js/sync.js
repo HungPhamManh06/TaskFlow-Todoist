@@ -201,6 +201,19 @@
     }
   }
 
+  // ---- Xoá toàn bộ dữ liệu local (tạo tài khoản mới / đăng nhập tài khoản khác) ----
+  // Mục đích: dữ liệu của tài khoản này không được trộn vào tài khoản khác trên cùng thiết bị
+  function clearLocalData() {
+    for (var i = localStorage.length - 1; i >= 0; i--) {
+      var k = localStorage.key(i);
+      if (isDataKey(k)) {
+        try { localStorage.removeItem(k); } catch (e) { /* ẩn */ }
+      }
+    }
+    meta = {};
+    writeMeta();
+  }
+
   async function login(username, password) {
     if (!base) return { ok: false, error: 'no-config' };
     var res;
@@ -215,10 +228,11 @@
     setToken(res.data.token);
     userId = res.data.user.id;
     authed = true;
+    // Xoá dữ liệu local của tài khoản trước → kéo dữ liệu ĐÚNG tài khoản đang đăng nhập
+    clearLocalData();
     setStatus('syncing');
     try {
-      var remoteKeys = await pullAll();
-      migrateLocal(remoteKeys);
+      await pullAll();
       setStatus('ready');
       return { ok: true };
     } catch (e) {
@@ -243,10 +257,11 @@
     setToken(res.data.token);
     userId = res.data.user.id;
     authed = true;
+    // Tài khoản mới → dữ liệu mới: xoá dữ liệu local cũ, KHÔNG migrate lên tài khoản mới
+    clearLocalData();
     setStatus('syncing');
     try {
-      var remoteKeys = await pullAll();
-      migrateLocal(remoteKeys);
+      await pullAll();
       setStatus('ready');
     } catch (e) { setStatus('error'); }
     return { ok: true };

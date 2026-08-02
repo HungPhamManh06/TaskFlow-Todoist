@@ -47,10 +47,10 @@ async function main() {
     console.log('TEST 1 OK — no config → status off, push no-op');
   }
 
-  // ---- TEST 2: signup → authed + migrate key local chưa có trên cloud ----
+  // ---- TEST 2: signup → dữ liệu local bị xoá (tài khoản mới = dữ liệu mới), không migrate ----
   {
     global.localStorage = mockLocalStorage({
-      'planner-2026-2': '{"monthlyGoals":[{"id":"h","done":false}]}', // chỉ có local → migrate
+      'planner-2026-2': '{"monthlyGoals":[{"id":"h","done":false}]}', // dữ liệu "tài khoản cũ" trên máy
       'planner-sync-meta': '{"x":1}' // key meta phải bị loại trừ
     });
     global.window = {};
@@ -59,14 +59,15 @@ async function main() {
     const r = await Sync.signup('syncuser1', 'Pass123456!');
     assert.strictEqual(r.ok, true, 'signup phải thành công');
     assert.strictEqual(Sync.getStatus(), 'ready');
-    await sleep(60); // chờ debounce flush migration
+    // dữ liệu local cũ phải bị xoá hết
+    assert.strictEqual(global.localStorage.getItem('planner-2026-2'), null, 'local của tài khoản cũ phải bị xoá');
+    assert.strictEqual(global.localStorage.getItem('planner-sync-meta'), '{}', 'meta phải được reset');
     const token = global.localStorage.getItem('planner-token');
     assert.ok(token, 'phải lưu token');
-    const check = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + token } }).then((x) => x.json());
-    const keys = check.map((row) => row.key);
-    assert.ok(keys.includes('planner-2026-2'), 'migrate phải đẩy key chỉ có local lên server');
-    assert.ok(!keys.includes('planner-sync-meta'), 'không được đẩy key meta');
-    console.log('TEST 2 OK — signup + migrate + loại trừ meta');
+    await sleep(60); // chờ debounce — nếu có push nhầm sẽ hiện ở đây
+    const rows = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + token } }).then((x) => x.json());
+    assert.strictEqual(rows.length, 0, 'tài khoản mới không được có dữ liệu nào');
+    console.log('TEST 2 OK — signup xoá local cũ, tài khoản mới trống');
   }
 
   // ---- TEST 3: login sai mật khẩu → bad-credentials; đúng → pull remote mới hơn ----
