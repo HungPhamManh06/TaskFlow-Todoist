@@ -546,12 +546,21 @@ const I18N = {
     syncStatusReady: 'Đã đồng bộ ✓',
     syncStatusSignedOut: 'Chưa đăng nhập',
     syncStatusError: 'Lỗi đồng bộ',
-    syncNeedEmail: 'Vui lòng nhập email và mật khẩu',
-    syncLoginErr: 'Đăng nhập thất bại — kiểm tra lại email/mật khẩu',
-    syncSignupOk: 'Đã tạo tài khoản! Kiểm tra email để xác nhận nếu cần.',
-    syncSignupErr: 'Tạo tài khoản thất bại — thử lại sau ít phút (hoặc kiểm tra email đã tồn tại).',
+    syncNeedEmail: 'Vui lòng nhập tên người dùng và mật khẩu',
+    syncNeedUser: 'Vui lòng nhập tên người dùng và mật khẩu',
+    syncUserInvalid: 'Tên người dùng gồm 3-30 ký tự chữ/số/_ . -',
+    syncPassShort: 'Mật khẩu phải có ít nhất 6 ký tự',
+    syncPassMismatch: 'Xác nhận mật khẩu không khớp',
+    syncLoginErr: 'Đăng nhập thất bại — kiểm tra lại tên người dùng/mật khẩu',
+    syncSignupOk: 'Đã tạo tài khoản! Đồng bộ tự động bắt đầu ✓',
+    syncSignupErr: 'Tạo tài khoản thất bại — tên người dùng có thể đã tồn tại.',
+    syncUserPh: 'Tên người dùng',
+    syncPassPh: 'Mật khẩu',
+    syncPass2Ph: 'Xác nhận mật khẩu',
+    syncNoAccount: 'Chưa có tài khoản? Tạo ngay',
+    syncHaveAccount: 'Đã có tài khoản? Đăng nhập',
     syncGoogle: 'Tiếp tục với Google',
-    syncOr: 'hoặc bằng email',
+    syncOr: 'hoặc bằng tài khoản',
     syncGoogleErr: 'Không mở được Google. Kiểm tra lại cấu hình Supabase và provider Google.',
     syncNeedConfig: 'Chưa cấu hình Supabase — điền Project URL & anon key trong js/supabase-config.js',
     homeTitle: 'Về trang giới thiệu',
@@ -731,12 +740,21 @@ const I18N = {
     syncStatusReady: 'Synced ✓',
     syncStatusSignedOut: 'Signed out',
     syncStatusError: 'Sync error',
-    syncNeedEmail: 'Please enter email and password',
-    syncLoginErr: 'Sign in failed — check email/password',
-    syncSignupOk: 'Account created! Check your email to confirm if needed.',
-    syncSignupErr: 'Sign up failed — try again in a few minutes (or check if the email is already used).',
+    syncNeedEmail: 'Please enter username and password',
+    syncNeedUser: 'Please enter username and password',
+    syncUserInvalid: 'Username: 3-30 characters (letters, numbers, _ . -)',
+    syncPassShort: 'Password must be at least 6 characters',
+    syncPassMismatch: 'Passwords do not match',
+    syncLoginErr: 'Sign in failed — check username/password',
+    syncSignupOk: 'Account created! Sync started automatically ✓',
+    syncSignupErr: 'Sign up failed — the username may already be taken.',
+    syncUserPh: 'Username',
+    syncPassPh: 'Password',
+    syncPass2Ph: 'Confirm password',
+    syncNoAccount: 'No account? Create one',
+    syncHaveAccount: 'Have an account? Sign in',
     syncGoogle: 'Continue with Google',
-    syncOr: 'or use email',
+    syncOr: 'or use an account',
     syncGoogleErr: 'Could not open Google. Check your Supabase config and Google provider.',
     syncNeedConfig: 'Supabase not configured — fill in Project URL & anon key in js/supabase-config.js',
     homeTitle: 'Back to the intro page',
@@ -808,6 +826,7 @@ function setLang(l) {
   try { localStorage.setItem('planner-lang', l); } catch (e) { /* ẩn */ }
   if (window.Sync) window.Sync.push('planner-lang');
   applyStaticI18N();
+  setSyncMode(syncMode);
   updateBrand();
   buildNav();
   if (state.view === 'overview') renderOverview();
@@ -2648,8 +2667,8 @@ document.addEventListener('click', (e) => {
     toggleSyncModal();
   } else if (act === 'sync-close') {
     closeSyncModal();
-  } else if (act === 'sync-signup') {
-    doSyncSignup();
+  } else if (act === 'sync-toggle-mode') {
+    setSyncMode(syncMode === 'signup' ? 'login' : 'signup');
   } else if (act === 'sync-google') {
     doSyncGoogle();
   } else if (act === 'sync-logout') {
@@ -3018,7 +3037,10 @@ function toggleSyncModal() {
   const m = document.getElementById('syncModal');
   if (!m) return;
   m.hidden = !m.hidden;
-  if (!m.hidden) updateSyncStatus();
+  if (!m.hidden) {
+    setSyncMode('login');
+    updateSyncStatus();
+  }
 }
 
 function closeSyncModal() {
@@ -3038,29 +3060,61 @@ document.addEventListener('click', (e) => {
 });
 
 function syncFormValues() {
-  const em = document.getElementById('syncEmail');
+  const us = document.getElementById('syncUser');
   const pw = document.getElementById('syncPass');
-  return { email: em ? em.value.trim() : '', pass: pw ? pw.value : '' };
+  const pw2 = document.getElementById('syncPass2');
+  return { user: us ? us.value.trim() : '', pass: pw ? pw.value : '', pass2: pw2 ? pw2.value : '' };
 }
+
+let syncMode = 'login';
+
+function setSyncMode(mode) {
+  syncMode = mode === 'signup' ? 'signup' : 'login';
+  const pass2 = document.getElementById('syncPass2');
+  const submit = document.querySelector('#syncForm button[type="submit"]');
+  const toggle = document.querySelector('[data-action="sync-toggle-mode"]');
+  if (pass2) pass2.hidden = syncMode !== 'signup';
+  if (submit) submit.textContent = syncMode === 'signup' ? t('syncSignup') : t('syncLogin');
+  if (toggle) toggle.textContent = syncMode === 'signup' ? t('syncHaveAccount') : t('syncNoAccount');
+  const ph = { syncUser: 'syncUserPh', syncPass: 'syncPassPh', syncPass2: 'syncPass2Ph' };
+  Object.keys(ph).forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.placeholder = t(ph[id]);
+  });
+}
+
+const USER_RE = /^[A-Za-z0-9_.-]{3,30}$/;
 
 async function doSyncSignup() {
   if (!window.Sync) return;
-  const { email, pass } = syncFormValues();
-  if (!email || !pass) { alert(t('syncNeedEmail')); return; }
-  const r = await window.Sync.signup(email, pass);
+  const { user, pass, pass2 } = syncFormValues();
+  if (!user || !pass) { alert(t('syncNeedUser')); return; }
+  if (!USER_RE.test(user)) { alert(t('syncUserInvalid')); return; }
+  if (pass.length < 6) { alert(t('syncPassShort')); return; }
+  if (pass !== pass2) { alert(t('syncPassMismatch')); return; }
+  const r = await window.Sync.signup(user, pass);
   updateSyncStatus();
-  if (r && r.ok) alert(t('syncSignupOk'));
-  else alert((r && r.error) || t('syncSignupErr'));
+  if (r && r.ok) {
+    trackEvent('signup');
+    alert(t('syncSignupOk'));
+    closeSyncModal();
+  } else {
+    alert((r && r.error) || t('syncSignupErr'));
+  }
 }
 
 async function doSyncLogin() {
   if (!window.Sync) return;
-  const { email, pass } = syncFormValues();
-  if (!email || !pass) { alert(t('syncNeedEmail')); return; }
-  const r = await window.Sync.login(email, pass);
+  const { user, pass } = syncFormValues();
+  if (!user || !pass) { alert(t('syncNeedUser')); return; }
+  const r = await window.Sync.login(user, pass);
   updateSyncStatus();
-  if (!(r && r.ok)) alert(t('syncLoginErr'));
-  else closeSyncModal();
+  if (r && r.ok) {
+    trackEvent('login');
+    closeSyncModal();
+  } else {
+    alert(t('syncLoginErr'));
+  }
 }
 
 async function doSyncGoogle() {
@@ -3222,7 +3276,12 @@ if (window.Sync) {
   window.Sync.onStatus(updateSyncStatus);
   window.Sync.onRemoteChange(handleSyncChange);
   const f = document.getElementById('syncForm');
-  if (f) f.addEventListener('submit', (e) => { e.preventDefault(); doSyncLogin(); });
+  if (f) f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (syncMode === 'signup') doSyncSignup();
+    else doSyncLogin();
+  });
+  setSyncMode('login');
   updateSyncStatus();
   window.Sync.init();
 }

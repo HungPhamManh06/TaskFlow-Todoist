@@ -183,9 +183,16 @@
     }
   }
 
-  async function login(email, password) {
+  // Username → email nội bộ (Supabase Auth cần email; username tự tạo miền ảo
+  // để không phải gửi email xác nhận — hãy tắt "Confirm email" trong project).
+  function userToEmail(u) {
+    u = String(u || '').trim().toLowerCase();
+    return u.indexOf('@') >= 0 ? u : u + '@taskflow.local';
+  }
+
+  async function login(user, password) {
     if (!sb) return { ok: false, error: 'no-client' };
-    var res = await sb.auth.signInWithPassword({ email: email, password: password });
+    var res = await sb.auth.signInWithPassword({ email: userToEmail(user), password: password });
     if (res.error || !res.data || !res.data.session) {
       return { ok: false, error: res.error ? res.error.message : 'no-session' };
     }
@@ -203,9 +210,9 @@
     }
   }
 
-  async function signup(email, password) {
+  async function signup(user, password) {
     if (!sb) return { ok: false, error: 'no-client' };
-    var res = await sb.auth.signUp({ email: email, password: password });
+    var res = await sb.auth.signUp({ email: userToEmail(user), password: password });
     if (res.error) return { ok: false, error: res.error.message };
     if (res.data && res.data.session) {
       userId = res.data.session.user.id;
@@ -248,6 +255,7 @@
     clearAll: clearAll,
     login: login,
     signup: signup,
+    userToEmail: userToEmail,
     logout: logout,
     loginWithGoogle: loginWithGoogle,
     onStatus: function (fn) { statusListeners.push(fn); },
