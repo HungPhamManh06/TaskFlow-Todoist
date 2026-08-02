@@ -549,11 +549,22 @@ const I18N = {
     syncNeedEmail: 'Vui lòng nhập email và mật khẩu',
     syncLoginErr: 'Đăng nhập thất bại — kiểm tra lại email/mật khẩu',
     syncSignupOk: 'Đã tạo tài khoản! Kiểm tra email để xác nhận nếu cần.',
+    syncSignupErr: 'Tạo tài khoản thất bại — thử lại sau ít phút (hoặc kiểm tra email đã tồn tại).',
     syncGoogle: 'Tiếp tục với Google',
     syncOr: 'hoặc bằng email',
     syncGoogleErr: 'Không mở được Google. Kiểm tra lại cấu hình Supabase và provider Google.',
     syncNeedConfig: 'Chưa cấu hình Supabase — điền Project URL & anon key trong js/supabase-config.js',
     homeTitle: 'Về trang giới thiệu',
+    shareTitle: 'Chia sẻ streak 🔥',
+    shareNamePrompt: 'Tên hiển thị trên tấm ảnh (bỏ trống = "Tôi")?',
+    shareNoStreak: 'Tích thói quen hôm nay để có streak 🔥 rồi mới chia sẻ được nhé!',
+    shareDone: 'Đã tải ảnh chia sẻ: taskflow-streak.png',
+    shareFail: 'Không tạo được ảnh chia sẻ.',
+    shareFooter: 'Kế hoạch năm 2026 · 100% offline',
+    fbTitle: 'Góp ý / phản hồi',
+    fbForm: '📝 Góp ý qua Google Form',
+    fbMail: '📧 Gửi email',
+    fbNoForm: 'Chưa có link Google Form — điền FB_FORM_URL trong js/app.js',
     obGoalTitle: 'Mục tiêu số 1 của năm nay là gì?',
     obGoalSub: 'Gợi ý nhanh — chọn một mục tiêu, hoặc tự gõ ở dưới:',
     obGoalPh: 'VD: Tiết kiệm 20 triệu',
@@ -723,11 +734,22 @@ const I18N = {
     syncNeedEmail: 'Please enter email and password',
     syncLoginErr: 'Sign in failed — check email/password',
     syncSignupOk: 'Account created! Check your email to confirm if needed.',
+    syncSignupErr: 'Sign up failed — try again in a few minutes (or check if the email is already used).',
     syncGoogle: 'Continue with Google',
     syncOr: 'or use email',
     syncGoogleErr: 'Could not open Google. Check your Supabase config and Google provider.',
     syncNeedConfig: 'Supabase not configured — fill in Project URL & anon key in js/supabase-config.js',
     homeTitle: 'Back to the intro page',
+    shareTitle: 'Share streak 🔥',
+    shareNamePrompt: 'Name shown on the card (empty = "Me")?',
+    shareNoStreak: 'Tick a habit today to build a streak 🔥 before sharing!',
+    shareDone: 'Saved share image: taskflow-streak.png',
+    shareFail: 'Could not create share image.',
+    shareFooter: '2026 plan · 100% offline',
+    fbTitle: 'Feedback',
+    fbForm: '📝 Feedback via Google Form',
+    fbMail: '📧 Send email',
+    fbNoForm: 'No Google Form link yet — fill FB_FORM_URL in js/app.js',
     obGoalTitle: 'What is your #1 goal this year?',
     obGoalSub: 'Quick picks — choose one, or type your own below:',
     obGoalPh: 'e.g. Save 20 million VND',
@@ -817,6 +839,12 @@ function setTheme(th) {
 // Google Analytics → Quản trị → Luồng dữ liệu → Web → đo ID (định dạng G-XXXXXXXXXX)
 const GA4_ID = 'G-XXXXXXXXXX';
 const GA4_ENABLED = !!(GA4_ID && !GA4_ID.startsWith('G-XXXX'));
+
+// 👉 Link Google Form nhận góp ý (Giai đoạn 5 — Feedback):
+// Tạo form tại https://forms.google.com rồi dán link dạng .../viewform vào đây
+const FB_FORM_URL = '';
+// 👉 Email nhận góp ý (dự phòng khi chưa có form)
+const FB_EMAIL = '';
 
 function initAnalytics() {
   if (!GA4_ENABLED) return;
@@ -1767,6 +1795,7 @@ function habitHeatCardHTML() {
     <div class="hm-head">
       <h3 class="card-title">${t('hmTitle')}</h3>
       ${weekCompareHTML()}
+      <button type="button" class="pop-btn share-btn" data-action="share-streak">${t('shareTitle')}</button>
     </div>
     ${heatHeroHTML()}
     ${heatRibbonHTML()}
@@ -1777,6 +1806,159 @@ function habitHeatCardHTML() {
     </div>
     <div class="hm-streaks">${streaks}</div>
   </div>`;
+}
+
+/* ---- Chia sẻ streak 🔥: tạo ảnh card 1080×1080 (tên + streak + heatmap) ---- */
+function shareTopInfo() {
+  let top = null;
+  state.habits.forEach((h) => {
+    const s = habitStreakCached(h);
+    if (!top || s.cur > top.s.cur) top = { h, s };
+  });
+  return top;
+}
+
+function canvasCircle(g, x, y, r) {
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2);
+  g.fill();
+}
+
+function streakCardBlob(name, habitName, cur, best) {
+  return new Promise((resolve, reject) => {
+    try {
+      const W = 1080, H = 1080;
+      const c = document.createElement('canvas');
+      c.width = W;
+      c.height = H;
+      const g = c.getContext('2d');
+
+      const grad = g.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, '#FFF6EA');
+      grad.addColorStop(0.55, '#FDEBD7');
+      grad.addColorStop(1, '#F8DCC0');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, W, H);
+
+      g.fillStyle = 'rgba(255,255,255,.5)';
+      canvasCircle(g, W - 110, 130, 170);
+      canvasCircle(g, 40, H - 150, 230);
+      g.fillStyle = 'rgba(194,78,40,.05)';
+      canvasCircle(g, W - 190, H - 220, 130);
+      g.fillStyle = 'rgba(185,138,31,.08)';
+      canvasCircle(g, 200, 150, 90);
+
+      g.textAlign = 'center';
+
+      g.fillStyle = '#4A403A';
+      g.font = "700 36px 'Baloo 2','Fredoka','Nunito',sans-serif";
+      g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
+
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 42px 'Baloo 2','Nunito',sans-serif";
+      g.fillText(name, W / 2, 158);
+
+      g.fillStyle = '#C24E28';
+      g.font = "800 260px 'Baloo 2','Fredoka',sans-serif";
+      g.fillText(String(cur), W / 2, 400);
+
+      g.fillStyle = '#4A403A';
+      g.font = "700 46px 'Baloo 2','Nunito',sans-serif";
+      g.fillText(t('hmHeroDays'), W / 2, 468);
+
+      g.font = "700 34px 'Nunito','Quicksand',sans-serif";
+      const tw = g.measureText('🔥 ' + habitName).width;
+      const pw = tw + 48, ph = 62;
+      g.fillStyle = 'rgba(255,253,248,.85)';
+      g.beginPath();
+      if (g.roundRect) g.roundRect(W / 2 - pw / 2, 506, pw, ph, 31);
+      else g.rect(W / 2 - pw / 2, 506, pw, ph);
+      g.fill();
+      g.fillStyle = '#C24E28';
+      g.fillText('🔥 ' + habitName, W / 2, 548);
+
+      g.fillStyle = '#B98A1F';
+      g.font = "800 38px 'Baloo 2','Nunito',sans-serif";
+      g.fillText('🏆 ' + best + ' · ' + t('hmHeroRecLbl'), W / 2, 636);
+
+      // Heatmap: 16 tuần × 7 ngày
+      const anchor = streakAnchorDay();
+      const anchorDate = new Date(PLAN_YEAR, PLAN_MONTH, anchor + 1);
+      const start = new Date(anchorDate.getTime() - (16 * 7 - 1) * 86400000);
+      const monday = new Date(start);
+      monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+      const levels = ['#EFE6DA', '#FBE4CE', '#F7C79B', '#EE9E66', '#E0753F', '#C24E28'];
+      const cell = 42, gap = 8, colW = cell + gap, rowH = cell + gap;
+      const gridW = 16 * colW - gap;
+      const x0 = (W - gridW) / 2, y0 = 716;
+      const now = new Date();
+      const inRange = now.getFullYear() === PLAN_YEAR && now.getMonth() === PLAN_MONTH;
+      for (let w = 0; w < 16; w++) {
+        const colStart = new Date(monday.getTime() + w * 7 * 86400000);
+        for (let dow = 0; dow < 7; dow++) {
+          const dt = new Date(colStart.getTime() + dow * 86400000);
+          if (dt < start || dt > anchorDate) continue;
+          const y = dt.getFullYear(), m = dt.getMonth(), d = dt.getDate() - 1;
+          const lvl = heatLevel(dayAggregateAt(y, m, d));
+          g.fillStyle = levels[lvl];
+          g.beginPath();
+          if (g.roundRect) g.roundRect(x0 + w * colW, y0 + dow * rowH, cell, cell, 12);
+          else g.rect(x0 + w * colW, y0 + dow * rowH, cell, cell);
+          g.fill();
+          const isToday = inRange && y === now.getFullYear() && m === now.getMonth() && d === now.getDate() - 1;
+          if (isToday) {
+            g.strokeStyle = '#C24E28';
+            g.lineWidth = 5;
+            g.stroke();
+          }
+        }
+      }
+
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 30px 'Nunito','Quicksand',sans-serif";
+      g.fillText(t('shareFooter'), W / 2, H - 70);
+
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
+    } catch (e) { reject(e); }
+  });
+}
+
+async function doShareStreak() {
+  const top = shareTopInfo();
+  if (!top || top.s.cur === 0) { alert(t('shareNoStreak')); return; }
+  let name = localStorage.getItem('planner-name');
+  if (!name) {
+    name = (prompt(t('shareNamePrompt')) || '').trim() || 'Tôi';
+    try { localStorage.setItem('planner-name', name); } catch (e) { /* ẩn */ }
+  }
+  try {
+    const blob = await streakCardBlob(name, top.h.name, top.s.cur, top.s.best);
+    const file = new File([blob], 'taskflow-streak.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'TaskFlow-Todoist 🐥',
+          text: '🔥 ' + top.s.cur + ' ' + t('hmHeroDays') + ' — ' + top.h.name,
+        });
+        trackEvent('share_streak', { days: top.s.cur, via: 'native' });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        trackEvent('share_streak', { days: top.s.cur, via: 'fallback' });
+      }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'taskflow-streak.png';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+    trackEvent('share_streak', { days: top.s.cur, via: 'download' });
+    alert(t('shareDone'));
+  } catch (e) {
+    alert(t('shareFail'));
+  }
 }
 
 function refreshHeatCard() {
@@ -2499,6 +2681,20 @@ document.addEventListener('click', (e) => {
   } else if (act === 'print') {
     trackEvent('print');
     window.print();
+  } else if (act === 'share-streak') {
+    doShareStreak();
+  } else if (act === 'fb-toggle') {
+    togglePop('fbPop');
+  } else if (act === 'fb-form') {
+    togglePop('fbPop');
+    trackEvent('feedback_click', { kind: 'form' });
+    if (!FB_FORM_URL) { alert(t('fbNoForm')); return; }
+    window.open(FB_FORM_URL, '_blank', 'noopener');
+  } else if (act === 'fb-mail') {
+    togglePop('fbPop');
+    trackEvent('feedback_click', { kind: 'mail' });
+    if (!FB_EMAIL) { alert(t('fbNoForm')); return; }
+    location.href = 'mailto:' + FB_EMAIL + '?subject=' + encodeURIComponent('TaskFlow phản hồi');
   } else if (act === 'ob-goal') {
     trackEvent('onboarding_goal');
     obDoGoal();
@@ -2854,6 +3050,7 @@ async function doSyncSignup() {
   const r = await window.Sync.signup(email, pass);
   updateSyncStatus();
   if (r && r.ok) alert(t('syncSignupOk'));
+  else alert((r && r.error) || t('syncSignupErr'));
 }
 
 async function doSyncLogin() {

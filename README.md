@@ -145,6 +145,17 @@ Từ phiên bản này, app hỗ trợ **đồng bộ dữ liệu đa thiết b�
 node test-sync.js   # 4 test: no-config, pull+migrate, push debounce, clearAll
 ```
 
+> ⚠️ **Lưu ý gói miễn phí**: Supabase free tier giới hạn **số email xác nhận/gửi** (rate limit `over_email_send_rate_limit` — mặc định ~30 email/giờ/project). Nếu người dùng báo "tạo tài khoản thất bại", thường do hết hạn mức email — kiểm tra **Authentication → Rate Limits** và tăng lên, hoặc bật **Anonymous sign-ins** (mục 5) để không cần email.
+
+---
+
+## 🌱 Giai đoạn 5 — Growth loop
+
+- 🔥 **Share streak**: nút *Chia sẻ streak 🔥* trên thẻ thói quen tạo ảnh card 1080×1080 (tên + số ngày liên tiếp + heatmap 16 tuần) tải về làm story — mỗi bài share là một kênh marketing miễn phí. Trên điện thoại hỗ trợ **Web Share API** (chia sẻ ảnh thẳng vào app khác).
+- 💬 **Feedback FAB**: nút 💬 góc phải dưới mở popup Góp ý — nối **Google Form** qua `FB_FORM_URL` và email qua `FB_EMAIL` (khai báo đầu file `js/app.js`). Mọi phản hồi đều theo dõi bằng event `feedback_click` (GA4).
+- 📊 **Iterate theo analytics**: điền `GA4_ID` (đầu `js/app.js` — hiện đang placeholder `G-XXXXXXXXXX`) để bắt đầu đo. Các event sẵn sàng: `first_visit`, `return_visit`, `create_goal`, `create_habit`, `create_task`, `share_streak` (kèm số ngày + kênh: native/fallback/download), `feedback_click`, `onboarding_*`, `export_*`, `print`, `reminder_*`.
+  - Mẹo iterate: xem GA4 → *Reports → Engagement → Events* — kênh nào (landing → app, share story, bạn bè giới thiệu) đem traffic về, đổ thêm công sức vào kênh đó.
+
 ---
 
 ## ☁️ Triển khai lên mạng (Vercel)
@@ -225,6 +236,9 @@ TaskFlow-Todoist/
 - [x] **Landing page tách riêng** (`index.html`) — SEO tĩnh, OG image 1200×630 cho Facebook/Zalo
 - [x] **Onboarding 3 bước** — mục tiêu năm → 2 thói quen → chủ đề màu (lần dùng đầu)
 - [x] **Empty states** có hướng dẫn cho từng panel (mục tiêu, thói quen)
+- [x] **Share streak 🔥** — ảnh card 1080×1080 (tên + streak + heatmap) tải về / chia sẻ native
+- [x] **Feedback FAB** 💬 — Google Form (`FB_FORM_URL`) + email (`FB_EMAIL`) + event GA4
+- [x] **Đăng ký/đăng nhập email đã chạy** — lỗi hiện đúng thông báo của server; cần xác nhận email (hoặc bật Anonymous)
 
 ---
 

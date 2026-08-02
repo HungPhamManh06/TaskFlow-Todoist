@@ -84,42 +84,44 @@ body {
   z-index: 60;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px 14px;
   flex-wrap: wrap;
-  padding: 10px 24px;
+  padding: 8px 16px;
   background: var(--header-bg);
   backdrop-filter: blur(8px);
   border-bottom: 2px solid rgba(74, 64, 58, .18);
 }
-.brand { display: flex; align-items: center; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 8px; }
 .brand-chick {
-  font-size: 36px;
+  font-size: 28px;
   line-height: 1;
   filter: drop-shadow(0 2px 2px rgba(74, 64, 58, .3));
   animation: bob 3s ease-in-out infinite;
 }
 .brand-text h1 {
   font-family: 'Baloo 2', 'Fredoka', cursive;
-  font-size: 24px;
+  font-size: 19px;
   margin: 0;
   line-height: 1;
 }
-.brand-text p { margin: 2px 0 0; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.brand-text p { margin: 2px 0 0; font-size: 11px; font-weight: 700; color: var(--ink-soft); }
 
 .tabs {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
-  padding: 2px;
-  flex: 1;
-  justify-content: flex-end;
+  padding: 2px 0;
+  order: 10;
+  flex: 1 1 100%;
+  min-width: 0;
+  justify-content: flex-start;
 }
 .tab {
   font: inherit;
   font-family: 'Baloo 2', 'Nunito', sans-serif;
   font-weight: 700;
-  font-size: 13.5px;
-  padding: 7px 16px;
+  font-size: 12.5px;
+  padding: 5px 12px;
   border-radius: 999px;
   border: 2px solid rgba(74, 64, 58, .3);
   background: #FFFDF8;
@@ -137,8 +139,8 @@ body {
 .btn-reset {
   font: inherit;
   font-weight: 700;
-  font-size: 12.5px;
-  padding: 7px 14px;
+  font-size: 12px;
+  padding: 6px 11px;
   border-radius: 999px;
   border: 2px solid rgba(74, 64, 58, .3);
   background: #FFFDF8;
@@ -735,8 +737,8 @@ body {
   align-items: center;
   gap: 6px;
   font-weight: 800;
-  font-size: 12px;
-  padding: 6px 12px;
+  font-size: 11.5px;
+  padding: 5px 10px;
   border-radius: 999px;
   border: 2px solid rgba(74, 64, 58, .3);
   background: #FFFDF8;
@@ -766,8 +768,8 @@ body {
 .btn-now {
   font: inherit;
   font-weight: 700;
-  font-size: 12.5px;
-  padding: 7px 14px;
+  font-size: 12px;
+  padding: 6px 11px;
   border-radius: 999px;
   border: 2px solid rgba(74, 64, 58, .3);
   background: var(--peach-bar);
@@ -1156,13 +1158,19 @@ body {
   .habit-layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 1340px) {
-  /* Giữ header 1 hàng khi cửa sổ không quá rộng (tabs + controls vừa đủ) */
-  .site-header { gap: 10px; padding: 8px 14px; }
-  .brand-chick { font-size: 30px; }
-  .brand-text h1 { font-size: 20px; }
-  .tab { font-size: 12.5px; padding: 6px 12px; }
-  .btn-reset, .btn-now { font-size: 11.5px; padding: 6px 10px; }
-  .month-select { max-width: 130px; }
+  /* Header gọn: tabs đã thành hàng riêng cuộn ngang, thu nhỏ các nút cho vừa */
+  .site-header { gap: 6px 10px; padding: 6px 12px; }
+  .brand-chick { font-size: 24px; }
+  .brand-text h1 { font-size: 17px; }
+  .brand-text p { font-size: 10px; }
+  .tab { font-size: 12px; padding: 5px 11px; }
+  .btn-reset, .btn-now { font-size: 11.5px; padding: 5px 10px; }
+  .btn-icon { width: 29px; height: 29px; font-size: 13px; }
+  .month-select { max-width: 120px; }
+}
+@media (max-width: 1100px) {
+  /* Ẩn đồng hồ trực tiếp (không thiết yếu) để header đỡ cao */
+  .now { display: none; }
 }
 @media (max-width: 720px) {
   .ov-top, .goals-top, .week-head, .year-goals-top { grid-template-columns: 1fr; }
@@ -1170,7 +1178,11 @@ body {
   .months-scroll { grid-template-columns: repeat(2, minmax(190px, 1fr)); }
   .year-reflections { grid-template-columns: 1fr; }
   .tabs { justify-content: flex-start; }
-  .site-header { padding: 10px 14px; gap: 10px; }
+  .site-header { padding: 6px 10px; gap: 5px 8px; }
+  .header-controls { gap: 4px; }
+  .theme-picker { padding: 2px 5px; }
+  .home-link { display: none; }
+  .brand-text p { display: none; }
 }
 
 /* ============================================================
@@ -1262,20 +1274,20 @@ body {
 .header-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 .theme-picker {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 5px;
+  padding: 3px 7px;
   border-radius: 999px;
   border: 2px solid rgba(74, 64, 58, .2);
   background: var(--card-bg);
 }
 .theme-dot {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   border: 2px solid rgba(74, 64, 58, .25);
   cursor: pointer;
@@ -1296,8 +1308,8 @@ body {
   font: inherit;
   font-family: 'Baloo 2', 'Nunito', sans-serif;
   font-weight: 800;
-  font-size: 13px;
-  padding: 6px 14px;
+  font-size: 12px;
+  padding: 5px 11px;
   border-radius: 999px;
   border: 2px solid rgba(74, 64, 58, .3);
   background: var(--card-bg);
@@ -1310,9 +1322,9 @@ body {
 /* ---------- Nút icon header (PWA tools) + Popover ---------- */
 .btn-icon {
   font: inherit;
-  font-size: 15px;
-  width: 36px;
-  height: 36px;
+  font-size: 14px;
+  width: 31px;
+  height: 31px;
   border-radius: 999px;
   border: 2px solid rgba(74, 64, 58, .3);
   background: var(--card-bg);
@@ -1562,7 +1574,7 @@ body {
   html, body { background: #FFF !important; }
 
   /* Ẩn header chức năng, video hero, trang trí, nút thao tác */
-  .site-header, .bricks, .confetti-canvas, .landing-hero, #importFile,
+  .site-header, .bricks, .confetti-canvas, .landing-hero, #importFile, .fb-fab-wrap,
   .btn-icon, .btn-reset, .btn-now, .month-nav, .tabs, .now,
   .mini-btn, .btn-add, .btn-del, .btn-nav, .item-actions,
   .goal-add-wrap, .habit-add-row, .week-nav, .ydata-btn,
@@ -1623,6 +1635,38 @@ body {
   .goals-top { grid-template-columns: 1fr 1fr !important; }
   .landing-overlay, .landing-video { display: none !important; }
 }
+
+/* ============================ Giai đoạn 5 — Feedback FAB + Share streak ============================ */
+
+.fb-fab-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 95; }
+
+.fb-fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid rgba(74, 64, 58, .25);
+  background: #FFFDF8;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(74, 64, 58, .22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.fb-fab:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 12px 26px rgba(74, 64, 58, .28); }
+.fb-fab:focus-visible { outline: 3px solid var(--blue-tag, #6fb3d2); outline-offset: 2px; }
+
+.fb-fab-pop {
+  position: absolute;
+  top: auto;
+  bottom: calc(100% + 12px);
+  right: 0;
+  min-width: 250px;
+  margin-bottom: 0;
+}
+
+.share-btn { font-size: 12.5px; padding: 8px 14px; margin-left: auto; }
 
 /* ============================ Đồng bộ đám mây (Supabase) ============================ */
 
