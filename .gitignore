@@ -12,6 +12,10 @@ build-preview.js
 # Log server local
 dev2.log
 
+# Backend dependencies
+server/node_modules/
+server/.env
+
 # Hệ điều hành
 Thumbs.db
 .DS_Store
