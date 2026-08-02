@@ -8,6 +8,7 @@
 index.backup-slim.html
 _preview.html
 build-preview.js
+app.html.mojibake-backup
 
 # Log server local
 dev2.log
