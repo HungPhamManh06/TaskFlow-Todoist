@@ -52,7 +52,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=Quicksand:wght@600;700&family=Playfair+Display:ital,wght@0,400;1,400&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=20" />
+  <link rel="stylesheet" href="css/styles.css?v=25" />
 </head>
 
 <body>
@@ -66,21 +66,23 @@
         <p id="brandSub">Kế hoạch tháng 1 · 2026</p>
       </div>
     </div>
-    <nav class="month-nav" aria-label="Chuyển tháng trong năm" data-i18n-aria="navMonths">
-      <button type="button" class="btn-month" data-action="prevmonth" title="Tháng trước" aria-label="Tháng trước"
-        data-i18n-title="prevMonth" data-i18n-aria="prevMonth">‹</button>
-      <select id="monthSelect" class="month-select" data-action="monthselect" aria-label="Chọn tháng"
-        data-i18n-aria="selectMonth"></select>
-      <button type="button" class="btn-month" data-action="nextmonth" title="Tháng sau" aria-label="Tháng sau"
-        data-i18n-title="nextMonth" data-i18n-aria="nextMonth">›</button>
-    </nav>
+    <div class="header-center">
+      <nav class="month-nav" aria-label="Chuyển tháng trong năm" data-i18n-aria="navMonths">
+        <button type="button" class="btn-month" data-action="prevmonth" title="Tháng trước" aria-label="Tháng trước"
+          data-i18n-title="prevMonth" data-i18n-aria="prevMonth">‹</button>
+        <select id="monthSelect" class="month-select" data-action="monthselect" aria-label="Chọn tháng"
+          data-i18n-aria="selectMonth"></select>
+        <button type="button" class="btn-month" data-action="nextmonth" title="Tháng sau" aria-label="Tháng sau"
+          data-i18n-title="nextMonth" data-i18n-aria="nextMonth">›</button>
+      </nav>
+      <button type="button" class="btn-reset" data-action="reset" title="Xoá toàn bộ dữ liệu đã lưu"
+        data-i18n-title="resetTitle" data-i18n="resetTxt">↺ Đặt lại</button>
+      <button type="button" class="btn-now" id="btnNow" data-action="gotoday" title="Về hôm nay & tuần hiện tại"
+        data-i18n-title="todayTitle" data-i18n="todayTxt">📍 Hôm nay</button>
+      <div class="now" id="nowBox" aria-label="Ngày giờ hiện tại" data-i18n-aria="nowAria"><span
+          aria-hidden="true">🕗</span><span id="nowText"></span></div>
+    </div>
     <nav class="tabs" id="navTabs" role="tablist" aria-label="Điều hướng kế hoạch" data-i18n-aria="navPlan"></nav>
-    <button type="button" class="btn-reset" data-action="reset" title="Xoá toàn bộ dữ liệu đã lưu"
-      data-i18n-title="resetTitle" data-i18n="resetTxt">↺ Đặt lại</button>
-    <button type="button" class="btn-now" id="btnNow" data-action="gotoday" title="Về hôm nay & tuần hiện tại"
-      data-i18n-title="todayTitle" data-i18n="todayTxt">📍 Hôm nay</button>
-    <div class="now" id="nowBox" aria-label="Ngày giờ hiện tại" data-i18n-aria="nowAria"><span
-        aria-hidden="true">🕗</span><span id="nowText"></span></div>
     <div class="header-controls">
       <div class="remind-wrap">
         <button type="button" class="btn-icon" id="btnRemind" data-action="remind-toggle" title="Nhắc việc hằng ngày"
@@ -251,10 +253,9 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/supabase-config.js"></script>
+  <script src="js/api-config.js"></script>
   <script src="js/sync.js"></script>
-  <script src="js/app.js?v=23"></script>
+  <script src="js/app.js?v=24"></script>
 </body>
 
 </html>

@@ -1,12 +1,12 @@
 /* ============================================================
-   TaskFlow-Todoist — Supabase Sync Engine (js/sync.js)
+   TaskFlow-Todoist — Backend Sync Engine (js/sync.js)
    ------------------------------------------------------------
    Offline-first: localStorage VẪN là nguồn dữ liệu chính để app
-   chạy bình thường (đọc nhanh, dùng offline). Supabase là bản sao
-   đám mây để đồng bộ đa thiết bị.
+   chạy bình thường (đọc nhanh, dùng offline). Backend (Render)
+   là bản sao đám mây để đồng bộ đa thiết bị.
 
-   Nếu chưa cấu hình (SUPABASE_CONFIG trống / SDK không tải được),
-   toàn bộ module trở thành no-op — app hoạt động y hệt như cũ.
+   Nếu chưa cấu hình (API_CONFIG.url trống), toàn bộ module trở
+   thành no-op — app hoạt động y hệt như cũ.
 
    Conflict: last-write-wins theo updated_at của server.
    ============================================================ */
@@ -14,12 +14,13 @@
   'use strict';
 
   var META_KEY = 'planner-sync-meta';
+  var TOKEN_KEY = 'planner-token';
   var DATA_KEY_RE = /^planner-/;
 
-  var cfg = (typeof SUPABASE_CONFIG !== 'undefined' && SUPABASE_CONFIG) || {};
+  var cfg = (typeof API_CONFIG !== 'undefined' && API_CONFIG) || {};
+  var base = String(cfg.url || '').replace(/\/+$/, '');
   var PUSH_DEBOUNCE_MS = (typeof cfg.pushDebounceMs === 'number' ? cfg.pushDebounceMs : 1200);
 
-  var sb = null;        // supabase client
   var userId = null;
   var authed = false;
   var started = false;
@@ -42,7 +43,13 @@
     try { localStorage.setItem(key, val); } catch (e) { /* ẩn */ }
   }
   function isDataKey(k) {
-    return k !== META_KEY && (DATA_KEY_RE.test(k) || k === 'january-planner-2026');
+    return k !== META_KEY && k !== TOKEN_KEY && DATA_KEY_RE.test(k);
+  }
+  function getToken() {
+    try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
+  }
+  function setToken(t) {
+    try { localStorage.setItem(TOKEN_KEY, t); } catch (e) { /* ẩn */ }
   }
   function emitStatus(s) {
     statusListeners.forEach(function (fn) { try { fn(s); } catch (e) { /* ẩn */ } });
@@ -52,39 +59,49 @@
   }
   function setStatus(s) { currentStatus = s; emitStatus(s); }
 
-  function createClient() {
-    if (!cfg.url || !cfg.anonKey) return null;
-    if (typeof window === 'undefined' || !window.supabase || !window.supabase.createClient) return null;
-    try {
-      return window.supabase.createClient(cfg.url, cfg.anonKey, {
-        auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true }
+  // ---- API helper: fetch có Bearer token ----
+  function api(path, opts) {
+    opts = opts || {};
+    var headers = { 'Content-Type': 'application/json' };
+    var token = getToken();
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    if (opts.headers) Object.assign(headers, opts.headers);
+    var init = { method: opts.method || 'GET', headers: headers };
+    if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
+    return fetch(base + path, init).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (data) {
+        return { ok: res.ok, status: res.status, data: data };
       });
-    }
-    catch (e) { return null; }
+    });
   }
 
+  function authedHeaders() {
+    var token = getToken();
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
+  }
+
+  // ---- Session: token trong localStorage → xác thực với backend ----
   async function ensureSession() {
-    var user = null;
-    var sess = await sb.auth.getSession();
-    if (!sess.error && sess.data && sess.data.session && sess.data.session.user) {
-      user = sess.data.session.user;
-    } else if (cfg.autoAnonymous !== false) {
-      var anon = await sb.auth.signInAnonymously();
-      if (!anon.error && anon.data && anon.data.session && anon.data.session.user) {
-        user = anon.data.session.user;
-      }
+    var token = getToken();
+    if (!token) return false;
+    var res;
+    try {
+      res = await api('/api/auth/me');
+    } catch (e) { return false; }
+    if (!res.ok || !res.data || !res.data.id) {
+      try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ẩn */ }
+      return false;
     }
-    if (!user) return false;
-    userId = user.id;
+    userId = res.data.id;
     authed = true;
     return true;
   }
 
   // ---- Pull: đám mây -> localStorage (nếu remote mới hơn) ----
   async function pullAll() {
-    if (!sb || !userId) return [];
-    var res = await sb.from('planner_state').select('key,data,updated_at');
-    if (res.error) throw res.error;
+    if (!authed) return [];
+    var res = await api('/api/sync', { headers: authedHeaders() });
+    if (!res.ok) throw new Error('pull-failed');
     var rows = res.data || [];
     var remoteKeys = [];
     var changed = [];
@@ -115,7 +132,7 @@
 
   // ---- Push: localStorage -> đám mây (debounce theo key) ----
   function push(key) {
-    if (!authed || !sb || !isDataKey(key)) return;
+    if (!authed || !isDataKey(key)) return;
     var m = meta[key] || { savedAt: 0, syncedAt: 0 };
     m.savedAt = Date.now();
     meta[key] = m;
@@ -126,16 +143,14 @@
 
   async function flushKey(key) {
     delete pending[key];
-    if (!authed || !sb) return;
+    if (!authed) return;
     var raw = getLocal(key);
     if (raw == null) return; // key đã bị xoá
     var data;
     try { data = JSON.parse(raw); } catch (e) { return; }
-    var res = await sb.from('planner_state')
-      .upsert({ user_id: userId, key: key, data: data }, { onConflict: 'user_id,key' })
-      .select('updated_at');
-    if (res.error) { setStatus('error'); return; }
-    var remoteAt = Date.parse(res.data && res.data[0] && res.data[0].updated_at) || Date.now();
+    var res = await api('/api/sync', { method: 'POST', body: { key: key, data: data } });
+    if (!res.ok) { setStatus('error'); return; }
+    var remoteAt = Date.parse(res.data && res.data.updated_at) || Date.now();
     var m = meta[key] || { savedAt: 0, syncedAt: 0 };
     m.syncedAt = remoteAt;
     meta[key] = m;
@@ -144,7 +159,7 @@
 
   // ---- Migration: nâng cấp dữ liệu localStorage cũ lên đám mây ----
   function migrateLocal(remoteKeys) {
-    if (!authed || !sb) return;
+    if (!authed) return;
     var seen = {};
     remoteKeys.forEach(function (k) { seen[k] = true; });
     var toPush = [];
@@ -158,8 +173,12 @@
   }
 
   async function clearAll() {
-    if (!sb || !userId) return;
-    try { await sb.from('planner_state').delete().eq('user_id', userId); } catch (e) { /* ẩn */ }
+    // Huỷ các push đang chờ debounce — nếu không chúng sẽ đẩy lại dữ liệu ngay sau khi xoá
+    Object.keys(pending).forEach(function (k) { clearTimeout(pending[k]); delete pending[k]; });
+    if (!authed) return;
+    try {
+      await api('/api/sync/clear', { method: 'POST', body: {} });
+    } catch (e) { /* ẩn */ }
     meta = {};
     writeMeta();
   }
@@ -168,8 +187,7 @@
     if (started) return;
     started = true;
     meta = readMeta();
-    sb = createClient();
-    if (!sb) { setStatus('off'); return; }
+    if (!base) { setStatus('off'); return; }
     setStatus('connecting');
     try {
       var ok = await ensureSession();
@@ -183,20 +201,19 @@
     }
   }
 
-  // Username → email nội bộ (Supabase Auth cần email; username tự tạo miền ảo
-  // để không phải gửi email xác nhận — hãy tắt "Confirm email" trong project).
-  function userToEmail(u) {
-    u = String(u || '').trim().toLowerCase();
-    return u.indexOf('@') >= 0 ? u : u + '@taskflow.local';
-  }
-
-  async function login(user, password) {
-    if (!sb) return { ok: false, error: 'no-client' };
-    var res = await sb.auth.signInWithPassword({ email: userToEmail(user), password: password });
-    if (res.error || !res.data || !res.data.session) {
-      return { ok: false, error: res.error ? res.error.message : 'no-session' };
+  async function login(username, password) {
+    if (!base) return { ok: false, error: 'no-config' };
+    var res;
+    try {
+      res = await api('/api/auth/login', { method: 'POST', body: { username: username, password: password } });
+    } catch (e) {
+      return { ok: false, error: 'network' };
     }
-    userId = res.data.session.user.id;
+    if (!res.ok || !res.data || !res.data.token) {
+      return { ok: false, error: 'bad-credentials' };
+    }
+    setToken(res.data.token);
+    userId = res.data.user.id;
     authed = true;
     setStatus('syncing');
     try {
@@ -210,43 +227,56 @@
     }
   }
 
-  async function signup(user, password) {
-    if (!sb) return { ok: false, error: 'no-client' };
-    var res = await sb.auth.signUp({ email: userToEmail(user), password: password });
-    if (res.error) return { ok: false, error: res.error.message };
-    if (res.data && res.data.session) {
-      userId = res.data.session.user.id;
-      authed = true;
-      setStatus('syncing');
-      try {
-        var remoteKeys = await pullAll();
-        migrateLocal(remoteKeys);
-        setStatus('ready');
-      } catch (e) { setStatus('error'); }
+  async function signup(username, password) {
+    if (!base) return { ok: false, error: 'no-config' };
+    var res;
+    try {
+      res = await api('/api/auth/signup', { method: 'POST', body: { username: username, password: password } });
+    } catch (e) {
+      return { ok: false, error: 'network' };
     }
+    if (!res.ok || !res.data || !res.data.token) {
+      var msg = 'signup-failed';
+      if (res.data && res.data.error === 'username-taken') msg = 'username-taken';
+      return { ok: false, error: msg };
+    }
+    setToken(res.data.token);
+    userId = res.data.user.id;
+    authed = true;
+    setStatus('syncing');
+    try {
+      var remoteKeys = await pullAll();
+      migrateLocal(remoteKeys);
+      setStatus('ready');
+    } catch (e) { setStatus('error'); }
     return { ok: true };
   }
 
   async function logout() {
     authed = false;
     userId = null;
-    if (sb) { try { await sb.auth.signOut(); } catch (e) { /* ẩn */ } }
+    try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ẩn */ }
     setStatus('signedout');
   }
 
-  // ---- Google OAuth: chuyển hướng sang Google rồi quay về app ----
-  // PKCE: supabase-js tự lưu code verifier, tự đổi code khi quay về (getSession).
-  // Bạn phải bật Google provider trong Supabase Dashboard (Authentication → Providers → Google)
-  // và thêm Redirect URL của trang (vd https://tensite.github.io/Todoist/) vào danh sách.
+  // ---- Google OAuth: chuyển hướng sang backend → Google → quay về app.html?token=... ----
+  // Bạn phải bật Google provider trong dashboard Google Cloud (OAuth client Web application)
+  // và điền GOOGLE_CLIENT_ID/SECRET + APP_URL khi deploy backend trên Render.
   function loginWithGoogle() {
-    if (!sb) return Promise.resolve({ ok: false, error: 'no-client' });
-    var redirectTo = (typeof cfg.redirectTo === 'string' && cfg.redirectTo) ? cfg.redirectTo : window.location.href;
-    return sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectTo } })
-      .then(function (res) {
-        if (res.error) return { ok: false, error: res.error.message };
-        return { ok: true };
-      })
-      .catch(function (e) { return { ok: false, error: 'oauth-failed' }; });
+    if (!base) return Promise.resolve({ ok: false, error: 'no-config' });
+    var url = base + '/api/auth/google';
+    window.location.href = url;
+    return Promise.resolve({ ok: true, redirect: true });
+  }
+
+  // Đọc token backend trả về qua URL (?token=...) sau callback Google — gọi từ app.js
+  function consumeRedirectToken() {
+    var m = window.location.search.match(/[?&]token=([^&]+)/);
+    if (!m) return false;
+    setToken(decodeURIComponent(m[1]));
+    var clean = window.location.origin + window.location.pathname;
+    try { window.history.replaceState({}, '', clean); } catch (e) { /* ẩn */ }
+    return true;
   }
 
   window.Sync = {
@@ -255,12 +285,12 @@
     clearAll: clearAll,
     login: login,
     signup: signup,
-    userToEmail: userToEmail,
     logout: logout,
     loginWithGoogle: loginWithGoogle,
+    consumeRedirectToken: consumeRedirectToken,
     onStatus: function (fn) { statusListeners.push(fn); },
     onRemoteChange: function (fn) { changeListeners.push(fn); },
     getStatus: function () { return currentStatus; },
-    isReady: function () { return authed; }
+    getUserId: function () { return userId; },
   };
 })();

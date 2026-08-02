@@ -561,8 +561,12 @@ const I18N = {
     syncHaveAccount: 'Đã có tài khoản? Đăng nhập',
     syncGoogle: 'Tiếp tục với Google',
     syncOr: 'hoặc bằng tài khoản',
-    syncGoogleErr: 'Không mở được Google. Kiểm tra lại cấu hình Supabase và provider Google.',
-    syncNeedConfig: 'Chưa cấu hình Supabase — điền Project URL & anon key trong js/supabase-config.js',
+    syncGoogleErr: 'Không mở được Google. Kiểm tra lại cấu hình OAuth trên backend (GOOGLE_CLIENT_ID/SECRET).',
+    syncNeedConfig: 'Chưa cấu hình backend — điền URL API trong js/api-config.js',
+    syncErrUsernameTaken: 'Tên người dùng đã tồn tại — thử tên khác.',
+    syncErrBadCredentials: 'Sai tên người dùng hoặc mật khẩu.',
+    syncErrNetwork: 'Không kết nối được máy chủ — kiểm tra lại URL trong js/api-config.js.',
+    syncErrServer: 'Máy chủ báo lỗi — thử lại sau.',
     homeTitle: 'Về trang giới thiệu',
     shareTitle: 'Chia sẻ streak 🔥',
     shareNamePrompt: 'Tên hiển thị trên tấm ảnh (bỏ trống = "Tôi")?',
@@ -755,8 +759,12 @@ const I18N = {
     syncHaveAccount: 'Have an account? Sign in',
     syncGoogle: 'Continue with Google',
     syncOr: 'or use an account',
-    syncGoogleErr: 'Could not open Google. Check your Supabase config and Google provider.',
-    syncNeedConfig: 'Supabase not configured — fill in Project URL & anon key in js/supabase-config.js',
+    syncGoogleErr: 'Could not open Google. Check OAuth config on the backend (GOOGLE_CLIENT_ID/SECRET).',
+    syncNeedConfig: 'Backend not configured — fill in the API URL in js/api-config.js',
+    syncErrUsernameTaken: 'Username already taken — try another one.',
+    syncErrBadCredentials: 'Wrong username or password.',
+    syncErrNetwork: 'Cannot reach the server — check the URL in js/api-config.js.',
+    syncErrServer: 'Server error — please try again later.',
     homeTitle: 'Back to the intro page',
     shareTitle: 'Share streak 🔥',
     shareNamePrompt: 'Name shown on the card (empty = "Me")?',
@@ -3085,6 +3093,16 @@ function setSyncMode(mode) {
 
 const USER_RE = /^[A-Za-z0-9_.-]{3,30}$/;
 
+function syncErrorText(code) {
+  switch (code) {
+    case 'username-taken': return t('syncErrUsernameTaken');
+    case 'bad-credentials': return t('syncErrBadCredentials');
+    case 'network': return t('syncErrNetwork');
+    case 'no-config': return t('syncNeedConfig');
+    default: return t('syncErrServer');
+  }
+}
+
 async function doSyncSignup() {
   if (!window.Sync) return;
   const { user, pass, pass2 } = syncFormValues();
@@ -3099,7 +3117,7 @@ async function doSyncSignup() {
     alert(t('syncSignupOk'));
     closeSyncModal();
   } else {
-    alert((r && r.error) || t('syncSignupErr'));
+    alert(syncErrorText(r && r.error));
   }
 }
 
@@ -3113,7 +3131,7 @@ async function doSyncLogin() {
     trackEvent('login');
     closeSyncModal();
   } else {
-    alert(t('syncLoginErr'));
+    alert(syncErrorText(r && r.error));
   }
 }
 
@@ -3271,8 +3289,10 @@ buildNav();
 setView(state.view, state.currentWeek);
 
 
-/* ---------- Khởi động đồng bộ đám mây (Supabase) ---------- */
+/* ---------- Khởi động đồng bộ đám mây (backend Render) ---------- */
 if (window.Sync) {
+  // Google OAuth: sau callback, backend quay về app.html?token=... — lưu token trước khi init
+  window.Sync.consumeRedirectToken();
   window.Sync.onStatus(updateSyncStatus);
   window.Sync.onRemoteChange(handleSyncChange);
   const f = document.getElementById('syncForm');

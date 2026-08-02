@@ -107,45 +107,41 @@ Mở trình duyệt tại `http://localhost:8080`.
 
 ---
 
-## ☁️ Đồng bộ đám mây (Supabase)
+## ☁️ Đồng bộ đám mây (backend Render)
 
-Từ phiên bản này, app hỗ trợ **đồng bộ dữ liệu đa thiết bị qua Supabase** (Postgres đám mây miễn phí):
+App hỗ trợ **đồng bộ dữ liệu đa thiết bị qua backend riêng** (Node.js + Express + Postgres trên Render):
 
 - 🔄 **Đồng bộ 2 chiều** — mọi mục tiêu/thói quen/reflection/streak được đẩy lên đám mây và kéo về tự động
 - 📤 **Nâng cấp dữ liệu cũ** — dữ liệu đang nằm trong localStorage được tự động đẩy lên server lần đầu kết nối
 - 📱 **Đa thiết bị** — mở cùng tài khoản trên điện thoại/laptop/PC là thấy cùng một bản kế hoạch
-- 🚫 **Offline-first** — chưa cấu hình hoặc mất mạng vẫn dùng bình thường (localStorage là nguồn chính, Supabase là bản sao)
+- 👤 **Tài khoản username/password** — đăng ký đơn giản, không cần email xác nhận (hết lo rate limit email)
+- 🚫 **Offline-first** — chưa cấu hình hoặc mất mạng vẫn dùng bình thường (localStorage là nguồn chính, backend là bản sao)
 
-### ⚙️ Cách kích hoạt (khoảng 10 phút)
+### ⚙️ Cách kích hoạt (khoảng 15 phút)
 
-1. **Tạo project miễn phí** tại [supabase.com](https://supabase.com) → **New Project**
-2. **Chạy schema**: mở **SQL Editor → New query**, dán toàn bộ nội dung [`supabase/schema.sql`](supabase/schema.sql) rồi bấm **Run** (tạo bảng `planner_state` + Row Level Security + trigger `updated_at`)
-3. **Lấy key** (giao diện mới của Supabase):
-   - Cách nhanh: bấm nút **Connect** ở góc trên → mục *Use the Supabase client library* → copy **Project URL** + **anon public key**
-   - Hoặc: **Settings (⚙️) → API Keys → tab Legacy API Keys** → copy **Project URL** + **anon public key** (dạng `eyJhbGciOiJIUzI1NiIs...`)
-4. **Dán vào config**: mở [`js/supabase-config.js`](js/supabase-config.js) và điền 2 giá trị:
+1. **Deploy backend** trên [render.com](https://render.com) → **New → Blueprint** → chọn repo này.
+   Render đọc [`server/render.yaml`](server/render.yaml) tự tạo **Postgres** + **Web Service** (chạy `server/`, không cần cấu hình gì thêm — chưa kịp cấu hình Google thì bỏ qua biến `GOOGLE_CLIENT_ID/SECRET`, app vẫn dùng username/password bình thường).
+2. **Dán URL vào config**: mở [`js/api-config.js`](js/api-config.js), sửa:
    ```js
-   const SUPABASE_CONFIG = {
-     url: 'https://xxxx.supabase.co',     // Project URL
-     anonKey: 'eyJhbGciOiJIUzI1NiIs...', // anon public key
-     autoAnonymous: true
+   const API_CONFIG = {
+     url: 'https://taskflow-backend.onrender.com', // URL Web Service vừa tạo
+     google: true, // bật/tắt nút "Tiếp tục với Google"
    };
    ```
-5. **Bật đăng nhập ẩn danh** (tuỳ chọn nhưng khuyên dùng): **Authentication → Sign In / Up → Anonymous sign-ins → Enable**
-6. **Bật đăng nhập Google** (tuỳ chọn — nút ☁️ sẽ hiện *Tiếp tục với Google*):
-   - **Authentication → Providers → Google → Enable**
-   - Điền **Client ID / Client Secret** tạo tại [console.cloud.google.com](https://console.cloud.google.com) → *APIs & Services → Credentials → OAuth client ID* (loại **Web application**; authorized JavaScript origins gồm `https://<tên-trang>.github.io` và `http://localhost:8777` nếu chạy local; authorized redirect URIs để mặc định của Supabase)
-   - Dưới bảng cấu hình, thêm **Redirect URL** của trang vào danh sách — thường là `https://<tên-trang>.github.io/Todoist/` (kèm slash cuối) hoặc `http://localhost:8777/`
-   - Khi đăng nhập Google, app sẽ **quay về đúng URL** đang mở (có thể ghi đè qua `redirectTo` trong `js/supabase-config.js`)
+3. **Chạy local không cần DB**: `cd server && npm install && node index.js` — tự dùng Postgres ảo (pg-mem) trên cổng 4000; bật `js/api-config.js` url `http://localhost:4000` rồi mở app để thử.
 
-> 💡 Dùng **anonymous** cho trải nghiệm "tự đồng bộ, không cần tài khoản". Muốn đồng bộ giữa **nhiều thiết bị** thì đăng nhập qua nút ☁️ trên thanh header — **Google OAuth** (nhanh nhất) hoặc **email/password**.
+### 🔑 Đăng nhập Google (tuỳ chọn)
+
+1. Tạo **OAuth Client ID** loại *Web application* tại [console.cloud.google.com](https://console.cloud.google.com) → *APIs & Services → Credentials*; thêm *Authorized redirect URI*: `https://<tên-backend>.onrender.com/api/auth/google/callback` (và `http://localhost:4000/api/auth/google/callback` nếu chạy local).
+2. Điền **GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET** + **APP_URL** (URL trang app của bạn, vd `https://<tên-trang>.github.io/Todoist/app.html`) vào **Environment** của Web Service trên Render, rồi **Deploy** lại.
+3. Sau khi đăng nhập Google, app quay về `APP_URL?token=...` và tự đăng nhập.
 
 ### 🧪 Kiểm tra
 ```bash
-node test-sync.js   # 4 test: no-config, pull+migrate, push debounce, clearAll
+node test-sync.js   # 6 test: no-config, signup+migrate, login lỗi/đúng, push debounce, clearAll, username trùng
 ```
 
-> ⚠️ **Lưu ý gói miễn phí**: Supabase free tier giới hạn **số email xác nhận/gửi** (rate limit `over_email_send_rate_limit` — mặc định ~30 email/giờ/project). Nếu người dùng báo "tạo tài khoản thất bại", thường do hết hạn mức email — kiểm tra **Authentication → Rate Limits** và tăng lên, hoặc bật **Anonymous sign-ins** (mục 5) để không cần email.
+> ⚠️ **Thay đổi backend**: endpoint nằm trong [`server/`](server/) (auth JWT + schema `users`/`planner_state` trong `server/schema.sql`). Token JWT lưu ở localStorage (`planner-token`), TTL 30 ngày.
 
 ---
 
@@ -194,10 +190,18 @@ TaskFlow-Todoist/
 │   └── landing.css     # Giao diện trang giới thiệu
 ├── js/
 │   ├── app.js          # Logic ứng dụng (vanilla JS, không framework)
-│   ├── sync.js         # Engine đồng bộ Supabase (pull/push/migrate, offline-first)
-│   └── supabase-config.js # Điền Project URL + anon key tại đây
+│   ├── sync.js         # Engine đồng bộ backend (pull/push/migrate, offline-first)
+│   └── api-config.js   # Điền URL backend tại đây (js/api-config.js)
+├── server/
+│   ├── index.js        # Backend Express (auth JWT + sync API)
+│   ├── auth.js         # Đăng ký/đăng nhập username/password + Google OAuth
+│   ├── sync.js         # API đọc/ghi dữ liệu (planner_state)
+│   ├── db.js           # Kết nối Postgres (hoặc pg-mem khi chạy local)
+│   ├── schema.sql      # Bảng users + planner_state
+│   ├── package.json    # Dependencies + npm start
+│   └── render.yaml     # Blueprint Render (Postgres + Web Service)
 ├── supabase/
-│   └── schema.sql      # Bảng planner_state + RLS + trigger (chạy trong SQL Editor)
+│   └── schema.sql      # Schema cũ (giữ lại tham khảo — không dùng nữa)
 ├── vercel.json         # Cấu hình triển khai Vercel
 ├── README.md
 └── .gitignore
