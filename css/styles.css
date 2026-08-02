@@ -1155,6 +1155,15 @@ body {
   .week-head { grid-template-columns: 1fr 1fr; }
   .habit-layout { grid-template-columns: 1fr; }
 }
+@media (max-width: 1340px) {
+  /* Giữ header 1 hàng khi cửa sổ không quá rộng (tabs + controls vừa đủ) */
+  .site-header { gap: 10px; padding: 8px 14px; }
+  .brand-chick { font-size: 30px; }
+  .brand-text h1 { font-size: 20px; }
+  .tab { font-size: 12.5px; padding: 6px 12px; }
+  .btn-reset, .btn-now { font-size: 11.5px; padding: 6px 10px; }
+  .month-select { max-width: 130px; }
+}
 @media (max-width: 720px) {
   .ov-top, .goals-top, .week-head, .year-goals-top { grid-template-columns: 1fr; }
   .quarters-grid { grid-template-columns: 1fr; }
@@ -1435,7 +1444,7 @@ body {
 
 .landing-logo {
   margin: 0 0 22px;
-  font-family: 'Instrument Serif', serif;
+  font-family: 'Playfair Display', serif;
   font-size: 30px;
   letter-spacing: .5px;
   opacity: 0;

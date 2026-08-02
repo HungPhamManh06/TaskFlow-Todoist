@@ -147,9 +147,9 @@ node test-sync.js   # 4 test: no-config, pull+migrate, push debounce, clearAll
 
 ---
 
-## ☁️ Triển khai lên mạng (Vercel & Render)
+## ☁️ Triển khai lên mạng (Vercel)
 
-Trang web là **static site thuần** (HTML/CSS/JS) — không cần build, không cần server. Có thể triển khai miễn phí trên cả Vercel và Render.
+Trang web là **static site thuần** (HTML/CSS/JS) — không cần build, không cần server.
 
 ### 🚀 Vercel
 
@@ -167,23 +167,20 @@ vercel --prod     # deploy production
 
 > Cấu hình sẵn trong [`vercel.json`](vercel.json): clean URLs + header bảo mật. Khi push code lên GitHub, Vercel **tự deploy lại** nếu đã import repo (git integration).
 
-### 🦩 Render
-
-1. Đăng nhập [render.com](https://render.com) (đăng nhập bằng GitHub)
-2. **New → Blueprint** → chọn repo `Todoist` → Render đọc [`render.yaml`](render.yaml) và tự tạo **Static Site** → **Apply**
-3. Xong! Link có dạng `https://taskflow-todoist.onrender.com`
-
-> 💡 Mẹo: dùng **Vercel** cho domain chính (tốc độ + phân tích), **Render** làm bản sao dự phòng. Dữ liệu lưu trong localStorage theo từng trình duyệt nên hai bản deploy là độc lập nhau.
-
 ---
 
 ## 📂 Cấu trúc dự án
 
 ```
 TaskFlow-Todoist/
-├── index.html          # Trang chính (chứa SEO meta tags, OG, Twitter)
+├── index.html          # Trang giới thiệu (landing, SEO tĩnh, OG image, JSON-LD, EN/VI)
+├── app.html            # Trang ứng dụng chính (app shell, onboarding 3 bước, modal sync)
+├── og-preview.html     # Nguồn tạo og-image.png (1200×630) — mở + chụp màn hình
+├── og-image.png        # Ảnh chia sẻ Facebook/Zalo (og:image)
+├── app-screenshot.png  # Ảnh chụp app hiển thị trên landing
 ├── css/
-│   └── styles.css      # Toàn bộ giao diện pastel kawaii + 4 chủ đề màu
+│   ├── styles.css      # Giao diện pastel kawaii app + 4 chủ đề màu + onboarding/empty states
+│   └── landing.css     # Giao diện trang giới thiệu
 ├── js/
 │   ├── app.js          # Logic ứng dụng (vanilla JS, không framework)
 │   ├── sync.js         # Engine đồng bộ Supabase (pull/push/migrate, offline-first)
@@ -191,7 +188,6 @@ TaskFlow-Todoist/
 ├── supabase/
 │   └── schema.sql      # Bảng planner_state + RLS + trigger (chạy trong SQL Editor)
 ├── vercel.json         # Cấu hình triển khai Vercel
-├── render.yaml         # Blueprint triển khai Render (Static Site)
 ├── README.md
 └── .gitignore
 ```
@@ -207,7 +203,7 @@ TaskFlow-Todoist/
 | **Vanilla JavaScript** | Toàn bộ logic, không framework, không thư viện ngoài |
 | **localStorage** | Lưu trữ dữ liệu mục tiêu/thói quen/reflection theo từng tháng (key `planner-{y}-{m}`) |
 | **SVG** | Donut chart, line chart, bar chart vẽ tay |
-| **Google Fonts** | Baloo 2, Fredoka, Nunito, Quicksand, Instrument Serif |
+| **Google Fonts** | Baloo 2, Fredoka, Nunito, Quicksand, Playfair Display |
 
 ---
 
@@ -225,7 +221,10 @@ TaskFlow-Todoist/
 - [x] **Chế độ in / PDF** (A4 ngang, checkbox ☐/☑)
 - [x] **PWA** — cài đặt offline, chạy như app thật & nhắc việc hằng ngày
 - [x] **Analytics GA4** — lượt truy cập, quay lại, tạo mục tiêu/thói quen
-- [ ] Đăng nhập & đồng bộ đa thiết bị (Supabase)
+- [x] **Đăng nhập & đồng bộ đa thiết bị (Supabase)** — email/password + Google OAuth, RLS, offline-first
+- [x] **Landing page tách riêng** (`index.html`) — SEO tĩnh, OG image 1200×630 cho Facebook/Zalo
+- [x] **Onboarding 3 bước** — mục tiêu năm → 2 thói quen → chủ đề màu (lần dùng đầu)
+- [x] **Empty states** có hướng dẫn cho từng panel (mục tiêu, thói quen)
 
 ---
 
