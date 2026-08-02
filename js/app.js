@@ -223,11 +223,11 @@ function yearGoalStats() {
 
 function monthPctOf(y, m) {
   let raw = null;
-  try { raw = localStorage.getItem('planner-' + y + '-' + (m + 1)); } catch (e) { return defaultMonthPct(y, m); }
-  if (!raw) return defaultMonthPct(y, m);
+  try { raw = localStorage.getItem('planner-' + y + '-' + (m + 1)); } catch (e) { return hasAccount() ? 0 : defaultMonthPct(y, m); }
+  if (!raw) return hasAccount() ? 0 : defaultMonthPct(y, m);
   try {
     const s = JSON.parse(raw);
-    if (!Array.isArray(s.weeks) || !s.weeks.length) return defaultMonthPct(y, m);
+    if (!Array.isArray(s.weeks) || !s.weeks.length) return hasAccount() ? 0 : defaultMonthPct(y, m);
     const pcts = s.weeks.map((w) => {
       const total = w.goals.length;
       const done = w.goals.filter((g) => g.done).length;
@@ -235,7 +235,7 @@ function monthPctOf(y, m) {
     });
     return Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
   } catch (e) {
-    return defaultMonthPct(y, m);
+    return hasAccount() ? 0 : defaultMonthPct(y, m);
   }
 }
 
@@ -248,6 +248,8 @@ function monthGoalsOf(y, m) {
       if (Array.isArray(s.monthlyGoals)) return s.monthlyGoals;
     } catch (e) { /* ẩn */ }
   }
+  // Tài khoản đã đăng nhập: tháng không có dữ liệu → TRỐNG, không hiện dữ liệu mẫu
+  if (hasAccount()) return [];
   return GOAL_DEFS.map(([text, kind, done], i) => ({ id: 'g' + i, text, kind, done }));
 }
 
@@ -1230,7 +1232,8 @@ function defaultState() {
 function loadState() {
   try {
     let raw = localStorage.getItem(monthKey());
-    if (!raw && monthKey() === 'planner-2026-1') raw = localStorage.getItem(LEGACY_KEY);
+    // Chỉ dùng dữ liệu legacy cho khách vãng lai; tài khoản đã đăng nhập không kế thừa key cũ
+    if (!raw && monthKey() === 'planner-2026-1' && !hasAccount()) raw = localStorage.getItem(LEGACY_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s || !Array.isArray(s.monthlyGoals) || !Array.isArray(s.habits) || !Array.isArray(s.weeks)) return null;
