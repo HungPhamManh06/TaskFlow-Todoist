@@ -156,8 +156,48 @@ async function main() {
     console.log('TEST 6 OK — trùng username + username không hợp lệ');
   }
 
+  // ---- TEST 7: Google OAuth callback (consumeRedirectToken) → xoá local cũ, tài khoản mới trống ----
+  {
+    // Tạo user mới (mô phỏng "tài khoản Google mới vừa tạo") để lấy token thật
+    const signup = await fetch(base + '/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'googleuser7', password: 'Pass123456!' })
+    }).then((x) => x.json());
+    assert.ok(signup.token, 'phải tạo được user cho luồng Google');
+
+    // Máy đang có dữ liệu + token của tài khoản CŨ, quay về sau callback Google với token mới
+    global.localStorage = mockLocalStorage({
+      'planner-token': 'token-cua-tai-khoan-cu',
+      'planner-2026-8': '{"monthlyGoals":[{"id":"g0","text":"mục tiêu cũ","kind":"priority","done":true}],"habits":[],"weeks":[]}',
+      'planner-year-2026': '{"year":2026,"goals":[{"id":"yg0","text":"mục tiêu năm cũ"}]}',
+      'planner-sync-meta': '{"planner-2026-8":{"savedAt":123,"syncedAt":123}}'
+    });
+    global.window = {
+      location: {
+        search: '?token=' + encodeURIComponent(signup.token),
+        origin: 'http://localhost',
+        pathname: '/app.html'
+      },
+      history: { replaceState: () => {} }
+    };
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const Sync = loadSync();
+    const consumed = Sync.consumeRedirectToken();
+    assert.strictEqual(consumed, true, 'phải đọc được token từ URL');
+    // Dữ liệu local của tài khoản cũ phải bị xoá (tài khoản mới = dữ liệu mới)
+    assert.strictEqual(global.localStorage.getItem('planner-2026-8'), null, 'local tháng cũ phải bị xoá');
+    assert.strictEqual(global.localStorage.getItem('planner-year-2026'), null, 'local năm cũ phải bị xoá');
+    await Sync.init();
+    assert.strictEqual(Sync.getStatus(), 'ready');
+    await sleep(60); // chờ debounce — nếu migrateLocal đẩy nhầm dữ liệu cũ sẽ hiện ra đây
+    const rows = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + signup.token } }).then((x) => x.json());
+    assert.strictEqual(rows.length, 0, 'tài khoản Google mới KHÔNG được nhận dữ liệu của tài khoản cũ');
+    console.log('TEST 7 OK — Google OAuth: consumeRedirectToken xoá local cũ, tài khoản mới trống');
+  }
+
   server.close();
-  console.log('\n✅ Tất cả 6 test sync đều PASS');
+  console.log('\n✅ Tất cả 7 test sync đều PASS');
 }
 
 main().catch((e) => { console.error('❌ TEST FAIL:', e); process.exit(1); });

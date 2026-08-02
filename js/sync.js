@@ -204,6 +204,8 @@
   // ---- Xoá toàn bộ dữ liệu local (tạo tài khoản mới / đăng nhập tài khoản khác) ----
   // Mục đích: dữ liệu của tài khoản này không được trộn vào tài khoản khác trên cùng thiết bị
   function clearLocalData() {
+    // Huỷ các push đang chờ debounce — tránh đẩy nhầm dữ liệu vừa xoá lên tài khoản mới
+    Object.keys(pending).forEach(function (k) { clearTimeout(pending[k]); delete pending[k]; });
     for (var i = localStorage.length - 1; i >= 0; i--) {
       var k = localStorage.key(i);
       if (isDataKey(k)) {
@@ -289,6 +291,9 @@
     var m = window.location.search.match(/[?&]token=([^&]+)/);
     if (!m) return false;
     setToken(decodeURIComponent(m[1]));
+    // Google OAuth = đăng nhập / chuyển tài khoản: xoá dữ liệu local của tài khoản cũ
+    // để KHÔNG migrate dữ liệu cũ lên tài khoản mới (giống signup/login)
+    clearLocalData();
     var clean = window.location.origin + window.location.pathname;
     try { window.history.replaceState({}, '', clean); } catch (e) { /* ẩn */ }
     return true;

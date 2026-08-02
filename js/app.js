@@ -278,7 +278,8 @@ function loadMonthStateOrCreate(y, m) {
     const prev = capturePlan();
     try {
       initPlan(new Date(y, m, 1));
-      s = defaultState();
+      // Tài khoản đã đăng nhập: tháng chưa có dữ liệu → TRỐNG, không tạo demo
+      s = hasAccount() ? emptyState() : defaultState();
     } finally {
       restorePlan(prev);
     }
@@ -1328,6 +1329,17 @@ function emptyYearState() {
 
 function bootState() { return loadState() || (hasAccount() ? emptyState() : defaultState()); }
 function bootYearState() { return loadYearState() || (hasAccount() ? emptyYearState() : defaultYearState()); }
+
+// Nạp lại state từ localStorage sau khi đổi tài khoản (login/signup/Google OAuth).
+// QUAN TRỌNG: phải gọi sau khi Sync đã xoá local + pull remote — nếu không UI vẫn
+// hiển thị (và vô tình lưu) dữ liệu của tài khoản trước đó.
+function rebootState() {
+  state = bootState();
+  yearState = bootYearState();
+  invalidateYearCache();
+  setView(state.view, state.currentWeek);
+  updateNav();
+}
 
 let state = bootState();
 
@@ -3197,8 +3209,14 @@ async function doSyncLogin() {
   if (r && r.ok) {
     trackEvent('login');
     closeSyncModal();
+    // Tài khoản mới/khác = dữ liệu mới: localStorage đã được xoá + pull remote,
+    // boot lại state để KHÔNG còn hiển thị (và vô tình lưu) dữ liệu của tài khoản cũ
+    rebootState();
   } else {
     alert(syncErrorText(r && r.error));
+    // Lỗi mạng khi pull: token đã đổi + local đã bị xoá nhưng chưa kéo được dữ liệu.
+    // Vẫn reboot để UI khớp với local trống — tránh save() vô tình đẩy dữ liệu tài khoản cũ
+    if (r && r.error === 'pull-failed') rebootState();
   }
 }
 
@@ -3359,7 +3377,16 @@ setView(state.view, state.currentWeek);
 /* ---------- Khởi động đồng bộ đám mây (backend Render) ---------- */
 if (window.Sync) {
   // Google OAuth: sau callback, backend quay về app.html?token=... — lưu token trước khi init
-  window.Sync.consumeRedirectToken();
+  const googleSwitched = window.Sync.consumeRedirectToken();
+  if (googleSwitched) {
+    // Vừa đăng nhập/chuyển tài khoản qua Google: local đã được xoá trong sync.js,
+    // boot lại state để UI không còn hiển thị dữ liệu của tài khoản trước đó.
+    // LƯU Ý THỨ TỰ: init() (bên dưới) phải chạy SAU rebootState() — vì rebootState()
+    // gọi setView() → save() → Sync.push(), mà lúc này authed còn false nên push()
+    // không ghi meta.savedAt; nếu init() chạy trước, pullAll() của tài khoản cũ
+    // sẽ từ chối ghi đè state trống vừa lưu và migrateLocal() có thể đè dữ liệu thật.
+    rebootState();
+  }
   window.Sync.onStatus(updateSyncStatus);
   window.Sync.onRemoteChange(handleSyncChange);
   const f = document.getElementById('syncForm');
