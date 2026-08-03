@@ -99,11 +99,105 @@
     return rows;
   }
 
+  // ---- Mood & dữ liệu thông minh (Phase 6) ----
+
+  // moodSummary: pairs = [{ mood: 0..4 hoặc null, pct: 0..100 }] — so sánh habit % trung bình
+  // của ngày "vui" (mood >= 3) với ngày "buồn" (mood <= 1) để đưa ra insight đơn giản.
+  function moodSummary(pairs) {
+    const good = [];
+    const bad = [];
+    (pairs || []).forEach((p) => {
+      if (!p || typeof p.mood !== 'number' || typeof p.pct !== 'number') return;
+      if (p.mood >= 3) good.push(p.pct);
+      else if (p.mood <= 1) bad.push(p.pct);
+    });
+    const avg = (a) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null);
+    const goodAvg = avg(good);
+    const badAvg = avg(bad);
+    return {
+      goodDays: good.length,
+      badDays: bad.length,
+      goodAvg: goodAvg,
+      badAvg: badAvg,
+      delta: (goodAvg !== null && badAvg !== null) ? goodAvg - badAvg : null,
+    };
+  }
+
+  // ---- Import CSV (Phase 6) ----
+
+  // Tách 1 dòng CSV thành các ô (hỗ trợ nháy kép + escape ""), round-trip với csvRow().
+  function splitCSVLine(line) {
+    const out = [];
+    let cur = '';
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = false;
+        } else cur += ch;
+      } else if (ch === '"') inQ = true;
+      else if (ch === ',') { out.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+
+  const CSV_SECTIONS = ['MonthlyGoals', 'Habits', 'Tasks', 'MonthReflections', 'YearGoals', 'YearReflections', 'YearNotes', 'TaskFlow-Todoist Export'];
+  // Cột 1 của dòng HEADER mỗi section — dòng dữ liệu luôn lặp lại tag nên phải phân biệt.
+  const CSV_HEADER_COL1 = { MonthlyGoals: 'Month', Habits: 'Month', Tasks: 'Month', MonthReflections: 'Month', YearGoals: 'Kind', YearReflections: 'Scope', YearNotes: 'Month' };
+
+  // parseCSVRows(text): đọc file CSV export của app → { months: { m: { goals, habits, tasks } }, year: { goals } }.
+  // Thuần, không đụng storage — merge vào state ở app.js.
+  function parseCSVRows(text) {
+    const out = { months: {}, year: { goals: [] } };
+    // Một số editor/trình duyệt dịch dòng thành "\r\r\n" (hoặc file Windows thô) → cắt \r thừa cuối dòng.
+    const lines = String(text || '').split(/\r?\n/).map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
+    let section = null;
+    lines.forEach((ln) => {
+      const cells = splitCSVLine(ln);
+      if (!cells.length) return;
+      const tag = (cells[0] || '').trim();
+      if (CSV_SECTIONS.indexOf(tag) >= 0) {
+        // Dòng header (cột 1 trùng tên cột chuẩn) mới chuyển section; dòng dữ liệu lặp lại tag → xử lý tiếp.
+        if (tag === 'TaskFlow-Todoist Export' || (cells[1] || '').trim() === CSV_HEADER_COL1[tag]) { section = tag; return; }
+      }
+      if (!section) return;
+      if (section === 'MonthlyGoals') {
+        const m = +cells[1];
+        if (m >= 1 && m <= 12 && cells[3]) {
+          if (!out.months[m]) out.months[m] = { goals: [], habits: [], tasks: [] };
+          out.months[m].goals.push({ kind: cells[2] === 'priority' ? 'priority' : 'regular', text: cells[3], done: cells[4] === '1' });
+        }
+      } else if (section === 'Habits') {
+        const m = +cells[1];
+        if (m >= 1 && m <= 12 && cells[2]) {
+          if (!out.months[m]) out.months[m] = { goals: [], habits: [], tasks: [] };
+          out.months[m].habits.push({ name: cells[2], day: +cells[3], done: cells[4] === '1' });
+        }
+      } else if (section === 'Tasks') {
+        const m = +cells[1];
+        if (m >= 1 && m <= 12 && cells[6]) {
+          if (!out.months[m]) out.months[m] = { goals: [], habits: [], tasks: [] };
+          out.months[m].tasks.push({ week: +cells[2], day: +cells[3], kind: cells[5] === 'priority' ? 'priority' : 'regular', text: cells[6], done: cells[7] === '1' });
+        }
+      } else if (section === 'YearGoals') {
+        if (cells[2]) out.year.goals.push({ kind: cells[1] === 'priority' ? 'priority' : 'regular', text: cells[2], done: cells[3] === '1' });
+      }
+    });
+    return out;
+  }
+
   var api = {
     weekGoalPct: weekGoalPct,
     yearMonthlyFrom: yearMonthlyFrom,
     csvRow: csvRow,
     buildCSVRows: buildCSVRows,
+    moodSummary: moodSummary,
+    splitCSVLine: splitCSVLine,
+    parseCSVRows: parseCSVRows,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.PlanStats = api;

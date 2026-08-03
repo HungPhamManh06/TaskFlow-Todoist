@@ -3,7 +3,7 @@
    Chiáº¿n lÆ°á»£c: network-first cho Ä‘iá»u hÆ°á»›ng, stale-while-revalidate cho tÄ©nh. */
 'use strict';
 
-const CACHE = 'taskflow-v32';
+const CACHE = 'taskflow-v34';
 const APP_SHELL = [
   './',
   './index.html',
@@ -31,7 +31,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE && k !== 'taskflow-digest').map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
@@ -97,13 +97,23 @@ self.addEventListener('notificationclick', (e) => {
 });
 
 function showReminder() {
-  const title = 'TaskFlow-Todoist ðŸ¥';
-  const options = {
-    body: 'HÃ´m nay báº¡n Ä‘Ã£ hoÃ n thÃ nh nhá»¯ng má»¥c tiÃªu nÃ o? VÃ o Ä‘iá»ƒm danh thÃ³i quen nhÃ©!',
+  const fallback = {
+    title: 'TaskFlow-Todoist 🐥',
+    body: 'Hôm nay bạn đã hoàn thành những mục tiêu nào? Vào điểm danh thói quen nhé!',
+  };
+  const opts = (d) => ({
+    body: d.body || fallback.body,
     icon: './icons/icon-192.png',
     badge: './icons/icon-192.png',
     tag: 'daily-reminder',
     renotify: true,
-  };
-  return self.registration.showNotification(title, options);
+  });
+  // Phase 6: đọc digest.json do app ghi vào cache (nhắc bù habit bỏ lỡ hôm qua); fallback nếu chưa có.
+  return caches.match('./digest.json').then((res) => {
+    if (!res) return self.registration.showNotification(fallback.title, opts(fallback));
+    return res.json().then((d) => {
+      const info = (d && d.body && d.date === new Date().toDateString()) ? d : fallback;
+      return self.registration.showNotification(info.title || fallback.title, opts(info));
+    }).catch(() => self.registration.showNotification(fallback.title, opts(fallback)));
+  });
 }

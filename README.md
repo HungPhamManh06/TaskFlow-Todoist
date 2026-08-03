@@ -105,6 +105,42 @@ Tất cả dữ liệu được lưu an toàn trong **localStorage** của trìn
 - 📊 **Xuất CSV**: mọi mục tiêu/thói quen/task/reflection thành bảng 7 section — dán thẳng vào **Google Sheets**
 - 🖨️ **In / PDF**: in view đang mở (Tổng quan/Năm/Tuần) tối ưu A4 ngang, checkbox hiện ☐/☑, ẩn nút thao tác
 
+### ↩️ Undo / Redo (Phase 5)
+- **Hoàn tác / Làm lại** mọi thao tác: tick task/habit/goal, thêm/xoá mục, sửa text, sắp xếp, thậm chí cả nút "Đặt lại"
+- Nút ↩️/↪️ trong header + phím **`Ctrl+Z`** / **`Ctrl+Shift+Z`** — snapshot tối đa 50 bước trong phiên
+
+### 🔀 Kéo-thả sắp xếp (Phase 5)
+- Kéo thả **task** trong ngày, **mục tiêu** trong tháng/tuần/năm, **thói quen** trong bảng để đổi thứ tự (lưu ngay, có undo)
+- Gợi ý: kéo thả tốt nhất trên máy tính; trên mobile dùng thứ tự mặc định
+
+### ⌨️ Phím tắt (Phase 5)
+- `Ctrl+K` — mở/đóng tìm kiếm xuyên tháng · `1-5` — chuyển view (Tổng quan/Tuần/Năm/Lịch) · `/` — focus ô thêm task hôm nay · `Esc` — đóng modal/chế độ tập trung
+
+### 🕑 Sao lưu tự động (Phase 5)
+- App tự lưu **7 bản sao lưu** (`planner-backup-0..6`, vòng xoay) sau mỗi lần thay đổi — mở 💾 → **"Khôi phục bản sao lưu tự động"** để quay lại bản cũ bất kỳ
+- Trước khi import JSON, app tự chốt 1 bản sao lưu dữ liệu hiện tại (an toàn không mất)
+
+### 🎯 Chế độ Tập trung (Phase 5)
+- Nút 🎯 trong header: overlay tối giản chỉ còn **task hôm nay + thói quen cần làm** — tick ngay trong đó, `Esc` để thoát
+
+### ✨ Thói quen mẫu & Demo (Phase 6)
+- Nút **✨ Thói quen mẫu** trong panel thói quen: 16 gợi ý (💧 📚 🏃 😴 …) thêm 1 chạm
+- Nút **🎬 Demo** trong 💾: tạo sẵn 3 mục tiêu + 4 thói quen + 2 task hôm nay (dữ liệu đầy đủ để trải nghiệm ngay)
+
+### 😊 Mood tracker (Phase 6)
+- **Chấm mood mỗi ngày** (😢→🤩) ngay trong view Tuần — nhiệt kế **heatmap cả tháng** ngay trên Tổng quan
+- **Insight tự động**: ngày vui vs ngày buồn — hôm nào bạn hoàn thành thói quen tốt hơn? (tự đồng bộ đám mây)
+
+### 📅 Báo cáo năm (Phase 6)
+- Nút **"📊 Báo cáo năm"** trong view Năm: % hoàn thành mục tiêu, tháng đạt mục tiêu nhất 🏆, thói quen nổi bật 🔥, ngày năng suất nhất ⭐
+- 📤 **Chia sẻ ảnh báo cáo năm** — ảnh 1080×1080 (donut + thống kê), chia sẻ trực tiếp hoặc tải `taskflow-year-report.png`
+
+### 📥 Nhập CSV (Phase 6)
+- **Nhập CSV** (nút trong 💾): khôi phục mục tiêu/thói quen/task từ file xuất trước đó — dữ liệu trùng tên **gộp vào, không ghi đè** (an toàn khi cập nhật từ Google Sheets)
+
+### 🔔 Weekly digest (Phase 6)
+- App tự ghi bản tóm tắt hôm qua (thói quen bỏ lỡ, mục tiêu hôm nay) vào cache — nhắc hằng ngày của trình duyệt hiển thị **số liệu thực tế** thay vì câu mặc định
+
 ### 📈 Analytics (GA4)
 - Theo dõi **lượt truy cập, người dùng quay lại, tạo mục tiêu/thói quen/task, cài đặt PWA** — cấu hình Measurement ID trong `js/app.js`
 

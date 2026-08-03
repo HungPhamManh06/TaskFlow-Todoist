@@ -62,7 +62,7 @@
       } catch (e) { /* ẩn */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/styles.css?v=43" />
+  <link rel="stylesheet" href="css/styles.css?v=45" />
 </head>
 
 <body>
@@ -121,9 +121,19 @@
           <strong data-i18n="dataTitle">💾 Dữ liệu của bạn</strong>
           <button type="button" class="pop-btn" data-action="export-json" data-i18n="exportJson">📤 Xuất JSON (sao lưu)</button>
           <button type="button" class="pop-btn" data-action="import-json" data-i18n="importJson">📥 Nhập JSON (khôi phục)</button>
+          <button type="button" class="pop-btn" data-action="import-csv" data-i18n="importCsv">📥 Nhập CSV (khôi phục)</button>
           <button type="button" class="pop-btn" data-action="export-csv" data-i18n="exportCsv">📊 Xuất CSV (Google Sheets)</button>
+          <button type="button" class="pop-btn" data-action="backup-restore" data-i18n="backupRestore">🕑 Khôi phục bản sao lưu tự động</button>
+          <button type="button" class="pop-btn" data-action="demo-data" data-i18n="demoData">✨ Tạo dữ liệu mẫu</button>
+          <button type="button" class="pop-btn" data-action="feedback" data-i18n="feedbackBtn">💬 Góp ý / phản hồi</button>
         </div>
       </div>
+      <button type="button" class="btn-icon" id="btnUndo" data-action="undo" title="Hoàn tác (Ctrl+Z)"
+        data-i18n-title="undoBtn" data-i18n-aria="undoBtn" disabled>↩️</button>
+      <button type="button" class="btn-icon" id="btnRedo" data-action="redo" title="Làm lại (Ctrl+Shift+Z)"
+        data-i18n-title="redoBtn" data-i18n-aria="redoBtn" disabled>↪️</button>
+      <button type="button" class="btn-icon" data-action="focus" title="Chế độ Tập trung"
+        data-i18n-title="focusOpen" data-i18n-aria="focusOpen">🎯</button>
       <button type="button" class="btn-icon" data-action="search-toggle" title="Tìm kiếm xuyên tháng"
         data-i18n-title="searchOpenAria" data-i18n-aria="searchOpenAria">🔍</button>
       <button type="button" class="btn-icon" data-action="template" title="Sao chép cấu trúc tháng"
@@ -181,7 +191,7 @@
 
   <footer class="bricks bricks-bottom" aria-hidden="true"></footer>
 
-  <input type="file" id="importFile" accept=".json,application/json" hidden />
+  <input type="file" id="importFile" accept=".json,application/json,.csv,text/csv" hidden />
 
   <!-- ===== Tìm kiếm xuyên tháng (Phase 2) ===== -->
   <div class="search-modal" id="searchModal" hidden>
@@ -215,6 +225,30 @@
       <div class="sync-actions">
         <button type="button" class="pop-btn primary" data-action="template-do" data-i18n="templateDo">📋 Sao chép</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== Sao lưu tự động (Phase 5) ===== -->
+  <div class="backup-modal" id="backupModal" hidden>
+    <div class="backup-modal-card" role="dialog" aria-modal="true" aria-label="Khôi phục bản sao lưu"
+      data-i18n-aria="backupRestore">
+      <button type="button" class="sync-close" data-action="backup-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h3 class="sync-modal-title">🕑 <span data-i18n="backupRestore">Khôi phục bản sao lưu tự động</span></h3>
+      <div id="backupList" class="backup-list"></div>
+    </div>
+  </div>
+
+  <!-- ===== Focus Mode (Phase 5) ===== -->
+  <div class="focus-overlay" id="focusOverlay" hidden>
+    <div class="focus-card" role="dialog" aria-modal="true" aria-label="Chế độ Tập trung"
+      data-i18n-aria="focusOpen">
+      <div class="focus-head">
+        <h3 class="focus-title">🎯 <span data-i18n="focusOpen">Chế độ Tập trung</span></h3>
+        <button type="button" class="sync-close" data-action="focus-close" aria-label="Đóng"
+          data-i18n-aria="focusClose" title="Đóng (Esc)" data-i18n-title="focusClose">✕</button>
+      </div>
+      <div id="focusContent"></div>
     </div>
   </div>
 
@@ -333,6 +367,21 @@
     </div>
   </div>
 
+  <!-- ===== Báo cáo năm (Phase 6) ===== -->
+  <div class="report-modal" id="yearReportModal" hidden>
+    <div class="report-modal-card" role="dialog" aria-modal="true" aria-label="Báo cáo năm"
+      data-i18n-aria="yearReportTitle">
+      <button type="button" class="sync-close" data-action="close-year-report" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h3 class="sync-modal-title">📊 <span data-i18n="yearReportTitle">Báo cáo năm</span></h3>
+      <div id="yearReportContent"></div>
+      <div class="report-actions">
+        <button type="button" class="pop-btn share-btn" data-action="share-year-report">📤 <span
+            data-i18n="yearReportShare">Chia sẻ ảnh</span></button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Onboarding 3 bước (lần dùng đầu) ===== -->
   <div class="onboard-modal" id="onboardModal" hidden>
     <div class="onboard-card">
@@ -385,10 +434,10 @@
 
   <script src="js/api-config.js?v=1"></script>
   <script src="js/deeplink.js?v=2"></script>
-  <script src="js/plan-math.js?v=1"></script>
-  <script src="js/plan-stats.js?v=1"></script>
+  <script src="js/plan-math.js?v=2"></script>
+  <script src="js/plan-stats.js?v=2"></script>
   <script src="js/sync.js?v=3"></script>
-  <script src="js/app.js?v=37"></script>
+  <script src="js/app.js?v=39"></script>
 </body>
 
 </html>

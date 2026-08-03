@@ -1,7 +1,7 @@
 # Feature Roadmap — TaskFlow-Todoist
 
 - Ngày: 2026-08-03
-- Trạng thái: Đã duyệt (toàn bộ 4 pha) — Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, Phase 4 ✅ hoàn thành 2026-08-03
+- Trạng thái: Đã duyệt (toàn bộ 6 pha) — Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, Phase 4 ✅, Phase 5 ✅ hoàn thành 2026-08-03, Phase 6 đang triển khai (6A.1 theme, 6A.3 onboarding, 6A.4 confetti đã có; 6A.2 + 6B.1–6B.4 vừa code xong, đang verify)
 
 ## Bối cảnh
 
@@ -58,6 +58,17 @@ Kiểm thử: `tests/phase0.test.mjs` 12/12 PASS (node --test), `node test-sync.
 | 4.1 | Nhắc việc cho habit/task | ✅ Field `remind: { enabled, time }` trên habit + task (migration loadState); nút 🔔 cạnh tên → inline picker giờ; danh sách nhắc trong `remindPop`; `syncReminderTimers()` schedule setTimeout mỗi mốc (tự reschedule ngày sau), `trackEvent('reminder_show'|'reminder_item_set')` |
 | 4.2 | Báo cáo thống kê tuần | ✅ Modal `weekReportModal`: `weeklyReportData(w)` (goals pct, habitByDay 7 ngày, top habit, bestDay), canvas 1080×1080 → `taskflow-week-report.png`, nút 📊 trong `week-banner` renderWeek, `trackEvent('share_week_report')` |
 | 4.3 | Widget Pomodoro trong tuần view | ✅ Card `.pomo-widget` trong `view-week` (timer + start/pause/reset + chuyển work/break), đồng bộ 1 chiều với overlay qua `renderPomo()`; `planner-pomo-log` đếm session hôm nay/tuần, `pomoSetMode`, `trackEvent('pomodoro_mode')` |
+
+## Pha 5 — Trải nghiệm & an toàn dữ liệu ✅ HOÀN THÀNH (2026-08-03)
+
+| # | Việc | Chi tiết kỹ thuật |
+|---|---|---|
+| 5.1 | Undo / Redo ✅ | `PlanMath.makeUndoStack(50)` (push/undo/redo/canUndo/clear); `pushUndo()` bọc mọi mutation (UNDOABLE_ACTS + focusin contenteditable); nút ↩️↪️ header + `Ctrl+Z`/`Ctrl+Shift+Z`; `applySnapshot` re-render + save lại state |
+| 5.2 | Kéo-thả sắp xếp ✅ | HTML5 drag & drop (delegation): task trong ngày, goal tháng/tuần/năm, habit trong bảng; `reorder_task/goal/habit` + pushUndo trước drop; CSS `.drag-over` |
+| 5.3 | Phím tắt & Command Palette ✅ | `Ctrl+K` toggle search modal, phím số 1–5 chuyển view, `/` focus ô thêm task hôm nay — chèn TRƯỚC guard keydown |
+| 5.4 | Sao lưu tự động ✅ | Ring buffer 7 bản `planner-backup-0..6` + `rotateBackup()` (throttle 1/phút qua `maybeAutoBackup` trong save, chốt bản trước import); modal khôi phục `backupModal` 1-click |
+| 5.5 | Kích hoạt Analytics & Feedback ✅ | Nút `data-action="feedback"` trong dataPop (mở `FB_FORM_URL`, fallback alert `fbNoForm`); README hướng dẫn điền `GA4_ID`/`FB_FORM_URL` |
+| 5.6 | Chế độ Tập trung (Focus Mode) ✅ | `#focusOverlay` + `body.focus-mode` (ẩn header/view/bricks); task hôm nay + habit chưa tick + nút Esc thoát; `refreshFocusIfOpen()` sau mỗi toggle |
 
 ## Loại bỏ (YAGNI)
 

@@ -50,6 +50,33 @@
     return best;
   }
 
+  // Undo stack (Phase 5): push snapshot, undo/redo với limit, canUndo/canRedo, clear.
+  function makeUndoStack(limit) {
+    var max = limit > 0 ? limit : 50;
+    var undo = [];
+    var redo = [];
+    return {
+      push: function (s) {
+        undo.push(s);
+        if (undo.length > max) undo.shift();
+        redo = [];
+      },
+      undo: function () {
+        var s = undo.pop();
+        if (s !== undefined) redo.push(s);
+        return s !== undefined ? s : null;
+      },
+      redo: function () {
+        var s = redo.pop();
+        if (s !== undefined) undo.push(s);
+        return s !== undefined ? s : null;
+      },
+      canUndo: function () { return undo.length > 0; },
+      canRedo: function () { return redo.length > 0; },
+      clear: function () { undo = []; redo = []; },
+    };
+  }
+
   // Huy hiệu: trả về mảng id badge đạt điều kiện với dữ liệu tháng đang xem.
   function evaluateBadges(d) {
     var out = [];
@@ -80,6 +107,7 @@
     currentStreak: currentStreak,
     bestStreak: bestStreak,
     evaluateBadges: evaluateBadges,
+    makeUndoStack: makeUndoStack,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.PlanMath = api;

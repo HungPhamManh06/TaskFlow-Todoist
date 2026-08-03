@@ -768,6 +768,56 @@ const I18N = {
     acctDeleted: 'Đã xoá tài khoản.',
     acctDeleteErr: 'Không xoá được tài khoản, thử lại sau.',
     profileOpen: '👤 Tài khoản',
+    /* ===== Phase 5 — Trải nghiệm & an toàn dữ liệu ===== */
+    undoBtn: '↩️ Hoàn tác (Ctrl+Z)',
+    redoBtn: '↪️ Làm lại (Ctrl+Shift+Z)',
+    undoDone: 'Đã hoàn tác',
+    redoDone: 'Đã làm lại',
+    noUndo: 'Không có gì để hoàn tác',
+    dragHint: 'Kéo để sắp xếp lại',
+    reorderDone: 'Đã sắp xếp lại',
+    shortcutHint: 'Phím tắt: Ctrl+K tìm kiếm · 1-5 chuyển view · / thêm task',
+    backupRestore: '🕑 Khôi phục bản sao lưu tự động',
+    backupEmpty: 'Chưa có bản sao lưu nào. Bản sao lưu tự lưu sau mỗi lần bạn thay đổi dữ liệu.',
+    backupRestoreDone: 'Đã khôi phục bản sao lưu! Trang sẽ tải lại.',
+    backupRestoreConfirm: 'Khôi phục bản sao lưu sẽ GHI ĐÈ dữ liệu hiện tại. Tiếp tục?',
+    backupSlot: '{n} key dữ liệu',
+    focusTitle: '🎯 Chế độ Tập trung',
+    focusToday: 'Task hôm nay',
+    focusHabits: 'Thói quen hôm nay',
+    focusClose: 'Đóng chế độ tập trung (Esc)',
+    focusOpen: 'Chế độ Tập trung',
+    focusNoTask: 'Hôm nay chưa có task nào 🐥',
+    focusHabitDone: 'Đã xong hết thói quen hôm nay! 🎉',
+    feedbackBtn: '💬 Góp ý / phản hồi',
+    /* ===== Phase 6 — Cá nhân hoá & dữ liệu thông minh ===== */
+    templatesTitle: '✨ Thói quen mẫu',
+    templatesHint: 'Chọn nhanh một thói quen để thêm vào tháng này:',
+    demoData: '✨ Tạo dữ liệu mẫu',
+    demoDataDone: 'Đã tạo dữ liệu mẫu! Dùng Ctrl+Z nếu muốn hoàn tác.',
+    moodTitle: 'Tâm trạng tháng',
+    moodHint: 'Chạm emoji để ghi tâm trạng mỗi ngày',
+    mood0: 'Rất buồn',
+    mood1: 'Buồn',
+    mood2: 'Bình thường',
+    mood3: 'Vui',
+    mood4: 'Tuyệt vời',
+    moodInsight: 'Ngày vui có habit {g}% — cao hơn ngày buồn {d}% 🐥',
+    moodInsightNone: 'Ghi vài ngày tâm trạng để xem insight của bạn.',
+    yearReportTitle: 'Báo cáo năm',
+    yearReportGoalPct: 'Mục tiêu năm',
+    yearReportTopMonth: 'Tháng đỉnh cao',
+    yearReportBestHabit: 'Habit nổi bật',
+    yearReportProdDay: 'Ngày năng suất',
+    yearReportShare: 'Chia sẻ ảnh',
+    yearReportCardTitle: 'Tổng kết năm {y}',
+    yearReportDaySub: 'tháng {m}',
+    importCsv: '📥 Nhập CSV (khôi phục)',
+    importCsvConfirm: 'Nhập CSV sẽ GỘP dữ liệu (không ghi đè mục trùng tên). Bạn chắc chắn muốn tiếp tục?',
+    importCsvDone: 'Đã nhập CSV!',
+    importCsvError: 'Không đọc được CSV. Đảm bảo file là bản xuất từ TaskFlow-Todoist.',
+    digestNone: 'Hôm qua bạn điểm danh đủ thói quen! 🎉',
+    digestBody: 'Hôm qua chưa điểm danh: {names}',
   },
   en: {
     navMonths: 'Navigate months',
@@ -1119,6 +1169,56 @@ const I18N = {
     acctDeleted: 'Account deleted.',
     acctDeleteErr: 'Could not delete the account, try again later.',
     profileOpen: '👤 Account',
+    /* ===== Phase 5 — UX & data safety ===== */
+    undoBtn: '↩️ Undo (Ctrl+Z)',
+    redoBtn: '↪️ Redo (Ctrl+Shift+Z)',
+    undoDone: 'Undone',
+    redoDone: 'Redone',
+    noUndo: 'Nothing to undo',
+    dragHint: 'Drag to reorder',
+    reorderDone: 'Reordered',
+    shortcutHint: 'Shortcuts: Ctrl+K search · 1-5 switch view · / add task',
+    backupRestore: '🕑 Restore auto backup',
+    backupEmpty: 'No backups yet. Backups are saved automatically after each change.',
+    backupRestoreDone: 'Backup restored! The page will reload.',
+    backupRestoreConfirm: 'Restoring a backup will OVERWRITE current data. Continue?',
+    backupSlot: '{n} data keys',
+    focusTitle: '🎯 Focus Mode',
+    focusToday: "Today's tasks",
+    focusHabits: "Today's habits",
+    focusClose: 'Close focus mode (Esc)',
+    focusOpen: 'Focus Mode',
+    focusNoTask: 'No tasks today 🐥',
+    focusHabitDone: 'All habits done today! 🎉',
+    feedbackBtn: '💬 Feedback',
+    /* ===== Phase 6 — Personalization & insights ===== */
+    templatesTitle: '✨ Habit ideas',
+    templatesHint: 'Pick a habit idea to add to this month:',
+    demoData: '✨ Add sample data',
+    demoDataDone: 'Sample data added! Press Ctrl+Z to undo.',
+    moodTitle: 'Monthly mood',
+    moodHint: 'Tap an emoji to log your daily mood',
+    mood0: 'Very low',
+    mood1: 'Low',
+    mood2: 'Okay',
+    mood3: 'Happy',
+    mood4: 'Amazing',
+    moodInsight: 'Happy days score {g}% habits — {d}% higher than low days 🐥',
+    moodInsightNone: 'Log a few moods to see your insights.',
+    yearReportTitle: 'Year report',
+    yearReportGoalPct: 'Year goals',
+    yearReportTopMonth: 'Peak month',
+    yearReportBestHabit: 'Top habit',
+    yearReportProdDay: 'Most productive day',
+    yearReportShare: 'Share image',
+    yearReportCardTitle: 'Year {y} in review',
+    yearReportDaySub: 'month {m}',
+    importCsv: '📥 Import CSV (restore)',
+    importCsvConfirm: 'Importing CSV will MERGE data (duplicates by name will not overwrite). Continue?',
+    importCsvDone: 'CSV imported!',
+    importCsvError: 'Could not read CSV. Make sure it is a TaskFlow-Todoist export.',
+    digestNone: 'All habits ticked yesterday! 🎉',
+    digestBody: 'Missed yesterday: {names}',
   },
 };
 
@@ -1599,6 +1699,8 @@ function importJSONFile(file) {
       const data = JSON.parse(reader.result);
       if (!data || data.app !== 'taskflow-todoist' || !data.keys || typeof data.keys !== 'object') throw new Error('bad');
       if (!confirm(t('importConfirm'))) return;
+      // Phase 5: chốt bản sao lưu dữ liệu hiện tại trước khi ghi đè (an toàn dữ liệu)
+      try { rotateBackup(collectAllData()); } catch (e) { /* ẩn */ }
       Object.keys(data.keys).forEach((k) => {
         try { localStorage.setItem(k, data.keys[k]); } catch (e) { /* ẩn */ }
       });
@@ -1626,6 +1728,8 @@ function togglePop(id) {
 document.addEventListener('click', (e) => {
   if (e.target.closest('.header-pop') || e.target.closest('.remind-wrap') || e.target.closest('.data-wrap')) return;
   document.querySelectorAll('.header-pop').forEach((p) => { p.hidden = true; });
+  const tp = document.getElementById('templatesPop');
+  if (tp && !tp.hidden && !e.target.closest('.templates-pop') && !e.target.closest('[data-action="templates-toggle"]')) tp.hidden = true;
 });
 
 /* ============================ Confetti ============================ */
@@ -1684,6 +1788,404 @@ function confettiBurst() {
     else { canvas.remove(); confettiRun = null; }
   }
   requestAnimationFrame(frame);
+}
+
+
+/* ============================ Phase 6: Thói quen mẫu, Demo, Mood, Báo cáo năm, Import CSV ============================ */
+
+/* ---------- 6A.2 — Thư viện thói quen mẫu ---------- */
+
+const HABIT_TEMPLATES = [
+  { icon: '📚', vi: 'Đọc sách 20 phút', en: 'Read 20 minutes' },
+  { icon: '💧', vi: 'Uống nước đủ 2L', en: 'Drink 2L water' },
+  { icon: '🏃', vi: 'Vận động 30 phút', en: 'Exercise 30 min' },
+  { icon: '🧘', vi: 'Thiền 10 phút', en: 'Meditate 10 min' },
+  { icon: '🥗', vi: 'Ăn rau xanh', en: 'Eat veggies' },
+  { icon: '😴', vi: 'Ngủ đủ 8 tiếng', en: 'Sleep 8 hours' },
+  { icon: '🕊', vi: 'Dậy sớm 6h', en: 'Wake up at 6am' },
+  { icon: '✍️', vi: 'Viết nhật ký', en: 'Journal' },
+  { icon: '📵', vi: 'Không lướt điện thoại 1h', en: 'No phone for 1 hour' },
+  { icon: '💪', vi: 'Hít đất 20 cái', en: '20 push-ups' },
+  { icon: '🗣', vi: 'Học tiếng Anh 30 phút', en: 'Study English 30 min' },
+  { icon: '🎨', vi: 'Luyện kỹ năng mới', en: 'Practice a skill' },
+  { icon: '🌅', vi: 'Đi bộ 10.000 bước', en: 'Walk 10k steps' },
+  { icon: '🧹', vi: 'Dọn dẹp 15 phút', en: 'Tidy 15 min' },
+  { icon: '💰', vi: 'Tiết kiệm tiền', en: 'Save money' },
+  { icon: '🙏', vi: 'Biết ơn 3 điều', en: 'Note 3 gratitudes' },
+];
+
+function templatesPopHTML() {
+  return `<div class="templates-pop" id="templatesPop" hidden>
+    <strong class="templates-title">${t('templatesTitle')}</strong>
+    <p class="templates-hint">${t('templatesHint')}</p>
+    <div class="templates-list">
+      ${HABIT_TEMPLATES.map((h) => `<button type="button" class="template-chip" data-action="template-add" data-name="${esc(h[LANG])}">${h.icon} ${esc(h[LANG])}</button>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* ---------- 6A.3 — Dữ liệu mẫu ---------- */
+
+function demoPlan() {
+  const now = new Date();
+  const ti = nowInfo();
+  const today = now.getDate() - 1;
+  const isEn = LANG === 'en';
+  if (!state.monthlyGoals.length) {
+    state.monthlyGoals.push(
+      { id: 'dg' + Date.now(), text: isEn ? 'Finish the biggest project' : 'Hoàn thành dự án lớn nhất', kind: 'priority', done: false },
+      { id: 'dg' + (Date.now() + 1), text: isEn ? 'Work out 4 times/week' : 'Tập thể dục 4 lần/tuần', kind: 'priority', done: false },
+      { id: 'dg' + (Date.now() + 2), text: isEn ? 'Read 2 books' : 'Đọc 2 cuốn sách', kind: 'regular', done: false }
+    );
+  }
+  if (!state.habits.length) {
+    (isEn
+      ? ['💧 Drink 2L of water', '📚 Read for 20 minutes', '🏃 Move for 30 minutes', '😴 Sleep 8 hours']
+      : ['💧 Uống nước đủ 2L', '📚 Đọc sách 20 phút', '🏃 Vận động 30 phút', '😴 Ngủ đủ 8 tiếng']).forEach((name, i) => {
+      const h = { id: 'dh' + Date.now() + i, name, target: 100, days: Array.from({ length: NUM_DAYS }, () => false), remind: { enabled: false, time: '20:00' } };
+      for (let d = 0; d <= today && d < NUM_DAYS; d++) h.days[d] = Math.random() < 0.8;
+      state.habits.push(h);
+    });
+  }
+  if (ti.inRange) {
+    const w = state.weeks[ti.week - 1];
+    const d = w && w.days[ti.dayInWeek];
+    if (d && !d.tasks.length) {
+      d.tasks.push({ kind: 'priority', done: false, text: isEn ? 'Lock in today\u2019s goals' : 'Chốt mục tiêu hôm nay', tags: [], remind: { enabled: false, time: '20:00' } });
+      d.tasks.push({ kind: 'regular', done: false, text: isEn ? 'Check in habits' : 'Điểm danh thói quen', tags: [], remind: { enabled: false, time: '20:00' } });
+    }
+  }
+  renderCurrentView();
+  save();
+  trackEvent('demo_data');
+}
+
+/* ---------- 6B.1 — Mood tracker ---------- */
+
+const MOOD_KEY = 'planner-mood';
+const MOODS = [
+  { icon: '😢', labelKey: 'mood0' },
+  { icon: '😕', labelKey: 'mood1' },
+  { icon: '😐', labelKey: 'mood2' },
+  { icon: '😊', labelKey: 'mood3' },
+  { icon: '🤩', labelKey: 'mood4' },
+];
+
+let moodMap = {};
+
+function loadMood() {
+  try {
+    const raw = localStorage.getItem(MOOD_KEY);
+    moodMap = raw ? JSON.parse(raw) : {};
+  } catch (e) { moodMap = {}; }
+  if (typeof moodMap !== 'object' || Array.isArray(moodMap) || !moodMap) moodMap = {};
+}
+
+function saveMood() {
+  try { localStorage.setItem(MOOD_KEY, JSON.stringify(moodMap)); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push(MOOD_KEY);
+}
+
+function moodDateKey(d) {
+  // d có thể là số (ngày trong tháng) hoặc label "DD/MM" (tuần cắt ngang tháng)
+  if (typeof d === 'number') return PLAN_YEAR + '-' + (PLAN_MONTH + 1) + '-' + d;
+  const parts = String(d).split('/');
+  return PLAN_YEAR + '-' + parts[1] + '-' + parts[0];
+}
+
+function moodCardHTML() {
+  const cells = [];
+  let logged = 0;
+  for (let d = 1; d <= NUM_DAYS; d++) {
+    const m = moodMap[moodDateKey(d)];
+    if (m !== undefined && MOODS[m]) logged++;
+    cells.push(`<span class="mood-cell${m !== undefined && MOODS[m] ? ' has l' + m : ''}" title="${d}${m !== undefined && MOODS[m] ? ' · ' + MOODS[m].icon : ''}">${m !== undefined && MOODS[m] ? MOODS[m].icon : ''}</span>`);
+  }
+  const pairs = [];
+  for (let d = 0; d < NUM_DAYS; d++) {
+    const m = moodMap[moodDateKey(d + 1)];
+    if (m !== undefined) pairs.push({ mood: m, pct: dayAggregate(d) });
+  }
+  const s = window.PlanStats ? window.PlanStats.moodSummary(pairs) : null;
+  let insight = '';
+  if (s && s.goodDays + s.badDays >= 2 && s.delta !== null && s.goodAvg !== null && s.badAvg !== null) {
+    insight = t('moodInsight', { g: s.goodAvg, d: s.delta });
+  } else if (!logged) {
+    insight = t('moodInsightNone');
+  }
+  return `<div class="card mood-card">
+    <div class="mood-card-head">
+      <h3 class="card-title">${t('moodTitle')}</h3>
+      <span class="mood-hint">${t('moodHint')}</span>
+    </div>
+    <div class="mood-heat">${cells.join('')}</div>
+    ${insight ? `<p class="mood-insight">${insight}</p>` : ''}
+  </div>`;
+}
+
+/* ---------- 6B.2 — Báo cáo tổng kết năm ---------- */
+
+function yearlyReportData() {
+  const gs = yearGoalStats();
+  const monthly = yearMonthlyData();
+  const bh = bestHabitAcrossYear();
+  const pd = bestProductiveDay();
+  let topMonth = 0;
+  monthly.forEach((x, m) => { if (x.pct > monthly[topMonth].pct) topMonth = m; });
+  return {
+    y: PLAN_YEAR,
+    pct: gs.pct,
+    done: gs.done,
+    inProg: gs.inProg,
+    total: gs.total,
+    months: monthly.map((x) => x.pct),
+    topMonth,
+    topHabit: bh,
+    prodDay: pd,
+  };
+}
+
+function renderYearReportModal() {
+  const el = document.getElementById('yearReportContent');
+  if (!el) return;
+  const r = yearlyReportData();
+  const topName = r.topHabit && r.topHabit.name ? esc(r.topHabit.name) : '—';
+  const prod = r.prodDay ? esc(r.prodDay.label) + ' · ' + r.prodDay.n : '—';
+  el.innerHTML = `
+    <div class="report-head">
+      <div class="donut-wrap"><div class="donut">${donutSVG(r.pct, 96, 12, '#C24E28')}</div>
+        <div class="donut-center"><span>${r.pct}%</span><small>${t('yearReportGoalPct')}</small></div>
+      </div>
+    </div>
+    <div class="report-grid">
+      <div class="report-cell"><b>${r.done}</b><span>${t('statsDone')}</span></div>
+      <div class="report-cell"><b>${r.inProg}</b><span>${t('statsInProg')}</span></div>
+      <div class="report-cell"><b>${r.total}</b><span>${t('statsTotal')}</span></div>
+      <div class="report-cell"><b>📅 ${shortMonth(r.topMonth)}</b><span>${t('yearReportTopMonth')} · ${r.months[r.topMonth]}%</span></div>
+      <div class="report-cell"><b>🔥 ${topName}</b><span>${t('yearReportBestHabit')}</span></div>
+      <div class="report-cell"><b>⚡ ${prod}</b><span>${t('yearReportProdDay')}</span></div>
+    </div>
+    <div class="report-weekbars" aria-hidden="true">${r.months.map((p) => `<div class="rw-bar" style="height:${Math.max(p, 4)}%"></div>`).join('')}</div>`;
+}
+
+function openYearReportModal() {
+  const m = document.getElementById('yearReportModal');
+  if (!m) return;
+  renderYearReportModal();
+  m.hidden = false;
+}
+
+function closeYearReportModal() {
+  const m = document.getElementById('yearReportModal');
+  if (m) m.hidden = true;
+}
+
+// Ảnh tổng kết năm 1080×1080 — style streak/week report card.
+function yearReportCardBlob(r) {
+  return new Promise((resolve, reject) => {
+    try {
+      const W = 1080, H = 1080;
+      const c = document.createElement('canvas');
+      c.width = W;
+      c.height = H;
+      const g = c.getContext('2d');
+      const grad = g.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, '#FFF6EA');
+      grad.addColorStop(0.55, '#FDEBD7');
+      grad.addColorStop(1, '#F8DCC0');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(255,255,255,.5)';
+      canvasCircle(g, W - 110, 130, 170);
+      canvasCircle(g, 40, H - 150, 230);
+      g.textAlign = 'center';
+      g.fillStyle = '#4A403A';
+      g.font = "700 36px 'Baloo 2','Fredoka','Nunito',sans-serif";
+      g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 42px 'Baloo 2','Nunito',sans-serif";
+      g.fillText(t('yearReportCardTitle', { y: r.y }), W / 2, 158);
+      g.fillStyle = '#C24E28';
+      g.font = "800 120px 'Baloo 2','Fredoka',sans-serif";
+      g.fillText(r.pct + '%', W / 2, 300);
+      g.fillStyle = '#4A403A';
+      g.font = "700 40px 'Baloo 2','Nunito',sans-serif";
+      g.fillText(t('yearReportGoalPct') + ' · ' + r.done + '/' + r.total, W / 2, 352);
+      const rows = [
+        [t('yearReportTopMonth'), shortMonth(r.topMonth) + ' · ' + r.months[r.topMonth] + '%'],
+        [t('yearReportBestHabit'), r.topHabit && r.topHabit.name ? r.topHabit.name : '—'],
+        [t('yearReportProdDay'), r.prodDay ? r.prodDay.label + ' · ' + r.prodDay.n : '—'],
+      ];
+      g.font = "700 34px 'Nunito','Quicksand',sans-serif";
+      rows.forEach((row, i) => {
+        const y = 430 + i * 74;
+        const pw = g.measureText(row[0] + '  ' + row[1]).width + 56, ph = 58;
+        g.fillStyle = 'rgba(255,253,248,.85)';
+        g.beginPath();
+        if (g.roundRect) g.roundRect(W / 2 - pw / 2, y - ph + 16, pw, ph, 29);
+        else g.rect(W / 2 - pw / 2, y - ph + 16, pw, ph);
+        g.fill();
+        g.fillStyle = '#8A7A6B';
+        g.textAlign = 'left';
+        g.fillText(row[0], W / 2 - pw / 2 + 28, y + 4);
+        g.fillStyle = '#C24E28';
+        g.textAlign = 'right';
+        g.fillText(String(row[1]), W / 2 + pw / 2 - 28, y + 4);
+        g.textAlign = 'center';
+      });
+      // Bar chart 12 tháng
+      const bx = W / 2 - 300, bw = 600, bh = 180, by = 800;
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 28px 'Nunito','Quicksand',sans-serif";
+      g.fillText(t('yearReportTitle') + ' · ' + r.y, W / 2, by - 24);
+      const maxP = Math.max(1, ...r.months);
+      r.months.forEach((p, i) => {
+        const h = Math.max(6, (p / maxP) * bh);
+        g.fillStyle = '#C24E28';
+        g.beginPath();
+        if (g.roundRect) g.roundRect(bx + (i * bw) / 12 + 6, by - h, bw / 12 - 12, h, 8);
+        else g.rect(bx + (i * bw) / 12 + 6, by - h, bw / 12 - 12, h);
+        g.fill();
+      });
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 30px 'Nunito','Quicksand',sans-serif";
+      g.fillText(t('shareFooter'), W / 2, H - 60);
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
+    } catch (e) { reject(e); }
+  });
+}
+
+async function doShareYearReport() {
+  const r = yearlyReportData();
+  let name = localStorage.getItem('planner-name');
+  if (!name) {
+    name = (prompt(t('shareNamePrompt')) || '').trim() || t('meName');
+    try { localStorage.setItem('planner-name', name); } catch (e) { /* ẩn */ }
+  }
+  try {
+    const blob = await yearReportCardBlob(r);
+    const file = new File([blob], 'taskflow-year-report.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'TaskFlow-Todoist 🐥',
+          text: '📊 ' + t('yearReportCardTitle', { y: r.y }) + ' · ' + r.pct + '%',
+        });
+        trackEvent('share_year_report', { pct: r.pct, via: 'native' });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        trackEvent('share_year_report', { pct: r.pct, via: 'fallback' });
+      }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'taskflow-year-report.png';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+    trackEvent('share_year_report', { pct: r.pct, via: 'download' });
+    alert(t('shareDone'));
+  } catch (e) {
+    alert(t('shareFail'));
+  }
+}
+
+/* ---------- 6B.3 — Weekly digest (nhắc bù qua Service Worker) ---------- */
+
+let digestCacheTs = 0;
+
+// Tóm tắt: habit chưa điểm danh hôm qua → lưu vào Cache API để SW đọc khi app đóng.
+function computeDigest() {
+  const now = new Date();
+  const yd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  let s = null;
+  if (yd.getMonth() === PLAN_MONTH && yd.getFullYear() === PLAN_YEAR) {
+    s = state;
+  } else {
+    try {
+      const raw = localStorage.getItem('planner-' + yd.getFullYear() + '-' + (yd.getMonth() + 1));
+      s = raw ? JSON.parse(raw) : null;
+    } catch (e) { s = null; }
+  }
+  if (!s || !Array.isArray(s.habits)) return null;
+  const di = yd.getDate() - 1;
+  const missed = s.habits.filter((h) => Array.isArray(h.days) && !h.days[di]);
+  const names = missed.slice(0, 4).map((h) => h.name).join(', ') + (missed.length > 4 ? '…' : '');
+  return {
+    date: now.toDateString(),
+    title: 'TaskFlow-Todoist 🐥',
+    body: missed.length === 0 ? t('digestNone') : t('digestBody', { names }),
+  };
+}
+
+function updateDigestCache() {
+  if (!('caches' in window)) return;
+  const now = Date.now();
+  if (now - digestCacheTs < 60000) return;
+  digestCacheTs = now;
+  const digest = computeDigest();
+  if (!digest) return;
+  caches.open('taskflow-digest').then((c) => {
+    c.put('./digest.json', new Response(JSON.stringify(digest), { headers: { 'Content-Type': 'application/json' } }));
+  }).catch(() => { /* ẩn */ });
+}
+
+/* ---------- 6B.4 — Import CSV ---------- */
+
+function importCSVFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      if (!window.PlanStats) throw new Error('nostats');
+      const data = window.PlanStats.parseCSVRows(reader.result);
+      if (!Object.keys(data.months).length && !data.year.goals.length) throw new Error('empty');
+      if (!confirm(t('importCsvConfirm'))) return;
+      pushUndo();
+      Object.keys(data.months).forEach((mk) => {
+        const m = +mk;
+        const s = loadMonthStateOrCreate(PLAN_YEAR, m - 1);
+        const chunk = data.months[m];
+        chunk.goals.forEach((g) => {
+          if (!s.monthlyGoals.some((x) => x.text === g.text)) {
+            s.monthlyGoals.push({ id: 'ig' + Date.now() + Math.random().toString(36).slice(2, 6), text: g.text, kind: g.kind, done: g.done });
+          }
+        });
+        chunk.habits.forEach((hh) => {
+          let h = s.habits.find((x) => x.name === hh.name);
+          if (!h) {
+            h = { id: 'ih' + Date.now() + Math.random().toString(36).slice(2, 6), name: hh.name, target: 100, days: Array(NUM_DAYS).fill(false), remind: { enabled: false, time: '20:00' } };
+            s.habits.push(h);
+          }
+          const di = hh.day - 1;
+          if (di >= 0 && di < NUM_DAYS && hh.done) h.days[di] = true;
+        });
+        chunk.tasks.forEach((tk) => {
+          const w = s.weeks[tk.week - 1];
+          const d = w && w.days[tk.day - 1];
+          if (w && d) d.tasks.push({ kind: tk.kind, done: tk.done, text: tk.text, tags: [], remind: { enabled: false, time: '20:00' } });
+        });
+        saveMonthState(PLAN_YEAR, m - 1, s);
+        // Tháng đang xem: đồng bộ vào state in-memory để setView/save() không ghi đè bản đã merge.
+        if (m - 1 === PLAN_MONTH) state = s;
+      });
+      data.year.goals.forEach((g) => {
+        if (!yearState.goals.some((x) => x.text === g.text)) {
+          yearState.goals.push({ id: 'iyg' + Date.now() + Math.random().toString(36).slice(2, 6), text: g.text, kind: g.kind, done: g.done });
+        }
+      });
+      saveYear();
+      invalidateYearCache();
+      setView(state.view, state.currentWeek);
+      alert(t('importCsvDone'));
+      trackEvent('import_csv');
+    } catch (e) {
+      alert(t('importCsvError'));
+    }
+  };
+  reader.onerror = () => alert(t('importCsvError'));
+  reader.readAsText(file);
 }
 
 
@@ -1860,6 +2362,8 @@ function rebootState() {
   state = bootState();
   yearState = bootYearState();
   invalidateYearCache();
+  // Phase 5: đổi tài khoản/sync-pull → xoá undo cũ (snapshot của tài khoản cũ không còn hợp lệ)
+  if (typeof undoStack !== 'undefined' && undoStack) { undoStack.clear(); lastSnapshotJson = null; }
   setView(state.view, state.currentWeek);
   updateNav();
 }
@@ -1869,6 +2373,7 @@ let state = bootState();
 function save() {
   try { localStorage.setItem(monthKey(), JSON.stringify(state)); } catch (e) { /* ẩn */ }
   if (window.Sync) window.Sync.push(monthKey());
+  maybeAutoBackup();
 }
 
 /* ============================ Tính toán ============================ */
@@ -1955,6 +2460,7 @@ function renderOverview() {
     ${goalsPanelHTML(ms)}
     ${habitPanelHTML()}
     ${habitHeatCardHTML()}
+    ${moodCardHTML()}
     ${badgePanelHTML()}
   `;
 }
@@ -2103,7 +2609,7 @@ function goalBlockHTML(kind, goals) {
     <div class="v-strip ${mod}"><span>${label}</span></div>
     <div class="goal-block-main">
       <ul class="goal-items">
-        ${goals.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">
+        ${goals.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}" draggable="true" data-drag="goal" data-scope="m" data-id="${g.id}" title="${t('dragHint')}">
           ${checkboxHTML(mod, g.done, `data-action="goal" data-id="${g.id}"`)}
           <span class="g-text" data-role="goal-text" data-id="${g.id}">${esc(g.text)}</span>
           <span class="item-actions">
@@ -2142,7 +2648,9 @@ function habitPanelHTML() {
       <input class="inline-input habit-name-input" data-role="habit-name-input" placeholder="${t('habitPh')}" aria-label="${t('habitNameAria')}" maxlength="60" />
       <button type="button" class="mini-btn add-btn" data-action="addhabit" title="${t('addHabitTxt')}">${t('addHabitTxt')}</button>
       <button type="button" class="mini-btn" data-action="copyhabits" title="${t('copyHabitsTxt')}">🗓️ ${t('copyHabitsTxt')}</button>
+      <button type="button" class="mini-btn" data-action="templates-toggle" title="${t('templatesTitle')}" aria-label="${t('templatesTitle')}">✨</button>
     </div>
+    ${templatesPopHTML()}
     <div class="habit-layout">
       <div class="habit-table-wrap">
         <table class="habit-table">
@@ -2161,7 +2669,7 @@ function habitPanelHTML() {
           <tbody>
             ${state.habits.length ? state.habits.map((h) => {
               const p = habitPct(h);
-              return `<tr>
+              return `<tr draggable="true" data-drag="habit" data-id="${h.id}" title="${t('dragHint')}">
                 <td class="sticky name-col"><span class="habit-name-cell">
                   <span class="habit-name-text" data-id="${h.id}" title="${esc(h.name)}">${esc(h.name)}</span>
                   <span class="item-actions">
@@ -3257,6 +3765,10 @@ function renderYear() {
   const el = document.getElementById('view-year');
   const gs = yearGoalStats();
   el.innerHTML = `
+    <div class="year-banner">
+      <h2 class="year-banner-title">${t('yGoalsTitle', { y: PLAN_YEAR })}</h2>
+      <button type="button" class="pop-btn share-btn week-report-btn" data-action="year-report" title="${t('yearReportTitle')}">📊 ${t('yearReportTitle')}</button>
+    </div>
     ${yearDashboardHTML()}
     <div class="year-top">
       ${yearCardHTML()}
@@ -3313,7 +3825,7 @@ function yearGoalsCardHTML(gs) {
           <div class="goal-block">
             <div class="v-strip pink"><span>${t('priLbl')}</span></div>
             <ul class="goal-items">
-              ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">
+              ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}" draggable="true" data-drag="goal" data-scope="y" data-id="${g.id}" title="${t('dragHint')}">
                 ${checkboxHTML('pink', g.done, `data-action="ygoal" data-id="${g.id}"`)}
                 <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="y-goal-text" data-id="${g.id}" data-placeholder="${t('yGoalPh')}" aria-label="${t('yGoalAria')}">${esc(g.text)}</span>
                 <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button>
@@ -3324,7 +3836,7 @@ function yearGoalsCardHTML(gs) {
           <div class="goal-block">
             <div class="v-strip blue"><span>${t('regLbl')}</span></div>
             <ul class="goal-items">
-              ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">
+              ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}" draggable="true" data-drag="goal" data-scope="y" data-id="${g.id}" title="${t('dragHint')}">
                 ${checkboxHTML('blue', g.done, `data-action="ygoal" data-id="${g.id}"`)}
                 <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="y-goal-text" data-id="${g.id}" data-placeholder="${t('yGoalPh')}" aria-label="${t('yGoalAria')}">${esc(g.text)}</span>
                 <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button>
@@ -3562,7 +4074,7 @@ function weeklyGoalsHTML(w) {
         <div class="v-strip pink"><span>${t('priLbl')}</span></div>
         <div class="legend-goals">
           <span class="section-sub-title">${t('priGoalsSub')}</span>
-          ${pri.map(({ g, gi }) => `<div class="legend-goal">
+          ${pri.map(({ g, gi }) => `<div class="legend-goal" draggable="true" data-drag="goal" data-scope="w" data-week="${w.n}" data-id="${gi}" title="${t('dragHint')}">
             ${checkboxHTML('pink', g.done, `data-action="wgoal" data-week="${w.n}" data-id="${gi}"`)}
             <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="w-goal-text" data-week="${w.n}" data-id="${gi}" data-placeholder="${t('yGoalPh')}" aria-label="${t('wGoalAria', { n: gi + 1 })}">${esc(g.text)}</span>
             <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button>
@@ -3574,7 +4086,7 @@ function weeklyGoalsHTML(w) {
         <div class="v-strip blue"><span>${t('regLbl')}</span></div>
         <div class="legend-goals">
           <span class="section-sub-title">${t('regGoalsSub')}</span>
-          ${reg.map(({ g, gi }) => `<div class="legend-goal">
+          ${reg.map(({ g, gi }) => `<div class="legend-goal" draggable="true" data-drag="goal" data-scope="w" data-week="${w.n}" data-id="${gi}" title="${t('dragHint')}">
             ${checkboxHTML('blue', g.done, `data-action="wgoal" data-week="${w.n}" data-id="${gi}"`)}
             <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="w-goal-text" data-week="${w.n}" data-id="${gi}" data-placeholder="${t('yGoalPh')}" aria-label="${t('wGoalAria', { n: gi + 1 })}">${esc(g.text)}</span>
             <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button>
@@ -3596,6 +4108,9 @@ function dayColumnHTML(w, di, isToday) {
       <span class="day-name">${dayLabel(di)}</span>
       <span class="day-date">${d.date}/${d.yy}</span>
       ${isToday ? `<span class="today-badge">${t('todayBadge')}</span>` : ''}
+    </div>
+    <div class="mood-row" role="group" aria-label="${t('moodTitle')}" data-i18n-aria="moodTitle">
+      ${MOODS.map((m, i) => `<button type="button" class="mood-btn${moodMap[moodDateKey(d.date)] === i ? ' on' : ''}" data-action="mood" data-day-key="${moodDateKey(d.date)}" data-mood="${i}" title="${t(m.labelKey)}" aria-label="${t(m.labelKey)}">${m.icon}</button>`).join('')}
     </div>
     <div class="day-visual-block">
       ${d.sticky ? `<div class="sticky-note-box"><span>${esc(d.sticky)}</span></div>` : `
@@ -3632,7 +4147,7 @@ function dayColumnHTML(w, di, isToday) {
 
 function taskRowHTML(wn, di, ti, mod, task) {
   const tags = Array.isArray(task.tags) ? task.tags : [];
-  return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}">
+  return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}" draggable="true" data-drag="task" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('dragHint')}" aria-label="${t('dragHint')}">
     ${checkboxHTML(mod, task.done, `data-action="task" data-week="${wn}" data-day="${di}" data-task="${ti}"`)}
     <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${wn}" data-day="${di}" data-task="${ti}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: ti + 1 })}">${esc(task.text ?? '')}</span>
     ${tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : ''}
@@ -4155,6 +4670,285 @@ function updateNowBtn() {
   if (b) b.hidden = false;
 }
 
+/* ============================ Phase 5: Undo/Redo, Phím tắt, Kéo-thả, Sao lưu, Focus Mode ============================ */
+
+// Phase 5: MỘT stack duy nhất (makeUndoStack tự quản lý undo + redo nội bộ)
+let undoStack = window.PlanMath ? window.PlanMath.makeUndoStack(50) : null;
+let lastSnapshotJson = null;
+
+function snapshotAll() {
+  return { state: JSON.parse(JSON.stringify(state)), yearState: JSON.parse(JSON.stringify(yearState)) };
+}
+function pushUndo() {
+  if (!undoStack) return;
+  const snap = snapshotAll();
+  const j = JSON.stringify(snap);
+  if (j === lastSnapshotJson) return; // tránh push trùng liên tiếp (focus nối tiếp không đổi state)
+  lastSnapshotJson = j;
+  undoStack.push(snap); // push() tự clear nhánh redo cũ (hành vi standard)
+  updateUndoButtons();
+}
+function applySnapshot(snap) {
+  if (!snap) return;
+  state = snap.state;
+  yearState = snap.yearState;
+  invalidateYearCache();
+  renderCurrentView();
+  save();
+  saveYear();
+  lastSnapshotJson = null; // bản khôi phục không được "ăn" lần push kế tiếp
+  updateUndoButtons();
+}
+function renderCurrentView() {
+  if (state.view === 'overview') renderOverview();
+  else if (state.view === 'week') renderWeek();
+  else if (state.view === 'calendar') renderCalendar();
+  else renderYear();
+  updateNav();
+  refreshFocusIfOpen();
+}
+function doUndo() {
+  if (!undoStack || !undoStack.canUndo()) return;
+  const snap = undoStack.undo(); // undo() tự đẩy bản đang undo sang nhánh redo
+  if (!snap) return;
+  applySnapshot(snap);
+  trackEvent('undo');
+}
+function doRedo() {
+  if (!undoStack || !undoStack.canRedo()) return;
+  const snap = undoStack.redo(); // redo() tự đẩy bản redo ngược về nhánh undo
+  if (!snap) return;
+  applySnapshot(snap);
+  trackEvent('redo');
+}
+function updateUndoButtons() {
+  const u = document.getElementById('btnUndo');
+  const r = document.getElementById('btnRedo');
+  if (u) u.disabled = !(undoStack && undoStack.canUndo());
+  if (r) r.disabled = !(undoStack && undoStack.canRedo());
+}
+
+/* ---------- Phím tắt (Phase 5.3) ---------- */
+
+function toggleSearchModal() {
+  const m = document.getElementById('searchModal');
+  if (!m) return;
+  if (m.hidden) openSearchModal(); else closeSearchModal();
+}
+function focusTodayTaskAdd() {
+  const ti = nowInfo();
+  if (state.view !== 'week' || !ti.inRange) return;
+  const col = document.querySelector(`.day-col-${ti.dayInWeek}`);
+  const add = col && col.querySelector('[data-action="addtask"]');
+  if (add) add.click();
+}
+
+/* ---------- Kéo-thả sắp xếp (Phase 5.2) ---------- */
+
+let dragState = null;
+document.addEventListener('dragstart', (e) => {
+  const el = e.target.closest('[data-drag]');
+  if (!el) return;
+  dragState = { type: el.dataset.drag, week: el.dataset.week, day: el.dataset.day, task: el.dataset.task, id: el.dataset.id, scope: el.dataset.scope, el };
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', 'x'); } catch (err) { /* ẩn */ }
+  el.classList.add('dragging');
+});
+document.addEventListener('dragover', (e) => {
+  const el = e.target.closest('[data-drag]');
+  if (!el || !dragState || el === dragState.el) return;
+  if (dragState.type === 'task') {
+    if (el.dataset.drag !== 'task') return;
+    if (el.dataset.week !== dragState.week || el.dataset.day !== dragState.day) return;
+  } else if (dragState.type === 'goal') {
+    if (el.dataset.drag !== 'goal') return;
+    if (dragState.scope !== el.dataset.scope) return;
+    if (dragState.scope === 'w' && el.dataset.week !== dragState.week) return;
+  } else if (dragState.type === 'habit') {
+    if (el.dataset.drag !== 'habit') return;
+  } else {
+    return;
+  }
+  e.preventDefault();
+  el.classList.add('drag-over');
+});
+document.addEventListener('dragleave', (e) => {
+  const el = e.target.closest('[data-drag]');
+  if (el) el.classList.remove('drag-over');
+});
+document.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const el = e.target.closest('[data-drag]');
+  document.querySelectorAll('.drag-over').forEach((n) => n.classList.remove('drag-over'));
+  if (!el || !dragState || el === dragState.el) { dragState = null; return; }
+  if (dragState.type === 'task' && (el.dataset.drag !== 'task' || el.dataset.week !== dragState.week || el.dataset.day !== dragState.day)) { dragState = null; return; }
+  if (dragState.type === 'goal' && (el.dataset.drag !== 'goal' || dragState.scope !== el.dataset.scope || (dragState.scope === 'w' && el.dataset.week !== dragState.week))) { dragState = null; return; }
+  if (dragState.type === 'habit' && el.dataset.drag !== 'habit') { dragState = null; return; }
+  if (dragState.type === 'task') {
+    const w = state.weeks[+dragState.week - 1];
+    const d = w && w.days[+dragState.day];
+    if (!d) return;
+    const from = +dragState.task;
+    const to = +el.dataset.task;
+    if (from === to || from < 0 || to < 0 || from >= d.tasks.length || to >= d.tasks.length) return;
+    pushUndo(); // chỉ push undo sau khi validation pass (tránh phantom entry)
+    const item = d.tasks.splice(from, 1)[0];
+    d.tasks.splice(to, 0, item);
+    renderWeek(); save(); trackEvent('reorder_task');
+  } else if (dragState.type === 'goal') {
+    if (dragState.scope === 'm') {
+      const from = state.monthlyGoals.findIndex((g) => g.id === dragState.id);
+      const to = state.monthlyGoals.findIndex((g) => g.id === el.dataset.id);
+      if (from < 0 || to < 0 || from === to) return;
+      pushUndo();
+      const item = state.monthlyGoals.splice(from, 1)[0];
+      state.monthlyGoals.splice(to, 0, item);
+      renderOverview(); save(); trackEvent('reorder_goal');
+    } else if (dragState.scope === 'w') {
+      const w = state.weeks[+dragState.week - 1];
+      const from = +dragState.id, to = +el.dataset.id;
+      if (!w || from === to || from < 0 || to < 0 || from >= w.goals.length || to >= w.goals.length) return;
+      pushUndo();
+      const item = w.goals.splice(from, 1)[0];
+      w.goals.splice(to, 0, item);
+      renderWeek(); save(); trackEvent('reorder_goal');
+    } else if (dragState.scope === 'y') {
+      const from = yearState.goals.findIndex((g) => g.id === dragState.id);
+      const to = yearState.goals.findIndex((g) => g.id === el.dataset.id);
+      if (from < 0 || to < 0 || from === to) return;
+      pushUndo();
+      const item = yearState.goals.splice(from, 1)[0];
+      yearState.goals.splice(to, 0, item);
+      renderYear(); saveYear(); trackEvent('reorder_goal');
+    }
+  } else if (dragState.type === 'habit') {
+    const from = state.habits.findIndex((h) => h.id === dragState.id);
+    const to = state.habits.findIndex((h) => h.id === el.dataset.id);
+    if (from < 0 || to < 0 || from === to) return;
+    pushUndo();
+    const item = state.habits.splice(from, 1)[0];
+    state.habits.splice(to, 0, item);
+    renderOverview(); save(); trackEvent('reorder_habit');
+  }
+  dragState = null;
+});
+document.addEventListener('dragend', () => {
+  dragState = null;
+  document.querySelectorAll('.drag-over, .dragging').forEach((n) => n.classList.remove('drag-over', 'dragging'));
+});
+
+/* ---------- Sao lưu tự động (Phase 5.4) ---------- */
+
+const BACKUP_SLOTS = 7;
+function backupSlotKey(i) { return 'planner-backup-' + i; }
+function rotateBackup(data) {
+  try {
+    let idx = 0;
+    try { idx = (+localStorage.getItem('planner-backup-idx') || -1) + 1; } catch (e) { /* ẩn */ }
+    idx = ((idx % BACKUP_SLOTS) + BACKUP_SLOTS) % BACKUP_SLOTS;
+    localStorage.setItem('planner-backup-idx', String(idx));
+    localStorage.setItem(backupSlotKey(idx), JSON.stringify({ savedAt: new Date().toISOString(), data }));
+  } catch (e) {
+    // Hết quota: xoá toàn bộ slot cũ rồi thử lại 1 lần
+    try {
+      for (let i = 0; i < BACKUP_SLOTS; i++) localStorage.removeItem(backupSlotKey(i));
+      localStorage.setItem(backupSlotKey(0), JSON.stringify({ savedAt: new Date().toISOString(), data }));
+      localStorage.setItem('planner-backup-idx', '0');
+    } catch (e2) { /* ẩn */ }
+  }
+}
+let lastBackupTs = 0;
+function maybeAutoBackup() {
+  const now = Date.now();
+  if (now - lastBackupTs < 60000) return; // tối đa 1 lần/phút — tránh ghi đè liên tục khi gõ text
+  lastBackupTs = now;
+  try { rotateBackup(collectAllData()); } catch (e) { /* ẩn */ }
+}
+function listBackups() {
+  const out = [];
+  for (let i = 0; i < BACKUP_SLOTS; i++) {
+    try {
+      const raw = localStorage.getItem(backupSlotKey(i));
+      if (!raw) continue;
+      const b = JSON.parse(raw);
+      if (b && b.data && b.data.keys) out.push({ idx: i, savedAt: b.savedAt, keys: Object.keys(b.data.keys).length });
+    } catch (e) { /* ẩn */ }
+  }
+  return out.sort((a, b) => (a.savedAt < b.savedAt ? 1 : -1));
+}
+function openBackupModal() {
+  const m = document.getElementById('backupModal');
+  if (!m) return;
+  const box = document.getElementById('backupList');
+  const list = listBackups();
+  if (box) {
+    box.innerHTML = list.length
+      ? list.map((b) => `<button type="button" class="backup-row" data-action="backup-use" data-idx="${b.idx}"><span>🕑 ${new Date(b.savedAt).toLocaleString(dateLocale())}</span><small>${t('backupSlot', { n: b.keys })}</small></button>`).join('')
+      : `<p class="pop-note">${t('backupEmpty')}</p>`;
+  }
+  m.hidden = false;
+}
+function closeBackupModal() {
+  const m = document.getElementById('backupModal');
+  if (m) m.hidden = true;
+}
+function doRestoreBackup(idx) {
+  try {
+    const b = JSON.parse(localStorage.getItem(backupSlotKey(idx)));
+    if (!b || !b.data || !b.data.keys) return;
+    if (!confirm(t('backupRestoreConfirm'))) return;
+    // Không khôi phục token đăng nhập / chính các slot backup (tránh ghi đè phiên + vòng lặp backup)
+    Object.keys(b.data.keys).forEach((k) => {
+      if (k === 'planner-token' || k === 'planner-backup-idx' || k.startsWith('planner-backup-')) return;
+      try { localStorage.setItem(k, b.data.keys[k]); } catch (e) { /* ẩn */ }
+    });
+    alert(t('backupRestoreDone'));
+    location.reload();
+  } catch (e) { /* ẩn */ }
+}
+
+/* ---------- Focus Mode (Phase 5.6) ---------- */
+
+function openFocusMode() {
+  document.body.classList.add('focus-mode');
+  const m = document.getElementById('focusOverlay');
+  if (m) m.hidden = false;
+  renderFocusContent();
+  trackEvent('focus_open');
+}
+function closeFocusMode() {
+  document.body.classList.remove('focus-mode');
+  const m = document.getElementById('focusOverlay');
+  if (m) m.hidden = true;
+}
+function renderFocusContent() {
+  const box = document.getElementById('focusContent');
+  if (!box) return;
+  const now = new Date();
+  const ti = nowInfo();
+  const today = ti.inRange ? ti.dayInWeek : -1;
+  let tasks = [];
+  if (ti.inRange) {
+    const w = state.weeks[ti.week - 1];
+    const d = w && w.days[ti.dayInWeek];
+    if (d) tasks = d.tasks || [];
+  }
+  const habits = state.habits.filter((h) => today >= 0 && !h.days[today]);
+  box.innerHTML = `
+    <p class="focus-date">📅 ${fmtDate(now)}</p>
+    <h3 class="focus-sec-title">${t('focusToday')}</h3>
+    <div class="focus-tasks">
+      ${tasks.length ? tasks.map((tk, i) => `<div class="focus-task ${tk.done ? 'done' : ''}">${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}"`)}<span class="focus-task-text">${esc(tk.text) || '…'}</span></div>`).join('') : `<p class="focus-empty">${t('focusNoTask')}</p>`}
+    </div>
+    <h3 class="focus-sec-title">${t('focusHabits')}</h3>
+    <div class="focus-habits">
+      ${habits.length ? habits.map((h) => `<button type="button" class="focus-habit" data-action="habit" data-id="${h.id}" data-day="${today}">🐥 ${esc(h.name)}</button>`).join('') : `<p class="focus-empty">${t('focusHabitDone')}</p>`}
+    </div>`;
+}
+function refreshFocusIfOpen() {
+  if (document.body.classList.contains('focus-mode')) renderFocusContent();
+}
+
 /* ============================ Sự kiện ============================ */
 
 document.addEventListener('click', (e) => {
@@ -4162,6 +4956,25 @@ document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const act = el.dataset.action;
+
+  // Phase 5: bọc mọi mutation bằng undo snapshot (trước khi đổi state)
+  // Lưu ý: 'reset' KHÔNG nằm trong set — pushUndo được gọi trong nhánh đã confirm (tránh phantom entry khi user bấm Hủy)
+  const UNDOABLE_ACTS = new Set(['goal', 'ygoal', 'habit', 'wgoal', 'task', 'addtask', 'deltask', 'addgoal', 'confirm-addgoal', 'delgoal', 'addhabit', 'delhabit', 'remind-off-item', 'mgoal', 'qgoal', 'copyhabits', 'template-do', 'pullyear', 'template-add', 'demo-data']);
+  if (UNDOABLE_ACTS.has(act)) pushUndo();
+
+  if (act === 'undo') { doUndo(); return; }
+  else if (act === 'redo') { doRedo(); return; }
+  else if (act === 'focus') { openFocusMode(); return; }
+  else if (act === 'focus-close') { closeFocusMode(); return; }
+  else if (act === 'backup-restore') { openBackupModal(); return; }
+  else if (act === 'backup-close') { closeBackupModal(); return; }
+  else if (act === 'backup-use') { doRestoreBackup(+el.dataset.idx); return; }
+  else if (act === 'feedback') {
+    trackEvent('feedback_click', { kind: 'form' });
+    if (!FB_FORM_URL) { alert(t('fbNoForm')); return; }
+    window.open(FB_FORM_URL, '_blank', 'noopener');
+    return;
+  }
 
   if (act === 'nav') setView(el.dataset.view, +el.dataset.week || undefined);
   else if (act === 'journey') {
@@ -4196,7 +5009,7 @@ document.addEventListener('click', (e) => {
     toggleQuarterGoal(+el.dataset.q, el.dataset.key);
   } else if (act === 'habit') {
     const h = state.habits.find((x) => x.id === el.dataset.id);
-    if (h) { h.days[+el.dataset.day] = !h.days[+el.dataset.day]; afterHabitToggle(); }
+    if (h) { h.days[+el.dataset.day] = !h.days[+el.dataset.day]; afterHabitToggle(); refreshFocusIfOpen(); }
   } else if (act === 'wgoal') {
     const w = state.weeks[+el.dataset.week - 1];
     const g = w.goals[+el.dataset.id];
@@ -4205,7 +5018,7 @@ document.addEventListener('click', (e) => {
     const w = state.weeks[+el.dataset.week - 1];
     const d = w.days[+el.dataset.day];
     const t = d.tasks[+el.dataset.task];
-    if (t) { t.done = !t.done; refreshTaskUI(w, +el.dataset.day); save(); }
+    if (t) { t.done = !t.done; refreshTaskUI(w, +el.dataset.day); save(); refreshFocusIfOpen(); }
   } else if (act === 'addtask') {
     const w = state.weeks[+el.dataset.week - 1];
     w.days[+el.dataset.day].tasks.push({ kind: el.dataset.kind, done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
@@ -4332,6 +5145,30 @@ document.addEventListener('click', (e) => {
     closeWeekReportModal();
   } else if (act === 'share-week-report') {
     doShareWeekReport();
+  } else if (act === 'year-report') {
+    openYearReportModal();
+  } else if (act === 'close-year-report') {
+    closeYearReportModal();
+  } else if (act === 'share-year-report') {
+    doShareYearReport();
+  } else if (act === 'templates-toggle') {
+    const tp = document.getElementById('templatesPop');
+    if (tp) tp.hidden = !tp.hidden;
+  } else if (act === 'template-add') {
+    const name = el.dataset.name || '';
+    if (name) { addHabit(name); trackEvent('template_habit_add'); }
+  } else if (act === 'demo-data') {
+    togglePop('dataPop');
+    demoPlan();
+    alert(t('demoDataDone'));
+  } else if (act === 'mood') {
+    moodMap[el.dataset.dayKey] = +el.dataset.mood;
+    saveMood();
+    renderWeek();
+  } else if (act === 'import-csv') {
+    togglePop('dataPop');
+    const fi = document.getElementById('importFile');
+    if (fi) fi.click();
   } else if (act === 'sync-toggle-mode') {
     setSyncMode(syncMode === 'signup' ? 'login' : 'signup');
   } else if (act === 'sync-google') {
@@ -4411,6 +5248,7 @@ document.addEventListener('click', (e) => {
     obFinish();
   } else if (act === 'reset') {
     if (confirm(t('resetConfirm'))) {
+      pushUndo(); // sau khi user xác nhận — undo sẽ khôi phục toàn bộ dữ liệu trước khi reset
       try {
         for (let m = 0; m < 12; m++) localStorage.removeItem('planner-' + PLAN_YEAR + '-' + (m + 1));
         localStorage.removeItem(LEGACY_KEY);
@@ -4433,6 +5271,11 @@ document.addEventListener('change', (e) => {
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.id === 'searchInput') renderSearchResults(t.value);
+});
+
+// Phase 5: bắt đầu phiên sửa text → snapshot trước để undo về đúng trạng thái trước khi gõ
+document.addEventListener('focusin', (e) => {
+  if (e.target.closest('[contenteditable="true"]')) pushUndo();
 });
 
 document.addEventListener('input', (e) => {
@@ -4477,7 +5320,36 @@ document.addEventListener('input', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  // Phase 5 — phím tắt (chèn TRƯỚC guard để nhận cả tổ hợp Ctrl)
+  const k = (e.key || '').toLowerCase();
+  const inField = e.target.closest('input, [contenteditable="true"], textarea, select');
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && k === 'z') {
+    // Trong ô nhập text, để trình duyệt tự undo text — không xử lý state
+    if (inField) return;
+    e.preventDefault();
+    if (e.shiftKey) doRedo(); else doUndo();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && k === 'k') {
+    e.preventDefault();
+    toggleSearchModal();
+    return;
+  }
   if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+  if (!inField) {
+    const views = ['overview', 'week', 'year', 'calendar', 'week'];
+    const idx = ['1', '2', '3', '4', '5'].indexOf(e.key);
+    if (idx >= 0) {
+      e.preventDefault();
+      setView(views[idx], idx === 1 ? state.currentWeek : undefined);
+      return;
+    }
+    if (e.key === '/' && state.view === 'week') {
+      e.preventDefault();
+      focusTodayTaskAdd();
+      return;
+    }
+  }
   const inp = e.target.closest('[data-role="goal-add-input"]');
   if (inp && e.key === 'Enter') {
     e.preventDefault();
@@ -4553,6 +5425,7 @@ function afterYearGoalToggle() {
 }
 
 function afterHabitToggle() {
+  updateDigestCache();
   state.habits.forEach((h) => {
     const p = habitPct(h);
     document.querySelectorAll(`[data-action="habit"][data-id="${h.id}"]`).forEach((b) => {
@@ -4645,6 +5518,7 @@ let lastRealWeek = null;
 let viewedMonth = null;
 
 function refreshToday() {
+  updateDigestCache();
   const now = new Date();
   if (viewedMonth !== null) {
     if (viewedMonth === now.getMonth() && PLAN_YEAR === now.getFullYear()) {
@@ -4752,12 +5626,17 @@ document.addEventListener('keydown', (e) => {
     if (r && !r.hidden) r.hidden = true;
     const wr = document.getElementById('weekReportModal');
     if (wr && !wr.hidden) wr.hidden = true;
+    const yr = document.getElementById('yearReportModal');
+    if (yr && !yr.hidden) yr.hidden = true;
     const s = document.getElementById('searchModal');
     if (s && !s.hidden) closeSearchModal();
     const t = document.getElementById('templateModal');
     if (t && !t.hidden) t.hidden = true;
     const p = document.getElementById('profileModal');
     if (p && !p.hidden) p.hidden = true;
+    const bm = document.getElementById('backupModal');
+    if (bm && !bm.hidden) bm.hidden = true;
+    if (document.body.classList.contains('focus-mode')) closeFocusMode();
   }
 });
 document.addEventListener('click', (e) => {
@@ -4767,12 +5646,16 @@ document.addEventListener('click', (e) => {
   if (r && !r.hidden && e.target === r) r.hidden = true;
   const wr = document.getElementById('weekReportModal');
   if (wr && !wr.hidden && e.target === wr) wr.hidden = true;
+  const yr = document.getElementById('yearReportModal');
+  if (yr && !yr.hidden && e.target === yr) yr.hidden = true;
   const s = document.getElementById('searchModal');
   if (s && !s.hidden && e.target === s) closeSearchModal();
   const t = document.getElementById('templateModal');
   if (t && !t.hidden && e.target === t) t.hidden = true;
   const p = document.getElementById('profileModal');
   if (p && !p.hidden && e.target === p) p.hidden = true;
+  const bm = document.getElementById('backupModal');
+  if (bm && !bm.hidden && e.target === bm) bm.hidden = true;
 });
 
 function syncFormValues() {
@@ -4888,6 +5771,11 @@ function handleSyncChange(keys) {
   if (keys.indexOf('planner-theme') >= 0) {
     const th = localStorage.getItem('planner-theme');
     if (th && th !== THEME) setTheme(th);
+  }
+  if (keys.indexOf('planner-mood') >= 0) {
+    loadMood();
+    if (state.view === 'week') renderWeek();
+    else if (state.view === 'overview') renderOverview();
   }
   updateSyncStatus();
 }
@@ -5019,7 +5907,10 @@ updateBrand();
 updateNowBtn();
 renderClock();
 buildNav();
+updateUndoButtons();
+loadMood();
 setView(state.view, state.currentWeek);
+setTimeout(updateDigestCache, 2000);
 
 
 /* ---------- Khởi động đồng bộ đám mây (backend Render) ---------- */
@@ -5060,7 +5951,8 @@ const importFileInput = document.getElementById('importFile');
 if (importFileInput) {
   importFileInput.addEventListener('change', () => {
     const f = importFileInput.files && importFileInput.files[0];
-    if (f) importJSONFile(f);
-    importFileInput.value = '';
+    if (!f) return;
+    if (/\.csv$/i.test(f.name)) importCSVFile(f);
+    else importJSONFile(f);
   });
 }

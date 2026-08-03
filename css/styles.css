@@ -2403,6 +2403,93 @@ sup.remind-dot {
 }
 
 /* ============================================================
+   Phase 6 — Thói quen mẫu, Mood tracker, Báo cáo năm
+   ============================================================ */
+
+/* Thư viện thói quen mẫu (6A.2) */
+.templates-pop {
+  margin: 0 16px 10px;
+  padding: 10px 12px;
+  border: 2px dashed rgba(var(--ink-rgb), .35);
+  border-radius: 12px;
+  background: var(--surface, #fffdf8);
+}
+.templates-title { font-family: 'Baloo 2', 'Fredoka', cursive; font-size: 14px; }
+.templates-hint { margin: 2px 0 8px; font-size: 12px; color: var(--ink-soft); }
+.templates-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.template-chip {
+  border: 1.5px solid rgba(var(--ink-rgb), .3);
+  border-radius: 999px;
+  background: var(--card-bg);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.template-chip:hover { background: var(--surface-hover); }
+
+/* Mood tracker — hàng emoji trong cột ngày (6B.1) */
+.mood-row {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 2px;
+  border-bottom: 1px dashed rgba(var(--ink-rgb), .2);
+}
+.mood-btn {
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: .38;
+  filter: grayscale(.6);
+  transition: opacity .15s, filter .15s, transform .15s;
+}
+.mood-btn:hover { opacity: .9; filter: none; transform: scale(1.15); }
+.mood-btn.on { opacity: 1; filter: none; }
+
+/* Mood heatmap trong overview (6B.1) */
+.mood-card { margin-top: 14px; }
+.mood-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.mood-hint { font-size: 12px; color: var(--ink-soft); }
+.mood-heat {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(26px, 1fr));
+  gap: 4px;
+  margin-top: 10px;
+}
+.mood-cell {
+  aspect-ratio: 1;
+  min-width: 0;
+  border-radius: 6px;
+  background: rgba(var(--ink-rgb), .08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+.mood-cell.has { background: rgba(var(--ink-rgb), .14); }
+.mood-cell.l0 { background: #F6C6C0; }
+.mood-cell.l1 { background: #F8D9B8; }
+.mood-cell.l2 { background: #F5E8C0; }
+.mood-cell.l3 { background: #CDE8C4; }
+.mood-cell.l4 { background: #A8D8F0; }
+.mood-insight { margin: 10px 0 0; font-size: 13px; font-weight: 700; color: var(--accent-deep); }
+
+/* Báo cáo năm — banner trên year view (6B.2) */
+.year-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.year-banner-title { margin: 0; font-family: 'Baloo 2', 'Fredoka', cursive; }
+
+/* ============================================================
    Chế độ tối (dark mode) — palette tối ấm, giữ brand terracotta
    Bật qua: <html data-dark="true"> (đặt bởi JS, tôn trọng prefers-color-scheme)
    ============================================================ */
@@ -3048,9 +3135,111 @@ sup.remind-dot {
   .pomo-fab { width: 42px; height: 42px; font-size: 20px; }
 }
 
+/* ========== Phase 5: Kéo-thả, Focus Mode, Sao lưu ========== */
+[draggable="true"] { cursor: grab; }
+.drag-over { outline: 2px dashed var(--terracotta); outline-offset: 1px; background: rgba(243, 154, 130, .12); }
+.dragging { opacity: .5; }
+
+.btn-icon:disabled { opacity: .38; cursor: default; transform: none; }
+
+.focus-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-main);
+  padding: 16px;
+  overflow: auto;
+}
+.focus-overlay[hidden] { display: none; }
+body.focus-mode .site-header,
+body.focus-mode .view,
+body.focus-mode .bricks { display: none !important; }
+body.focus-mode .container { padding: 0; }
+.focus-card {
+  width: 100%;
+  max-width: 560px;
+  background: var(--card-bg);
+  border: 2px solid var(--card-border);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 18px 50px rgba(var(--ink-rgb), .2);
+  animation: syncPop .22s ease-out;
+}
+.focus-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.focus-title { font-family: 'Baloo 2', 'Nunito', sans-serif; font-size: 18px; margin: 0; }
+.focus-date { font-size: 13px; font-weight: 800; color: var(--ink-soft); margin: 0 0 12px; }
+.focus-sec-title { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-soft); margin: 16px 0 8px; }
+.focus-tasks { display: flex; flex-direction: column; gap: 6px; }
+.focus-task { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.focus-task.done .focus-task-text { text-decoration: line-through; color: var(--ink-light); }
+.focus-task-text { overflow-wrap: anywhere; white-space: normal; }
+.focus-habits { display: flex; flex-wrap: wrap; gap: 8px; }
+.focus-habit {
+  font: inherit;
+  font-weight: 800;
+  font-size: 12.5px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 2px solid rgba(var(--ink-rgb), .3);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: .15s;
+}
+.focus-habit:hover { transform: translateY(-1px); background: var(--surface-hover); }
+.focus-empty { font-style: italic; color: var(--ink-light); font-size: 12.5px; }
+
+.backup-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 98;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(60, 48, 38, .5);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+.backup-modal[hidden] { display: none; }
+.backup-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: var(--card-bg, #fff);
+  border: 1.5px solid var(--card-border, #e8dfd0);
+  border-radius: 18px;
+  padding: 22px 20px 18px;
+  box-shadow: 0 18px 50px rgba(60, 48, 38, .3);
+  animation: syncPop .22s ease-out;
+}
+.backup-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 50vh; overflow: auto; }
+.backup-row {
+  font: inherit;
+  font-weight: 700;
+  font-size: 12.5px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 2px solid rgba(var(--ink-rgb), .25);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: .15s;
+}
+.backup-row:hover { background: var(--surface-hover); transform: translateY(-1px); }
+.backup-row small { color: var(--ink-soft); font-weight: 800; }
+
 :root[data-dark="true"] .search-modal,
 :root[data-dark="true"] .template-modal,
-:root[data-dark="true"] .profile-modal { background: rgba(0, 0, 0, .55); }
+:root[data-dark="true"] .profile-modal,
+:root[data-dark="true"] .backup-modal { background: rgba(0, 0, 0, .55); }
 
 /* Ô điểm danh ngày nay / đã check — tint terracotta tối */
 :root[data-dark="true"] .habit-table .day-cell:has(.checkbox[aria-checked="true"]) { background: rgba(224, 122, 80, .26); }
