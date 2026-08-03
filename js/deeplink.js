@@ -14,7 +14,7 @@
       if (pair.length !== 2 || !pair[0] || !pair[1]) continue;
       var k = decodeURIComponent(pair[0]).trim();
       var v = decodeURIComponent(pair[1]).trim();
-      if (k === 'view' && (v === 'overview' || v === 'year' || v === 'week')) {
+      if (k === 'view' && (v === 'overview' || v === 'year' || v === 'week' || v === 'calendar')) {
         out.view = v;
       } else if (k === 'm') {
         var m = /^(\d{4})-(\d{1,2})$/.exec(v);

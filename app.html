@@ -62,7 +62,7 @@
       } catch (e) { /* ẩn */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/styles.css?v=35" />
+  <link rel="stylesheet" href="css/styles.css?v=36" />
 </head>
 
 <body>
@@ -123,6 +123,10 @@
           <button type="button" class="pop-btn" data-action="export-csv" data-i18n="exportCsv">📊 Xuất CSV (Google Sheets)</button>
         </div>
       </div>
+      <button type="button" class="btn-icon" data-action="search-toggle" title="Tìm kiếm xuyên tháng"
+        data-i18n-title="searchOpenAria" data-i18n-aria="searchOpenAria">🔍</button>
+      <button type="button" class="btn-icon" data-action="template" title="Sao chép cấu trúc tháng"
+        data-i18n-title="templateOpenT" data-i18n-aria="templateOpenT">📋</button>
       <button type="button" class="btn-icon" data-action="print" title="In / Lưu PDF"
         data-i18n-title="printTitle" data-i18n-aria="printTitle">🖨️</button>
       <button type="button" class="btn-icon sync-wrap" id="syncBtn" data-action="sync-toggle"
@@ -150,6 +154,7 @@
   </header>
 
   <main class="container">
+    <section id="view-calendar" class="view" role="tabpanel" aria-label="Lịch tháng" data-i18n-aria="viewCalendar"></section>
     <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng" data-i18n-aria="viewOverview">
       <div class="landing-hero">
         <div class="landing-inner">
@@ -176,6 +181,77 @@
   <footer class="bricks bricks-bottom" aria-hidden="true"></footer>
 
   <input type="file" id="importFile" accept=".json,application/json" hidden />
+
+  <!-- ===== Tìm kiếm xuyên tháng (Phase 2) ===== -->
+  <div class="search-modal" id="searchModal" hidden>
+    <div class="search-modal-card" role="dialog" aria-modal="true" aria-label="Tìm kiếm xuyên tháng"
+      data-i18n-aria="searchTitle">
+      <button type="button" class="sync-close" data-action="search-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h3 class="sync-modal-title">🔍 <span data-i18n="searchTitle">Tìm kiếm xuyên tháng</span></h3>
+      <input type="search" id="searchInput" class="inline-input search-input" placeholder=""
+        data-i18n-placeholder="searchPh" aria-label="" data-i18n-aria="searchTitle" autocomplete="off" />
+      <div id="searchResults" class="search-results"></div>
+    </div>
+  </div>
+
+  <!-- ===== Template tháng (Phase 2) ===== -->
+  <div class="template-modal" id="templateModal" hidden>
+    <div class="template-modal-card" role="dialog" aria-modal="true" aria-label="Template tháng"
+      data-i18n-aria="templateTitle">
+      <button type="button" class="sync-close" data-action="template-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h3 class="sync-modal-title">📋 <span data-i18n="templateTitle">Sao chép cấu trúc tháng</span></h3>
+      <p class="sync-desc" data-i18n="templateDesc">Sao chép mục tiêu, thói quen &amp; cấu trúc tuần (bỏ ô tick ✓) sang tháng khác.</p>
+      <div class="template-fields">
+        <label class="pop-field"><span data-i18n="templateSrc">Tháng nguồn</span>
+          <select id="templateSrc" class="month-select"></select>
+        </label>
+        <label class="pop-field"><span data-i18n="templateDst">Tháng đích</span>
+          <select id="templateDst" class="month-select"></select>
+        </label>
+      </div>
+      <div class="sync-actions">
+        <button type="button" class="pop-btn primary" data-action="template-do" data-i18n="templateDo">📋 Sao chép</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Profile / Tài khoản (Phase 3) ===== -->
+  <div class="profile-modal" id="profileModal" hidden>
+    <div class="profile-modal-card" role="dialog" aria-modal="true" aria-label="Tài khoản"
+      data-i18n-aria="profileTitle">
+      <button type="button" class="sync-close" data-action="profile-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h3 class="sync-modal-title">👤 <span data-i18n="profileTitle">Tài khoản</span></h3>
+      <p class="sync-desc" id="profileUser"></p>
+      <div class="profile-section">
+        <h4 class="profile-h">🔑 <span data-i18n="pwTitle">Đổi mật khẩu</span></h4>
+        <input type="password" id="pwCurrent" class="inline-input" placeholder="" autocomplete="current-password"
+          data-i18n-placeholder="pwCurrentPh" aria-label="" data-i18n-aria="pwCurrentPh" />
+        <input type="password" id="pwNew" class="inline-input" placeholder="" autocomplete="new-password"
+          data-i18n-placeholder="pwNewPh" aria-label="" data-i18n-aria="pwNewPh" />
+        <button type="button" class="pop-btn primary" data-action="pw-change" data-i18n="pwBtn">Đổi mật khẩu</button>
+      </div>
+      <div class="profile-section danger">
+        <h4 class="profile-h">🗑 <span data-i18n="acctDeleteTitle">Xoá tài khoản</span></h4>
+        <button type="button" class="pop-btn danger" data-action="acct-delete" data-i18n="acctDeleteBtn">🗑 Xoá tài khoản</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Pomodoro (Phase 2) ===== -->
+  <div class="pomo-fab-wrap">
+    <button type="button" class="pomo-fab" data-action="pomo-toggle" title="Pomodoro 🍅" aria-label="Pomodoro 🍅">🍅</button>
+    <div class="pomo-panel" id="pomoPanel" hidden>
+      <div class="pomo-mode" id="pomoMode"></div>
+      <div class="pomo-time" id="pomoTime">25:00</div>
+      <div class="pomo-actions">
+        <button type="button" class="pop-btn primary" data-action="pomo-start" id="pomoStart"></button>
+        <button type="button" class="pop-btn" data-action="pomo-reset" data-i18n="pomoReset">↺</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ===== Góp ý / phản hồi (FAB) ===== -->
   <div class="fb-fab-wrap">
@@ -219,6 +295,8 @@
             khoản? Tạo ngay</button>
         </div>
       </form>
+      <button type="button" class="pop-btn sync-profile" id="syncProfileBtn" data-action="profile-open" hidden
+        data-i18n="profileOpen">👤 Tài khoản</button>
       <button type="button" class="pop-btn sync-logout" id="syncLogoutBtn" data-action="sync-logout" hidden
         data-i18n="syncLogout">Đăng xuất</button>
     </div>
@@ -290,10 +368,11 @@
   </div>
 
   <script src="js/api-config.js?v=1"></script>
-  <script src="js/deeplink.js?v=1"></script>
+  <script src="js/deeplink.js?v=2"></script>
   <script src="js/plan-math.js?v=1"></script>
-  <script src="js/sync.js?v=2"></script>
-  <script src="js/app.js?v=34"></script>
+  <script src="js/plan-stats.js?v=1"></script>
+  <script src="js/sync.js?v=3"></script>
+  <script src="js/app.js?v=35"></script>
 </body>
 
 </html>

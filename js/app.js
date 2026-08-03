@@ -228,12 +228,15 @@ function monthPctOf(y, m) {
   try {
     const s = JSON.parse(raw);
     if (!Array.isArray(s.weeks) || !s.weeks.length) return hasAccount() ? 0 : defaultMonthPct(y, m);
-    const pcts = s.weeks.map((w) => {
-      const total = w.goals.length;
-      const done = w.goals.filter((g) => g.done).length;
-      return total ? Math.round((done / total) * 100) : 0;
-    });
-    return Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
+    // Hàm thuần trong PlanStats (unit-test trong tests/phase2.test.mjs)
+    return window.PlanStats ? window.PlanStats.weekGoalPct(s) : (() => {
+      const pcts = s.weeks.map((w) => {
+        const total = w.goals.length;
+        const done = w.goals.filter((g) => g.done).length;
+        return total ? Math.round((done / total) * 100) : 0;
+      });
+      return Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
+    })();
   } catch (e) {
     return hasAccount() ? 0 : defaultMonthPct(y, m);
   }
@@ -256,10 +259,21 @@ function monthGoalsOf(y, m) {
 let yearMonthlyCache = null;
 function yearMonthlyData() {
   if (!yearMonthlyCache) {
-    yearMonthlyCache = Array.from({ length: 12 }, (_, m) => ({
-      pct: monthPctOf(PLAN_YEAR, m),
-      goals: monthGoalsOf(PLAN_YEAR, m),
-    }));
+    if (window.PlanStats) {
+      // Hàm thuần: nhận loader trả state tháng (hoặc null) → [{pct, goals}] (unit-test ở phase2)
+      const rawStates = Array.from({ length: 12 }, (_, m) => monthStateRaw(PLAN_YEAR, m));
+      yearMonthlyCache = window.PlanStats.yearMonthlyFrom((m) => rawStates[m], PLAN_YEAR)
+        .map((md, m) => ({
+          // Chỉ fallback demo khi tháng KHÔNG có dữ liệu; tháng có dữ liệu 0% phải giữ 0
+          pct: rawStates[m] ? md.pct : (hasAccount() ? 0 : defaultMonthPct(PLAN_YEAR, m)),
+          goals: rawStates[m] ? md.goals : monthGoalsOf(PLAN_YEAR, m),
+        }));
+    } else {
+      yearMonthlyCache = Array.from({ length: 12 }, (_, m) => ({
+        pct: monthPctOf(PLAN_YEAR, m),
+        goals: monthGoalsOf(PLAN_YEAR, m),
+      }));
+    }
   }
   return yearMonthlyCache;
 }
@@ -581,6 +595,7 @@ const I18N = {
     syncErrBadCredentials: 'Sai tên người dùng hoặc mật khẩu.',
     syncErrNetwork: 'Không kết nối được máy chủ, kiểm tra lại URL trong js/api-config.js.',
     syncErrServer: 'Máy chủ báo lỗi, thử lại sau.',
+    syncErrRateLimited: 'Quá nhiều lần thử đăng nhập. Đợi 15 phút rồi thử lại.',
     homeTitle: 'Về trang giới thiệu',
     installTitle: 'Cài đặt ứng dụng',
     targetAria: 'Mục tiêu {n}% — chỉnh số ngày cần đạt mỗi tháng',
@@ -652,6 +667,74 @@ const I18N = {
     emptyGoalsH: 'Bấm "+ Thêm mục tiêu" phía dưới để bắt đầu.',
     emptyHabitsT: 'Chưa có thói quen nào',
     emptyHabitsH: 'Nhập tên thói quen ở ô bên trên rồi bấm "+ Thêm thói quen".',
+    /* ===== Phase 2: Tìm kiếm, Tag, Lịch, Template, Dashboard, Pomodoro ===== */
+    searchTitle: '🔍 Tìm kiếm xuyên tháng',
+    searchPh: 'Nhập từ khoá... (mục tiêu, task, thói quen, phản ánh)',
+    searchEmpty: 'Gõ ít nhất 2 ký tự để tìm kiếm.',
+    searchNoResults: 'Không tìm thấy kết quả nào 🐥',
+    searchGoal: 'Mục tiêu',
+    searchHabit: 'Thói quen',
+    searchTask: 'Task',
+    searchNote: 'Ghi chú',
+    searchReflect: 'Phản ánh',
+    searchMonth: 'Tháng {n}',
+    searchYear: 'Năm {y}',
+    searchAll: 'Tất cả',
+    searchOpenAria: 'Tìm kiếm xuyên tháng',
+    tagLbl: 'Tag',
+    tagAdd: '🏷️ Thêm tag',
+    tagPh: 'Nhập tag rồi Enter (phân cách bằng dấu phẩy)',
+    tagFilter: 'Lọc theo tag',
+    tagAll: 'Tất cả',
+    tagNoTags: 'Chưa có tag nào',
+    tagAria: 'Thêm tag cho task',
+    tabCalendar: '📅 Lịch',
+    viewCalendar: 'Lịch tháng',
+    calEmpty: 'Không có task nào',
+    templateTitle: '📋 Sao chép cấu trúc tháng',
+    templateDesc: 'Sao chép mục tiêu, thói quen & cấu trúc tuần (bỏ ô tick ✓) sang tháng khác.',
+    templateSrc: 'Tháng nguồn',
+    templateDst: 'Tháng đích',
+    templateDo: '📋 Sao chép',
+    templateDone: 'Đã sao chép cấu trúc tháng {src} sang {dst} (bỏ tick ✓).',
+    templateNoData: 'Tháng nguồn chưa có dữ liệu.',
+    templateSame: 'Chọn tháng đích khác tháng nguồn.',
+    templateOpenT: 'Sao chép cấu trúc tháng',
+    dashTitle: '📊 Dashboard',
+    dashBestHabit: 'Thói quen tốt nhất',
+    dashBestHabitSub: '{n} ngày tích',
+    dashProdDay: 'Ngày năng suất nhất',
+    dashProdDaySub: '{n} task xong',
+    dashQuarter: 'Tỉ lệ theo quý',
+    dashBestQuarter: 'Quý tốt nhất: Q{n} ({p}%)',
+    dashGoalTotal: 'Mục tiêu năm',
+    dashGoalDone: '{d}/{t} xong',
+    pomoTitle: '🍅 Pomodoro',
+    pomoStart: '▶ Bắt đầu',
+    pomoPause: '⏸ Tạm dừng',
+    pomoReset: '↺',
+    pomoWork: 'Tập trung',
+    pomoBreak: 'Nghỉ ngơi',
+    pomoMin: '{n} phút',
+    pomoDoneWork: 'Xong phiên tập trung! Nghỉ 5 phút nhé 🍅',
+    pomoDoneBreak: 'Hết giờ nghỉ! Bắt đầu phiên mới 🍅',
+    pomoWorkDoneTxt: 'Xong phiên tập trung! Nghỉ 5 phút nhé 🍅',
+    pomoBreakDoneTxt: 'Hết giờ nghỉ! Bắt đầu phiên mới 🍅',
+    profileTitle: '👤 Tài khoản',
+    profileUser: 'Tên người dùng: {u}',
+    pwTitle: 'Đổi mật khẩu',
+    pwCurrentPh: 'Mật khẩu hiện tại',
+    pwNewPh: 'Mật khẩu mới',
+    pwBtn: 'Đổi mật khẩu',
+    pwOk: 'Đã đổi mật khẩu ✓',
+    pwErr: 'Đổi mật khẩu thất bại. Kiểm tra mật khẩu hiện tại.',
+    pwNeedLogin: 'Cần đăng nhập để đổi mật khẩu.',
+    acctDeleteTitle: 'Xoá tài khoản',
+    acctDeleteBtn: '🗑 Xoá tài khoản',
+    acctDeleteConfirm: 'Xoá tài khoản sẽ xoá vĩnh viễn toàn bộ dữ liệu đám mây. Bạn chắc chắn?',
+    acctDeleted: 'Đã xoá tài khoản.',
+    acctDeleteErr: 'Không xoá được tài khoản, thử lại sau.',
+    profileOpen: '👤 Tài khoản',
   },
   en: {
     navMonths: 'Navigate months',
@@ -830,6 +913,7 @@ const I18N = {
     syncErrBadCredentials: 'Wrong username or password.',
     syncErrNetwork: 'Cannot reach the server, check the URL in js/api-config.js.',
     syncErrServer: 'Server error, please try again later.',
+    syncErrRateLimited: 'Too many login attempts. Try again in 15 minutes.',
     homeTitle: 'Back to the intro page',
     installTitle: 'Install app',
     targetAria: 'Target {n}% — adjust the days to reach each month',
@@ -901,6 +985,74 @@ const I18N = {
     emptyGoalsH: 'Tap "+ Add goal" below to get started.',
     emptyHabitsT: 'No habits yet',
     emptyHabitsH: 'Type a habit in the box above, then tap "+ Add habit".',
+    /* ===== Phase 2: Search, Tags, Calendar, Template, Dashboard, Pomodoro ===== */
+    searchTitle: '🔍 Search across months',
+    searchPh: 'Type to search... (goals, tasks, habits, reflections)',
+    searchEmpty: 'Type at least 2 characters to search.',
+    searchNoResults: 'No results found 🐥',
+    searchGoal: 'Goal',
+    searchHabit: 'Habit',
+    searchTask: 'Task',
+    searchNote: 'Note',
+    searchReflect: 'Reflection',
+    searchMonth: 'Month {n}',
+    searchYear: 'Year {y}',
+    searchAll: 'All',
+    searchOpenAria: 'Search across months',
+    tagLbl: 'Tag',
+    tagAdd: '🏷️ Add tag',
+    tagPh: 'Type a tag then Enter (comma-separated)',
+    tagFilter: 'Filter by tag',
+    tagAll: 'All',
+    tagNoTags: 'No tags yet',
+    tagAria: 'Add tag to task',
+    tabCalendar: '📅 Calendar',
+    viewCalendar: 'Month calendar',
+    calEmpty: 'No tasks',
+    templateTitle: '📋 Copy month structure',
+    templateDesc: 'Copy goals, habits & week structure (without ✓ ticks) to another month.',
+    templateSrc: 'Source month',
+    templateDst: 'Target month',
+    templateDo: '📋 Copy',
+    templateDone: 'Copied {src} structure to {dst} (ticks cleared).',
+    templateNoData: 'Source month has no data yet.',
+    templateSame: 'Pick a target month different from the source.',
+    templateOpenT: 'Copy month structure',
+    dashTitle: '📊 Dashboard',
+    dashBestHabit: 'Best habit',
+    dashBestHabitSub: '{n} days checked',
+    dashProdDay: 'Most productive day',
+    dashProdDaySub: '{n} tasks done',
+    dashQuarter: 'Quarterly ratio',
+    dashBestQuarter: 'Best quarter: Q{n} ({p}%)',
+    dashGoalTotal: 'Year goals',
+    dashGoalDone: '{d}/{t} done',
+    pomoTitle: '🍅 Pomodoro',
+    pomoStart: '▶ Start',
+    pomoPause: '⏸ Pause',
+    pomoReset: '↺',
+    pomoWork: 'Focus',
+    pomoBreak: 'Break',
+    pomoMin: '{n} min',
+    pomoDoneWork: 'Focus session done! Take a 5-min break 🍅',
+    pomoDoneBreak: 'Break over! Start a new session 🍅',
+    pomoWorkDoneTxt: 'Focus session done! Take a 5-min break 🍅',
+    pomoBreakDoneTxt: 'Break over! Start a new session 🍅',
+    profileTitle: '👤 Account',
+    profileUser: 'Username: {u}',
+    pwTitle: 'Change password',
+    pwCurrentPh: 'Current password',
+    pwNewPh: 'New password',
+    pwBtn: 'Change password',
+    pwOk: 'Password changed ✓',
+    pwErr: 'Could not change password. Check your current password.',
+    pwNeedLogin: 'Sign in to change your password.',
+    acctDeleteTitle: 'Delete account',
+    acctDeleteBtn: '🗑 Delete account',
+    acctDeleteConfirm: 'Deleting your account permanently removes all cloud data. Are you sure?',
+    acctDeleted: 'Account deleted.',
+    acctDeleteErr: 'Could not delete the account, try again later.',
+    profileOpen: '👤 Account',
   },
 };
 
@@ -946,6 +1098,7 @@ function setLang(l) {
   buildNav();
   if (state.view === 'overview') renderOverview();
   else if (state.view === 'week') renderWeek();
+  else if (state.view === 'calendar') renderCalendar();
   else renderYear();
   updateNav();
   save();
@@ -1174,6 +1327,21 @@ function csvRow(row) {
 }
 
 function exportCSV() {
+  const date = new Date().toISOString().slice(0, 10);
+  let rows;
+  if (window.PlanStats) {
+    // Hàm thuần: dựng toàn bộ rows từ 12 state tháng + yearState (unit-test ở phase2)
+    const months = Array.from({ length: 12 }, (_, m) => loadMonthStateOrCreate(PLAN_YEAR, m));
+    rows = window.PlanStats.buildCSVRows(months, yearState, t('csvNote'));
+  } else {
+    rows = legacyCSVRows();
+  }
+  downloadFile('taskflow-todoist-data-' + date + '.csv', rows.join('\r\n') + '\r\n', 'text/csv;charset=utf-8');
+  trackEvent('export_csv');
+}
+
+// Bản cũ (dự phòng nếu PlanStats chưa tải được) — giữ nguyên hành vi để không hồi quy.
+function legacyCSVRows() {
   const rows = [];
   const push = (row) => rows.push(csvRow(row));
 
@@ -1228,9 +1396,7 @@ function exportCSV() {
   push(['YearNotes', 'Month', 'Note']);
   yearState.monthNotes.forEach((n, m) => push(['YearNotes', m + 1, n]));
 
-  const date = new Date().toISOString().slice(0, 10);
-  downloadFile('taskflow-todoist-data-' + date + '.csv', rows.join('\r\n') + '\r\n', 'text/csv;charset=utf-8');
-  trackEvent('export_csv');
+  return rows;
 }
 
 function importJSONFile(file) {
@@ -1344,7 +1510,7 @@ function seedHabitDays(targetPct) {
 }
 function seedTasks(pct) {
   const checked = Math.round(pct / 20); // 0..5
-  return Array.from({ length: 5 }, (_, i) => ({ kind: i < 2 ? 'priority' : 'regular', done: i < checked, text: '' }));
+  return Array.from({ length: 5 }, (_, i) => ({ kind: i < 2 ? 'priority' : 'regular', done: i < checked, text: '', tags: [] }));
 }
 
 function defaultState() {
@@ -1392,7 +1558,13 @@ function loadState() {
     if (!s.reflections || !Array.isArray(s.reflections.weeks) || s.reflections.weeks.length !== NUM_WEEKS) s.reflections = defaultState().reflections;
     if (!s.goalTab) s.goalTab = 'priority';
     if (typeof s.currentWeek !== 'number' || s.currentWeek < 1 || s.currentWeek > NUM_WEEKS) s.currentWeek = 1;
-    if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year') s.view = 'overview';
+    if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar') s.view = 'overview';
+    // Migration: task cũ thiếu tags → mảng rỗng
+    s.weeks.forEach((w) => {
+      (w.days || []).forEach((d) => {
+        (d.tasks || []).forEach((tk) => { if (!Array.isArray(tk.tags)) tk.tags = []; });
+      });
+    });
     // Đồng bộ streak với số tích ✓: khi xem tháng hiện tại, tự bỏ tick các ngày tương lai
     // (dữ liệu cũ / seed trước đây từng tick cả tháng) để số streak phản ánh đúng những gì đã tick.
     const now = new Date();
@@ -1446,11 +1618,11 @@ function emptyState() {
           const dt = new Date(start.getTime() + (wi * 7 + di) * 86400000);
           return {
             tasks: [
-              { kind: 'priority', done: false, text: '' },
-              { kind: 'priority', done: false, text: '' },
-              { kind: 'regular', done: false, text: '' },
-              { kind: 'regular', done: false, text: '' },
-              { kind: 'regular', done: false, text: '' },
+              { kind: 'priority', done: false, text: '', tags: [] },
+              { kind: 'priority', done: false, text: '', tags: [] },
+              { kind: 'regular', done: false, text: '', tags: [] },
+              { kind: 'regular', done: false, text: '', tags: [] },
+              { kind: 'regular', done: false, text: '', tags: [] },
             ],
             date: `${dt.getDate()}/${dt.getMonth() + 1}`,
             yy: dt.getFullYear() % 100,
@@ -2602,6 +2774,40 @@ function beginTargetEdit(btn) {
   input.addEventListener('blur', commit);
 }
 
+// Sửa tag của task: thay nút 🏷️ bằng input inline, Enter để lưu (phân cách bằng dấu phẩy).
+function beginTagEdit(btn) {
+  const wk = +btn.dataset.week, di = +btn.dataset.day, ti = +btn.dataset.task;
+  const w = state.weeks[wk - 1];
+  const task = w && w.days[di] && w.days[di].tasks[ti];
+  const row = btn.closest('.task-row');
+  if (!task || !row) return;
+  const existing = row.querySelector('.tag-edit-input');
+  if (existing) { existing.remove(); return; }
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'inline-input tag-edit-input';
+  input.maxLength = 60;
+  input.value = (task.tags || []).join(', ');
+  input.placeholder = t('tagPh');
+  row.insertBefore(input, btn.nextSibling);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const tags = input.value.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 8);
+    task.tags = tags;
+    renderWeek();
+    save();
+    trackEvent('edit_task_tags', { n: tags.length });
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { renderWeek(); }
+  });
+  input.addEventListener('blur', () => {
+    if (input.isConnected) commit();
+  });
+}
+
 function refreshHabitLabels(h) {
   const lbl = document.querySelector(`[data-role="hbar-label"][data-id="${h.id}"]`);
   if (lbl) { lbl.textContent = h.name; lbl.title = h.name; }
@@ -2656,6 +2862,7 @@ function renderYear() {
   const el = document.getElementById('view-year');
   const gs = yearGoalStats();
   el.innerHTML = `
+    ${yearDashboardHTML()}
     <div class="year-top">
       ${yearCardHTML()}
       ${yearChartsHTML()}
@@ -2882,6 +3089,17 @@ function yearReflectionsHTML() {
 
 /* ---------- Trang tuần ---------- */
 
+let tagFilter = null;
+
+function weekTagFilterBar() {
+  const allTags = new Set();
+  state.weeks.forEach((w) => w.days.forEach((d) => d.tasks.forEach((tk) => (Array.isArray(tk.tags) ? tk.tags : []).forEach((tg) => allTags.add(tg)))));
+  if (!allTags.size) return '';
+  const chips = [`<button type="button" class="tag-chip${tagFilter === null ? ' active' : ''}" data-action="tagfilter" data-tag="">${t('tagAll')}</button>`]
+    .concat(Array.from(allTags).map((tg) => `<button type="button" class="tag-chip${tagFilter === tg ? ' active' : ''}" data-action="tagfilter" data-tag="${esc(tg)}">#${esc(tg)}</button>`));
+  return `<div class="tag-filter-bar"><span class="tag-filter-lbl">${t('tagFilter')}</span>${chips.join('')}${tagFilter ? `<button type="button" class="tag-chip tag-clear" data-action="tagfilter" data-tag="">✕ ${t('tagAll')}</button>` : ''}</div>`;
+}
+
 function renderWeek() {
   const el = document.getElementById('view-week');
   const w = state.weeks[state.currentWeek - 1];
@@ -2892,6 +3110,7 @@ function renderWeek() {
       <h2>${t('weekBanner')}</h2>
       ${ti.inRange ? '' : `<p class="week-range-note">${t('weekRange', { a: fmtDate(ti.now), b: fmtDate(PLAN_START), c: fmtDate(PLAN_END) })}</p>`}
     </div>
+    ${weekTagFilterBar()}
     <div class="week-head">
       <div class="card week-title-card">
         <div class="w-top-bar">
@@ -3000,12 +3219,377 @@ function dayColumnHTML(w, di, isToday) {
 }
 
 function taskRowHTML(wn, di, ti, mod, task) {
-  return `<div class="task-row">
+  const tags = Array.isArray(task.tags) ? task.tags : [];
+  return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}">
     ${checkboxHTML(mod, task.done, `data-action="task" data-week="${wn}" data-day="${di}" data-task="${ti}"`)}
     <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${wn}" data-day="${di}" data-task="${ti}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: ti + 1 })}">${esc(task.text ?? '')}</span>
+    ${tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : ''}
     <span class="dotted-line" aria-hidden="true"></span>
+    <button type="button" class="btn-tag" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('tagAdd')}" aria-label="${t('tagAria')}">🏷️</button>
     <button type="button" class="btn-del" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}" aria-label="${t('delTaskAria', { n: ti + 1 })}" title="${t('delTaskAria', { n: ti + 1 })}">✕</button>
   </div>`;
+}
+
+/* ============================ Phase 2: Tìm kiếm xuyên tháng ============================ */
+
+function openSearchModal() {
+  const m = document.getElementById('searchModal');
+  if (!m) return;
+  m.hidden = false;
+  const inp = document.getElementById('searchInput');
+  if (inp) { inp.value = ''; inp.focus(); }
+  renderSearchResults('');
+}
+
+function closeSearchModal() {
+  const m = document.getElementById('searchModal');
+  if (m) m.hidden = true;
+}
+
+// Tìm kiếm xuyên tháng: đọc chéo 12 tháng qua monthStateRaw() + yearState (tháng đang xem dùng state trực tiếp).
+function runSearch(q) {
+  q = (q || '').trim().toLowerCase();
+  if (q.length < 2) return [];
+  const hits = [];
+  const y = PLAN_YEAR;
+  const now = new Date();
+  for (let m = 0; m < 12; m++) {
+    const s = (y === now.getFullYear() && m === now.getMonth()) ? state : monthStateRaw(y, m);
+    if (!s) continue;
+    const push = (type, text, week, day) => {
+      if (text && String(text).toLowerCase().includes(q)) hits.push({ y, m, type, text: String(text), week, day });
+    };
+    (s.monthlyGoals || []).forEach((g) => push('goal', g.text));
+    (s.habits || []).forEach((h) => push('habit', h.name));
+    (s.weeks || []).forEach((w) => {
+      (w.days || []).forEach((d, di) => {
+        (d.tasks || []).forEach((tk) => push('task', tk.text, w.n, di));
+        push('note', d.note, w.n, di);
+        push('note', d.sticky, w.n, di);
+      });
+    });
+    if (s.reflections) {
+      (s.reflections.overview || []).forEach((r) => push('reflect', r));
+      (s.reflections.weeks || []).forEach((w) => w.forEach((r) => push('reflect', r)));
+    }
+  }
+  (yearState.goals || []).forEach((g) => push('ygoal', g.text));
+  (yearState.monthNotes || []).forEach((n, mi) => push('ynote', n, null, mi));
+  return hits;
+}
+
+function renderSearchResults(q) {
+  const box = document.getElementById('searchResults');
+  if (!box) return;
+  q = (q || '').trim();
+  if (q.length < 2) {
+    box.innerHTML = `<p class="search-hint">${t('searchEmpty')}</p>`;
+    return;
+  }
+  const hits = runSearch(q);
+  if (!hits.length) {
+    box.innerHTML = `<p class="search-hint">${t('searchNoResults')}</p>`;
+    return;
+  }
+  const typeIcon = { goal: '🎯', habit: '🐥', task: '✅', note: '📝', reflect: '💭', ygoal: '🎯', ynote: '📝' };
+  const typeLbl = { goal: 'goal', habit: 'habit', task: 'task', note: 'note', reflect: 'reflect', ygoal: 'goal', ynote: 'note' };
+  // Nhóm theo tháng
+  const groups = new Map();
+  hits.forEach((h) => {
+    const key = h.m >= 0 ? 'm' + h.m : 'y';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(h);
+  });
+  const order = ['m0', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'y'];
+  const months = Array.from(groups.keys()).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  box.innerHTML = months.map((key) => {
+    const items = groups.get(key);
+    const label = key === 'y' ? t('searchYear', { y: PLAN_YEAR }) : t('searchMonth', { n: (+key.slice(1)) + 1 });
+    return `<div class="search-group">
+      <div class="search-group-h">${label} <small>${items.length}</small></div>
+      ${items.map((h) => `<button type="button" class="search-hit" data-action="search-go" data-y="${h.y}" data-m="${h.m}" data-week="${h.week ?? ''}" data-day="${h.day ?? ''}">
+        <span class="search-hit-icon" aria-hidden="true">${typeIcon[h.type] || '📌'}</span>
+        <span class="search-hit-body"><span class="search-hit-type">${t('search' + typeLbl[h.type][0].toUpperCase() + typeLbl[h.type].slice(1))}</span>
+        <span class="search-hit-text">${esc(h.text)}</span></span>
+      </button>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function goSearchResult(btn) {
+  const y = +btn.dataset.y, m = +btn.dataset.m;
+  closeSearchModal();
+  if (m < 0) { openYear(y - PLAN_YEAR); setView('year'); return; }
+  openMonth(m);
+  const wk = btn.dataset.week;
+  if (wk) setView('week', +wk);
+  else setView('overview');
+}
+
+/* ============================ Phase 2: View Lịch ============================ */
+
+function renderCalendar() {
+  const el = document.getElementById('view-calendar');
+  const now = new Date();
+  const today = (now.getFullYear() === PLAN_YEAR && now.getMonth() === PLAN_MONTH) ? now.getDate() : null;
+  const dowLbl = t('dayNames');
+  let html = `<div class="cal-toolbar"><h2>📅 ${t('viewCalendar')} · ${monthLabel(PLAN_MONTH)} ${PLAN_YEAR}</h2>
+    <div class="cal-legend"><span class="dot on"></span> ${t('legendDone')} <span class="dot off"></span> ${t('legendNotDone')}</div></div>
+    <div class="cal-grid">`;
+  dowLbl.forEach((d) => { html += `<div class="cal-dow">${d}</div>`; });
+  state.weeks.forEach((w) => {
+    w.days.forEach((d, di) => {
+      const dt = new Date(PLAN_START.getTime() + ((w.n - 1) * 7 + di) * 86400000);
+      const dnum = dt.getDate();
+      const isToday = today === dnum && dt.getMonth() === PLAN_MONTH;
+      const p = dayPct(d);
+      const pri = d.tasks.map((tk, ti) => ({ tk, ti })).filter((x) => x.tk.kind === 'priority');
+      const reg = d.tasks.map((tk, ti) => ({ tk, ti })).filter((x) => x.tk.kind === 'regular');
+      html += `<div class="cal-cell${isToday ? ' today' : ''}" data-week="${w.n}" data-day="${di}">
+        <div class="cal-cell-head"><span class="cal-date">${dnum}</span><span class="cal-pct" data-role="cal-pct" data-week="${w.n}" data-day="${di}">${p}%</span></div>
+        <div class="cal-tasks">
+          ${[...pri, ...reg].map(({ tk, ti }) => `<div class="cal-task ${tk.done ? 'done' : ''}" data-tag-match="${tagFilter === null || (Array.isArray(tk.tags) && tk.tags.includes(tagFilter)) ? '1' : '0'}">
+            ${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${w.n}" data-day="${di}" data-task="${ti}"`)}
+            <span class="cal-task-text">${esc(tk.text || '')}</span>
+            ${(Array.isArray(tk.tags) && tk.tags.length) ? `<span class="task-tags">${tk.tags.map((tg) => `<span class="tag-chip">#${esc(tg)}</span>`).join('')}</span>` : ''}
+          </div>`).join('') || `<span class="cal-empty">${t('calEmpty')}</span>`}
+        </div>
+      </div>`;
+    });
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+/* ============================ Phase 2: Template tháng ============================ */
+
+function openTemplateModal() {
+  const m = document.getElementById('templateModal');
+  if (!m) return;
+  const src = document.getElementById('templateSrc');
+  const dst = document.getElementById('templateDst');
+  const opts = MONTH_NAMES.map((n, i) => `<option value="${i}" ${i === PLAN_MONTH ? 'selected' : ''}>${t('monthOption', { m: monthLabel(i), n: i + 1, y: PLAN_YEAR })}</option>`).join('');
+  if (src) src.innerHTML = opts;
+  if (dst) {
+    // Mặc định đích = tháng sau (tránh alert "chọn tháng khác" ngay lần mở đầu)
+    const def = (PLAN_MONTH + 1) % 12;
+    const dstOpts = MONTH_NAMES.map((n, i) => `<option value="${i}" ${i === def ? 'selected' : ''}>${t('monthOption', { m: monthLabel(i), n: i + 1, y: PLAN_YEAR })}</option>`).join('');
+    dst.innerHTML = dstOpts;
+  }
+  m.hidden = false;
+}
+
+function closeTemplateModal() {
+  const m = document.getElementById('templateModal');
+  if (m) m.hidden = true;
+}
+
+// Sao chép CẤU TRÚC tháng (goals + habits + tuần) sang tháng đích, BỎ ô tick ✓.
+// QUAN TRỌNG: dựng lại weeks theo lịch THÁNG ĐÍCH (đúng NUM_WEEKS + đúng ngày/tháng),
+// chỉ copy goals/tasks theo vị trí tuần — nếu không loadState() sẽ loại state vì
+// weeks.length !== NUM_WEEKS và ngày hiển thị sai tháng.
+function copyMonthTemplate() {
+  const srcM = +document.getElementById('templateSrc').value;
+  const dstM = +document.getElementById('templateDst').value;
+  if (srcM === dstM) { alert(t('templateSame')); return; }
+  const src = loadMonthStateOrCreate(PLAN_YEAR, srcM);
+  if (!src || (!src.monthlyGoals.length && !src.habits.length)) { alert(t('templateNoData')); return; }
+  const prev = capturePlan();
+  let dst = null;
+  try {
+    initPlan(new Date(PLAN_YEAR, dstM, 1)); // chuyển sang lịch tháng đích để lấy NUM_WEEKS/PLAN_START đúng
+    const nd = NUM_DAYS;
+    dst = {
+      view: 'overview', currentWeek: 1, goalTab: 'priority', monthKey: 'planner-' + PLAN_YEAR + '-' + (dstM + 1),
+      monthlyGoals: src.monthlyGoals.map((g) => ({ id: 'g' + Date.now() + Math.floor(Math.random() * 999), text: g.text, kind: g.kind, done: false })),
+      habits: src.habits.map((h) => ({ id: 'h' + Date.now() + Math.floor(Math.random() * 999), name: h.name, target: h.target || 100, days: Array(nd).fill(false) })),
+      weeks: Array.from({ length: NUM_WEEKS }, (_, wi) => {
+        const sw = src.weeks[wi] || { goals: [], days: [] };
+        return {
+          n: wi + 1,
+          goals: (sw.goals || []).map((g) => ({ text: g.text, kind: g.kind, done: false })),
+          days: Array.from({ length: 7 }, (_, di) => {
+            const dt = new Date(PLAN_START.getTime() + (wi * 7 + di) * 86400000);
+            const sd = (sw.days && sw.days[di]) || {};
+            return {
+              tasks: (sd.tasks || []).map((tk) => ({ kind: tk.kind, done: false, text: tk.text || '', tags: Array.isArray(tk.tags) ? tk.tags.slice() : [] })),
+              date: `${dt.getDate()}/${dt.getMonth() + 1}`,
+              yy: dt.getFullYear() % 100,
+              sticky: sd.sticky || null,
+              note: '',
+            };
+          }),
+        };
+      }),
+      reflections: { overview: ['', '', '', ''], weeks: Array.from({ length: NUM_WEEKS }, () => ['', '', '', '']) },
+    };
+  } finally {
+    restorePlan(prev);
+  }
+  saveMonthState(PLAN_YEAR, dstM, dst);
+  invalidateYearCache();
+  trackEvent('copy_month_template', { src: srcM, dst: dstM });
+  alert(t('templateDone', { src: monthLabel(srcM), dst: monthLabel(dstM) }));
+  closeTemplateModal();
+}
+
+/* ============================ Phase 2: Pomodoro ============================ */
+
+const POMO_WORK = 25 * 60, POMO_BREAK = 5 * 60;
+let pomo = { mode: 'work', left: POMO_WORK, running: false, timer: null };
+
+function renderPomo() {
+  const mm = String(Math.floor(pomo.left / 60)).padStart(2, '0');
+  const ss = String(pomo.left % 60).padStart(2, '0');
+  const tEl = document.getElementById('pomoTime');
+  if (tEl) tEl.textContent = mm + ':' + ss;
+  const mEl = document.getElementById('pomoMode');
+  if (mEl) mEl.textContent = (pomo.mode === 'work' ? t('pomoWork') : t('pomoBreak')) + ' · ' + t('pomoMin', { n: pomo.mode === 'work' ? 25 : 5 });
+  const bEl = document.getElementById('pomoStart');
+  if (bEl) bEl.textContent = pomo.running ? t('pomoPause') : t('pomoStart');
+}
+
+function pomoStart() {
+  if (pomo.running) { clearInterval(pomo.timer); pomo.running = false; renderPomo(); return; }
+  pomo.running = true;
+  trackEvent('pomodoro_start', { mode: pomo.mode });
+  pomo.timer = setInterval(() => {
+    pomo.left--;
+    if (pomo.left <= 0) {
+      clearInterval(pomo.timer);
+      pomo.running = false;
+      const finished = pomo.mode;
+      trackEvent('pomodoro_complete', { mode: finished });
+      if (finished === 'work') {
+        alert(t('pomoDoneWork'));
+        pomo.mode = 'break'; pomo.left = POMO_BREAK;
+      } else {
+        alert(t('pomoDoneBreak'));
+        pomo.mode = 'work'; pomo.left = POMO_WORK;
+      }
+    }
+    renderPomo();
+  }, 1000);
+  renderPomo();
+}
+
+function pomoReset() {
+  clearInterval(pomo.timer);
+  pomo.running = false;
+  pomo.left = pomo.mode === 'work' ? POMO_WORK : POMO_BREAK;
+  renderPomo();
+}
+
+function togglePomoPanel() {
+  const p = document.getElementById('pomoPanel');
+  if (!p) return;
+  p.hidden = !p.hidden;
+  if (!p.hidden) renderPomo();
+}
+
+/* ============================ Phase 2: Dashboard (year view) ============================ */
+
+// Thói quen có tổng số ngày tích nhiều nhất trong 12 tháng.
+function bestHabitAcrossYear() {
+  let best = null, bestN = 0;
+  const now = new Date();
+  for (let m = 0; m < 12; m++) {
+    const s = monthStateRaw(PLAN_YEAR, m);
+    if (!s) continue;
+    (s.habits || []).forEach((h) => {
+      const n = (Array.isArray(h.days) ? h.days.filter(Boolean).length : 0);
+      if (n > bestN) { bestN = n; best = h.name; }
+    });
+  }
+  if (bestN === 0 && state.habits.length) { best = state.habits[0].name; bestN = 0; }
+  return { name: best, days: bestN };
+}
+
+// Ngày có nhiều task HOÀN THÀNH nhất trong 12 tháng.
+function bestProductiveDay() {
+  let best = null, bestN = -1;
+  for (let m = 0; m < 12; m++) {
+    const s = monthStateRaw(PLAN_YEAR, m);
+    if (!s) continue;
+    (s.weeks || []).forEach((w) => {
+      (w.days || []).forEach((d) => {
+        const n = (d.tasks || []).filter((tk) => tk.done).length;
+        if (n > bestN) { bestN = n; best = { month: m, date: d.date }; }
+      });
+    });
+  }
+  if (bestN <= 0) return null;
+  return { ...best, label: (best.month + 1) + '/' + best.date, n: bestN };
+}
+
+function yearDashboardHTML() {
+  const bh = bestHabitAcrossYear();
+  const pd = bestProductiveDay();
+  const monthly = yearMonthlyData();
+  const quarters = [0, 1, 2, 3].map((q) => Math.round((monthly[q * 3].pct + monthly[q * 3 + 1].pct + monthly[q * 3 + 2].pct) / 3));
+  const gs = yearGoalStats();
+  const bestQ = quarters.indexOf(Math.max(...quarters));
+  return `<div class="card year-dash-card">
+    <div class="dash-head"><h3 class="card-title">${t('dashTitle')}</h3><span class="bear-big" aria-hidden="true">🐻</span></div>
+    <div class="dash-grid">
+      <div class="dash-cell"><span class="dash-emoji" aria-hidden="true">🔥</span>
+        <b>${bh.name ? esc(bh.name) : '—'}</b><small>${t('dashBestHabit')} · ${t('dashBestHabitSub', { n: bh.days })}</small></div>
+      <div class="dash-cell"><span class="dash-emoji" aria-hidden="true">⚡</span>
+        <b>${pd ? esc(pd.label) : '—'}</b><small>${t('dashProdDay')} · ${t('dashProdDaySub', { n: pd ? pd.n : 0 })}</small></div>
+      <div class="dash-cell"><span class="dash-emoji" aria-hidden="true">📊</span>
+        <b>${t('dashQuarter')}</b>
+        <div class="dash-quarters">${quarters.map((p, i) => `<span class="dq${i === bestQ ? ' best' : ''}" title="${t('dashQuarter')} Q${i + 1}: ${p}%"><i>Q${i + 1}</i><b>${p}%</b></span>`).join('')}</div></div>
+      <div class="dash-cell"><span class="dash-emoji" aria-hidden="true">🎯</span>
+        <b>${gs.done}/${gs.total}</b><small>${t('dashGoalTotal')} · ${t('dashGoalDone', { d: gs.done, t: gs.total })}</small></div>
+    </div>
+  </div>`;
+}
+
+/* ============================ Phase 3: Profile / tài khoản ============================ */
+
+function openProfileModal() {
+  const m = document.getElementById('profileModal');
+  if (!m) return;
+  const u = document.getElementById('profileUser');
+  const uname = (window.Sync && window.Sync.getUsername) ? window.Sync.getUsername() : '';
+  if (u) u.textContent = uname ? t('profileUser', { u: uname }) : '';
+  m.hidden = false;
+}
+
+function closeProfileModal() {
+  const m = document.getElementById('profileModal');
+  if (m) m.hidden = true;
+}
+
+async function doChangePassword() {
+  if (!window.Sync || !window.Sync.changePassword) { alert(t('pwNeedLogin')); return; }
+  const cur = document.getElementById('pwCurrent');
+  const nw = document.getElementById('pwNew');
+  if (!cur || !nw) return;
+  if (!cur.value || !nw.value) { alert(t('pwNeedLogin')); return; }
+  const r = await window.Sync.changePassword(cur.value, nw.value);
+  if (r && r.ok) {
+    alert(t('pwOk'));
+    cur.value = ''; nw.value = '';
+    closeProfileModal();
+  } else {
+    alert(t('pwErr'));
+  }
+}
+
+async function doDeleteAccount() {
+  if (!window.Sync || !window.Sync.deleteAccount) { alert(t('pwNeedLogin')); return; }
+  if (!confirm(t('acctDeleteConfirm'))) return;
+  const r = await window.Sync.deleteAccount();
+  if (r && r.ok) {
+    alert(t('acctDeleted'));
+    closeProfileModal();
+    closeSyncModal();
+    updateSyncStatus();
+    rebootState();
+  } else {
+    alert(t('acctDeleteErr'));
+  }
 }
 
 /* ============================ Điều hướng ============================ */
@@ -3014,6 +3598,7 @@ function buildNav() {
   const nav = document.getElementById('navTabs');
   nav.innerHTML = `
     <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="view-overview" data-action="nav" data-view="overview">${t('tabOverview')}</button>
+    <button type="button" class="tab" role="tab" id="tab-calendar" aria-controls="view-calendar" data-action="nav" data-view="calendar">${t('tabCalendar')}</button>
     <button type="button" class="tab" role="tab" id="tab-year" aria-controls="view-year" data-action="nav" data-view="year">${t('tabYear', { y: PLAN_YEAR })}</button>
     ${state.weeks.map((w) => `<button type="button" class="tab" role="tab" id="tab-week-${w.n}" aria-controls="view-week" data-action="nav" data-view="week" data-week="${w.n}">${t('weekN', { n: w.n })}</button>`).join('')}
   `;
@@ -3032,15 +3617,20 @@ function setView(view, week) {
   const ov = document.getElementById('view-overview');
   const wk = document.getElementById('view-week');
   const yr = document.getElementById('view-year');
+  const cal = document.getElementById('view-calendar');
   ov.classList.toggle('active', view === 'overview');
   wk.classList.toggle('active', view === 'week');
   yr.classList.toggle('active', view === 'year');
+  if (cal) cal.classList.toggle('active', view === 'calendar');
   if (view === 'overview') {
     ov.setAttribute('aria-labelledby', 'tab-overview');
     renderOverview();
   } else if (view === 'week') {
     wk.setAttribute('aria-labelledby', 'tab-week-' + state.currentWeek);
     renderWeek();
+  } else if (view === 'calendar') {
+    if (cal) cal.setAttribute('aria-labelledby', 'tab-calendar');
+    renderCalendar();
   } else {
     yr.setAttribute('aria-labelledby', 'tab-year');
     renderYear();
@@ -3049,6 +3639,8 @@ function setView(view, week) {
 }
 function goWeek(v) {
   const n = Math.min(NUM_WEEKS, Math.max(1, v));
+  // Tag filter theo tuần cũ — reset để không còn task bị ẩn khi sang tuần không có tag đó
+  tagFilter = null;
   setView('week', n);
 }
 function openMonth(m) {
@@ -3063,6 +3655,8 @@ function openMonth(m) {
   state = bootState();
   yearState = bootYearState();
   state.view = 'overview';
+  // Tag filter theo tháng cũ — reset để không còn task bị ẩn mà không có UI gỡ
+  tagFilter = null;
   updateBrand();
   updateNowBtn();
   buildNav();
@@ -3213,6 +3807,38 @@ document.addEventListener('click', (e) => {
     removeHabit(el.dataset.id);
   } else if (act === 'copyhabits') {
     copyHabitsToNextMonth();
+  } else if (act === 'search-toggle') {
+    openSearchModal();
+  } else if (act === 'search-close') {
+    closeSearchModal();
+  } else if (act === 'search-go') {
+    goSearchResult(el);
+  } else if (act === 'tagfilter') {
+    tagFilter = el.dataset.tag || null;
+    if (state.view === 'calendar') renderCalendar();
+    else renderWeek();
+  } else if (act === 'tag-edit') {
+    beginTagEdit(el);
+  } else if (act === 'template') {
+    openTemplateModal();
+  } else if (act === 'template-close') {
+    closeTemplateModal();
+  } else if (act === 'template-do') {
+    copyMonthTemplate();
+  } else if (act === 'pomo-toggle') {
+    togglePomoPanel();
+  } else if (act === 'pomo-start') {
+    pomoStart();
+  } else if (act === 'pomo-reset') {
+    pomoReset();
+  } else if (act === 'profile-open') {
+    openProfileModal();
+  } else if (act === 'profile-close') {
+    closeProfileModal();
+  } else if (act === 'pw-change') {
+    doChangePassword();
+  } else if (act === 'acct-delete') {
+    doDeleteAccount();
   } else if (act === 'sync-toggle') {
     toggleSyncModal();
   } else if (act === 'sync-close') {
@@ -3315,6 +3941,11 @@ document.addEventListener('change', (e) => {
   const act = e.target.dataset && e.target.dataset.action;
   if (act === 'weekselect') goWeek(+e.target.value);
   else if (act === 'monthselect') openMonth(+e.target.value);
+});
+
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.id === 'searchInput') renderSearchResults(t.value);
 });
 
 document.addEventListener('input', (e) => {
@@ -3483,6 +4114,13 @@ function refreshTaskUI(w, di) {
   if (pctEl) pctEl.textContent = p + '%';
   const vertBar = document.querySelector(`.day-col-${di} .day-vert-bar`);
   if (vertBar) vertBar.style.height = Math.max(p, 4) + '%';
+  // View Lịch: cập nhật % ngày trong ô calendar
+  const calPct = document.querySelector(`[data-role="cal-pct"][data-week="${w.n}"][data-day="${di}"]`);
+  if (calPct) calPct.textContent = p + '%';
+  document.querySelectorAll(`.cal-cell[data-week="${w.n}"][data-day="${di}"] .cal-task`).forEach((cell) => {
+    const cb = cell.querySelector('[data-action="task"]');
+    if (cb) cell.classList.toggle('done', d.tasks[+cb.dataset.task].done);
+  });
 }
 
 /* ============================ Đồng bộ thời gian thực ============================ */
@@ -3548,6 +4186,7 @@ function refreshToday() {
     if (jump) state.currentWeek = ti.week;
     if (state.view === 'week') renderWeek();
     else if (state.view === 'overview') renderOverview();
+    else if (state.view === 'calendar') renderCalendar();
     else renderYear();
     updateNav();
     save();
@@ -3599,6 +4238,8 @@ function updateSyncStatus() {
   }
   const lo = document.getElementById('syncLogoutBtn');
   if (lo) lo.hidden = (s !== 'ready' && s !== 'syncing' && s !== 'connecting');
+  const pf = document.getElementById('syncProfileBtn');
+  if (pf) pf.hidden = lo ? lo.hidden : true;
 }
 
 function toggleSyncModal() {
@@ -3622,6 +4263,12 @@ document.addEventListener('keydown', (e) => {
     if (m && !m.hidden) m.hidden = true;
     const r = document.getElementById('reportModal');
     if (r && !r.hidden) r.hidden = true;
+    const s = document.getElementById('searchModal');
+    if (s && !s.hidden) closeSearchModal();
+    const t = document.getElementById('templateModal');
+    if (t && !t.hidden) t.hidden = true;
+    const p = document.getElementById('profileModal');
+    if (p && !p.hidden) p.hidden = true;
   }
 });
 document.addEventListener('click', (e) => {
@@ -3629,6 +4276,12 @@ document.addEventListener('click', (e) => {
   if (m && !m.hidden && e.target === m) m.hidden = true;
   const r = document.getElementById('reportModal');
   if (r && !r.hidden && e.target === r) r.hidden = true;
+  const s = document.getElementById('searchModal');
+  if (s && !s.hidden && e.target === s) closeSearchModal();
+  const t = document.getElementById('templateModal');
+  if (t && !t.hidden && e.target === t) t.hidden = true;
+  const p = document.getElementById('profileModal');
+  if (p && !p.hidden && e.target === p) p.hidden = true;
 });
 
 function syncFormValues() {
@@ -3663,6 +4316,7 @@ function syncErrorText(code) {
     case 'bad-credentials': return t('syncErrBadCredentials');
     case 'network': return t('syncErrNetwork');
     case 'no-config': return t('syncNeedConfig');
+    case 'too-many-requests': return t('syncErrRateLimited');
     default: return t('syncErrServer');
   }
 }

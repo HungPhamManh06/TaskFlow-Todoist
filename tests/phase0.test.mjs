@@ -13,7 +13,11 @@ test('parse: view hợp lệ', () => {
 });
 
 test('parse: view không hợp lệ → null', () => {
-  assert.equal(DeepLink.parse('https://x.app/app.html?view=calendar').view, null);
+  assert.equal(DeepLink.parse('https://x.app/app.html?view=settings').view, null);
+});
+
+test('parse: view calendar hợp lệ (Phase 2.3)', () => {
+  assert.equal(DeepLink.parse('https://x.app/app.html?view=calendar').view, 'calendar');
 });
 
 test('parse: m=YYYY-M hợp lệ', () => {

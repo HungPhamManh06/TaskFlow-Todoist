@@ -4,7 +4,9 @@
   "private": true,
   "description": "TaskFlow-Todoist backend: auth (username/password + Google OAuth) + sync API",
   "main": "index.js",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node index.js"
   },
@@ -13,6 +15,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.6.1",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.1",
     "pg-mem": "^3.0.4"

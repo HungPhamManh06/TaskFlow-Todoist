@@ -22,6 +22,7 @@
   var PUSH_DEBOUNCE_MS = (typeof cfg.pushDebounceMs === 'number' ? cfg.pushDebounceMs : 1200);
 
   var userId = null;
+  var username = null;
   var authed = false;
   var started = false;
   var currentStatus = 'off';
@@ -93,6 +94,7 @@
       return false;
     }
     userId = res.data.id;
+    username = res.data.username || null;
     authed = true;
     return true;
   }
@@ -229,6 +231,7 @@
     }
     setToken(res.data.token);
     userId = res.data.user.id;
+    username = res.data.user.username || null;
     authed = true;
     // Xoá dữ liệu local của tài khoản trước → kéo dữ liệu ĐÚNG tài khoản đang đăng nhập
     clearLocalData();
@@ -258,6 +261,7 @@
     }
     setToken(res.data.token);
     userId = res.data.user.id;
+    username = res.data.user.username || null;
     authed = true;
     // Tài khoản mới → dữ liệu mới: xoá dữ liệu local cũ, KHÔNG migrate lên tài khoản mới
     clearLocalData();
@@ -272,8 +276,40 @@
   async function logout() {
     authed = false;
     userId = null;
+    username = null;
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ẩn */ }
     setStatus('signedout');
+  }
+
+  // ---- Đổi mật khẩu (Bearer) ----
+  async function changePassword(currentPassword, newPassword) {
+    if (!base) return { ok: false, error: 'no-config' };
+    var res;
+    try {
+      res = await api('/api/auth/change-password', { method: 'POST', body: { currentPassword: currentPassword, newPassword: newPassword } });
+    } catch (e) {
+      return { ok: false, error: 'network' };
+    }
+    if (!res.ok) return { ok: false, error: res.data && res.data.error || 'server' };
+    return { ok: true };
+  }
+
+  // ---- Xoá tài khoản (Bearer) — xoá luôn dữ liệu cloud của user ----
+  async function deleteAccount() {
+    if (!base) return { ok: false, error: 'no-config' };
+    var res;
+    try {
+      res = await api('/api/auth/delete-account', { method: 'POST', body: {} });
+    } catch (e) {
+      return { ok: false, error: 'network' };
+    }
+    if (!res.ok) return { ok: false, error: 'server' };
+    authed = false;
+    userId = null;
+    username = null;
+    try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ẩn */ }
+    setStatus('signedout');
+    return { ok: true };
   }
 
   // ---- Google OAuth: chuyển hướng sang backend → Google → quay về app.html?token=... ----
@@ -306,6 +342,9 @@
     login: login,
     signup: signup,
     logout: logout,
+    changePassword: changePassword,
+    deleteAccount: deleteAccount,
+    getUsername: function () { return username; },
     loginWithGoogle: loginWithGoogle,
     consumeRedirectToken: consumeRedirectToken,
     onStatus: function (fn) { statusListeners.push(fn); },

@@ -96,6 +96,37 @@ router.get('/me', authMiddleware, (req, res) => {
   res.json({ id: req.user.id, username: req.user.username });
 });
 
+// ---- POST /api/auth/change-password (Bearer) { currentPassword, newPassword } ----
+router.post('/change-password', authMiddleware, async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (newPassword.length < 6) return res.status(400).json({ error: 'weak-password' });
+    const p = initDb();
+    const r = await p.query('select password_hash from users where id = $1', [req.user.id]);
+    const user = r.rows[0];
+    if (!user || !user.password_hash) return res.status(400).json({ error: 'no-password' });
+    const ok = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'bad-credentials' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    await p.query('update users set password_hash = $1 where id = $2', [hash, req.user.id]);
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
+// ---- POST /api/auth/delete-account (Bearer) → xoá user (cascade xoá luôn planner_state) ----
+router.post('/delete-account', authMiddleware, async (req, res) => {
+  try {
+    const p = initDb();
+    await p.query('delete from users where id = $1', [req.user.id]);
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
 // ---- GET /api/auth/google → 302 sang Google ----
 router.get('/google', (req, res) => {
   if (!GOOGLE_CLIENT_ID) return res.status(503).json({ error: 'google-not-configured' });
