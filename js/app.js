@@ -119,7 +119,7 @@ function updateBrand() {
   if (el) el.textContent = 'TaskFlow-Todoist';
   const s = document.getElementById('brandSub');
   if (s) s.hidden = true;
-  document.title = 'TaskFlow-Todoist 🐥';
+  document.title = 'TaskFlow-Todoist';
   buildMonthNav();
 }
 

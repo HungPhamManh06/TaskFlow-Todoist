@@ -43,9 +43,8 @@
     content="Planner tiếng Việt miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, checklist & reflection. Offline 100%." />
   <meta name="twitter:image" content="https://hungphammanh06.github.io/Todoist/og-image.png" />
 
-  <!-- ===== Favicon (emoji) ===== -->
-  <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐥</text></svg>" />
+  <!-- ===== TaskFlow logo ===== -->
+  <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -62,7 +61,7 @@
       } catch (e) { /* ẩn */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/styles.css?v=47" />
+  <link rel="stylesheet" href="css/styles.css?v=48" />
 </head>
 
 <body>
@@ -70,7 +69,7 @@
 
   <header class="site-header">
     <div class="brand">
-      <span class="brand-chick" aria-hidden="true">🐥</span>
+      <img class="brand-mark" src="icons/taskflow-mark.svg" alt="" width="30" height="30" />
       <div class="brand-text">
         <h1 id="brandTitle">TaskFlow-Todoist</h1>
         <p id="brandSub">Kế hoạch tháng 1 · 2026</p>
@@ -169,7 +168,10 @@
     <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng" data-i18n-aria="viewOverview">
       <div class="landing-hero">
         <div class="landing-inner">
-          <p class="landing-logo">🐥 TaskFlow-Todoist</p>
+          <p class="landing-logo">
+            <img class="landing-logo-mark" src="icons/taskflow-mark.svg" alt="" width="28" height="28" />
+            <span>TaskFlow-Todoist</span>
+          </p>
           <h2 class="landing-title" data-i18n-html="landTitle">Lên kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương</em></h2>
           <p class="landing-sub" data-i18n="landSub">Chốt mục tiêu, điểm danh thói quen và ghi nhật ký reflection. Dữ liệu nằm ngay trong trình duyệt của bạn, miễn phí và riêng tư.</p>
           <button type="button" class="landing-cta" data-action="journey" data-i18n="landCta">Khám phá kế hoạch</button>

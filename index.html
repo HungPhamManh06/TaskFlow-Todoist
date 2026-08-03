@@ -37,9 +37,9 @@
     content="Mục tiêu năm/tháng/tuần, habit tracker 31 ngày + streak 🔥, checklist & reflection. Offline 100%, miễn phí." />
   <meta name="twitter:image" content="https://hungphammanh06.github.io/Todoist/og-image.png" />
 
-  <!-- ===== Favicon (emoji) ===== -->
-  <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐥</text></svg>" />
+  <!-- ===== TaskFlow logo ===== -->
+  <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -56,7 +56,7 @@
       } catch (e) { /* ẩn */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/landing.css?v=6" />
+  <link rel="stylesheet" href="css/landing.css?v=7" />
 
   <!-- ===== Dữ liệu có cấu trúc (SEO) ===== -->
   <script type="application/ld+json">
@@ -80,7 +80,7 @@
 
   <header class="lp-header">
     <div class="lp-brand">
-      <span class="brand-chick" aria-hidden="true">🐥</span>
+      <img class="lp-brand-mark" src="icons/taskflow-mark.svg" alt="" width="32" height="32" />
       <span class="lp-brand-name">TaskFlow-Todoist</span>
     </div>
     <nav class="lp-nav" aria-label="Điều hướng trang giới thiệu">
@@ -91,7 +91,7 @@
         aria-label="Bật/tắt chế độ tối">🌙</button>
       <button type="button" class="lp-lang" id="langBtn" title="Đổi ngôn ngữ / Switch language">EN</button>
     </nav>
-    <a class="lp-btn-primary" href="app.html" data-t-vi="🐥 Mở kế hoạch" data-t-en="🐥 Open planner">🐥 Mở kế hoạch</a>
+    <a class="lp-btn-primary" href="app.html" data-t-vi="Mở kế hoạch" data-t-en="Open planner">Mở kế hoạch</a>
   </header>
 
   <main>
@@ -103,8 +103,8 @@
           data-t-en="Set goals, track 31-day habits and keep a reflection journal — right in your browser, free.">Chốt
           mục tiêu, điểm danh thói quen 31 ngày và ghi nhật ký reflection — ngay trong trình duyệt, miễn phí.</p>
         <div class="lp-cta-row">
-          <a class="lp-btn-primary lp-btn-big" href="app.html" data-t-vi="🐥 Mở kế hoạch"
-            data-t-en="🐥 Open planner">🐥 Mở kế hoạch</a>
+          <a class="lp-btn-primary lp-btn-big" href="app.html" data-t-vi="Mở kế hoạch"
+            data-t-en="Open planner">Mở kế hoạch</a>
           <a class="lp-btn-ghost" href="#features" data-t-vi="Xem tính năng" data-t-en="See features">Xem tính năng</a>
         </div>
       </div>
@@ -245,13 +245,16 @@
       <p data-t-vi="Miễn phí, không tài khoản, không cần cài đặt, mở trình duyệt là chạy ngay."
         data-t-en="Free, no account, no install. Open the browser and go.">Miễn phí, không tài khoản, không cần cài
         đặt, mở trình duyệt là chạy ngay.</p>
-      <a class="lp-btn-primary lp-btn-big" href="app.html" data-t-vi="🐥 Mở kế hoạch"
-        data-t-en="🐥 Open planner">🐥 Mở kế hoạch</a>
+      <a class="lp-btn-primary lp-btn-big" href="app.html" data-t-vi="Mở kế hoạch"
+        data-t-en="Open planner">Mở kế hoạch</a>
     </section>
   </main>
 
   <footer class="lp-footer">
-    <span class="lp-brand-name">🐥 TaskFlow-Todoist</span>
+    <span class="lp-footer-brand">
+      <img class="lp-brand-mark" src="icons/taskflow-mark.svg" alt="" width="28" height="28" />
+      <span class="lp-brand-name">TaskFlow-Todoist</span>
+    </span>
     <nav aria-label="Liên kết chân trang">
       <a href="app.html" data-t-vi="Mở app" data-t-en="Open app">Mở app</a>
       <a href="https://github.com/HungPhamManh06/Todoist" rel="noopener" data-t-vi="GitHub (mã nguồn)"

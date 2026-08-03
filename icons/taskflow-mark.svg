@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">TaskFlow logo mark</title>
+  <desc id="desc">A warm terracotta app tile with a flowing checklist and a bright progress dot.</desc>
+  <defs>
+    <linearGradient id="tile" x1="10" y1="6" x2="84" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6B18F"/>
+      <stop offset="1" stop-color="#C85A38"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2.2" flood-color="#4A403A" flood-opacity=".22"/>
+    </filter>
+  </defs>
+
+  <rect x="5" y="5" width="86" height="86" rx="27" fill="url(#tile)" stroke="#4A403A" stroke-width="3" filter="url(#softShadow)"/>
+  <path d="M29 20h38c8.3 0 15 6.7 15 15v28c0 8.3-6.7 15-15 15H29c-8.3 0-15-6.7-15-15V35c0-8.3 6.7-15 15-15Z" fill="#FFF9EE" stroke="#4A403A" stroke-width="3"/>
+  <path d="M15 38h66" fill="none" stroke="#4A403A" stroke-width="3"/>
+  <path d="M30 27v8M66 27v8" fill="none" stroke="#C85A38" stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="68" cy="29" r="5.5" fill="#FFD45A" stroke="#4A403A" stroke-width="2"/>
+  <circle cx="66.2" cy="28" r=".9" fill="#4A403A"/>
+  <circle cx="69.8" cy="28" r=".9" fill="#4A403A"/>
+  <path d="m67.2 30 1.4 1.8 1.5-1.8" fill="#F08A42" stroke="#F08A42" stroke-width="1.4" stroke-linejoin="round"/>
+  <path d="m25 55 9 9 21-23" fill="none" stroke="#C85A38" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27 71c7.5 2.7 16.3 2.7 24.2-.2" fill="none" stroke="#A8C3A0" stroke-width="4" stroke-linecap="round"/>
+</svg>
