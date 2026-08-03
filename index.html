@@ -46,7 +46,17 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="css/landing.css?v=3" />
+  <!-- Chống nháy trắng (FOUC): áp chế độ tối trước khi CSS vẽ (đặt TRƯỚC stylesheet) -->
+  <script>
+    (function () {
+      try {
+        var d = localStorage.getItem('planner-dark');
+        var on = d === '1' ? true : d === '0' ? false : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-dark', on ? 'true' : 'false');
+      } catch (e) { /* ẩn */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="css/landing.css?v=6" />
 
   <!-- ===== Dữ liệu có cấu trúc (SEO) ===== -->
   <script type="application/ld+json">
@@ -77,6 +87,8 @@
       <a href="#features" data-t-vi="Tính năng" data-t-en="Features">Tính năng</a>
       <a href="#how" data-t-vi="Cách hoạt động" data-t-en="How it works">Cách hoạt động</a>
       <a href="#demo" data-t-vi="Giao diện" data-t-en="Screenshots">Giao diện</a>
+      <button type="button" class="lp-dark" id="darkBtn" title="Bật/tắt chế độ tối / Toggle dark mode"
+        aria-label="Bật/tắt chế độ tối">🌙</button>
       <button type="button" class="lp-lang" id="langBtn" title="Đổi ngôn ngữ / Switch language">EN</button>
     </nav>
     <a class="lp-btn-primary" href="app.html" data-t-vi="🐥 Mở kế hoạch" data-t-en="🐥 Open planner">🐥 Mở kế hoạch</a>
@@ -87,10 +99,9 @@
       <div class="lp-hero-inner">
         <p class="lp-badge" data-t-vi="🎀 Miễn phí 100%, không cần tài khoản" data-t-en="🎀 100% free, no account needed">🎀 Miễn phí 100%, không cần tài khoản</p>
         <h1 class="lp-title">Lên kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương nhất</em></h1>
-        <p class="lp-sub" data-t-vi="TaskFlow-Todoist giúp bạn chốt mục tiêu năm, theo dõi thói quen từng ngày với bảng 31 ngày + streak 🔥, quản lý checklist công việc và nhật ký reflection, trong giao diện pastel nhẹ nhàng, phù hợp cho tất cả mọi người."
-          data-t-en="TaskFlow-Todoist helps you set yearly goals, track daily habits with a 31-day grid + streaks 🔥, manage to-do checklists and keep a reflection journal, in a soft pastel interface built for everyone.">TaskFlow-Todoist
-          giúp bạn chốt mục tiêu năm, theo dõi thói quen từng ngày với bảng 31 ngày + streak 🔥, quản lý checklist công
-          việc và nhật ký reflection, trong giao diện pastel nhẹ nhàng, phù hợp cho tất cả mọi người.</p>
+        <p class="lp-sub" data-t-vi="Chốt mục tiêu, điểm danh thói quen 31 ngày và ghi nhật ký reflection — ngay trong trình duyệt, miễn phí."
+          data-t-en="Set goals, track 31-day habits and keep a reflection journal — right in your browser, free.">Chốt
+          mục tiêu, điểm danh thói quen 31 ngày và ghi nhật ký reflection — ngay trong trình duyệt, miễn phí.</p>
         <div class="lp-cta-row">
           <a class="lp-btn-primary lp-btn-big" href="app.html" data-t-vi="🐥 Mở kế hoạch"
             data-t-en="🐥 Open planner">🐥 Mở kế hoạch</a>
@@ -277,6 +288,31 @@
         try { localStorage.setItem(LANG_KEY, lang); } catch (e) { }
         apply();
       });
+
+      /* Chế độ tối: nút 🌙/☀️ trên landing */
+      var DARK_KEY = 'planner-dark';
+      function sysDark() { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; }
+      function darkIsOn() {
+        var d = null;
+        try { d = localStorage.getItem(DARK_KEY); } catch (e) { }
+        return d === '1' ? true : d === '0' ? false : sysDark();
+      }
+      function applyDarkUI() {
+        var on = darkIsOn();
+        document.documentElement.setAttribute('data-dark', on ? 'true' : 'false');
+        var b = document.getElementById('darkBtn');
+        if (b) b.textContent = on ? '☀️' : '🌙';
+        var mc = document.querySelector('meta[name="theme-color"]');
+        if (mc) mc.setAttribute('content', on ? '#221C16' : '#EFE6D5');
+      }
+      var darkBtn = document.getElementById('darkBtn');
+      if (darkBtn) darkBtn.addEventListener('click', function () {
+        var on = darkIsOn();
+        try { localStorage.setItem(DARK_KEY, on ? '0' : '1'); } catch (e) { }
+        applyDarkUI();
+      });
+      applyDarkUI();
+      if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyDarkUI);
     })();
   </script>
 </body>

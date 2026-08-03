@@ -637,6 +637,7 @@ const I18N = {
     themeMint: 'Chủ đề bạc hà',
     themeLavender: 'Chủ đề oải hương',
     themePeach: 'Chủ đề đào',
+    darkTitle: 'Bật/tắt chế độ tối',
     langTitle: 'Đổi ngôn ngữ',
     landTitle: 'Lên kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương</em>',
     landSub: 'Chốt mục tiêu, điểm danh thói quen và ghi nhật ký reflection. Dữ liệu nằm ngay trong trình duyệt của bạn, miễn phí và riêng tư.',
@@ -885,6 +886,7 @@ const I18N = {
     themeMint: 'Mint theme',
     themeLavender: 'Lavender theme',
     themePeach: 'Peach theme',
+    darkTitle: 'Toggle dark mode',
     langTitle: 'Switch language',
     landTitle: 'Plan your year, month &amp; week <em>in an adorable way</em>',
     landSub: 'Set goals, check off daily habits and keep a reflection journal. Your data lives right in your browser, free and private.',
@@ -963,6 +965,38 @@ function setTheme(th) {
   if (window.Sync) window.Sync.push('planner-theme');
   document.documentElement.dataset.theme = th;
   document.querySelectorAll('.theme-dot').forEach((d) => d.classList.toggle('active', d.dataset.theme === th));
+}
+
+/* ============ Chế độ tối (dark mode) ============ */
+let DARK = null; // null = theo hệ thống (prefers-color-scheme)
+try { DARK = localStorage.getItem('planner-dark'); } catch (e) { /* ẩn */ }
+DARK = DARK === '1' ? true : DARK === '0' ? false : null;
+
+function systemPrefersDark() {
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function darkIsOn() { return DARK === null ? systemPrefersDark() : DARK; }
+
+function applyDark() {
+  const on = darkIsOn();
+  document.documentElement.dataset.dark = on ? 'true' : 'false';
+  const btn = document.getElementById('btnDark');
+  if (btn) btn.textContent = on ? '☀️' : '🌙';
+  const mc = document.querySelector('meta[name="theme-color"]');
+  if (mc) mc.setAttribute('content', on ? '#221C16' : '#EFE6D5');
+}
+
+function toggleDark() {
+  DARK = !darkIsOn();
+  try { localStorage.setItem('planner-dark', DARK ? '1' : '0'); } catch (e) { /* ẩn */ }
+  applyDark();
+}
+
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (DARK === null) applyDark();
+  });
 }
 
 /* ============================ Analytics (GA4) ============================ */
@@ -3197,6 +3231,8 @@ document.addEventListener('click', (e) => {
     doSyncLogout();
   } else if (act === 'theme') {
     setTheme(el.dataset.theme);
+  } else if (act === 'dark') {
+    toggleDark();
   } else if (act === 'lang') {
     setLang(LANG === 'vi' ? 'en' : 'vi');
   } else if (act === 'remind-toggle') {
@@ -3832,6 +3868,7 @@ if (window.DeepLink) {
 }
 
 setTheme(THEME);
+applyDark();
 applyStaticI18N();
 updateBrand();
 updateNowBtn();

@@ -52,7 +52,17 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=27" />
+  <!-- Chống nháy trắng (FOUC): áp chế độ tối trước khi CSS vẽ (đặt TRƯỚC stylesheet) -->
+  <script>
+    (function () {
+      try {
+        var d = localStorage.getItem('planner-dark');
+        var on = d === '1' ? true : d === '0' ? false : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.setAttribute('data-dark', on ? 'true' : 'false');
+      } catch (e) { /* ẩn */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="css/styles.css?v=35" />
 </head>
 
 <body>
@@ -130,6 +140,8 @@
       </div>
       <button type="button" class="btn-icon" id="btnInstall" data-action="install-app" hidden
         title="Cài đặt ứng dụng" data-i18n-title="installTitle" data-i18n-aria="installTitle">📲</button>
+      <button type="button" class="btn-icon" id="btnDark" data-action="dark" title="Bật/tắt chế độ tối"
+        data-i18n-title="darkTitle" data-i18n-aria="darkTitle">🌙</button>
       <button type="button" class="lang-btn" id="langBtn" data-action="lang" title="Đổi ngôn ngữ"
         data-i18n-title="langTitle">EN</button>
       <a class="btn-icon home-link" href="index.html" title="Về trang giới thiệu" data-i18n-title="homeTitle"
@@ -281,7 +293,7 @@
   <script src="js/deeplink.js?v=1"></script>
   <script src="js/plan-math.js?v=1"></script>
   <script src="js/sync.js?v=2"></script>
-  <script src="js/app.js?v=33"></script>
+  <script src="js/app.js?v=34"></script>
 </body>
 
 </html>

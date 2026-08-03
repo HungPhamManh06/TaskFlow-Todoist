@@ -6,13 +6,96 @@
   --bg: #EFE6D5;
   --bg2: #F7F0E3;
   --ink: #4A403A;
-  --ink-soft: #8B7F73;
+  --ink-soft: #6E6357;  /* 4.73:1 trên nền kem — đạt WCAG AA (trước đây #8B7F73 = 3.15:1 FAIL) */
   --accent: #F39A82;
   --accent-deep: #C24E28;
+  --accent-btn: #C24E28;  /* nền nút CTA: chữ trắng 4.76:1 (dark: #B3482A = 5.42:1) */
   --accent2: #A8C3A0;
   --card: #FFFDF8;
   --line: #E4DAC8;
 }
+
+/* ============================================================
+   Chế độ tối (dark mode) — palette tối ấm, giữ brand terracotta
+   Bật qua: <html data-dark="true"> (đặt bởi JS, tôn trọng prefers-color-scheme)
+   ============================================================ */
+:root[data-dark="true"] {
+  color-scheme: dark;
+  --bg: #221C16;
+  --bg2: #2A241C;
+  --ink: #F2E8D5;
+  --ink-soft: #C9BDA6;  /* 9.08:1 trên nền tối — đạt AA */
+  --accent: #E07A50;
+  --accent-deep: #E07A50;  /* 5.67:1 trên bg, 4.75:1 trên card — text accent */
+  --accent-btn: #B3482A;  /* nền nút CTA: chữ trắng 5.42:1 */
+  --accent2: #A8C3A0;
+  --card: #322A21;
+  --line: rgba(243, 232, 213, .16);
+}
+
+/* Override surface cứng còn sót */
+:root[data-dark="true"] .lp-header {
+  background: rgba(34, 28, 22, .92);
+}
+:root[data-dark="true"] .lp-lang {
+  background: var(--card);
+}
+:root[data-dark="true"] .lp-badge {
+  background: rgba(58, 49, 39, .85);
+}
+:root[data-dark="true"] .lp-btn-primary {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .35);
+}
+:root[data-dark="true"] .lp-btn-primary:hover {
+  background: #9E4630;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .45);
+}
+:root[data-dark="true"] .art-scene {
+  background: linear-gradient(180deg, #332A20 0%, #2E261E 62%, #26341F 62.1%, #1E2E1C 100%);
+  border-color: rgba(243, 232, 213, .18);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, .4);
+}
+:root[data-dark="true"] .art-card {
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .4);
+}
+:root[data-dark="true"] .lp-feature,
+:root[data-dark="true"] .lp-how-step {
+  background: rgba(50, 42, 33, .92);
+}
+:root[data-dark="true"] .lp-feature:hover {
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .35);
+}
+:root[data-dark="true"] .lp-feature.feat-dark {
+  background: #4A403A;
+  border-color: #4A403A;
+}
+:root[data-dark="true"] .lp-feature.feat-dark:hover {
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .45);
+}
+:root[data-dark="true"] .lp-shot img {
+  box-shadow: 0 26px 60px rgba(0, 0, 0, .42);
+}
+:root[data-dark="true"] .bricks {
+  background:
+    linear-gradient(90deg, #3A3127 24px, transparent 24px) 0 0 / 48px 100%,
+    linear-gradient(90deg, #453A2E 24px, transparent 24px) 24px 0 / 48px 100%;
+}
+
+/* Nút chuyển tối/sáng trên landing */
+.lp-dark {
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.lp-dark:hover { border-color: var(--accent); transform: translateY(-1px); }
+:root[data-dark="true"] .lp-dark { background: var(--card); }
 
 * { box-sizing: border-box; }
 
@@ -100,7 +183,7 @@ a { color: inherit; }
   font-weight: 800;
   font-size: 14.5px;
   color: #fff;
-  background: var(--accent-deep);
+  background: var(--accent-btn, var(--accent-deep));
   border: none;
   border-radius: 999px;
   padding: 11px 22px;
@@ -133,7 +216,7 @@ a { color: inherit; }
 
 .lp-hero {
   display: grid;
-  grid-template-columns: 1.05fr .95fr;
+  grid-template-columns: 1.15fr .85fr;
   gap: 30px;
   align-items: center;
   max-width: 1120px;
@@ -156,8 +239,9 @@ a { color: inherit; }
 .lp-title {
   font-family: 'Baloo 2', 'Nunito', sans-serif;
   font-weight: 800;
-  font-size: clamp(34px, 5vw, 54px);
-  line-height: 1.12;
+  font-size: clamp(30px, 4.2vw, 42px);
+  line-height: 1.15;
+  letter-spacing: -.4px;
   margin: 0 0 14px;
   color: var(--ink);
 }
@@ -489,6 +573,17 @@ a { color: inherit; }
   .lp-btn-big { width: 100%; text-align: center; }
   .lp-proof .lp-stats { gap: 14px 10px; padding-top: 20px; }
   .lp-proof .lp-stat { flex: 1 1 45%; }
+}
+
+/* ---------- Focus rõ ràng cho bàn phím (a11y) ---------- */
+.lp-nav a:focus-visible,
+.lp-btn-primary:focus-visible,
+.lp-btn-ghost:focus-visible,
+.lp-lang:focus-visible,
+.lp-dark:focus-visible {
+  outline: 2.5px solid var(--accent-deep);
+  outline-offset: 3px;
+  border-radius: 999px;
 }
 
 /* ---------- Giảm chuyển động (a11y) ---------- */
