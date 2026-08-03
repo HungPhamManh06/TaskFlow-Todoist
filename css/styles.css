@@ -103,10 +103,12 @@ body {
   border-bottom: 2px solid rgba(var(--ink-rgb), .18);
 }
 .brand { display: flex; align-items: center; gap: 8px; }
-.brand-chick {
-  font-size: 28px;
-  line-height: 1;
-  filter: drop-shadow(0 2px 2px rgba(var(--ink-rgb), .3));
+.brand-mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  filter: drop-shadow(0 2px 2px rgba(var(--ink-rgb), .22));
   animation: bob 3s ease-in-out infinite;
 }
 .brand-text h1 {
@@ -1328,7 +1330,7 @@ input:focus-visible {
 @media (max-width: 1340px) {
   /* Header gọn: tabs đã thành hàng riêng cuộn ngang, thu nhỏ các nút cho vừa */
   .site-header { gap: 6px 10px; padding: 6px 12px; }
-  .brand-chick { font-size: 24px; }
+  .brand-mark { width: 28px; height: 28px; }
   .brand-text h1 { font-size: 17px; }
   .brand-text p { font-size: 10px; }
   .tab { font-size: 12px; padding: 5px 11px; }
@@ -1354,7 +1356,7 @@ input:focus-visible {
   .theme-dot { width: 12px; height: 12px; }
   .home-link { display: none; }
   .brand-text p { display: none; }
-  .brand-chick { font-size: 20px; }
+  .brand-mark { width: 23px; height: 23px; }
   .brand-text h1 { font-size: 14px; }
   .brand { gap: 5px; }
   .btn-month { min-width: 26px; height: 26px; font-size: 13px; }
@@ -1381,7 +1383,7 @@ input:focus-visible {
     padding: 6px 16px;
   }
   .brand { grid-area: brand; margin-right: 0; }
-  .brand-chick { font-size: 24px; }
+  .brand-mark { width: 28px; height: 28px; }
   .brand-text h1 { font-size: 17px; }
   .brand-text p { font-size: 10px; }
   .header-center { grid-area: center; flex-wrap: nowrap; justify-content: center; gap: 6px 12px; overflow-x: auto; }
@@ -1649,9 +1651,11 @@ input:focus-visible {
 }
 
 .landing-logo {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 16px;
-  padding: 6px 16px;
+  padding: 5px 14px 5px 8px;
   font-family: 'Baloo 2', 'Nunito', sans-serif;
   font-weight: 800;
   font-size: 15px;
@@ -1662,6 +1666,12 @@ input:focus-visible {
   border-radius: 999px;
   opacity: 0;
   animation: landingRise .8s ease-out .05s forwards;
+}
+.landing-logo-mark {
+  display: block;
+  width: 28px;
+  height: 28px;
+  flex: none;
 }
 
 .landing-title {
@@ -1775,7 +1785,8 @@ input:focus-visible {
 @media (max-width: 700px) {
   .landing-hero { min-height: 300px; }
   .landing-inner { padding: 34px 18px 46px; }
-  .landing-logo { font-size: 13px; padding: 5px 12px; margin-bottom: 12px; }
+  .landing-logo { font-size: 13px; padding: 4px 11px 4px 6px; gap: 6px; margin-bottom: 12px; }
+  .landing-logo-mark { width: 24px; height: 24px; }
   .landing-title { font-size: clamp(26px, 8vw, 38px); letter-spacing: -.6px; }
   .landing-sub { font-size: 14px; line-height: 1.6; margin-top: 14px; }
   .landing-cta { padding: 11px 24px; font-size: 15px; margin-top: 22px; }
