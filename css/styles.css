@@ -1094,8 +1094,8 @@ input:focus-visible {
 .goal-item .g-text.editable { min-width: 8px; }
 .legend-goal .g-text.editable { flex: 1; min-width: 8px; }
 
-/* Task trong ngày */
-.task-row .task-text { flex: 1 1 auto; min-width: min-content; overflow-wrap: anywhere; white-space: pre-wrap; }
+/* Task trong ngày — ngắn = 1 dòng, dài = wrap giữ nguyên cột (không tràn) */
+.task-row .task-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; white-space: normal; }
 .task-row .dotted-line { flex: 0 1 24px; }
 .task-row .btn-tag { font-size: 12px; padding: 1px; }
 .task-row .btn-del { width: 14px; font-size: 10px; }
