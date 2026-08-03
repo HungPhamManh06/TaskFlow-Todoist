@@ -284,8 +284,10 @@ test('4.3: i18n pomo widget keys đủ vi+en', () => {
 });
 
 test('Phase 4: version bumps app.js>=36 styles.css>=37 sw cache>=v27', () => {
-  assert.match(APP_HTML, /js\/app\.js\?v=(3[6-9]|\d{3})/);
-  assert.match(APP_HTML, /css\/styles\.css\?v=(3[7-9]|[4-9]\d|\d{3})/);
+  const am = /js\/app\.js\?v=(\d{2,3})/.exec(APP_HTML);
+  assert.ok(am && Number(am[1]) >= 36, `app.js version phải >= 36 (thấy ${am && am[1]})`);
+  const cm = /css\/styles\.css\?v=(\d{2,3})/.exec(APP_HTML);
+  assert.ok(cm && Number(cm[1]) >= 37, `styles.css version phải >= 37 (thấy ${cm && cm[1]})`);
   const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const m = /const CACHE = 'taskflow-v(\d+)';/.exec(SW);
   assert.ok(Number(m[1]) >= 27);

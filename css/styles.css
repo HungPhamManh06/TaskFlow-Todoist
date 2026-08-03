@@ -677,6 +677,9 @@ input:focus-visible {
   margin-bottom: 16px;
 }
 
+/* Cột phải: Phản ánh + Pomodoro stack dọc — lấp khoảng trống hàng dưới */
+.week-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
 /* Thẻ thông tin Tuần */
 .week-title-card { position: relative; background: #FCE6DC; display: flex; flex-direction: column; justify-content: space-between; }
 .w-top-bar {
@@ -1160,7 +1163,8 @@ input:focus-visible {
 .empty-cell { font-style: italic; color: rgba(var(--ink-rgb), .45); font-weight: 600; }
 
 /* Tên thói quen */
-.habit-name-cell { display: flex; align-items: center; gap: 4px; padding: 6px 8px; }
+/* Fix: cột habit — icon chỉnh sửa không còn chèn ép tên (flex column: tên full width, icon xuống hàng riêng) */
+.habit-name-cell { display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 4px 8px; }
 .habit-name-cell .habit-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 
 /* Nút thêm thói quen */
@@ -1184,15 +1188,31 @@ input:focus-visible {
 .btn-habit-add:hover { background: #e08a6e; transform: translateY(-1px); }
 .btn-habit-add:active { transform: translateY(0); box-shadow: 0 1px 0 rgba(var(--ink-rgb), .25); }
 
-.habit-table .name-col .habit-name-cell { padding: 0 8px; }
-.habit-name-cell .habit-name-text { flex: 1; min-width: 0; white-space: normal; word-break: break-word; display: block; }
+.habit-table .name-col .habit-name-cell { padding: 4px 8px; }
+.habit-name-cell .habit-name-text { display: block; white-space: normal; word-break: break-word; line-height: 1.35; }
+.habit-name-cell .item-actions { display: flex; justify-content: flex-end; gap: 2px; flex: none; margin-left: 0; }
+.habit-name-cell .item-actions .mini-btn { width: 18px; height: 18px; font-size: 11px; opacity: .5; }
 .habit-name-cell:hover .item-actions .mini-btn { opacity: 1; }
+.habit-name-cell:hover .item-actions { opacity: 1; }
 
 /* Hàng thêm thói quen */
 .habit-add-row { display: flex; align-items: center; gap: 8px; padding: 10px 16px; flex-wrap: wrap; }
 .habit-add-row .inline-input { flex: 0 1 auto; }
 .habit-add-row .habit-name-input { flex: 1 1 180px; }
 .habit-add-row .mini-btn.add-btn { opacity: 1; }
+/* Fix: nút Sao chép sang tháng + Templates bị .mini-btn base (opacity:0, width:22px) làm vô hình + bóp cụt — trả về dạng pill rõ ràng */
+.habit-add-row .mini-btn:not(.add-btn) {
+  width: auto;
+  height: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  opacity: .85;
+  white-space: nowrap;
+}
+.habit-add-row .mini-btn:not(.add-btn):hover { background: rgba(243, 154, 130, .22); color: var(--ink); opacity: 1; }
 
 /* ---------- Streak & Heatmap · Ember Ribbon (đa tháng) ---------- */
 .habit-heat-card { margin-top: 16px; background: linear-gradient(180deg, #F8EDDA 0%, #F1E1C6 100%); border: 2px solid rgba(var(--ink-rgb),.16); }
@@ -2464,20 +2484,60 @@ sup.remind-dot {
 .mood-cell {
   aspect-ratio: 1;
   min-width: 0;
+  border: 0;
   border-radius: 6px;
   background: rgba(var(--ink-rgb), .08);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  transition: transform .12s ease, box-shadow .12s ease;
 }
+.mood-cell:hover { transform: scale(1.18); box-shadow: 0 2px 8px rgba(var(--ink-rgb), .18); }
+.mood-cell:active { transform: scale(.95); }
+.mood-cell.today { outline: 2px solid var(--accent-deep); outline-offset: 1px; }
+.mood-cell .mood-day { font-size: 9px; font-weight: 700; color: rgba(var(--ink-rgb), .42); }
 .mood-cell.has { background: rgba(var(--ink-rgb), .14); }
+.mood-cell.has .mood-day { display: none; }
 .mood-cell.l0 { background: #F6C6C0; }
 .mood-cell.l1 { background: #F8D9B8; }
 .mood-cell.l2 { background: #F5E8C0; }
 .mood-cell.l3 { background: #CDE8C4; }
 .mood-cell.l4 { background: #A8D8F0; }
 .mood-insight { margin: 10px 0 0; font-size: 13px; font-weight: 700; color: var(--accent-deep); }
+
+/* Picker mood từ heatmap overview (popover trong card) */
+.mood-picker {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid rgba(var(--ink-rgb), .2);
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgba(var(--ink-rgb), .14);
+  animation: moodPop .18s ease;
+}
+.mood-picker[hidden] { display: none; }
+.mood-picker-title { font-size: 12.5px; font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+.mood-picker-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.mood-picker-opts .mood-btn { opacity: .45; font-size: 20px; padding: 4px 8px; border-radius: 10px; }
+.mood-picker-opts .mood-btn:hover { opacity: 1; }
+.mood-picker-opts .mood-btn.on { opacity: 1; background: rgba(var(--ink-rgb), .12); }
+.mood-picker-clear {
+  margin-top: 10px;
+  border: 1px solid rgba(var(--ink-rgb), .25);
+  background: transparent;
+  color: var(--accent-deep);
+  font-weight: 800;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 4px 14px;
+  cursor: pointer;
+}
+.mood-picker-clear:hover { background: rgba(var(--ink-rgb), .08); }
+@keyframes moodPop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
 /* Báo cáo năm — banner trên year view (6B.2) */
 .year-banner {

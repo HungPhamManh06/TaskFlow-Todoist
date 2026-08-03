@@ -143,3 +143,44 @@ test('6.9: CSS Phase 6 tồn tại', () => {
   assert.match(CSS, /\.mood-heat/);
   assert.match(CSS, /\.year-banner/);
 });
+
+test('6.10: heatmap mood tương tác — cell là button + picker + set/clear', () => {
+  assert.match(APP_JS, /data-action="mood-pick"/);
+  assert.match(APP_JS, /data-action="mood-set"/);
+  assert.match(APP_JS, /data-action="mood-clear"/);
+  assert.match(APP_JS, /function openMoodPicker\(/);
+  assert.match(APP_JS, /function closeMoodPicker\(\)/);
+  assert.match(APP_JS, /function rerenderMoodCard\(\)/);
+  assert.match(APP_JS, /id="moodCard"/);
+  assert.match(APP_JS, /id="moodPicker"/);
+  assert.match(CSS, /\.mood-picker/);
+  assert.match(CSS, /\.mood-cell\.today/);
+  assert.match(CSS, /\.mood-day/);
+});
+
+test('6.11: i18n mood picker keys đủ vi + en', () => {
+  ['moodPickAria', 'moodPickTitle', 'moodClear'].forEach((k) => {
+    const viCount = (APP_JS.match(new RegExp(k + ": '" , 'g')) || []).length;
+    assert.equal(viCount, 2, `key ${k} phải có ở cả vi + en (đếm được ${viCount})`);
+  });
+});
+
+test('6.12: nút Sao chép sang tháng không bị mini-btn base (opacity:0/width:22px) ẩn', () => {
+  assert.match(CSS, /\.habit-add-row \.mini-btn:not\(\.add-btn\)/);
+  assert.match(CSS, /width: auto;/);
+  assert.match(CSS, /opacity: \.85;/);
+  assert.match(APP_JS, /data-action="copyhabits"/);
+});
+
+test('6.13: cột habit tách icon khỏi tên (flex column, icon hàng riêng flex-end)', () => {
+  assert.match(CSS, /\.habit-name-cell \{ display: flex; flex-direction: column;/);
+  assert.match(CSS, /\.habit-name-cell \.item-actions \{ display: flex; justify-content: flex-end;/);
+});
+
+test('6.14: Pomodoro gộp cột phải cùng Phản ánh (week-side, không còn 1 mình 1 hàng)', () => {
+  assert.match(APP_JS, /week-side/);
+  assert.match(APP_JS, /<div class="week-side">/);
+  assert.match(CSS, /\.week-side \{ display: flex; flex-direction: column/);
+  assert.match(APP_JS, /class="card pomo-widget"/);
+  assert.match(APP_JS, /class="card reflection sub"/);
+});

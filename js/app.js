@@ -804,6 +804,9 @@ const I18N = {
     mood4: 'Tuyệt vời',
     moodInsight: 'Ngày vui có habit {g}% — cao hơn ngày buồn {d}% 🐥',
     moodInsightNone: 'Ghi vài ngày tâm trạng để xem insight của bạn.',
+    moodPickAria: 'Chọn tâm trạng ngày {d}',
+    moodPickTitle: 'Tâm trạng ngày {d}',
+    moodClear: 'Xoá tâm trạng',
     yearReportTitle: 'Báo cáo năm',
     yearReportGoalPct: 'Mục tiêu năm',
     yearReportTopMonth: 'Tháng đỉnh cao',
@@ -1205,6 +1208,9 @@ const I18N = {
     mood4: 'Amazing',
     moodInsight: 'Happy days score {g}% habits — {d}% higher than low days 🐥',
     moodInsightNone: 'Log a few moods to see your insights.',
+    moodPickAria: 'Pick mood for day {d}',
+    moodPickTitle: 'Mood for day {d}',
+    moodClear: 'Clear mood',
     yearReportTitle: 'Year report',
     yearReportGoalPct: 'Year goals',
     yearReportTopMonth: 'Peak month',
@@ -1730,6 +1736,8 @@ document.addEventListener('click', (e) => {
   document.querySelectorAll('.header-pop').forEach((p) => { p.hidden = true; });
   const tp = document.getElementById('templatesPop');
   if (tp && !tp.hidden && !e.target.closest('.templates-pop') && !e.target.closest('[data-action="templates-toggle"]')) tp.hidden = true;
+  const pk = document.getElementById('moodPicker');
+  if (pk && !pk.hidden && !e.target.closest('.mood-picker') && !e.target.closest('[data-action="mood-pick"]')) pk.hidden = true;
 });
 
 /* ============================ Confetti ============================ */
@@ -1896,10 +1904,13 @@ function moodDateKey(d) {
 function moodCardHTML() {
   const cells = [];
   let logged = 0;
+  const today = new Date();
+  const todayDay = (today.getFullYear() === PLAN_YEAR && today.getMonth() === PLAN_MONTH) ? today.getDate() : -1;
   for (let d = 1; d <= NUM_DAYS; d++) {
     const m = moodMap[moodDateKey(d)];
     if (m !== undefined && MOODS[m]) logged++;
-    cells.push(`<span class="mood-cell${m !== undefined && MOODS[m] ? ' has l' + m : ''}" title="${d}${m !== undefined && MOODS[m] ? ' · ' + MOODS[m].icon : ''}">${m !== undefined && MOODS[m] ? MOODS[m].icon : ''}</span>`);
+    const set = m !== undefined && MOODS[m];
+    cells.push(`<button type="button" class="mood-cell${set ? ' has l' + m : ''}${d === todayDay ? ' today' : ''}" data-action="mood-pick" data-day="${d}" title="${t('moodPickTitle', { d })}" aria-label="${t('moodPickAria', { d })}">${set ? MOODS[m].icon : `<span class="mood-day">${d}</span>`}</button>`);
   }
   const pairs = [];
   for (let d = 0; d < NUM_DAYS; d++) {
@@ -1913,14 +1924,39 @@ function moodCardHTML() {
   } else if (!logged) {
     insight = t('moodInsightNone');
   }
-  return `<div class="card mood-card">
+  return `<div class="card mood-card" id="moodCard">
     <div class="mood-card-head">
       <h3 class="card-title">${t('moodTitle')}</h3>
       <span class="mood-hint">${t('moodHint')}</span>
     </div>
-    <div class="mood-heat">${cells.join('')}</div>
+    <div class="mood-heat" role="group" aria-label="${t('moodTitle')}">${cells.join('')}</div>
+    <div class="mood-picker" id="moodPicker" hidden role="dialog" aria-label="${t('moodTitle')}"></div>
     ${insight ? `<p class="mood-insight">${insight}</p>` : ''}
   </div>`;
+}
+
+/* Pick mood từ heatmap overview: mở picker popover trên chính card */
+function openMoodPicker(day) {
+  const pk = document.getElementById('moodPicker');
+  if (!pk) return;
+  const cur = moodMap[moodDateKey(day)];
+  pk.innerHTML = `<div class="mood-picker-title">${t('moodPickTitle', { d: day })}</div>
+    <div class="mood-picker-opts">
+      ${MOODS.map((m, i) => `<button type="button" class="mood-btn${cur === i ? ' on' : ''}" data-action="mood-set" data-day="${day}" data-mood="${i}" title="${t(m.labelKey)}" aria-label="${t(m.labelKey)}">${m.icon}</button>`).join('')}
+    </div>
+    <button type="button" class="mood-picker-clear" data-action="mood-clear" data-day="${day}">${t('moodClear')}</button>`;
+  pk.hidden = false;
+}
+function closeMoodPicker() {
+  const pk = document.getElementById('moodPicker');
+  if (pk) pk.hidden = true;
+}
+function rerenderMoodCard() {
+  const card = document.getElementById('moodCard');
+  if (!card) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = moodCardHTML();
+  card.replaceWith(tmp.firstElementChild);
 }
 
 /* ---------- 6B.2 — Báo cáo tổng kết năm ---------- */
@@ -4043,20 +4079,22 @@ function renderWeek() {
         </div>
       </div>
       <div class="card legend-card">${weeklyGoalsHTML(w)}</div>
-      <div class="card reflection sub">${reflectionHTML('w' + w.n, REFLECT_PROMPTS_WEEK())}</div>
-      <div class="card pomo-widget" data-role="pomo-widget">
-        <div class="pomo-widget-head">
-          <span class="pomo-widget-title">${t('pomoWidgetTitle')}</span>
-          <span class="pomo-widget-mode" id="pomoWidgetMode"></span>
+      <div class="week-side">
+        <div class="card reflection sub">${reflectionHTML('w' + w.n, REFLECT_PROMPTS_WEEK())}</div>
+        <div class="card pomo-widget" data-role="pomo-widget">
+          <div class="pomo-widget-head">
+            <span class="pomo-widget-title">${t('pomoWidgetTitle')}</span>
+            <span class="pomo-widget-mode" id="pomoWidgetMode"></span>
+          </div>
+          <div class="pomo-widget-time" id="pomoWidgetTime">25:00</div>
+          <div class="pomo-widget-actions">
+            <button type="button" class="pop-btn primary" data-action="pomo-start" id="pomoWidgetStart"></button>
+            <button type="button" class="pop-btn" data-action="pomo-reset" data-i18n="pomoReset">↺</button>
+            <button type="button" class="pop-btn" data-action="pomo-mode" data-mode="work">${t('pomoWork')}</button>
+            <button type="button" class="pop-btn" data-action="pomo-mode" data-mode="break">${t('pomoBreak')}</button>
+          </div>
+          <div class="pomo-widget-stats" id="pomoWidgetStats"></div>
         </div>
-        <div class="pomo-widget-time" id="pomoWidgetTime">25:00</div>
-        <div class="pomo-widget-actions">
-          <button type="button" class="pop-btn primary" data-action="pomo-start" id="pomoWidgetStart"></button>
-          <button type="button" class="pop-btn" data-action="pomo-reset" data-i18n="pomoReset">↺</button>
-          <button type="button" class="pop-btn" data-action="pomo-mode" data-mode="work">${t('pomoWork')}</button>
-          <button type="button" class="pop-btn" data-action="pomo-mode" data-mode="break">${t('pomoBreak')}</button>
-        </div>
-        <div class="pomo-widget-stats" id="pomoWidgetStats"></div>
       </div>
     </div>
     <div class="days-grid">
@@ -5165,6 +5203,20 @@ document.addEventListener('click', (e) => {
     moodMap[el.dataset.dayKey] = +el.dataset.mood;
     saveMood();
     renderWeek();
+  } else if (act === 'mood-pick') {
+    openMoodPicker(+el.dataset.day);
+  } else if (act === 'mood-set') {
+    moodMap[moodDateKey(+el.dataset.day)] = +el.dataset.mood;
+    saveMood();
+    trackEvent('mood_set', { level: +el.dataset.mood });
+    closeMoodPicker();
+    rerenderMoodCard();
+  } else if (act === 'mood-clear') {
+    delete moodMap[moodDateKey(+el.dataset.day)];
+    saveMood();
+    trackEvent('mood_clear', { day: +el.dataset.day });
+    closeMoodPicker();
+    rerenderMoodCard();
   } else if (act === 'import-csv') {
     togglePop('dataPop');
     const fi = document.getElementById('importFile');
@@ -5636,6 +5688,8 @@ document.addEventListener('keydown', (e) => {
     if (p && !p.hidden) p.hidden = true;
     const bm = document.getElementById('backupModal');
     if (bm && !bm.hidden) bm.hidden = true;
+    const pk = document.getElementById('moodPicker');
+    if (pk && !pk.hidden) pk.hidden = true;
     if (document.body.classList.contains('focus-mode')) closeFocusMode();
   }
 });
