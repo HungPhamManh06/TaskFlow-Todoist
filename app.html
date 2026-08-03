@@ -62,7 +62,7 @@
       } catch (e) { /* ẩn */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/styles.css?v=36" />
+  <link rel="stylesheet" href="css/styles.css?v=41" />
 </head>
 
 <body>
@@ -111,6 +111,7 @@
             <button type="button" class="pop-btn" data-action="remind-off" data-i18n="remindOff">Tắt</button>
           </div>
           <p class="pop-note" data-i18n="remindNote">Trình duyệt sẽ nhắc bạn một lần mỗi ngày để điểm danh thói quen.</p>
+          <div class="remind-list" id="remindList" aria-label="Nhắc việc habit/task"></div>
         </div>
       </div>
       <div class="data-wrap">
@@ -317,6 +318,21 @@
     </div>
   </div>
 
+  <!-- ===== Báo cáo tuần (Phase 4) ===== -->
+  <div class="report-modal" id="weekReportModal" hidden>
+    <div class="report-modal-card" role="dialog" aria-modal="true" aria-label="Báo cáo tuần"
+      data-i18n-aria="weekReportTitle">
+      <button type="button" class="sync-close" data-action="close-week-report" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h3 class="sync-modal-title">📊 <span data-i18n="weekReportTitle">Báo cáo tuần</span></h3>
+      <div id="weekReportContent"></div>
+      <div class="report-actions">
+        <button type="button" class="pop-btn share-btn" data-action="share-week-report">📤 <span
+            data-i18n="weekReportShare">Chia sẻ ảnh</span></button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Onboarding 3 bước (lần dùng đầu) ===== -->
   <div class="onboard-modal" id="onboardModal" hidden>
     <div class="onboard-card">
@@ -372,7 +388,7 @@
   <script src="js/plan-math.js?v=1"></script>
   <script src="js/plan-stats.js?v=1"></script>
   <script src="js/sync.js?v=3"></script>
-  <script src="js/app.js?v=35"></script>
+  <script src="js/app.js?v=37"></script>
 </body>
 
 </html>

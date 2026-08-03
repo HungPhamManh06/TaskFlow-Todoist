@@ -1,7 +1,7 @@
 # Feature Roadmap — TaskFlow-Todoist
 
 - Ngày: 2026-08-03
-- Trạng thái: Đã duyệt (toàn bộ 4 pha) — Phase 0 ✅ hoàn thành 2026-08-03
+- Trạng thái: Đã duyệt (toàn bộ 4 pha) — Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, Phase 4 ✅ hoàn thành 2026-08-03
 
 ## Bối cảnh
 
@@ -30,7 +30,7 @@ Kiểm thử: `tests/phase0.test.mjs` 12/12 PASS (node --test), `node test-sync.
 | 1.4 | Tổng kết tháng | ✅ Modal "Báo cáo tháng" (donut + 5 ô thống kê + weekbars), canvas 1080×1080 → `navigator.share`/tải `taskflow-report.png` |
 | 1.5 | Huy hiệu | ✅ 6 badge (b7, b30, best14, goals100, habit100, active15), key `planner-badges`, tự sync, chỉ trao khi xem tháng hiện tại |
 
-## Pha 2 — Năng suất (~2–3 ngày)
+## Pha 2 — Năng suất ✅ HOÀN THÀNH (2026-08-03)
 
 | # | Việc | Chi tiết kỹ thuật |
 |---|---|---|
@@ -41,7 +41,7 @@ Kiểm thử: `tests/phase0.test.mjs` 12/12 PASS (node --test), `node test-sync.
 | 2.5 | Dashboard | Nâng cấp year view: best habit, ngày năng suất nhất, tỉ lệ theo quý (dùng `yearMonthlyData()` app.js:257) |
 | 2.6 | Pomodoro | Overlay timer 25/5 + `trackEvent` |
 
-## Pha 3 — Backend & kiểm thử (~2–3 ngày)
+## Pha 3 — Backend & kiểm thử ✅ HOÀN THÀNH (2026-08-03)
 
 | # | Việc | Chi tiết kỹ thuật |
 |---|---|---|
@@ -51,9 +51,17 @@ Kiểm thử: `tests/phase0.test.mjs` 12/12 PASS (node --test), `node test-sync.
 | 3.4 | E2E smoke | Playwright: load app → toggle habit → chuyển view → export |
 | 3.5 | CI | GitHub Actions: `node --test` + `node test-sync.js` mỗi push |
 
+## Pha 4 — Nhắc việc, báo cáo tuần & widget Pomodoro ✅ HOÀN THÀNH (2026-08-03)
+
+| # | Việc | Chi tiết kỹ thuật |
+|---|---|---|
+| 4.1 | Nhắc việc cho habit/task | ✅ Field `remind: { enabled, time }` trên habit + task (migration loadState); nút 🔔 cạnh tên → inline picker giờ; danh sách nhắc trong `remindPop`; `syncReminderTimers()` schedule setTimeout mỗi mốc (tự reschedule ngày sau), `trackEvent('reminder_show'|'reminder_item_set')` |
+| 4.2 | Báo cáo thống kê tuần | ✅ Modal `weekReportModal`: `weeklyReportData(w)` (goals pct, habitByDay 7 ngày, top habit, bestDay), canvas 1080×1080 → `taskflow-week-report.png`, nút 📊 trong `week-banner` renderWeek, `trackEvent('share_week_report')` |
+| 4.3 | Widget Pomodoro trong tuần view | ✅ Card `.pomo-widget` trong `view-week` (timer + start/pause/reset + chuyển work/break), đồng bộ 1 chiều với overlay qua `renderPomo()`; `planner-pomo-log` đếm session hôm nay/tuần, `pomoSetMode`, `trackEvent('pomodoro_mode')` |
+
 ## Loại bỏ (YAGNI)
 
-Real-time sync (SSE/WebSocket), export Google Sheets trực tiếp, kanban, mã hoá đầu cuối, email reset password.
+Real-time sync (SSE/WebSocket), export Google Sheets trực tiếp, kanban, mã hoá đầu cuối, email reset password, notification server-side push (FCM/Web Push) — nhắc việc chạy client-side thuần (SW + `setTimeout`), không cần backend mới.
 
 ## Nguyên tắc triển khai
 

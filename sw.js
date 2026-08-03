@@ -1,9 +1,9 @@
-/* TaskFlow-Todoist Service Worker
-   Cache app shell → hoạt động offline như app thật.
-   Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
+﻿/* TaskFlow-Todoist Service Worker
+   Cache app shell â†’ hoáº¡t Ä‘á»™ng offline nhÆ° app tháº­t.
+   Chiáº¿n lÆ°á»£c: network-first cho Ä‘iá»u hÆ°á»›ng, stale-while-revalidate cho tÄ©nh. */
 'use strict';
 
-const CACHE = 'taskflow-v26';
+const CACHE = 'taskflow-v30';
 const APP_SHELL = [
   './',
   './index.html',
@@ -43,7 +43,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
 
-  // Điều hướng: ưu tiên mạng, offline → cache shell (cache theo đúng URL trang)
+  // Äiá»u hÆ°á»›ng: Æ°u tiÃªn máº¡ng, offline â†’ cache shell (cache theo Ä‘Ãºng URL trang)
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req)
@@ -59,7 +59,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Tĩnh: stale-while-revalidate
+  // TÄ©nh: stale-while-revalidate
   e.respondWith(
     caches.match(req).then((cached) => {
       const fresh = fetch(req)
@@ -76,7 +76,7 @@ self.addEventListener('fetch', (e) => {
   );
 });
 
-/* ---------- Nhắc việc hằng ngày (Periodic Background Sync) ---------- */
+/* ---------- Nháº¯c viá»‡c háº±ng ngÃ y (Periodic Background Sync) ---------- */
 
 self.addEventListener('periodicsync', (e) => {
   if (e.tag === 'daily-reminder') {
@@ -97,9 +97,9 @@ self.addEventListener('notificationclick', (e) => {
 });
 
 function showReminder() {
-  const title = 'TaskFlow-Todoist 🐥';
+  const title = 'TaskFlow-Todoist ðŸ¥';
   const options = {
-    body: 'Hôm nay bạn đã hoàn thành những mục tiêu nào? Vào điểm danh thói quen nhé!',
+    body: 'HÃ´m nay báº¡n Ä‘Ã£ hoÃ n thÃ nh nhá»¯ng má»¥c tiÃªu nÃ o? VÃ o Ä‘iá»ƒm danh thÃ³i quen nhÃ©!',
     icon: './icons/icon-192.png',
     badge: './icons/icon-192.png',
     tag: 'daily-reminder',

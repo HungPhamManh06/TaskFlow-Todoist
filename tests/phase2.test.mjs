@@ -210,3 +210,83 @@ test('sw.js: APP_SHELL có plan-stats.js + cache >= v26', () => {
   const m = /const CACHE = 'taskflow-v(\d+)';/.exec(SW);
   assert.ok(Number(m[1]) >= 26);
 });
+
+/* ============================================================
+   Phase 4 — Nhắc việc habit/task (4.1)
+   ============================================================ */
+
+test('4.1: habit/task có field remind + migration', () => {
+  assert.match(APP_JS, /remind: \{ enabled: false, time: '20:00' \}/);          // seed/addHabit/addTask
+  assert.match(APP_JS, /if \(!tk\.remind \|\| typeof tk\.remind !== 'object'\) tk\.remind = \{ enabled: false, time: '20:00' \};/);
+  assert.match(APP_JS, /if \(!h\.remind \|\| typeof h\.remind !== 'object'\) h\.remind = \{ enabled: false, time: '20:00' \};/);
+});
+
+test('4.1: nút 🔔 + syncReminderTimers + renderRemindList + turnOffRemind', () => {
+  assert.match(APP_JS, /data-action="remind-habit"/);
+  assert.match(APP_JS, /data-action="remind-task"/);
+  assert.match(APP_JS, /data-action="remind-off-item"/);
+  assert.match(APP_JS, /function syncReminderTimers\(/);
+  assert.match(APP_JS, /function renderRemindList\(/);
+  assert.match(APP_JS, /function beginRemindEdit\(/);
+  assert.match(APP_JS, /function turnOffRemind\(/);
+  assert.match(APP_JS, /reminder_item_set/);
+  assert.match(APP_JS, /reminder_show/);
+});
+
+test('4.1: app.html có remindList + i18n remind keys đủ vi+en', () => {
+  assert.match(APP_HTML, /id="remindList"/);
+  const vi = APP_JS.match(/const I18N = \{\s*vi: \{[\s\S]*?remindHabitAria: 'Đặt nhắc việc cho thói quen'[\s\S]*?remindSetDone: 'Đã đặt nhắc \{kind\} lúc \{t\} 🔔'/);
+  assert.ok(vi, 'thiếu vi keys remindHabitAria/remindSetDone');
+  assert.ok(APP_JS.includes('remindSetDone: \'Reminder set for {kind} at {t} 🔔\''), 'thiếu en keys');
+});
+
+/* ============================================================
+   Phase 4 — Báo cáo thống kê tuần (4.2)
+   ============================================================ */
+
+test('4.2: weekReportModal + weeklyReportData + weekReportCardBlob + doShareWeekReport', () => {
+  assert.match(APP_HTML, /id="weekReportModal"/);
+  assert.match(APP_HTML, /data-action="share-week-report"/);
+  assert.match(APP_HTML, /data-action="close-week-report"/);
+  assert.match(APP_JS, /function weeklyReportData\(/);
+  assert.match(APP_JS, /function renderWeekReportModal\(/);
+  assert.match(APP_JS, /function weekReportCardBlob\(/);
+  assert.match(APP_JS, /function doShareWeekReport\(/);
+  assert.match(APP_JS, /share_week_report/);
+  assert.match(APP_JS, /taskflow-week-report\.png/);
+  assert.match(APP_JS, /data-action="week-report"/);  // nút mở nằm trong template renderWeek
+});
+
+test('4.2: i18n week report keys đủ vi+en', () => {
+  assert.ok(APP_JS.includes('weekReportTitle: \'Báo cáo tuần\'') && APP_JS.includes("weekReportTitle: 'Weekly report'"), 'thiếu weekReportTitle');
+  assert.ok(APP_JS.includes("weekReportCardTitle: 'Báo cáo Tuần {n}'") && APP_JS.includes("weekReportCardTitle: 'Week {n} report'"), 'thiếu weekReportCardTitle');
+});
+
+/* ============================================================
+   Phase 4 — Widget Pomodoro trong tuần view (4.3)
+   ============================================================ */
+
+test('4.3: pomo widget trong renderWeek + planner-pomo-log + pomoSetMode', () => {
+  assert.match(APP_JS, /pomo-widget/);
+  assert.match(APP_JS, /pomoWidgetTime/);
+  assert.match(APP_JS, /pomoWidgetStart/);
+  assert.match(APP_JS, /data-action="pomo-mode"/);
+  assert.match(APP_JS, /function pomoSetMode\(/);
+  assert.match(APP_JS, /POMO_LOG_KEY = 'planner-pomo-log'/);
+  assert.match(APP_JS, /function pomoAddSession\(/);
+  assert.match(APP_JS, /function renderPomoWidgetStats\(/);
+  assert.match(APP_JS, /pomoAddSession\(POMO_WORK\)/);
+});
+
+test('4.3: i18n pomo widget keys đủ vi+en', () => {
+  assert.ok(APP_JS.includes("pomoWidgetTitle: '🍅 Pomodoro'"), 'thiếu vi pomoWidgetTitle');
+  assert.ok(APP_JS.includes("pomoToday: 'Hôm nay'") && APP_JS.includes("pomoToday: 'Today'"), 'thiếu pomoToday');
+});
+
+test('Phase 4: version bumps app.js>=36 styles.css>=37 sw cache>=v27', () => {
+  assert.match(APP_HTML, /js\/app\.js\?v=(3[6-9]|\d{3})/);
+  assert.match(APP_HTML, /css\/styles\.css\?v=(3[7-9]|[4-9]\d|\d{3})/);
+  const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const m = /const CACHE = 'taskflow-v(\d+)';/.exec(SW);
+  assert.ok(Number(m[1]) >= 27);
+});

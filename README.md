@@ -80,9 +80,23 @@ Tất cả dữ liệu được lưu an toàn trong **localStorage** của trìn
 - ♿ Hỗ trợ **aria-label**, `role=checkbox`, điều hướng bằng Tab
 - 📱 **Responsive** trên mobile, tablet và desktop
 
+### 🔔 Nhắc việc habit/task (Phase 4)
+- Mỗi **thói quen** và **task** có thể bật nhắc riêng với giờ tự chọn (nút 🔔 cạnh tên) — khi đến giờ, trình duyệt hiện thông báo kèm tên mục cần làm
+- Danh sách nhắc đang bật hiển thị ngay trong popup 🔔 của header, bật/tắt từng mục nhanh chóng
+- Nhắc chính xác giờ hoạt động khi app đang mở (`setTimeout` tự lên lịch lại mỗi ngày); khi app đóng, nhắc hằng ngày dùng Periodic Background Sync (giới hạn của trình duyệt)
+
+### 📊 Báo cáo tuần (Phase 4)
+- Nút **"📊 Báo cáo tuần"** trong view Tuần: % mục tiêu, số xong/đang làm/tổng, tỉ lệ habit theo 7 ngày, thói quen nổi bật 🔥, ngày năng suất nhất ⭐
+- 📤 **Chia sẻ ảnh báo cáo tuần** — ảnh 1080×1080 (donut + thống kê + bar chart 7 ngày), chia sẻ trực tiếp hoặc tải `taskflow-week-report.png`
+
+### 🍅 Widget Pomodoro trong tuần view (Phase 4)
+- Card **Pomodoro** ngay trong view Tuần: timer 25/5, start/pause/reset, chuyển nhanh chế độ Tập trung/Nghỉ
+- **Thống kê session**: số phiên + tổng phút hôm nay và tuần này (key `planner-pomo-log`, tự đồng bộ đám mây)
+
 ### 📦 PWA — cài đặt như app thật
 - 📲 **Cài đặt offline**: mở trang → chọn "Cài đặt ứng dụng" (Chrome/Edge) — app chạy ngoài cửa sổ trình duyệt, **hoạt động offline 100%**
 - 🔔 **Nhắc việc hằng ngày**: bật nút 🔔 trong header, chọn giờ — trình duyệt nhắc điểm danh thói quen mỗi ngày (kể cả khi app đã đóng, nhờ Periodic Background Sync)
+- 🔔 **Nhắc việc theo habit/task**: mỗi thói quen & task có giờ nhắc riêng (nút 🔔 cạnh tên) — chính xác khi app mở
 - 🖼️ Icon pastel kawaii đầy đủ kích thước (192/512/maskable) cho Android & iOS
 
 ### 💾 Dữ liệu của bạn — sao lưu & in

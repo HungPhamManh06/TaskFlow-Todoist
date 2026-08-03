@@ -718,6 +718,39 @@ const I18N = {
     pomoMin: '{n} phút',
     pomoDoneWork: 'Xong phiên tập trung! Nghỉ 5 phút nhé 🍅',
     pomoDoneBreak: 'Hết giờ nghỉ! Bắt đầu phiên mới 🍅',
+    /* Phase 4 — Nhắc việc habit/task */
+    remindHabitAria: 'Đặt nhắc việc cho thói quen',
+    remindTaskAria: 'Đặt nhắc việc cho task',
+    remindAdd: '＋ Thêm nhắc',
+    remindPickKind: 'Loại',
+    remindKindHabit: 'Thói quen',
+    remindKindTask: 'Task',
+    remindPickTarget: 'Chọn mục',
+    remindPickTime: 'Giờ nhắc',
+    remindSave: 'Lưu',
+    remindListEmpty: 'Chưa có nhắc việc nào cho habit/task.',
+    remindOffItem: 'Tắt nhắc này',
+    remindSetDone: 'Đã đặt nhắc {kind} lúc {t} 🔔',
+    remindItemBody: '🔔 {kind}: {name}',
+    /* Phase 4 — Báo cáo tuần */
+    weekReportTitle: 'Báo cáo tuần',
+    weekReportGoalPct: 'Mục tiêu tuần',
+    weekReportDone: 'Xong',
+    weekReportInProg: 'Đang làm',
+    weekReportTotal: 'Tổng',
+    weekReportTopHabit: 'Thói quen nổi bật',
+    weekReportBestDay: 'Ngày tốt nhất',
+    weekReportClose: 'Đóng',
+    weekReportShare: 'Chia sẻ',
+    weekReportCardTitle: 'Báo cáo Tuần {n}',
+    weekReportShareTxt: 'Tuần {n} · {p}%',
+    weekReportDayT: 'Ngày {d}',
+    /* Phase 4 — Widget Pomodoro */
+    pomoWidgetTitle: '🍅 Pomodoro',
+    pomoToday: 'Hôm nay',
+    pomoWeek: 'Tuần này',
+    pomoMinShort: '{n}p',
+    pomoWidgetStats: '{today} · {week}',
     pomoWorkDoneTxt: 'Xong phiên tập trung! Nghỉ 5 phút nhé 🍅',
     pomoBreakDoneTxt: 'Hết giờ nghỉ! Bắt đầu phiên mới 🍅',
     profileTitle: '👤 Tài khoản',
@@ -1038,6 +1071,39 @@ const I18N = {
     pomoDoneBreak: 'Break over! Start a new session 🍅',
     pomoWorkDoneTxt: 'Focus session done! Take a 5-min break 🍅',
     pomoBreakDoneTxt: 'Break over! Start a new session 🍅',
+    /* Phase 4 — habit/task reminders */
+    remindHabitAria: 'Set reminder for habit',
+    remindTaskAria: 'Set reminder for task',
+    remindAdd: '＋ Add reminder',
+    remindPickKind: 'Type',
+    remindKindHabit: 'Habit',
+    remindKindTask: 'Task',
+    remindPickTarget: 'Pick item',
+    remindPickTime: 'Remind at',
+    remindSave: 'Save',
+    remindListEmpty: 'No habit/task reminders yet.',
+    remindOffItem: 'Turn off this reminder',
+    remindSetDone: 'Reminder set for {kind} at {t} 🔔',
+    remindItemBody: '🔔 {kind}: {name}',
+    /* Phase 4 — Weekly report */
+    weekReportTitle: 'Weekly report',
+    weekReportGoalPct: 'Week goals',
+    weekReportDone: 'Done',
+    weekReportInProg: 'In progress',
+    weekReportTotal: 'Total',
+    weekReportTopHabit: 'Top habit',
+    weekReportBestDay: 'Best day',
+    weekReportClose: 'Close',
+    weekReportShare: 'Share',
+    weekReportCardTitle: 'Week {n} report',
+    weekReportShareTxt: 'Week {n} · {p}%',
+    weekReportDayT: 'Day {d}',
+    /* Phase 4 — Pomodoro widget */
+    pomoWidgetTitle: '🍅 Pomodoro',
+    pomoToday: 'Today',
+    pomoWeek: 'This week',
+    pomoMinShort: '{n} min',
+    pomoWidgetStats: '{today} · {week}',
     profileTitle: '👤 Account',
     profileUser: 'Username: {u}',
     pwTitle: 'Change password',
@@ -1292,6 +1358,133 @@ function checkDailyReminder() {
   });
 }
 
+/* ---------- Nhắc việc theo habit/task (Phase 4) ---------- */
+
+let itemRemindTimers = [];
+
+// Lên lịch 1 mốc nhắc cho item (lần kế tiếp trong ngày, hoặc ngày mai nếu đã qua).
+function scheduleItemReminder(it, from) {
+  const [hh, mm] = String(it.time || '20:00').split(':').map(Number);
+  let target = new Date(from.getFullYear(), from.getMonth(), from.getDate(), hh, mm, 0, 0);
+  if (target <= from) target = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1, hh, mm, 0, 0);
+  const delay = target.getTime() - from.getTime();
+  if (delay > 2147483647) return; // setTimeout max ~24.8 ngày — mọi mốc nhắc trong ngày đều < 24h
+  const timer = setTimeout(() => {
+    try {
+      new Notification('TaskFlow-Todoist 🐥', {
+        body: t('remindItemBody', { kind: t(it.kind === 'habit' ? 'remindKindHabit' : 'remindKindTask'), name: it.name }),
+        icon: './icons/icon-192.png',
+        tag: 'item-reminder',
+      });
+      trackEvent('reminder_show', { kind: it.kind });
+    } catch (e) { /* ẩn */ }
+    // Tự lên lịch lại cho ngày hôm sau (app mở lâu không mất nhắc)
+    scheduleItemReminder(it, new Date(target.getTime() + 86400000));
+  }, delay);
+  itemRemindTimers.push(timer);
+}
+
+// Quét state hiện tại, lên lịch setTimeout cho từng habit/task đã bật nhắc.
+function syncReminderTimers() {
+  itemRemindTimers.forEach(clearTimeout);
+  itemRemindTimers = [];
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const items = [];
+  state.habits.forEach((h) => { if (h.remind && h.remind.enabled) items.push({ kind: 'habit', name: h.name, time: h.remind.time }); });
+  state.weeks.forEach((w) => (w.days || []).forEach((d) => (d.tasks || []).forEach((tk) => {
+    if (tk.remind && tk.remind.enabled && tk.text) items.push({ kind: 'task', name: tk.text, time: tk.remind.time });
+  })));
+  const now = new Date();
+  items.forEach((it) => scheduleItemReminder(it, now));
+}
+
+// Điền danh sách nhắc đang bật vào popup remindPop.
+function renderRemindList() {
+  const list = document.getElementById('remindList');
+  if (!list) return;
+  const rows = [];
+  state.habits.forEach((h) => {
+    if (h.remind && h.remind.enabled) rows.push({ kind: 'habit', id: h.id, name: h.name, time: h.remind.time });
+  });
+  state.weeks.forEach((w) => (w.days || []).forEach((d) => (d.tasks || []).forEach((tk, ti) => {
+    if (tk.remind && tk.remind.enabled && tk.text) rows.push({ kind: 'task', week: w.n, day: d.date, task: ti, name: tk.text, time: tk.remind.time });
+  })));
+  list.innerHTML = rows.length
+    ? rows.map((r) => `
+      <div class="remind-item">
+        <span class="remind-item-name">${esc(r.kind === 'habit' ? '🔔 ' + r.name : '📋 ' + r.name)}</span>
+        <span class="remind-item-time">${esc(r.time)}</span>
+        <button type="button" class="mini-btn" data-action="remind-off-item" data-kind="${r.kind}" ${r.kind === 'habit' ? `data-id="${esc(r.id)}"` : `data-week="${r.week}" data-day="${esc(r.day)}" data-task="${r.task}"`} title="${t('remindOffItem')}" aria-label="${t('remindOffItem')}">✕</button>
+      </div>`).join('')
+    : `<p class="pop-note">${t('remindListEmpty')}</p>`;
+}
+
+// Inline picker giờ nhắc (pattern beginTagEdit): nhấn 🔔 → input time + nút lưu ngay cạnh nút.
+function beginRemindEdit(btn) {
+  const kind = btn.dataset.action === 'remind-habit' ? 'habit' : 'task';
+  const host = kind === 'habit' ? btn.closest('.habit-name-cell') : btn.closest('.task-row');
+  if (!host) return;
+  const existing = host.querySelector('.remind-edit-input');
+  if (existing) { existing.remove(); return; }
+  const wrap = document.createElement('span');
+  wrap.className = 'remind-edit-input';
+  const input = document.createElement('input');
+  input.type = 'time';
+  const cur = kind === 'habit'
+    ? state.habits.find((h) => h.id === btn.dataset.id)
+    : state.weeks[+btn.dataset.week - 1] && state.weeks[+btn.dataset.week - 1].days[+btn.dataset.day] && state.weeks[+btn.dataset.week - 1].days[+btn.dataset.day].tasks[+btn.dataset.task];
+  input.value = (cur && cur.remind && cur.remind.time) || '20:00';
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.className = 'mini-btn add-btn';
+  save.textContent = t('remindSave');
+  const off = document.createElement('button');
+  off.type = 'button';
+  off.className = 'mini-btn';
+  off.textContent = '✕';
+  wrap.appendChild(input);
+  wrap.appendChild(save);
+  wrap.appendChild(off);
+  // Chèn vào đúng cha trực tiếp của nút (item-actions với habit, task-row với task)
+  btn.parentElement.insertBefore(wrap, btn.nextSibling);
+  input.focus();
+  const commit = () => {
+    const target = kind === 'habit'
+      ? state.habits.find((h) => h.id === btn.dataset.id)
+      : state.weeks[+btn.dataset.week - 1] && state.weeks[+btn.dataset.week - 1].days[+btn.dataset.day] && state.weeks[+btn.dataset.week - 1].days[+btn.dataset.day].tasks[+btn.dataset.task];
+    if (!target) { wrap.remove(); return; }
+    target.remind = { enabled: true, time: input.value || '20:00' };
+    wrap.remove();
+    renderRemindList();
+    if (kind === 'habit') renderOverview(); else renderWeek();
+    save();
+    syncReminderTimers();
+    trackEvent('reminder_item_set', { kind });
+    alert(t('remindSetDone', { kind: t(kind === 'habit' ? 'remindKindHabit' : 'remindKindTask'), t: target.remind.time }));
+  };
+  save.addEventListener('click', commit);
+  off.addEventListener('click', () => wrap.remove());
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') wrap.remove();
+  });
+}
+
+// Tắt nhắc của 1 habit/task từ danh sách trong remindPop.
+function turnOffRemind(el) {
+  const kind = el.dataset.kind;
+  const target = kind === 'habit'
+    ? state.habits.find((h) => h.id === el.dataset.id)
+    : state.weeks[+el.dataset.week - 1] && state.weeks[+el.dataset.week - 1].days.find((d) => String(d.date) === el.dataset.day) && state.weeks[+el.dataset.week - 1].days.find((d) => String(d.date) === el.dataset.day).tasks[+el.dataset.task];
+  if (!target) return;
+  if (target.remind) target.remind.enabled = false;
+  renderRemindList();
+  if (kind === 'habit') renderOverview(); else renderWeek();
+  save();
+  syncReminderTimers();
+  trackEvent('reminder_item_off', { kind });
+}
+
 /* ============================ Xuất / Nhập dữ liệu ============================ */
 
 function collectAllData() {
@@ -1426,6 +1619,7 @@ function togglePop(id) {
   if (id === 'remindPop' && !p.hidden) {
     const input = document.getElementById('remindTime');
     if (input) input.value = getRemindTime() || '20:00';
+    renderRemindList();
   }
 }
 
@@ -1559,10 +1753,13 @@ function loadState() {
     if (!s.goalTab) s.goalTab = 'priority';
     if (typeof s.currentWeek !== 'number' || s.currentWeek < 1 || s.currentWeek > NUM_WEEKS) s.currentWeek = 1;
     if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar') s.view = 'overview';
-    // Migration: task cũ thiếu tags → mảng rỗng
+    // Migration: task cũ thiếu tags → mảng rỗng; thiếu remind → tắt
     s.weeks.forEach((w) => {
       (w.days || []).forEach((d) => {
-        (d.tasks || []).forEach((tk) => { if (!Array.isArray(tk.tags)) tk.tags = []; });
+        (d.tasks || []).forEach((tk) => {
+          if (!Array.isArray(tk.tags)) tk.tags = [];
+          if (!tk.remind || typeof tk.remind !== 'object') tk.remind = { enabled: false, time: '20:00' };
+        });
       });
     });
     // Đồng bộ streak với số tích ✓: khi xem tháng hiện tại, tự bỏ tick các ngày tương lai
@@ -1574,6 +1771,8 @@ function loadState() {
       s.habits.forEach((h) => {
         // Migration: habit cũ thiếu mục tiêu (target) → mặc định 100% số ngày.
         if (typeof h.target !== 'number' || h.target < 1) h.target = 100;
+        // Migration: habit cũ thiếu remind → tắt
+        if (!h.remind || typeof h.remind !== 'object') h.remind = { enabled: false, time: '20:00' };
         if (Array.isArray(h.days)) {
           for (let d = today; d < h.days.length; d++) {
             if (h.days[d]) { h.days[d] = false; dirty = true; }
@@ -1618,11 +1817,11 @@ function emptyState() {
           const dt = new Date(start.getTime() + (wi * 7 + di) * 86400000);
           return {
             tasks: [
-              { kind: 'priority', done: false, text: '', tags: [] },
-              { kind: 'priority', done: false, text: '', tags: [] },
-              { kind: 'regular', done: false, text: '', tags: [] },
-              { kind: 'regular', done: false, text: '', tags: [] },
-              { kind: 'regular', done: false, text: '', tags: [] },
+              { kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
             ],
             date: `${dt.getDate()}/${dt.getMonth() + 1}`,
             yy: dt.getFullYear() % 100,
@@ -1804,34 +2003,54 @@ function sceneCardHTML() {
     <div class="scene">
       <div class="sky">
         <span class="sun" aria-hidden="true">☀️</span>
+        <span class="sun-glow" aria-hidden="true"></span>
+        <span class="moon" aria-hidden="true">🌙</span>
         <span class="cloud c1" aria-hidden="true">☁️</span>
         <span class="cloud c2" aria-hidden="true">☁️</span>
+        <span class="cloud c3" aria-hidden="true">☁️</span>
+        <span class="bird" aria-hidden="true">🐦</span>
+        <span class="star s1" aria-hidden="true">✦</span>
+        <span class="star s2" aria-hidden="true">✦</span>
+        <span class="star s3" aria-hidden="true">✦</span>
       </div>
       <div class="scene-tree" aria-hidden="true">
         <div class="leaf-blob b1"></div>
         <div class="leaf-blob b2"></div>
         <div class="leaf-blob b3"></div>
+        <div class="leaf-blob b4"></div>
+        <span class="apple a1">🍎</span>
+        <span class="apple a2">🍎</span>
         <div class="trunk"></div>
         <div class="swing">
           <span class="rope r1"></span>
           <span class="rope r2"></span>
           <span class="seat"></span>
+          <span class="swing-chick">🐥</span>
         </div>
       </div>
       <div class="window" aria-hidden="true">
         <div class="win-sky"></div>
         <div class="win-shelf"></div>
+        <span class="win-curtain cur-l"></span>
+        <span class="win-curtain cur-r"></span>
         <span class="win-rabbit">🐰</span>
         <div class="win-frame"></div>
       </div>
+      <div class="win-box" aria-hidden="true">
+        <span class="wb-flower">🌷</span>
+        <span class="wb-flower">🌼</span>
+      </div>
       <div class="grass">
-        <span class="g-critter" aria-hidden="true">🐥</span>
-        <span class="g-critter" aria-hidden="true">🦫</span>
-        <span class="g-flower" aria-hidden="true">🌸</span>
+        <span class="g-bush" aria-hidden="true"></span>
+        <span class="g-critter cr1" aria-hidden="true">🐥</span>
+        <span class="g-critter cr2" aria-hidden="true">🦫</span>
+        <span class="g-flower f1" aria-hidden="true">🌸</span>
+        <span class="g-flower f2" aria-hidden="true">🌼</span>
+        <span class="g-butterfly" aria-hidden="true">🦋</span>
       </div>
     </div>
     <div class="chick-row" aria-label="${t('chicks10Aria')}">
-      ${Array.from({ length: 10 }, () => `<span class="chick-unit" aria-hidden="true">🐥<span class="chick-phones">🎧</span></span>`).join('')}
+      ${Array.from({ length: 10 }, (_, i) => `<span class="chick-unit" style="--i:${i}" aria-hidden="true">🐥<span class="chick-phones">🎧</span></span>`).join('')}
     </div>
   </div>`;
 }
@@ -1946,6 +2165,7 @@ function habitPanelHTML() {
                 <td class="sticky name-col"><span class="habit-name-cell">
                   <span class="habit-name-text" data-id="${h.id}" title="${esc(h.name)}">${esc(h.name)}</span>
                   <span class="item-actions">
+                    <button type="button" class="mini-btn" data-action="remind-habit" data-id="${h.id}" title="${t('remindHabitAria')}" aria-label="${t('remindHabitAria')}">🔔${h.remind && h.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
                     <button type="button" class="mini-btn" data-action="targetedit" data-id="${h.id}" title="${t('targetAria', { n: h.target || 100 })}" aria-label="${t('targetAria', { n: h.target || 100 })}">🎯</button>
                     <button type="button" class="mini-btn" data-action="edithabit" data-id="${h.id}" title="${t('renameAria')}" aria-label="${t('renameAria')}">✏️</button>
                     <button type="button" class="mini-btn" data-action="delhabit" data-id="${h.id}" title="${t('delAria')}" aria-label="${t('delAria')}">🗑</button>
@@ -2554,6 +2774,181 @@ async function doShareReport() {
   }
 }
 
+/* ---------- Báo cáo tuần (Phase 4) ---------- */
+
+// Số liệu tuần: % goals + habit theo từng ngày + top habit + ngày năng suất nhất.
+function weeklyReportData(w) {
+  const st = weekStats(w);
+  const habitByDay = [];
+  for (let di = 0; di < 7; di++) {
+    const gi = (w.n - 1) * 7 + di; // chỉ số ngày toàn tháng tương ứng
+    habitByDay.push(gi < NUM_DAYS ? dayAggregate(gi) : 0);
+  }
+  let top = null, topN = 0;
+  state.habits.forEach((h) => {
+    let n = 0;
+    for (let di = 0; di < 7; di++) {
+      const gi = (w.n - 1) * 7 + di;
+      if (gi < NUM_DAYS && h.days[gi]) n++;
+    }
+    if (n > topN) { topN = n; top = h; }
+  });
+  let bestDay = 0;
+  habitByDay.forEach((p, i) => { if (p > habitByDay[bestDay]) bestDay = i; });
+  return { n: w.n, pct: st.pct, done: st.done, inProg: st.inProg, total: st.total, habitByDay, top, topN, bestDay };
+}
+
+function renderWeekReportModal() {
+  const el = document.getElementById('weekReportContent');
+  if (!el) return;
+  const w = state.weeks[state.currentWeek - 1];
+  if (!w) return;
+  const r = weeklyReportData(w);
+  const topName = r.top ? esc(r.top.name) : '—';
+  el.innerHTML = `
+    <div class="report-head">
+      <div class="donut-wrap"><div class="donut">${donutSVG(r.pct, 96, 12, '#C24E28')}</div>
+        <div class="donut-center"><span>${r.pct}%</span><small>${t('weekReportGoalPct')}</small></div>
+      </div>
+    </div>
+    <div class="report-grid">
+      <div class="report-cell"><b>${r.done}</b><span>${t('weekReportDone')}</span></div>
+      <div class="report-cell"><b>${r.inProg}</b><span>${t('weekReportInProg')}</span></div>
+      <div class="report-cell"><b>${r.total}</b><span>${t('weekReportTotal')}</span></div>
+      <div class="report-cell"><b>🔥 ${r.topN}</b><span>${t('weekReportTopHabit')} · ${topName}</span></div>
+      <div class="report-cell"><b>⭐ ${t('weekReportDayT', { d: r.bestDay + 1 })}</b><span>${t('weekReportBestDay')} · ${r.habitByDay[r.bestDay]}%</span></div>
+    </div>
+    <div class="report-weekbars" aria-hidden="true">${r.habitByDay.map((p) => `<div class="rw-bar" style="height:${Math.max(p, 4)}%"></div>`).join('')}</div>`;
+}
+
+function openWeekReportModal() {
+  const m = document.getElementById('weekReportModal');
+  if (!m) return;
+  renderWeekReportModal();
+  m.hidden = false;
+}
+
+function closeWeekReportModal() {
+  const m = document.getElementById('weekReportModal');
+  if (m) m.hidden = true;
+}
+
+// Ảnh báo cáo tuần 1080×1080 — style streak/report card.
+function weekReportCardBlob(r) {
+  return new Promise((resolve, reject) => {
+    try {
+      const W = 1080, H = 1080;
+      const c = document.createElement('canvas');
+      c.width = W;
+      c.height = H;
+      const g = c.getContext('2d');
+      const grad = g.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, '#FFF6EA');
+      grad.addColorStop(0.55, '#FDEBD7');
+      grad.addColorStop(1, '#F8DCC0');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(255,255,255,.5)';
+      canvasCircle(g, W - 110, 130, 170);
+      canvasCircle(g, 40, H - 150, 230);
+      g.textAlign = 'center';
+      g.fillStyle = '#4A403A';
+      g.font = "700 36px 'Baloo 2','Fredoka','Nunito',sans-serif";
+      g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 42px 'Baloo 2','Nunito',sans-serif";
+      g.fillText(t('weekReportCardTitle', { n: r.n }), W / 2, 158);
+      g.fillStyle = '#C24E28';
+      g.font = "800 120px 'Baloo 2','Fredoka',sans-serif";
+      g.fillText(r.pct + '%', W / 2, 300);
+      g.fillStyle = '#4A403A';
+      g.font = "700 40px 'Baloo 2','Nunito',sans-serif";
+      g.fillText(t('weekReportGoalPct') + ' · ' + r.done + '/' + r.total, W / 2, 352);
+      const rows = [
+        [t('weekReportDone'), r.done],
+        [t('weekReportInProg'), r.inProg],
+        [t('weekReportTopHabit'), r.top ? '🔥 ' + r.topN + ' · ' + r.top.name : '—'],
+        [t('weekReportBestDay'), t('weekReportDayT', { d: r.bestDay + 1 }) + ' · ' + r.habitByDay[r.bestDay] + '%'],
+      ];
+      g.font = "700 34px 'Nunito','Quicksand',sans-serif";
+      rows.forEach((row, i) => {
+        const y = 430 + i * 74;
+        const pw = g.measureText(row[0] + '  ' + row[1]).width + 56, ph = 58;
+        g.fillStyle = 'rgba(255,253,248,.85)';
+        g.beginPath();
+        if (g.roundRect) g.roundRect(W / 2 - pw / 2, y - ph + 16, pw, ph, 29);
+        else g.rect(W / 2 - pw / 2, y - ph + 16, pw, ph);
+        g.fill();
+        g.fillStyle = '#8A7A6B';
+        g.textAlign = 'left';
+        g.fillText(row[0], W / 2 - pw / 2 + 28, y + 4);
+        g.fillStyle = '#C24E28';
+        g.textAlign = 'right';
+        g.fillText(String(row[1]), W / 2 + pw / 2 - 28, y + 4);
+        g.textAlign = 'center';
+      });
+      // Bar chart 7 ngày
+      const bx = W / 2 - 300, bw = 600, bh = 180, by = 800;
+      const w = state.weeks[r.n - 1];
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 28px 'Nunito','Quicksand',sans-serif";
+      g.fillText(t('weekReportBestDay') + ' · ' + (w ? w.days.map((d) => d.date).join(' – ') : '1–7'), W / 2, by - 24);
+      const maxP = Math.max(1, ...r.habitByDay);
+      r.habitByDay.forEach((p, i) => {
+        const h = Math.max(6, (p / maxP) * bh);
+        g.fillStyle = '#C24E28';
+        g.beginPath();
+        if (g.roundRect) g.roundRect(bx + (i * bw) / 7 + 8, by - h, bw / 7 - 16, h, 10);
+        else g.rect(bx + (i * bw) / 7 + 8, by - h, bw / 7 - 16, h);
+        g.fill();
+      });
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 30px 'Nunito','Quicksand',sans-serif";
+      g.fillText(t('shareFooter'), W / 2, H - 60);
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
+    } catch (e) { reject(e); }
+  });
+}
+
+async function doShareWeekReport() {
+  const w = state.weeks[state.currentWeek - 1];
+  if (!w) return;
+  const r = weeklyReportData(w);
+  let name = localStorage.getItem('planner-name');
+  if (!name) {
+    name = (prompt(t('shareNamePrompt')) || '').trim() || t('meName');
+    try { localStorage.setItem('planner-name', name); } catch (e) { /* ẩn */ }
+  }
+  try {
+    const blob = await weekReportCardBlob(r);
+    const file = new File([blob], 'taskflow-week-report.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'TaskFlow-Todoist 🐥',
+          text: '📊 ' + t('weekReportShareTxt', { n: r.n, p: r.pct }),
+        });
+        trackEvent('share_week_report', { pct: r.pct, via: 'native' });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        trackEvent('share_week_report', { pct: r.pct, via: 'fallback' });
+      }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'taskflow-week-report.png';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+    trackEvent('share_week_report', { pct: r.pct, via: 'download' });
+    alert(t('shareDone'));
+  } catch (e) {
+    alert(t('shareFail'));
+  }
+}
+
 /* ---------- Huy hiệu 🎖️ ---------- */
 const BADGES_KEY = 'planner-badges';
 const BADGE_DEFS = [
@@ -2708,7 +3103,7 @@ function removeGoal(id) {
 function addHabit(name) {
   name = (name || '').trim();
   if (!name) return false;
-  state.habits.push({ id: 'h' + Date.now(), name, target: 100, days: Array.from({ length: NUM_DAYS }, () => false) });
+  state.habits.push({ id: 'h' + Date.now(), name, target: 100, days: Array.from({ length: NUM_DAYS }, () => false), remind: { enabled: false, time: '20:00' } });
   renderOverview();
   save();
   trackEvent('create_habit');
@@ -3108,6 +3503,7 @@ function renderWeek() {
   el.innerHTML = `
     <div class="week-banner">
       <h2>${t('weekBanner')}</h2>
+      <button type="button" class="pop-btn share-btn week-report-btn" data-action="week-report" title="${t('weekReportTitle')}">📊 ${t('weekReportTitle')}</button>
       ${ti.inRange ? '' : `<p class="week-range-note">${t('weekRange', { a: fmtDate(ti.now), b: fmtDate(PLAN_START), c: fmtDate(PLAN_END) })}</p>`}
     </div>
     ${weekTagFilterBar()}
@@ -3136,10 +3532,26 @@ function renderWeek() {
       </div>
       <div class="card legend-card">${weeklyGoalsHTML(w)}</div>
       <div class="card reflection sub">${reflectionHTML('w' + w.n, REFLECT_PROMPTS_WEEK())}</div>
+      <div class="card pomo-widget" data-role="pomo-widget">
+        <div class="pomo-widget-head">
+          <span class="pomo-widget-title">${t('pomoWidgetTitle')}</span>
+          <span class="pomo-widget-mode" id="pomoWidgetMode"></span>
+        </div>
+        <div class="pomo-widget-time" id="pomoWidgetTime">25:00</div>
+        <div class="pomo-widget-actions">
+          <button type="button" class="pop-btn primary" data-action="pomo-start" id="pomoWidgetStart"></button>
+          <button type="button" class="pop-btn" data-action="pomo-reset" data-i18n="pomoReset">↺</button>
+          <button type="button" class="pop-btn" data-action="pomo-mode" data-mode="work">${t('pomoWork')}</button>
+          <button type="button" class="pop-btn" data-action="pomo-mode" data-mode="break">${t('pomoBreak')}</button>
+        </div>
+        <div class="pomo-widget-stats" id="pomoWidgetStats"></div>
+      </div>
     </div>
     <div class="days-grid">
       ${w.days.map((d, di) => dayColumnHTML(w, di, isDayToday(d))).join('')}
     </div>`;
+  renderPomo();
+  renderPomoWidgetStats();
 }
 
 function weeklyGoalsHTML(w) {
@@ -3225,6 +3637,7 @@ function taskRowHTML(wn, di, ti, mod, task) {
     <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${wn}" data-day="${di}" data-task="${ti}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: ti + 1 })}">${esc(task.text ?? '')}</span>
     ${tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : ''}
     <span class="dotted-line" aria-hidden="true"></span>
+    <button type="button" class="btn-tag" data-action="remind-task" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('remindTaskAria')}" aria-label="${t('remindTaskAria')}">🔔${task.remind && task.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
     <button type="button" class="btn-tag" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('tagAdd')}" aria-label="${t('tagAria')}">🏷️</button>
     <button type="button" class="btn-del" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}" aria-label="${t('delTaskAria', { n: ti + 1 })}" title="${t('delTaskAria', { n: ti + 1 })}">✕</button>
   </div>`;
@@ -3447,6 +3860,13 @@ function renderPomo() {
   if (mEl) mEl.textContent = (pomo.mode === 'work' ? t('pomoWork') : t('pomoBreak')) + ' · ' + t('pomoMin', { n: pomo.mode === 'work' ? 25 : 5 });
   const bEl = document.getElementById('pomoStart');
   if (bEl) bEl.textContent = pomo.running ? t('pomoPause') : t('pomoStart');
+  // Widget tuần view (nếu có)
+  const wT = document.getElementById('pomoWidgetTime');
+  if (wT) wT.textContent = mm + ':' + ss;
+  const wM = document.getElementById('pomoWidgetMode');
+  if (wM) wM.textContent = (pomo.mode === 'work' ? t('pomoWork') : t('pomoBreak')) + ' · ' + t('pomoMin', { n: pomo.mode === 'work' ? 25 : 5 });
+  const wB = document.getElementById('pomoWidgetStart');
+  if (wB) wB.textContent = pomo.running ? t('pomoPause') : t('pomoStart');
 }
 
 function pomoStart() {
@@ -3461,12 +3881,14 @@ function pomoStart() {
       const finished = pomo.mode;
       trackEvent('pomodoro_complete', { mode: finished });
       if (finished === 'work') {
+        pomoAddSession(POMO_WORK);
         alert(t('pomoDoneWork'));
         pomo.mode = 'break'; pomo.left = POMO_BREAK;
       } else {
         alert(t('pomoDoneBreak'));
         pomo.mode = 'work'; pomo.left = POMO_WORK;
       }
+      renderPomoWidgetStats();
     }
     renderPomo();
   }, 1000);
@@ -3480,11 +3902,63 @@ function pomoReset() {
   renderPomo();
 }
 
+function pomoSetMode(mode) {
+  clearInterval(pomo.timer);
+  pomo.running = false;
+  pomo.mode = mode === 'break' ? 'break' : 'work';
+  pomo.left = pomo.mode === 'work' ? POMO_WORK : POMO_BREAK;
+  renderPomo();
+  trackEvent('pomodoro_mode', { mode: pomo.mode });
+}
+
 function togglePomoPanel() {
   const p = document.getElementById('pomoPanel');
   if (!p) return;
   p.hidden = !p.hidden;
   if (!p.hidden) renderPomo();
+}
+
+/* ---------- Pomodoro widget trong tuần view (Phase 4) ---------- */
+
+const POMO_LOG_KEY = 'planner-pomo-log';
+
+function loadPomoLog() {
+  try { return JSON.parse(localStorage.getItem(POMO_LOG_KEY) || '{}') || {}; } catch (e) { return {}; }
+}
+function savePomoLog(log) {
+  try { localStorage.setItem(POMO_LOG_KEY, JSON.stringify(log)); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push(POMO_LOG_KEY);
+}
+function pomoDateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function pomoAddSession(secs) {
+  const log = loadPomoLog();
+  const k = pomoDateKey(new Date());
+  if (!log[k]) log[k] = { count: 0, secs: 0 };
+  log[k].count++;
+  log[k].secs += secs;
+  savePomoLog(log);
+}
+function pomoWeekSecs() {
+  // Cộng 7 ngày của tuần hiện tại (PLAN_START + offset)
+  const log = loadPomoLog();
+  let secs = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(PLAN_START.getTime() + ((state.currentWeek - 1) * 7 + i) * 86400000);
+    const e = log[pomoDateKey(d)];
+    if (e) secs += e.secs;
+  }
+  return secs;
+}
+function renderPomoWidgetStats() {
+  const el = document.getElementById('pomoWidgetStats');
+  if (!el) return;
+  const log = loadPomoLog();
+  const today = log[pomoDateKey(new Date())] || { count: 0, secs: 0 };
+  const todayTxt = t('pomoToday') + ': ' + today.count + ' · ' + t('pomoMinShort', { n: Math.round(today.secs / 60) });
+  const weekTxt = t('pomoWeek') + ': ' + t('pomoMinShort', { n: Math.round(pomoWeekSecs() / 60) });
+  el.textContent = t('pomoWidgetStats', { today: todayTxt, week: weekTxt });
 }
 
 /* ============================ Phase 2: Dashboard (year view) ============================ */
@@ -3661,6 +4135,7 @@ function openMonth(m) {
   updateNowBtn();
   buildNav();
   setView('overview', state.currentWeek);
+  syncReminderTimers();
 }
 function openYear(dy) {
   const y = PLAN_YEAR + dy;
@@ -3733,7 +4208,7 @@ document.addEventListener('click', (e) => {
     if (t) { t.done = !t.done; refreshTaskUI(w, +el.dataset.day); save(); }
   } else if (act === 'addtask') {
     const w = state.weeks[+el.dataset.week - 1];
-    w.days[+el.dataset.day].tasks.push({ kind: el.dataset.kind, done: false, text: '' });
+    w.days[+el.dataset.day].tasks.push({ kind: el.dataset.kind, done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
     renderWeek();
     save();
     trackEvent('create_task', { kind: el.dataset.kind });
@@ -3831,6 +4306,8 @@ document.addEventListener('click', (e) => {
     pomoStart();
   } else if (act === 'pomo-reset') {
     pomoReset();
+  } else if (act === 'pomo-mode') {
+    pomoSetMode(el.dataset.mode === 'break' ? 'break' : 'work');
   } else if (act === 'profile-open') {
     openProfileModal();
   } else if (act === 'profile-close') {
@@ -3849,6 +4326,12 @@ document.addEventListener('click', (e) => {
     closeReportModal();
   } else if (act === 'share-report') {
     doShareReport();
+  } else if (act === 'week-report') {
+    openWeekReportModal();
+  } else if (act === 'close-week-report') {
+    closeWeekReportModal();
+  } else if (act === 'share-week-report') {
+    doShareWeekReport();
   } else if (act === 'sync-toggle-mode') {
     setSyncMode(syncMode === 'signup' ? 'login' : 'signup');
   } else if (act === 'sync-google') {
@@ -3869,6 +4352,10 @@ document.addEventListener('click', (e) => {
   } else if (act === 'remind-off') {
     disableReminder();
     togglePop('remindPop');
+  } else if (act === 'remind-habit' || act === 'remind-task') {
+    beginRemindEdit(el);
+  } else if (act === 'remind-off-item') {
+    turnOffRemind(el);
   } else if (act === 'data-toggle') {
     togglePop('dataPop');
   } else if (act === 'export-json') {
@@ -4263,6 +4750,8 @@ document.addEventListener('keydown', (e) => {
     if (m && !m.hidden) m.hidden = true;
     const r = document.getElementById('reportModal');
     if (r && !r.hidden) r.hidden = true;
+    const wr = document.getElementById('weekReportModal');
+    if (wr && !wr.hidden) wr.hidden = true;
     const s = document.getElementById('searchModal');
     if (s && !s.hidden) closeSearchModal();
     const t = document.getElementById('templateModal');
@@ -4276,6 +4765,8 @@ document.addEventListener('click', (e) => {
   if (m && !m.hidden && e.target === m) m.hidden = true;
   const r = document.getElementById('reportModal');
   if (r && !r.hidden && e.target === r) r.hidden = true;
+  const wr = document.getElementById('weekReportModal');
+  if (wr && !wr.hidden && e.target === wr) wr.hidden = true;
   const s = document.getElementById('searchModal');
   if (s && !s.hidden && e.target === s) closeSearchModal();
   const t = document.getElementById('templateModal');
@@ -4563,6 +5054,7 @@ initAnalytics();
 registerSW();
 setInterval(checkDailyReminder, 30000);
 if (getRemindTime()) registerPeriodicReminder();
+setTimeout(syncReminderTimers, 1000);
 
 const importFileInput = document.getElementById('importFile');
 if (importFileInput) {
