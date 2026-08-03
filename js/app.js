@@ -132,7 +132,7 @@ function buildMonthNav() {
 /* ============================ Kế hoạch năm ============================ */
 
 function yearKey() {
-  return 'planner-year-' + new Date().getFullYear();
+  return 'planner-year-' + PLAN_YEAR;
 }
 
 const YEAR_REFLECT_PROMPTS = () => [t('rm0'), t('rm1'), t('rm2'), t('rm3')];
@@ -155,7 +155,7 @@ const MONTH_FRUITS = ['🍎', '🍎', '🍋', '🍎', '🍎', '🍋', '🍎', '�
 
 function defaultYearState() {
   return {
-    year: new Date().getFullYear(),
+    year: PLAN_YEAR,
     goals: YEAR_GOAL_DEFS.map(([text, kind, done], i) => ({ id: 'yg' + i, text, kind, done })),
     reflections: {
       year: ['', '', '', ''],
@@ -195,7 +195,7 @@ function loadYearState() {
     const raw = localStorage.getItem(yearKey());
     if (!raw) return null;
     const s = JSON.parse(raw);
-    if (!s || !Array.isArray(s.goals) || s.year !== new Date().getFullYear()) return null;
+    if (!s || !Array.isArray(s.goals) || s.year !== PLAN_YEAR) return null;
     if (!s.reflections || typeof s.reflections !== 'object') s.reflections = defaultYearState().reflections;
     if (!Array.isArray(s.reflections.year) || s.reflections.year.length !== 4) s.reflections.year = ['', '', '', ''];
     ['q1', 'q2', 'q3', 'q4'].forEach((q) => {
@@ -408,6 +408,8 @@ const I18N = {
     navMonths: 'Chuyển tháng trong năm',
     prevMonth: 'Tháng trước',
     nextMonth: 'Tháng sau',
+    prevYear: 'Năm trước',
+    nextYear: 'Năm sau',
     selectMonth: 'Chọn tháng',
     navPlan: 'Điều hướng kế hoạch',
     resetTitle: 'Xoá toàn bộ dữ liệu đã lưu',
@@ -440,12 +442,17 @@ const I18N = {
     habitTitle: 'Thói quen',
     legendDone: 'Hoàn thành',
     legendNotDone: 'Chưa',
+    statsDone: 'Hoàn thành',
+    statsInProg: 'Đang thực hiện',
+    statsTotal: 'Tổng cộng',
+    yGoalsTitle: 'Mục tiêu năm {y}',
+    weekBanner: '🌸 Mục tiêu & công việc tuần',
     habitPh: 'Tên thói quen mới...',
     habitNameAria: 'Tên thói quen mới',
     addHabitTxt: '＋ Thêm thói quen',
     renameAria: 'Đổi tên',
     delAria: 'Xoá',
-    noHabits: 'Chưa có thói quen nào — thêm một thói quen mới nhé 🐥',
+    noHabits: 'Chưa có thói quen nào, thêm một thói quen mới nhé 🐥',
     habitCol: 'Thói quen',
     refTitle: 'Phản ánh',
     writeHere: 'Viết ở đây...',
@@ -470,14 +477,17 @@ const I18N = {
     hmMiniT: '14 ngày gần nhất',
     yearTh: 'Năm',
     curMonthTh: 'Tháng hiện tại',
-    motto: '4 điều bạn sẽ không bao giờ hối tiếc:<br>🌱 Sống kín đáo · 📚 Sống kỷ luật · 💼 Chăm lo chuyện của mình · 💛 Yêu thương bản thân',
+    monthTh: 'Tháng',
+    curWeekTh: 'Tuần hiện tại',
+    weeklyProg: 'Tiến độ tuần',
+    motto: '4 điều bạn sẽ không bao giờ hối tiếc:<br>🌱 Sống kín đáo<br>📚 Sống kỷ luật<br>💼 Chăm lo chuyện của mình<br>💛 Yêu thương bản thân',
     chicks12Aria: '12 chú gà con',
     pullBtn: '📥 Lấy dữ liệu từ 12 tháng từ Dashboard',
     yGoalPh: 'Viết mục tiêu...',
     yGoalAria: 'Mục tiêu năm',
     addPriGoalAria: 'Thêm mục tiêu ưu tiên',
     addRegGoalAria: 'Thêm mục tiêu thường',
-    progressYear: 'Progress cả năm',
+    progressYear: 'Tiến độ cả năm',
     quarterT: 'Quý',
     m12: '12 tháng',
     progress12: 'Tiến độ 12 tháng',
@@ -494,7 +504,7 @@ const I18N = {
     refQuarterAria: 'Viết phản ánh quý {n} mục {m}',
     refYearAria: 'Viết phản ánh năm mục {n}',
     refQuarters: 'Phản ánh quý',
-    weekRange: 'Hôm nay ({a}) nằm ngoài phạm vi kế hoạch ({b} – {c})',
+    weekRange: 'Hôm nay ({a}) nằm ngoài phạm vi kế hoạch ({b} - {c})',
     prevWeek: '‹ Tuần trước',
     nextWeek: 'Tuần sau ›',
     priGoalsSub: 'Mục tiêu ưu tiên',
@@ -518,6 +528,7 @@ const I18N = {
     exportJson: '📤 Xuất JSON (sao lưu)',
     importJson: '📥 Nhập JSON (khôi phục)',
     exportCsv: '📊 Xuất CSV (Google Sheets)',
+    csvNote: 'Sheet chia nhỏ theo Section để lọc trong Google Sheets',
     printTitle: 'In / Lưu PDF',
     remindTitle: '🔔 Nhắc việc hằng ngày',
     remindTimeLbl: 'Giờ nhắc',
@@ -529,7 +540,7 @@ const I18N = {
     remindDenied: 'Trình duyệt đang chặn thông báo. Hãy cho phép thông báo để nhận nhắc việc.',
     remindBody: 'Hôm nay bạn đã hoàn thành những mục tiêu nào? Vào điểm danh thói quen nhé! 🐥',
     importConfirm: 'Nhập file sẽ GHI ĐÈ dữ liệu hiện tại. Bạn chắc chắn muốn tiếp tục?',
-    importError: 'File không hợp lệ — không phải file sao lưu TaskFlow-Todoist.',
+    importError: 'File không hợp lệ: không phải file sao lưu TaskFlow-Todoist.',
     importOk: 'Đã nhập dữ liệu thành công! Trang sẽ tải lại.',
     rm0: 'Điều gì tôi đã làm tốt và muốn tiếp tục phát huy?',
     rm1: 'Bài học quan trọng nhất tôi rút ra được là gì?',
@@ -543,7 +554,7 @@ const I18N = {
     syncLogin: 'Đăng nhập',
     syncSignup: 'Tạo tài khoản',
     syncLogout: 'Đăng xuất',
-    syncStatusOff: 'Chưa cấu hình Supabase',
+    syncStatusOff: 'Chưa kích hoạt đồng bộ đám mây',
     syncStatusConnecting: 'Đang kết nối...',
     syncStatusSyncing: 'Đang đồng bộ...',
     syncStatusReady: 'Đã đồng bộ ✓',
@@ -554,9 +565,9 @@ const I18N = {
     syncUserInvalid: 'Tên người dùng gồm 3-30 ký tự chữ/số/_ . -',
     syncPassShort: 'Mật khẩu phải có ít nhất 6 ký tự',
     syncPassMismatch: 'Xác nhận mật khẩu không khớp',
-    syncLoginErr: 'Đăng nhập thất bại — kiểm tra lại tên người dùng/mật khẩu',
+    syncLoginErr: 'Đăng nhập thất bại, kiểm tra lại tên người dùng/mật khẩu',
     syncSignupOk: 'Đã tạo tài khoản! Đồng bộ tự động bắt đầu ✓',
-    syncSignupErr: 'Tạo tài khoản thất bại — tên người dùng có thể đã tồn tại.',
+    syncSignupErr: 'Tạo tài khoản thất bại, tên người dùng có thể đã tồn tại.',
     syncUserPh: 'Tên người dùng',
     syncPassPh: 'Mật khẩu',
     syncPass2Ph: 'Xác nhận mật khẩu',
@@ -565,14 +576,43 @@ const I18N = {
     syncGoogle: 'Tiếp tục với Google',
     syncOr: 'hoặc bằng tài khoản',
     syncGoogleErr: 'Không mở được Google. Kiểm tra lại cấu hình OAuth trên backend (GOOGLE_CLIENT_ID/SECRET).',
-    syncNeedConfig: 'Chưa cấu hình backend — điền URL API trong js/api-config.js',
-    syncErrUsernameTaken: 'Tên người dùng đã tồn tại — thử tên khác.',
+    syncNeedConfig: 'Chưa cấu hình backend, điền URL API trong js/api-config.js',
+    syncErrUsernameTaken: 'Tên người dùng đã tồn tại, thử tên khác.',
     syncErrBadCredentials: 'Sai tên người dùng hoặc mật khẩu.',
-    syncErrNetwork: 'Không kết nối được máy chủ — kiểm tra lại URL trong js/api-config.js.',
-    syncErrServer: 'Máy chủ báo lỗi — thử lại sau.',
+    syncErrNetwork: 'Không kết nối được máy chủ, kiểm tra lại URL trong js/api-config.js.',
+    syncErrServer: 'Máy chủ báo lỗi, thử lại sau.',
     homeTitle: 'Về trang giới thiệu',
+    installTitle: 'Cài đặt ứng dụng',
+    targetAria: 'Mục tiêu {n}% — chỉnh số ngày cần đạt mỗi tháng',
+    copyHabitsTxt: 'Sao chép sang tháng sau',
+    copyHabitsDone: 'Đã sao chép {n} thói quen sang tháng sau (giữ streak 🔥, tick mới để lại trống).',
+    reportTitle: 'Báo cáo tháng',
+    reportGoalPct: 'Mục tiêu tháng',
+    reportGoalsDone: 'Mục tiêu đã xong',
+    reportHabitAvg: 'Thói quen trung bình',
+    reportTopHabit: 'Chuỗi tốt nhất',
+    reportRecord: 'Kỷ lục',
+    reportActive: 'Ngày đã điểm danh',
+    reportShare: 'Chia sẻ ảnh',
+    reportCardTitle: 'Báo cáo {m} · {y}',
+    badgesTitle: 'Huy hiệu',
+    badge7: '🔥 7 ngày liên tiếp',
+    badge30: '🔥🔥 30 ngày liên tiếp',
+    badgeBest14: '🏆 Kỷ lục 14 ngày',
+    badgeGoals100: '🎯 Hoàn thành mọi mục tiêu tháng',
+    badgeHabit100: '💯 Mọi thói quen đạt mục tiêu',
+    badgeActive15: '📅 Điểm danh 15 ngày',
+    badgeNew: '🎖️ Huy hiệu mới: {b}!',
+    badgeEarned: 'Đạt được tháng {m} · {y}',
+    badgeHint7: 'Cần chuỗi 7 ngày liên tiếp',
+    badgeHint30: 'Cần chuỗi 30 ngày liên tiếp',
+    badgeHintBest14: 'Cần kỷ lục chuỗi 14 ngày',
+    badgeHintGoals100: 'Cần 100% mục tiêu tháng',
+    badgeHintHabit100: 'Cần mọi thói quen đạt mục tiêu',
+    badgeHintActive15: 'Cần điểm danh ít nhất 15 ngày trong tháng',
     shareTitle: 'Chia sẻ streak 🔥',
     shareNamePrompt: 'Tên hiển thị trên tấm ảnh (bỏ trống = "Tôi")?',
+    meName: 'Tôi',
     shareNoStreak: 'Tích thói quen hôm nay để có streak 🔥 rồi mới chia sẻ được nhé!',
     shareDone: 'Đã tải ảnh chia sẻ: taskflow-streak.png',
     shareFail: 'Không tạo được ảnh chia sẻ.',
@@ -580,17 +620,27 @@ const I18N = {
     fbTitle: 'Góp ý / phản hồi',
     fbForm: '📝 Góp ý qua Google Form',
     fbMail: '📧 Gửi email',
-    fbNoForm: 'Chưa có link Google Form — điền FB_FORM_URL trong js/app.js',
+    mailSubj: 'TaskFlow phản hồi',
+    fbNoForm: 'Chưa có link Google Form, điền FB_FORM_URL trong js/app.js',
     obGoalTitle: 'Mục tiêu số 1 của năm nay là gì?',
-    obGoalSub: 'Gợi ý nhanh — chọn một mục tiêu, hoặc tự gõ ở dưới:',
+    obGoalSub: 'Gợi ý nhanh: chọn một mục tiêu, hoặc tự gõ ở dưới:',
     obGoalPh: 'VD: Tiết kiệm 20 triệu',
     obNext: 'Tiếp tục →',
     obHabitTitle: '2 thói quen muốn xây dựng?',
-    obHabitSub: 'Mỗi ngày tích ✓ một ô — app tự tính %, streak 🔥 và heatmap.',
-    obHabitPh1: 'Thói quen 1 — VD: Dậy lúc 5H sáng',
-    obHabitPh2: 'Thói quen 2 — VD: Đọc sách 30 phút',
+    obHabitSub: 'Mỗi ngày tích ✓ một ô, app tự tính %, streak 🔥 và heatmap.',
+    obHabitPh1: 'Thói quen 1, VD: Dậy lúc 5H sáng',
+    obHabitPh2: 'Thói quen 2, VD: Đọc sách 30 phút',
     obThemeTitle: 'Chọn chủ đề màu cho kế hoạch',
     obThemeSub: 'Đổi bất cứ lúc nào bằng 4 chấm màu trên thanh trên.',
+    themeLbl: 'Chọn chủ đề màu',
+    themeCream: 'Chủ đề kem',
+    themeMint: 'Chủ đề bạc hà',
+    themeLavender: 'Chủ đề oải hương',
+    themePeach: 'Chủ đề đào',
+    langTitle: 'Đổi ngôn ngữ',
+    landTitle: 'Lên kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương</em>',
+    landSub: 'Chốt mục tiêu, điểm danh thói quen và ghi nhật ký reflection. Dữ liệu nằm ngay trong trình duyệt của bạn, miễn phí và riêng tư.',
+    landCta: 'Khám phá kế hoạch',
     obDone: 'Bắt đầu kế hoạch 🚀',
     obSkip: 'Bỏ qua phần giới thiệu',
     obSugg1: 'Tiết kiệm 20 triệu',
@@ -606,6 +656,8 @@ const I18N = {
     navMonths: 'Navigate months',
     prevMonth: 'Previous month',
     nextMonth: 'Next month',
+    prevYear: 'Previous year',
+    nextYear: 'Next year',
     selectMonth: 'Select month',
     navPlan: 'Plan navigation',
     resetTitle: 'Clear all saved data',
@@ -638,12 +690,17 @@ const I18N = {
     habitTitle: 'Habits',
     legendDone: 'Done',
     legendNotDone: 'Not yet',
+    statsDone: 'Completed',
+    statsInProg: 'In Progress',
+    statsTotal: 'Total',
+    yGoalsTitle: '{y} goals',
+    weekBanner: '🌸 Week goals & tasks',
     habitPh: 'New habit name...',
     habitNameAria: 'New habit name',
     addHabitTxt: '＋ Add habit',
     renameAria: 'Rename',
     delAria: 'Delete',
-    noHabits: 'No habits yet — add one 🐥',
+    noHabits: 'No habits yet, add one 🐥',
     habitCol: 'Habit',
     refTitle: 'Reflection',
     writeHere: 'Write here...',
@@ -668,7 +725,10 @@ const I18N = {
     hmMiniT: 'Last 14 days',
     yearTh: 'Year',
     curMonthTh: 'Current Month',
-    motto: '4 things you will never regret:<br>🌱 Live quietly · 📚 Live disciplined · 💼 Mind your own business · 💛 Love yourself',
+    monthTh: 'Month',
+    curWeekTh: 'Current Week',
+    weeklyProg: 'Weekly Progress',
+    motto: '4 things you will never regret:<br>🌱 Live quietly<br>📚 Live disciplined<br>💼 Mind your own business<br>💛 Love yourself',
     chicks12Aria: '12 little chicks',
     pullBtn: '📥 Pull goals from 12-month dashboard',
     yGoalPh: 'Type a goal...',
@@ -692,7 +752,7 @@ const I18N = {
     refQuarterAria: 'Quarter {n} reflection {m}',
     refYearAria: 'Year reflection {n}',
     refQuarters: 'Quarterly reflections',
-    weekRange: 'Today ({a}) is outside the plan range ({b} – {c})',
+    weekRange: 'Today ({a}) is outside the plan range ({b} - {c})',
     prevWeek: '‹ Previous week',
     nextWeek: 'Next week ›',
     priGoalsSub: 'Priority goals',
@@ -716,6 +776,7 @@ const I18N = {
     exportJson: '📤 Export JSON (backup)',
     importJson: '📥 Import JSON (restore)',
     exportCsv: '📊 Export CSV (Google Sheets)',
+    csvNote: 'Sheet split into sections, filter in Google Sheets',
     printTitle: 'Print / Save PDF',
     remindTitle: '🔔 Daily reminder',
     remindTimeLbl: 'Remind at',
@@ -727,7 +788,7 @@ const I18N = {
     remindDenied: 'Your browser blocks notifications. Allow them to get reminders.',
     remindBody: 'What goals did you complete today? Time to check in on your habits! 🐥',
     importConfirm: 'Importing will OVERWRITE your current data. Continue?',
-    importError: 'Invalid file — not a TaskFlow-Todoist backup.',
+    importError: 'Invalid file: not a TaskFlow-Todoist backup.',
     importOk: 'Data imported successfully! The page will reload.',
     rm0: 'What did I do well that I want to keep doing?',
     rm1: 'What is the most important lesson I learned?',
@@ -741,7 +802,7 @@ const I18N = {
     syncLogin: 'Sign in',
     syncSignup: 'Create account',
     syncLogout: 'Sign out',
-    syncStatusOff: 'Supabase not configured',
+    syncStatusOff: 'Cloud sync not configured',
     syncStatusConnecting: 'Connecting...',
     syncStatusSyncing: 'Syncing...',
     syncStatusReady: 'Synced ✓',
@@ -752,9 +813,9 @@ const I18N = {
     syncUserInvalid: 'Username: 3-30 characters (letters, numbers, _ . -)',
     syncPassShort: 'Password must be at least 6 characters',
     syncPassMismatch: 'Passwords do not match',
-    syncLoginErr: 'Sign in failed — check username/password',
+    syncLoginErr: 'Sign in failed, check username/password',
     syncSignupOk: 'Account created! Sync started automatically ✓',
-    syncSignupErr: 'Sign up failed — the username may already be taken.',
+    syncSignupErr: 'Sign up failed, the username may already be taken.',
     syncUserPh: 'Username',
     syncPassPh: 'Password',
     syncPass2Ph: 'Confirm password',
@@ -763,14 +824,43 @@ const I18N = {
     syncGoogle: 'Continue with Google',
     syncOr: 'or use an account',
     syncGoogleErr: 'Could not open Google. Check OAuth config on the backend (GOOGLE_CLIENT_ID/SECRET).',
-    syncNeedConfig: 'Backend not configured — fill in the API URL in js/api-config.js',
-    syncErrUsernameTaken: 'Username already taken — try another one.',
+    syncNeedConfig: 'Backend not configured, fill in the API URL in js/api-config.js',
+    syncErrUsernameTaken: 'Username already taken, try another one.',
     syncErrBadCredentials: 'Wrong username or password.',
-    syncErrNetwork: 'Cannot reach the server — check the URL in js/api-config.js.',
-    syncErrServer: 'Server error — please try again later.',
+    syncErrNetwork: 'Cannot reach the server, check the URL in js/api-config.js.',
+    syncErrServer: 'Server error, please try again later.',
     homeTitle: 'Back to the intro page',
+    installTitle: 'Install app',
+    targetAria: 'Target {n}% — adjust the days to reach each month',
+    copyHabitsTxt: 'Copy to next month',
+    copyHabitsDone: 'Copied {n} habits to next month (streak kept 🔥, ticks left blank).',
+    reportTitle: 'Monthly report',
+    reportGoalPct: 'Monthly goals',
+    reportGoalsDone: 'Goals done',
+    reportHabitAvg: 'Average habits',
+    reportTopHabit: 'Best streak',
+    reportRecord: 'Record',
+    reportActive: 'Active days',
+    reportShare: 'Share image',
+    reportCardTitle: 'Report {m} · {y}',
+    badgesTitle: 'Badges',
+    badge7: '🔥 7-day streak',
+    badge30: '🔥🔥 30-day streak',
+    badgeBest14: '🏆 14-day record',
+    badgeGoals100: '🎯 All monthly goals done',
+    badgeHabit100: '💯 Every habit on target',
+    badgeActive15: '📅 15 active days',
+    badgeNew: '🎖️ New badge: {b}!',
+    badgeEarned: 'Earned in {m} · {y}',
+    badgeHint7: 'Reach a 7-day streak',
+    badgeHint30: 'Reach a 30-day streak',
+    badgeHintBest14: 'Reach a 14-day best streak',
+    badgeHintGoals100: 'Complete 100% of monthly goals',
+    badgeHintHabit100: 'Get every habit to its target',
+    badgeHintActive15: 'Tick at least 15 days in a month',
     shareTitle: 'Share streak 🔥',
     shareNamePrompt: 'Name shown on the card (empty = "Me")?',
+    meName: 'Me',
     shareNoStreak: 'Tick a habit today to build a streak 🔥 before sharing!',
     shareDone: 'Saved share image: taskflow-streak.png',
     shareFail: 'Could not create share image.',
@@ -778,17 +868,27 @@ const I18N = {
     fbTitle: 'Feedback',
     fbForm: '📝 Feedback via Google Form',
     fbMail: '📧 Send email',
-    fbNoForm: 'No Google Form link yet — fill FB_FORM_URL in js/app.js',
+    mailSubj: 'TaskFlow feedback',
+    fbNoForm: 'No Google Form link yet, fill FB_FORM_URL in js/app.js',
     obGoalTitle: 'What is your #1 goal this year?',
-    obGoalSub: 'Quick picks — choose one, or type your own below:',
+    obGoalSub: 'Quick picks: choose one, or type your own below:',
     obGoalPh: 'e.g. Save 20 million VND',
     obNext: 'Continue →',
     obHabitTitle: '2 habits you want to build?',
-    obHabitSub: 'Tick ✓ one cell every day — app tracks %, streak 🔥 and heatmap.',
-    obHabitPh1: 'Habit 1 — e.g. Wake up at 5AM',
-    obHabitPh2: 'Habit 2 — e.g. Read 30 minutes',
+    obHabitSub: 'Tick ✓ one cell every day, app tracks %, streak 🔥 and heatmap.',
+    obHabitPh1: 'Habit 1, e.g. Wake up at 5AM',
+    obHabitPh2: 'Habit 2, e.g. Read 30 minutes',
     obThemeTitle: 'Pick a color theme',
     obThemeSub: 'Change anytime via the 4 color dots up top.',
+    themeLbl: 'Choose color theme',
+    themeCream: 'Cream theme',
+    themeMint: 'Mint theme',
+    themeLavender: 'Lavender theme',
+    themePeach: 'Peach theme',
+    langTitle: 'Switch language',
+    landTitle: 'Plan your year, month &amp; week <em>in an adorable way</em>',
+    landSub: 'Set goals, check off daily habits and keep a reflection journal. Your data lives right in your browser, free and private.',
+    landCta: 'Explore your plan',
     obDone: 'Start planning 🚀',
     obSkip: 'Skip intro',
     obSugg1: 'Save 20 million VND',
@@ -825,8 +925,10 @@ function dateLocale() { return LANG === 'vi' ? 'vi-VN' : 'en-GB'; }
 function applyStaticI18N() {
   document.documentElement.lang = LANG;
   document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach((el) => { el.innerHTML = t(el.dataset.i18nHtml); });
   document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
   document.querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
   const b = document.getElementById('langBtn');
   if (b) b.textContent = LANG === 'vi' ? 'EN' : 'VI';
 }
@@ -917,7 +1019,21 @@ function registerSW() {
   });
 }
 
-window.addEventListener('appinstalled', () => trackEvent('pwa_install'));
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const b = document.getElementById('btnInstall');
+  if (b) b.hidden = false;
+});
+
+window.addEventListener('appinstalled', () => {
+  trackEvent('pwa_install');
+  const b = document.getElementById('btnInstall');
+  if (b) b.hidden = true;
+  deferredPrompt = null;
+});
 
 /* ---------- Nhắc việc hằng ngày ---------- */
 
@@ -1027,7 +1143,7 @@ function exportCSV() {
   const rows = [];
   const push = (row) => rows.push(csvRow(row));
 
-  push(['TaskFlow-Todoist Export', new Date().toISOString(), 'Sheet chia nhỏ theo Section để lọc trong Google Sheets']);
+  push(['TaskFlow-Todoist Export', new Date().toISOString(), t('csvNote')]);
 
   push([]);
   push(['MonthlyGoals', 'Month', 'Kind', 'Text', 'Done']);
@@ -1250,6 +1366,8 @@ function loadState() {
       const today = Math.min(now.getDate(), NUM_DAYS);
       let dirty = false;
       s.habits.forEach((h) => {
+        // Migration: habit cũ thiếu mục tiêu (target) → mặc định 100% số ngày.
+        if (typeof h.target !== 'number' || h.target < 1) h.target = 100;
         if (Array.isArray(h.days)) {
           for (let d = today; d < h.days.length; d++) {
             if (h.days[d]) { h.days[d] = false; dirty = true; }
@@ -1317,7 +1435,7 @@ function emptyState() {
 
 function emptyYearState() {
   return {
-    year: new Date().getFullYear(),
+    year: PLAN_YEAR,
     goals: [],
     reflections: {
       year: ['', '', '', ''],
@@ -1352,10 +1470,7 @@ function save() {
 
 function habitPct(h) {
   const days = Array.isArray(h.days) ? h.days : [];
-  const total = habitDaysElapsed();
-  if (!total) return 0;
-  const done = days.slice(0, total).filter(Boolean).length;
-  return Math.round((done / total) * 100);
+  return window.PlanMath ? window.PlanMath.habitPctFrom(days, habitDaysElapsed(), h.target) : 0;
 }
 function dayPct(day) {
   return Math.round((day.tasks.filter((t) => t.done).length / day.tasks.length) * 100);
@@ -1425,6 +1540,7 @@ function reflectionHTML(key, prompts) {
 function renderOverview() {
   const el = document.getElementById('ov-content');
   const ms = monthlyStats();
+  evaluateMonthBadges();
   el.innerHTML = `
     <div class="ov-top">
       ${dateCardHTML()}
@@ -1434,6 +1550,7 @@ function renderOverview() {
     ${goalsPanelHTML(ms)}
     ${habitPanelHTML()}
     ${habitHeatCardHTML()}
+    ${badgePanelHTML()}
   `;
 }
 
@@ -1442,9 +1559,9 @@ function dateCardHTML() {
     <div class="chick-orn orn-l" aria-hidden="true">🐥<span class="mini">🎧</span></div>
     <div class="chick-orn orn-r" aria-hidden="true">🐥<span class="mini">🎧</span></div>
     <table class="info-table">
-      <tr><th>Month</th><td>${PLAN_MONTH + 1}</td></tr>
-      <tr><th>Year</th><td>${PLAN_YEAR}</td></tr>
-      <tr><th>Current Week</th><td>
+      <tr><th>${t('monthTh')}</th><td>${PLAN_MONTH + 1}</td></tr>
+      <tr><th>${t('yearTh')}</th><td>${PLAN_YEAR}</td></tr>
+      <tr><th>${t('curWeekTh')}</th><td>
         <select class="week-select" data-action="weekselect" aria-label="${t('selWeekAria')}">
           ${state.weeks.map((w) => `<option value="${w.n}" ${w.n === state.currentWeek ? 'selected' : ''}>${t('weekN', { n: w.n })}</option>`).join('')}
         </select>
@@ -1457,7 +1574,7 @@ function weeklyChartHTML() {
   const levels = [100, 75, 50, 25, 0];
   const curWeek = nowInfo().week;
   return `<div class="card chart-card">
-    <h3 class="card-title">Weekly Progress</h3>
+    <h3 class="card-title">${t('weeklyProg')}</h3>
     <div class="chart-wrap">
       <div class="chart-grid" aria-hidden="true">
         ${levels.map((l) => `<span class="gl" style="bottom:${l}%">${l}%</span><span class="gl-line" style="bottom:${l}%"></span>`).join('')}
@@ -1525,7 +1642,7 @@ function goalsPanelHTML(ms) {
         <div class="big-pct" data-role="big-pct">${pct}%</div>
         <h3 class="card-title">${t('goalsTitle')}</h3>
         <table class="stats-table">
-          <tr><th>Completed</th><th>In Progress</th><th>Total</th></tr>
+          <tr><th>${t('statsDone')}</th><th>${t('statsInProg')}</th><th>${t('statsTotal')}</th></tr>
           <tr data-role="ov-stats"><td>${ms.done}</td><td>${ms.inProg}</td><td>${ms.total}</td></tr>
         </table>
       </div>
@@ -1599,6 +1716,7 @@ function habitPanelHTML() {
     <div class="habit-add-row">
       <input class="inline-input habit-name-input" data-role="habit-name-input" placeholder="${t('habitPh')}" aria-label="${t('habitNameAria')}" maxlength="60" />
       <button type="button" class="mini-btn add-btn" data-action="addhabit" title="${t('addHabitTxt')}">${t('addHabitTxt')}</button>
+      <button type="button" class="mini-btn" data-action="copyhabits" title="${t('copyHabitsTxt')}">🗓️ ${t('copyHabitsTxt')}</button>
     </div>
     <div class="habit-layout">
       <div class="habit-table-wrap">
@@ -1622,6 +1740,7 @@ function habitPanelHTML() {
                 <td class="sticky name-col"><span class="habit-name-cell">
                   <span class="habit-name-text" data-id="${h.id}" title="${esc(h.name)}">${esc(h.name)}</span>
                   <span class="item-actions">
+                    <button type="button" class="mini-btn" data-action="targetedit" data-id="${h.id}" title="${t('targetAria', { n: h.target || 100 })}" aria-label="${t('targetAria', { n: h.target || 100 })}">🎯</button>
                     <button type="button" class="mini-btn" data-action="edithabit" data-id="${h.id}" title="${t('renameAria')}" aria-label="${t('renameAria')}">✏️</button>
                     <button type="button" class="mini-btn" data-action="delhabit" data-id="${h.id}" title="${t('delAria')}" aria-label="${t('delAria')}">🗑</button>
                   </span>
@@ -1900,6 +2019,7 @@ function habitHeatCardHTML() {
       <h3 class="card-title">${t('hmTitle')}</h3>
       ${weekCompareHTML()}
       <button type="button" class="pop-btn share-btn" data-action="share-streak">${t('shareTitle')}</button>
+      <button type="button" class="pop-btn share-btn" data-action="report" title="${t('reportTitle')}">📊 ${t('reportTitle')}</button>
     </div>
     ${heatHeroHTML()}
     ${heatRibbonHTML()}
@@ -2032,7 +2152,7 @@ async function doShareStreak() {
   if (!top || top.s.cur === 0) { alert(t('shareNoStreak')); return; }
   let name = localStorage.getItem('planner-name');
   if (!name) {
-    name = (prompt(t('shareNamePrompt')) || '').trim() || 'Tôi';
+    name = (prompt(t('shareNamePrompt')) || '').trim() || t('meName');
     try { localStorage.setItem('planner-name', name); } catch (e) { /* ẩn */ }
   }
   try {
@@ -2043,7 +2163,7 @@ async function doShareStreak() {
         await navigator.share({
           files: [file],
           title: 'TaskFlow-Todoist 🐥',
-          text: '🔥 ' + top.s.cur + ' ' + t('hmHeroDays') + ' — ' + top.h.name,
+          text: '🔥 ' + top.s.cur + ' ' + t('hmHeroDays') + ' · ' + top.h.name,
         });
         trackEvent('share_streak', { days: top.s.cur, via: 'native' });
         return;
@@ -2063,6 +2183,248 @@ async function doShareStreak() {
   } catch (e) {
     alert(t('shareFail'));
   }
+}
+
+/* ---------- Báo cáo tháng 📊 ---------- */
+function monthlyReportData() {
+  const ms = monthlyStats();
+  const pcts = state.habits.map((h) => habitPct(h));
+  const habitAvg = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
+  let top = null, rec = null;
+  state.habits.forEach((h) => {
+    const s = habitStreakCached(h);
+    if (!top || s.cur > top.s.cur) top = { h, s };
+    if (!rec || s.best > rec.s.best) rec = { h, s };
+  });
+  let activeDays = 0;
+  for (let d = 0; d < NUM_DAYS; d++) if (dayAggregate(d) > 0) activeDays++;
+  return {
+    y: PLAN_YEAR, m: PLAN_MONTH,
+    goalPct: ms.pct, goalDone: ms.done, goalTotal: ms.total,
+    habitAvg, top, rec, activeDays, numDays: NUM_DAYS,
+    weekPcts: state.weeks.map((w) => weekStats(w).pct),
+  };
+}
+
+function renderReportModal() {
+  const el = document.getElementById('reportContent');
+  if (!el) return;
+  const r = monthlyReportData();
+  const topName = r.top ? esc(r.top.h.name) : '—';
+  const recName = r.rec ? esc(r.rec.h.name) : '—';
+  el.innerHTML = `
+    <div class="report-head">
+      <div class="donut-wrap"><div class="donut">${donutSVG(r.goalPct, 96, 12, '#C24E28')}</div>
+        <div class="donut-center"><span>${r.goalPct}%</span><small>${t('reportGoalPct')}</small></div>
+      </div>
+    </div>
+    <div class="report-grid">
+      <div class="report-cell"><b>${r.habitAvg}%</b><span>${t('reportHabitAvg')}</span></div>
+      <div class="report-cell"><b>${r.goalDone}/${r.goalTotal}</b><span>${t('reportGoalsDone')}</span></div>
+      <div class="report-cell"><b>🔥 ${r.top ? r.top.s.cur : 0}</b><span>${t('reportTopHabit')} · ${topName}</span></div>
+      <div class="report-cell"><b>🏆 ${r.rec ? r.rec.s.best : 0}</b><span>${t('reportRecord')} · ${recName}</span></div>
+      <div class="report-cell"><b>${r.activeDays}/${r.numDays}</b><span>${t('reportActive')}</span></div>
+    </div>
+    <div class="report-weekbars" aria-hidden="true">${r.weekPcts.map((p) => `<div class="rw-bar" style="height:${Math.max(p, 4)}%"></div>`).join('')}</div>`;
+}
+
+function openReportModal() {
+  const m = document.getElementById('reportModal');
+  if (!m) return;
+  renderReportModal();
+  m.hidden = false;
+}
+
+function closeReportModal() {
+  const m = document.getElementById('reportModal');
+  if (m) m.hidden = true;
+}
+
+// Tạo ảnh báo cáo 1080×1080 (style streak card) để chia sẻ.
+function reportCardBlob(r) {
+  return new Promise((resolve, reject) => {
+    try {
+      const W = 1080, H = 1080;
+      const c = document.createElement('canvas');
+      c.width = W;
+      c.height = H;
+      const g = c.getContext('2d');
+
+      const grad = g.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, '#FFF6EA');
+      grad.addColorStop(0.55, '#FDEBD7');
+      grad.addColorStop(1, '#F8DCC0');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, W, H);
+
+      g.fillStyle = 'rgba(255,255,255,.5)';
+      canvasCircle(g, W - 110, 130, 170);
+      canvasCircle(g, 40, H - 150, 230);
+      g.fillStyle = 'rgba(194,78,40,.05)';
+      canvasCircle(g, W - 190, H - 220, 130);
+
+      g.textAlign = 'center';
+      g.fillStyle = '#4A403A';
+      g.font = "700 36px 'Baloo 2','Fredoka','Nunito',sans-serif";
+      g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 42px 'Baloo 2','Nunito',sans-serif";
+      g.fillText(t('reportCardTitle', { m: monthLabel(r.m), y: r.y }), W / 2, 158);
+
+      g.fillStyle = '#C24E28';
+      g.font = "800 120px 'Baloo 2','Fredoka',sans-serif";
+      g.fillText(r.goalPct + '%', W / 2, 300);
+      g.fillStyle = '#4A403A';
+      g.font = "700 40px 'Baloo 2','Nunito',sans-serif";
+      g.fillText(t('reportGoalPct') + ' · ' + r.goalDone + '/' + r.goalTotal, W / 2, 352);
+
+      const rows = [
+        [t('reportHabitAvg'), r.habitAvg + '%'],
+        [t('reportTopHabit'), r.top ? '🔥 ' + r.top.s.cur + ' · ' + r.top.h.name : '—'],
+        [t('reportRecord'), r.rec ? '🏆 ' + r.rec.s.best + ' · ' + r.rec.h.name : '—'],
+        [t('reportActive'), r.activeDays + '/' + r.numDays],
+      ];
+      g.font = "700 34px 'Nunito','Quicksand',sans-serif";
+      rows.forEach((row, i) => {
+        const y = 430 + i * 74;
+        const pw = g.measureText(row[0] + '  ' + row[1]).width + 56, ph = 58;
+        g.fillStyle = 'rgba(255,253,248,.85)';
+        g.beginPath();
+        if (g.roundRect) g.roundRect(W / 2 - pw / 2, y - ph + 16, pw, ph, 29);
+        else g.rect(W / 2 - pw / 2, y - ph + 16, pw, ph);
+        g.fill();
+        g.fillStyle = '#8A7A6B';
+        g.textAlign = 'left';
+        g.fillText(row[0], W / 2 - pw / 2 + 28, y + 4);
+        g.fillStyle = '#C24E28';
+        g.textAlign = 'right';
+        g.fillText(row[1], W / 2 + pw / 2 - 28, y + 4);
+        g.textAlign = 'center';
+      });
+
+      g.fillStyle = '#8A7A6B';
+      g.font = "700 30px 'Nunito','Quicksand',sans-serif";
+      g.fillText(t('shareFooter'), W / 2, H - 70);
+
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
+    } catch (e) { reject(e); }
+  });
+}
+
+async function doShareReport() {
+  const r = monthlyReportData();
+  let name = localStorage.getItem('planner-name');
+  if (!name) {
+    name = (prompt(t('shareNamePrompt')) || '').trim() || t('meName');
+    try { localStorage.setItem('planner-name', name); } catch (e) { /* ẩn */ }
+  }
+  try {
+    const blob = await reportCardBlob(r);
+    const file = new File([blob], 'taskflow-report.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'TaskFlow-Todoist 🐥',
+          text: '📊 ' + t('reportCardTitle', { m: monthLabel(r.m), y: r.y }) + ' · ' + r.goalPct + '%',
+        });
+        trackEvent('share_report', { goalPct: r.goalPct, via: 'native' });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        trackEvent('share_report', { goalPct: r.goalPct, via: 'fallback' });
+      }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'taskflow-report.png';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+    trackEvent('share_report', { goalPct: r.goalPct, via: 'download' });
+    alert(t('shareDone'));
+  } catch (e) {
+    alert(t('shareFail'));
+  }
+}
+
+/* ---------- Huy hiệu 🎖️ ---------- */
+const BADGES_KEY = 'planner-badges';
+const BADGE_DEFS = [
+  { id: 'b7', icon: '🔥', nameKey: 'badge7', hintKey: 'badgeHint7' },
+  { id: 'b30', icon: '🔥🔥', nameKey: 'badge30', hintKey: 'badgeHint30' },
+  { id: 'best14', icon: '🏆', nameKey: 'badgeBest14', hintKey: 'badgeHintBest14' },
+  { id: 'goals100', icon: '🎯', nameKey: 'badgeGoals100', hintKey: 'badgeHintGoals100' },
+  { id: 'habit100', icon: '💯', nameKey: 'badgeHabit100', hintKey: 'badgeHintHabit100' },
+  { id: 'active15', icon: '📅', nameKey: 'badgeActive15', hintKey: 'badgeHintActive15' },
+];
+
+function loadBadges() {
+  try {
+    const raw = localStorage.getItem(BADGES_KEY);
+    const b = raw ? JSON.parse(raw) : null;
+    return b && typeof b.earned === 'object' ? b : { earned: {} };
+  } catch (e) { return { earned: {} }; }
+}
+
+function saveBadges(badges) {
+  try { localStorage.setItem(BADGES_KEY, JSON.stringify(badges)); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push(BADGES_KEY);
+}
+
+let badgesStore = loadBadges();
+
+function countActiveDays() {
+  let n = 0;
+  for (let d = 0; d < NUM_DAYS; d++) if (dayAggregate(d) > 0) n++;
+  return n;
+}
+
+// Trao huy hiệu mới khi đang xem tháng hiện tại; trả về số badge vừa mở.
+function evaluateMonthBadges() {
+  const now = new Date();
+  if (now.getFullYear() !== PLAN_YEAR || now.getMonth() !== PLAN_MONTH) return 0;
+  const streaks = {};
+  state.habits.forEach((h) => { streaks[h.id] = habitStreakCached(h); });
+  const ms = monthlyStats();
+  const earned = window.PlanMath ? window.PlanMath.evaluateBadges({
+    streaks,
+    goalPct: ms.pct,
+    goalTotal: ms.total,
+    habitPcts: state.habits.map((h) => habitPct(h)),
+    activeDays: countActiveDays(),
+  }) : [];
+  let fresh = 0;
+  earned.forEach((id) => {
+    if (badgesStore.earned[id]) return;
+    badgesStore.earned[id] = { t: Date.now(), y: PLAN_YEAR, m: PLAN_MONTH };
+    fresh++;
+    trackEvent('award_badge', { badge: id });
+    const def = BADGE_DEFS.find((x) => x.id === id);
+    alert(t('badgeNew', { b: def ? t(def.nameKey) : id }));
+  });
+  if (fresh) saveBadges(badgesStore);
+  return fresh;
+}
+
+function badgePanelHTML() {
+  return `<div class="card badge-card">
+    <div class="badge-head">
+      <h3 class="card-title">🎖️ ${t('badgesTitle')}</h3>
+    </div>
+    <div class="badge-grid">
+      ${BADGE_DEFS.map((d) => {
+        const e = badgesStore.earned[d.id];
+        const cls = e ? '' : ' locked';
+        const title = e ? t('badgeEarned', { m: monthLabel(e.m), y: e.y }) : t(d.hintKey);
+        return `<span class="badge-item${cls}" title="${title}" aria-label="${title}">
+          <span class="badge-icon" aria-hidden="true">${d.icon}</span>
+          <span class="badge-name">${t(d.nameKey)}</span>
+          ${e ? `<span class="badge-when">${monthLabel(e.m)} ${e.y}</span>` : ''}
+        </span>`;
+      }).join('')}
+    </div>
+  </div>`;
 }
 
 function refreshHeatCard() {
@@ -2140,7 +2502,7 @@ function removeGoal(id) {
 function addHabit(name) {
   name = (name || '').trim();
   if (!name) return false;
-  state.habits.push({ id: 'h' + Date.now(), name, days: Array.from({ length: NUM_DAYS }, () => false) });
+  state.habits.push({ id: 'h' + Date.now(), name, target: 100, days: Array.from({ length: NUM_DAYS }, () => false) });
   renderOverview();
   save();
   trackEvent('create_habit');
@@ -2153,6 +2515,57 @@ function removeHabit(id) {
   state.habits = state.habits.filter((x) => x.id !== id);
   renderOverview();
   save();
+}
+
+// Sao chép habit (tên + target, GIỮ id) sang tháng sau để streak nối xuyên tháng; không copy ô tick.
+function copyHabitsToNextMonth() {
+  const nm = window.PlanMath ? window.PlanMath.nextMonth(PLAN_YEAR, PLAN_MONTH) : { y: PLAN_YEAR, m: PLAN_MONTH + 1 };
+  const y = nm.y, m = nm.m;
+  let s = loadMonthStateOrCreate(y, m);
+  if (!Array.isArray(s.habits)) s.habits = [];
+  const freshDays = Array.from({ length: new Date(y, m + 1, 0).getDate() }, () => false);
+  let n = 0;
+  state.habits.forEach((h) => {
+    const old = habitInMonthState(s, h);
+    const next = { id: h.id, name: h.name, target: typeof h.target === 'number' && h.target >= 1 ? h.target : 100, days: freshDays.slice() };
+    if (old) s.habits[s.habits.indexOf(old)] = next;
+    else s.habits.push(next);
+    n++;
+  });
+  saveMonthState(y, m, s);
+  invalidateYearCache();
+  trackEvent('copy_habits', { n });
+  if (n) alert(t('copyHabitsDone', { n }));
+  return n;
+}
+
+function beginTargetEdit(btn) {
+  const id = btn.dataset.id;
+  const cell = btn.closest('.habit-name-cell');
+  const h = state.habits.find((x) => x.id === id);
+  if (!cell || !h) return;
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.className = 'inline-input target-input';
+  input.min = '1';
+  input.max = '100';
+  input.value = h.target || 100;
+  const span = cell.querySelector('.habit-name-text');
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const v = Math.min(100, Math.max(1, parseInt(input.value, 10) || 100));
+    h.target = v;
+    renderOverview();
+    save();
+    trackEvent('edit_habit_target', { target: v });
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { renderOverview(); }
+  });
+  input.addEventListener('blur', commit);
 }
 
 function refreshHabitLabels(h) {
@@ -2227,7 +2640,7 @@ function yearCardHTML() {
     <div class="chick-orn orn-l" aria-hidden="true">🐥<span class="mini">🎧</span></div>
     <div class="chick-orn orn-r" aria-hidden="true">🐥<span class="mini">🎧</span></div>
     <table class="info-table">
-      <tr><th>Year</th><td>${now.getFullYear()}</td></tr>
+      <tr><th>${t('yearTh')}</th><td>${PLAN_YEAR}</td></tr>
       <tr><th>${t('curMonthTh')}</th><td>${now.getMonth() + 1}</td></tr>
     </table>
     <p class="year-motto">${t('motto')}</p>
@@ -2238,7 +2651,7 @@ function yearCardHTML() {
 }
 
 function yearGoalsCardHTML(gs) {
-  const y = new Date().getFullYear();
+  const y = PLAN_YEAR;
   const pri = yearState.goals.filter((g) => g.kind === 'priority');
   const reg = yearState.goals.filter((g) => g.kind === 'regular');
   return `<div class="card year-goals-card">
@@ -2246,9 +2659,9 @@ function yearGoalsCardHTML(gs) {
       <div class="goals-info sub">
         <div class="peek-chick" aria-hidden="true">🐥<span class="mini">📷</span></div>
         <div class="big-pct" data-role="year-big-pct">${gs.pct}%</div>
-        <h3 class="card-title">${y} Goals</h3>
+        <h3 class="card-title">${t('yGoalsTitle', { y })}</h3>
         <table class="stats-table">
-          <tr><th>Completed</th><th>In Progress</th><th>Total</th></tr>
+          <tr><th>${t('statsDone')}</th><th>${t('statsInProg')}</th><th>${t('statsTotal')}</th></tr>
           <tr data-role="year-stats"><td>${gs.done}</td><td>${gs.inProg}</td><td>${gs.total}</td></tr>
         </table>
         <button type="button" class="ydata-btn" data-action="pullyear" title="${t('pullBtn')}">${t('pullBtn')}</button>
@@ -2262,7 +2675,7 @@ function yearGoalsCardHTML(gs) {
       <div class="goal-list sub">
         <div class="goal-group-dual">
           <div class="goal-block">
-            <div class="v-strip pink"><span>Priority</span></div>
+            <div class="v-strip pink"><span>${t('priLbl')}</span></div>
             <ul class="goal-items">
               ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">
                 ${checkboxHTML('pink', g.done, `data-action="ygoal" data-id="${g.id}"`)}
@@ -2273,7 +2686,7 @@ function yearGoalsCardHTML(gs) {
             </ul>
           </div>
           <div class="goal-block">
-            <div class="v-strip blue"><span>Regular</span></div>
+            <div class="v-strip blue"><span>${t('regLbl')}</span></div>
             <ul class="goal-items">
               ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">
                 ${checkboxHTML('blue', g.done, `data-action="ygoal" data-id="${g.id}"`)}
@@ -2345,18 +2758,18 @@ function yearQuartersHTML() {
             <div class="donut-center"><span>${q.pct}%</span></div>
           </div></div>
           <table class="stats-table">
-            <tr><th>Completed</th><th>In Progress</th><th>Total</th></tr>
+            <tr><th>${t('statsDone')}</th><th>${t('statsInProg')}</th><th>${t('statsTotal')}</th></tr>
             <tr><td>${q.done}</td><td>${q.inProg}</td><td>${q.total}</td></tr>
           </table>
           <div class="q-lists">
             <div class="q-block">
-              <div class="v-strip pink"><span>Priority</span></div>
+              <div class="v-strip pink"><span>${t('priLbl')}</span></div>
               <ul class="goal-items q-items">
                 ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('pink', g.done, `data-action="qgoal" data-q="${i}" data-key="${esc(g.kind + '|' + g.text)}"`)}<span class="g-text">${esc(g.text)}</span></li>`).join('')}
               </ul>
             </div>
             <div class="q-block">
-              <div class="v-strip blue"><span>Regular</span></div>
+              <div class="v-strip blue"><span>${t('regLbl')}</span></div>
               <ul class="goal-items q-items">
                 ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('blue', g.done, `data-action="qgoal" data-q="${i}" data-key="${esc(g.kind + '|' + g.text)}"`)}<span class="g-text">${esc(g.text)}</span></li>`).join('')}
               </ul>
@@ -2391,14 +2804,14 @@ function yearMonthsHTML() {
           <div class="ym-bar-wrap"><div class="ym-bar" style="height:${Math.max(p, 4)}%"></div></div>
           <div class="ym-lists">
             <div class="ym-block">
-              <div class="v-strip pink"><span>Priority</span></div>
+              <div class="v-strip pink"><span>${t('priLbl')}</span></div>
               <ul class="goal-items ym-items">
                 ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('pink', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`)}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button></li>`).join('')}
                 <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="ym" data-month="${m}" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">＋</button></li>
               </ul>
             </div>
             <div class="ym-block">
-              <div class="v-strip blue"><span>Regular</span></div>
+              <div class="v-strip blue"><span>${t('regLbl')}</span></div>
               <ul class="goal-items ym-items">
                 ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('blue', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`)}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button></li>`).join('')}
                 <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="ym" data-month="${m}" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">＋</button></li>
@@ -2442,19 +2855,19 @@ function renderWeek() {
   const ti = nowInfo();
   el.innerHTML = `
     <div class="week-banner">
-      <h2>🌸 Week Goals &amp; Tasks 🌸</h2>
+      <h2>${t('weekBanner')}</h2>
       ${ti.inRange ? '' : `<p class="week-range-note">${t('weekRange', { a: fmtDate(ti.now), b: fmtDate(PLAN_START), c: fmtDate(PLAN_END) })}</p>`}
     </div>
     <div class="week-head">
       <div class="card week-title-card">
         <div class="w-top-bar">
           <div class="w-bar-fill" data-role="w-bar-fill" style="width:${st.pct}%"></div>
-          <span class="w-chick-on-bar" aria-hidden="true">🐥<span class="gun">🔫</span></span>
+          <span class="w-chick-on-bar" aria-hidden="true">🐥<span class="gun">⭐</span></span>
           <span class="week-pct-text" data-role="w-badge">${st.pct}%</span>
         </div>
         <h2 class="card-title">${t('weekN', { n: w.n })}</h2>
         <table class="stats-table">
-          <tr><th>Completed</th><th>In Progress</th><th>Total</th></tr>
+          <tr><th>${t('statsDone')}</th><th>${t('statsInProg')}</th><th>${t('statsTotal')}</th></tr>
           <tr data-role="w-stats"><td>${st.done}</td><td>${st.inProg}</td><td>${st.total}</td></tr>
         </table>
         <div class="week-nav">
@@ -2481,7 +2894,7 @@ function weeklyGoalsHTML(w) {
   const reg = w.goals.map((g, gi) => ({ g, gi })).filter((x) => x.g.kind === 'regular');
   return `<div class="legend-groups">
       <div class="legend-col">
-        <div class="v-strip pink"><span>Priority</span></div>
+        <div class="v-strip pink"><span>${t('priLbl')}</span></div>
         <div class="legend-goals">
           <span class="section-sub-title">${t('priGoalsSub')}</span>
           ${pri.map(({ g, gi }) => `<div class="legend-goal">
@@ -2493,7 +2906,7 @@ function weeklyGoalsHTML(w) {
         </div>
       </div>
       <div class="legend-col">
-        <div class="v-strip blue"><span>Regular</span></div>
+        <div class="v-strip blue"><span>${t('regLbl')}</span></div>
         <div class="legend-goals">
           <span class="section-sub-title">${t('regGoalsSub')}</span>
           ${reg.map(({ g, gi }) => `<div class="legend-goal">
@@ -2529,7 +2942,7 @@ function dayColumnHTML(w, di, isToday) {
     </div>
     <div class="day-tasks">
       <div class="task-group">
-        <div class="v-strip pink"><span>Priority</span></div>
+        <div class="v-strip pink"><span>${t('priLbl')}</span></div>
         <div class="task-rows">
           <span class="task-sub-head">${t('taskPriSub')}</span>
           ${pri.map(({ t, ti }) => taskRowHTML(w.n, di, ti, 'pink', t)).join('')}
@@ -2537,7 +2950,7 @@ function dayColumnHTML(w, di, isToday) {
         </div>
       </div>
       <div class="task-group">
-        <div class="v-strip blue"><span>Regular</span></div>
+        <div class="v-strip blue"><span>${t('regLbl')}</span></div>
         <div class="task-rows">
           <span class="task-sub-head">${t('taskRegSub')}</span>
           ${reg.map(({ t, ti }) => taskRowHTML(w.n, di, ti, 'blue', t)).join('')}
@@ -2567,7 +2980,7 @@ function buildNav() {
   const nav = document.getElementById('navTabs');
   nav.innerHTML = `
     <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="view-overview" data-action="nav" data-view="overview">${t('tabOverview')}</button>
-    <button type="button" class="tab" role="tab" id="tab-year" aria-controls="view-year" data-action="nav" data-view="year">${t('tabYear', { y: new Date().getFullYear() })}</button>
+    <button type="button" class="tab" role="tab" id="tab-year" aria-controls="view-year" data-action="nav" data-view="year">${t('tabYear', { y: PLAN_YEAR })}</button>
     ${state.weeks.map((w) => `<button type="button" class="tab" role="tab" id="tab-week-${w.n}" aria-controls="view-week" data-action="nav" data-view="week" data-week="${w.n}">${t('weekN', { n: w.n })}</button>`).join('')}
   `;
 }
@@ -2588,11 +3001,6 @@ function setView(view, week) {
   ov.classList.toggle('active', view === 'overview');
   wk.classList.toggle('active', view === 'week');
   yr.classList.toggle('active', view === 'year');
-  const video = ov ? ov.querySelector('.landing-video') : null;
-  if (video) {
-    if (view === 'overview') { video.play().catch(() => { /* autoplay bị chặn */ }); }
-    else video.pause();
-  }
   if (view === 'overview') {
     ov.setAttribute('aria-labelledby', 'tab-overview');
     renderOverview();
@@ -2610,12 +3018,29 @@ function goWeek(v) {
   setView('week', n);
 }
 function openMonth(m) {
+  // Wrap qua biên năm: tháng 1 −1 → tháng 12 năm trước; tháng 12 +1 → tháng 1 năm sau.
+  const nm = window.PlanMath ? (m < 0 ? window.PlanMath.prevMonth(PLAN_YEAR, 0) : m > 11 ? window.PlanMath.nextMonth(PLAN_YEAR, 11) : null) : null;
+  if (nm) { m = nm.m; PLAN_YEAR = nm.y; }
   if (m < 0 || m > 11) return;
   const now = new Date();
   if (m === now.getMonth() && PLAN_YEAR === now.getFullYear()) viewedMonth = null;
   else viewedMonth = m;
   initPlan(new Date(PLAN_YEAR, m, 1));
   state = bootState();
+  yearState = bootYearState();
+  state.view = 'overview';
+  updateBrand();
+  updateNowBtn();
+  buildNav();
+  setView('overview', state.currentWeek);
+}
+function openYear(dy) {
+  const y = PLAN_YEAR + dy;
+  if (y < 2000 || y > 2099) return;
+  PLAN_YEAR = y;
+  initPlan(new Date(PLAN_YEAR, PLAN_MONTH, 1));
+  state = bootState();
+  yearState = bootYearState();
   state.view = 'overview';
   updateBrand();
   updateNowBtn();
@@ -2641,6 +3066,8 @@ document.addEventListener('click', (e) => {
     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else if (act === 'prevmonth') openMonth(PLAN_MONTH - 1);
   else if (act === 'nextmonth') openMonth(PLAN_MONTH + 1);
+  else if (act === 'prevyear') openYear(-1);
+  else if (act === 'nextyear') openYear(1);
   else if (act === 'prev') goWeek(state.currentWeek - 1);
   else if (act === 'next') goWeek(state.currentWeek + 1);
   else if (act === 'weekbar') goWeek(+el.dataset.week);
@@ -2740,6 +3167,8 @@ document.addEventListener('click', (e) => {
     }
   } else if (act === 'editgoal' || act === 'edithabit') {
     beginInlineEdit(el);
+  } else if (act === 'targetedit') {
+    beginTargetEdit(el);
   } else if (act === 'addhabit') {
     const ni = document.querySelector('[data-role="habit-name-input"]');
     if (ni && addHabit(ni.value)) {
@@ -2748,10 +3177,18 @@ document.addEventListener('click', (e) => {
     }
   } else if (act === 'delhabit') {
     removeHabit(el.dataset.id);
+  } else if (act === 'copyhabits') {
+    copyHabitsToNextMonth();
   } else if (act === 'sync-toggle') {
     toggleSyncModal();
   } else if (act === 'sync-close') {
     closeSyncModal();
+  } else if (act === 'report') {
+    openReportModal();
+  } else if (act === 'close-report') {
+    closeReportModal();
+  } else if (act === 'share-report') {
+    doShareReport();
   } else if (act === 'sync-toggle-mode') {
     setSyncMode(syncMode === 'signup' ? 'login' : 'signup');
   } else if (act === 'sync-google') {
@@ -2785,6 +3222,16 @@ document.addEventListener('click', (e) => {
   } else if (act === 'print') {
     trackEvent('print');
     window.print();
+  } else if (act === 'install-app') {
+    const b = document.getElementById('btnInstall');
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choice) => {
+        trackEvent('pwa_prompt', { outcome: choice.outcome });
+        if (b) b.hidden = true;
+        deferredPrompt = null;
+      });
+    }
   } else if (act === 'share-streak') {
     doShareStreak();
   } else if (act === 'fb-toggle') {
@@ -2798,7 +3245,7 @@ document.addEventListener('click', (e) => {
     togglePop('fbPop');
     trackEvent('feedback_click', { kind: 'mail' });
     if (!FB_EMAIL) { alert(t('fbNoForm')); return; }
-    location.href = 'mailto:' + FB_EMAIL + '?subject=' + encodeURIComponent('TaskFlow phản hồi');
+    location.href = 'mailto:' + FB_EMAIL + '?subject=' + encodeURIComponent(t('mailSubj'));
   } else if (act === 'ob-goal') {
     trackEvent('onboarding_goal');
     obDoGoal();
@@ -3088,7 +3535,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('focus', syncNow);
 
-/* ============================ Đồng bộ đám mây (Supabase) ============================ */
+/* ============================ Đồng bộ đám mây ============================ */
 
 function syncStatusText(s) {
   switch (s) {
@@ -3112,7 +3559,7 @@ function updateSyncStatus() {
   const btn = document.getElementById('syncBtn');
   if (btn) {
     btn.dataset.status = s;
-    btn.title = t('syncTitle') + ' — ' + syncStatusText(s);
+    btn.title = t('syncTitle') + ' - ' + syncStatusText(s);
   }
   const lo = document.getElementById('syncLogoutBtn');
   if (lo) lo.hidden = (s !== 'ready' && s !== 'syncing' && s !== 'connecting');
@@ -3137,11 +3584,15 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     const m = document.getElementById('syncModal');
     if (m && !m.hidden) m.hidden = true;
+    const r = document.getElementById('reportModal');
+    if (r && !r.hidden) r.hidden = true;
   }
 });
 document.addEventListener('click', (e) => {
   const m = document.getElementById('syncModal');
   if (m && !m.hidden && e.target === m) m.hidden = true;
+  const r = document.getElementById('reportModal');
+  if (r && !r.hidden && e.target === r) r.hidden = true;
 });
 
 function syncFormValues() {
@@ -3365,6 +3816,21 @@ lastDayKey = ti0.now.toDateString();
 // QUAN TRỌNG: quyết định onboarding TRƯỚC khi bất kỳ save() nào chạy
 // (setView() dưới đây gọi save() → sẽ ghi default state, làm "có dữ liệu")
 maybeStartOnboarding();
+
+/* ---------- Deep link từ manifest shortcuts (?view=, ?m=YYYY-M) ---------- */
+if (window.DeepLink) {
+  const dl = window.DeepLink.parse(location.href);
+  if (dl.year !== null && dl.month !== null) {
+    initPlan(new Date(dl.year, dl.month, 1));
+    state = bootState();
+    const nowD = new Date();
+    viewedMonth = (dl.year === nowD.getFullYear() && dl.month === nowD.getMonth()) ? null : dl.month;
+    updateBrand();
+    updateNowBtn();
+  }
+  if (dl.view) state.view = dl.view;
+}
+
 setTheme(THEME);
 applyStaticI18N();
 updateBrand();

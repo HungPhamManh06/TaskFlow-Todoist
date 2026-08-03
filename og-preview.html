@@ -47,7 +47,7 @@
     margin-top: 20px;
     color: #4A403A;
   }
-  h1 em { font-family: 'Playfair Display', Georgia, serif; font-style: italic; font-weight: 400; color: #D97E60; }
+  h1 em { font-style: normal; font-weight: 800; color: #C24E28; }
   .sub {
     margin-top: 14px;
     font-size: 20px;
@@ -58,7 +58,7 @@
   .cta {
     display: inline-block;
     margin-top: 22px;
-    background: linear-gradient(135deg, #F39A82, #EF8C6F);
+    background: #C24E28;
     color: #fff;
     font-weight: 800;
     font-size: 18px;
@@ -77,26 +77,27 @@
   }
   .card-head { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; margin-bottom: 16px; }
   .card-head .chick { font-size: 26px; }
-  .row { display: grid; grid-template-columns: 150px 1fr 44px; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; margin-bottom: 12px; }
-  .bar { height: 12px; border-radius: 999px; background: linear-gradient(90deg, #F8B195, #F39A82); }
-  .bar.green { background: linear-gradient(90deg, #BFD3B4, #A8C3A0); }
-  .foot { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 12px; border-top: 2px dashed #E4DAC8; font-weight: 800; font-size: 14px; color: #D97E60; }
+  .note-text { margin: 0 0 14px; font-weight: 700; font-size: 15px; line-height: 1.6; }
+  .note-lines { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .note-lines span { height: 8px; border-radius: 999px; background: rgba(243, 154, 130, .22); }
+  .note-lines span:nth-child(2) { width: 86%; background: rgba(168, 195, 160, .3); }
+  .note-lines span:nth-child(3) { width: 60%; background: rgba(243, 154, 130, .16); }
+  .foot { display: flex; justify-content: space-between; margin-top: 0; padding-top: 12px; border-top: 2px dashed #E4DAC8; font-weight: 800; font-size: 14px; color: #C24E28; }
 </style>
 </head>
 <body>
   <div class="bricks"></div>
   <div class="left">
     <div class="brand"><span class="chick">🐥</span>TaskFlow-Todoist</div>
-    <div class="badge">🎀 100% miễn phí · Offline</div>
-    <h1>Kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương nhất</em></h1>
+    <div class="badge">🎀 100% miễn phí, không cần tài khoản</div>
+    <h1>Kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương</em></h1>
     <div class="sub">Mục tiêu · Habit tracker 31 ngày + streak 🔥 · Checklist &amp; Reflection</div>
-    <div class="cta">🐥 Mở kế hoạch miễn phí</div>
+    <div class="cta">🐥 Mở kế hoạch</div>
   </div>
   <div class="card">
-    <div class="card-head"><span class="chick">🐥</span>Thói quen tháng 1</div>
-    <div class="row"><span>Dậy lúc 5H sáng</span><span class="bar"></span><b>88%</b></div>
-    <div class="row"><span>Đọc sách 1H</span><span class="bar green" style="width:71%"></span><b>71%</b></div>
-    <div class="row"><span>Chạy bộ</span><span class="bar" style="width:54%"></span><b>54%</b></div>
+    <div class="card-head"><span class="chick">🐥</span>Ghi chú tuần này</div>
+    <p class="note-text">Mỗi ngày một bước nhỏ, cuối năm bạn sẽ thấy mình đã đi rất xa. 🌱</p>
+    <div class="note-lines"><span></span><span></span><span></span></div>
     <div class="foot"><span>🔥 Streak 7 ngày</span><span>🏆 12 ngày</span></div>
   </div>
 </body>

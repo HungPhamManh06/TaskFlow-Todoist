@@ -42,7 +42,14 @@ Tất cả dữ liệu được lưu an toàn trong **localStorage** của trìn
 - Biểu đồ tiến độ **6 tuần** dạng cột
 - Panel **Mục tiêu tháng** với donut tiến độ, bảng thống kê, danh sách mục tiêu ưu tiên/thường (thêm/sửa/xoá)
 - **Habit tracker 31 ngày** với cột sticky, ô tick + biểu đồ phần trăm từng thói quen (thêm/đổi tên/xoá)
+- 🎯 **Mục tiêu habit tùy chỉnh** — mỗi thói quen có mục tiêu ngày riêng (mặc định 100%), phần trăm tính theo mục tiêu
+- 🗓️ **Sao chép thói quen sang tháng sau** — giữ nguyên tên + mục tiêu, bảng tick tháng mới trống
 - Panel **Reflection** 4 câu hỏi (viết được, lưu tự động)
+
+### 📊 Báo cáo tháng & Huy hiệu
+- 📄 **Báo cáo tháng** — 1 cú nhấn: % mục tiêu, số ngày đạt, tổng streak 🔥, kỷ lục 🏆, điểm danh, thói quen đạt tốt nhất
+- 📤 **Chia sẻ ảnh báo cáo** — tạo ảnh 1080×1080 (donut + thống kê), chia sẻ trực tiếp hoặc tải về `taskflow-report.png`
+- 🏅 **Huy hiệu** — 🔥 7 ngày liên tiếp, 🔥🔥 30 ngày, 🏆 kỷ lục 14 ngày, 🎯 hoàn thành mọi mục tiêu, 💯 mọi thói quen đạt 100%, 📅 điểm danh 15 ngày — tự trao khi xem tháng hiện tại, lưu vĩnh viễn
 
 ### 🔥 Streak & Heatmap
 - **Flame Hero** — chuỗi hiện tại 🔥, chuỗi kỷ lục 🏆, thanh tiến độ tới kỷ lục, thông báo "New record! 🎉"
@@ -51,6 +58,7 @@ Tất cả dữ liệu được lưu an toàn trong **localStorage** của trìn
 - **Vệt 14 ngày** cho từng thói quen + % hoàn thành
 
 ### 🗓️ Kế hoạch năm
+- 🧭 **Điều hướng nhiều năm** — nút «/» chuyển năm, tab "Năm YYYY" luôn đúng năm đang xem, lưới 12 tháng riêng cho từng năm
 - Card tổng quan **năm + tháng hiện tại** kèm câu motto
 - Biểu đồ cột **4 quý (Q1–Q4)** và **12 tháng**
 - Panel **2026 Goals** — donut, thống kê, nút **"Lấy dữ liệu từ 12 tháng từ Dashboard"** gộp mục tiêu toàn năm
@@ -176,6 +184,14 @@ vercel --prod     # deploy production
 
 ---
 
+## 📈 Kích hoạt Analytics & Góp ý
+
+1. Tạo GA4 property tại [analytics.google.com](https://analytics.google.com) → lấy Measurement ID dạng `G-XXXXXXX`
+2. Điền vào `js/app.js` đầu file: `GA4_ID` (analytics), `FB_FORM_URL` (link Google Form góp ý), `FB_EMAIL` (email nhận góp ý)
+3. Mỗi hành động quan trọng đã có sẵn event GA4 (`create_goal`, `share_streak`, `pwa_install`, `pwa_prompt`, ...) — xem ở Reports → Engagement → Events
+
+---
+
 ## 📂 Cấu trúc dự án
 
 ```
@@ -191,6 +207,8 @@ TaskFlow-Todoist/
 ├── js/
 │   ├── app.js          # Logic ứng dụng (vanilla JS, không framework)
 │   ├── sync.js         # Engine đồng bộ backend (pull/push/migrate, offline-first)
+│   ├── deeplink.js     # Parse ?view= & ?m=YYYY-M (manifest shortcuts) — module nhỏ, có unit test
+│   ├── plan-math.js    # Tính toán thuần: % theo mục tiêu habit, streak, huy hiệu, chuyển tháng/năm — có unit test
 │   └── api-config.js   # Điền URL backend tại đây (js/api-config.js)
 ├── server/
 │   ├── index.js        # Backend Express (auth JWT + sync API)
@@ -200,8 +218,8 @@ TaskFlow-Todoist/
 │   ├── schema.sql      # Bảng users + planner_state
 │   ├── package.json    # Dependencies + npm start
 │   └── render.yaml     # Blueprint Render (Postgres + Web Service)
-├── supabase/
-│   └── schema.sql      # Schema cũ (giữ lại tham khảo — không dùng nữa)
+├── scripts/
+│   └── ocr-image.py    # OCR ảnh: tự chọn Windows OCR (vi-VN) → easyocr (py -3.12 scripts/ocr-image.py <ảnh>)
 ├── vercel.json         # Cấu hình triển khai Vercel
 ├── README.md
 └── .gitignore
@@ -236,7 +254,7 @@ TaskFlow-Todoist/
 - [x] **Chế độ in / PDF** (A4 ngang, checkbox ☐/☑)
 - [x] **PWA** — cài đặt offline, chạy như app thật & nhắc việc hằng ngày
 - [x] **Analytics GA4** — lượt truy cập, quay lại, tạo mục tiêu/thói quen
-- [x] **Đăng nhập & đồng bộ đa thiết bị (Supabase)** — email/password + Google OAuth, RLS, offline-first
+- [x] **Đăng nhập & đồng bộ đa thiết bị (backend riêng)** — username/password + Google OAuth, offline-first
 - [x] **Landing page tách riêng** (`index.html`) — SEO tĩnh, OG image 1200×630 cho Facebook/Zalo
 - [x] **Onboarding 3 bước** — mục tiêu năm → 2 thói quen → chủ đề màu (lần dùng đầu)
 - [x] **Empty states** có hướng dẫn cho từng panel (mục tiêu, thói quen)

@@ -4,12 +4,6 @@
 *.db-shm
 *.db-wal
 
-# Backup & build tạm
-index.backup-slim.html
-_preview.html
-build-preview.js
-app.html.mojibake-backup
-
 # Log server local
 dev2.log
 
@@ -21,3 +15,9 @@ server/.env
 Thumbs.db
 .DS_Store
 desktop.ini
+
+# Cấu hình agent cá nhân
+.agents/
+.claude/
+.opencode/
+skills-lock.json

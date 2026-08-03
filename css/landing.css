@@ -8,6 +8,7 @@
   --ink: #4A403A;
   --ink-soft: #8B7F73;
   --accent: #F39A82;
+  --accent-deep: #C24E28;
   --accent2: #A8C3A0;
   --card: #FFFDF8;
   --line: #E4DAC8;
@@ -99,18 +100,20 @@ a { color: inherit; }
   font-weight: 800;
   font-size: 14.5px;
   color: #fff;
-  background: linear-gradient(135deg, #F39A82, #EF8C6F);
+  background: var(--accent-deep);
   border: none;
   border-radius: 999px;
   padding: 11px 22px;
   text-decoration: none;
-  box-shadow: 0 8px 20px rgba(239, 140, 111, .35);
-  transition: transform .15s ease, box-shadow .15s ease;
+  box-shadow: 0 8px 20px rgba(194, 78, 40, .32);
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
 }
 .lp-btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 26px rgba(239, 140, 111, .42);
+  background: #a93f1e;
+  box-shadow: 0 12px 26px rgba(194, 78, 40, .4);
 }
+.lp-btn-primary:active { transform: translateY(0); }
 .lp-btn-big { font-size: 16.5px; padding: 14px 30px; }
 
 .lp-btn-ghost {
@@ -160,10 +163,9 @@ a { color: inherit; }
 }
 .lp-title em,
 .lp-h2 em {
-  font-family: 'Playfair Display', Georgia, serif;
-  font-style: italic;
-  font-weight: 400;
-  color: #D97E60;
+  font-style: normal;
+  font-weight: 800;
+  color: var(--accent-deep);
 }
 
 .lp-sub {
@@ -191,10 +193,27 @@ a { color: inherit; }
   font-family: 'Baloo 2', sans-serif;
   font-weight: 800;
   font-size: 26px;
-  color: #D97E60;
+  color: var(--accent-deep);
   line-height: 1.1;
 }
 .lp-stat span { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+
+/* Dải thông số (proof strip) — nằm dưới hero, trên features */
+.lp-proof {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.lp-proof .lp-stats {
+  justify-content: space-between;
+  max-width: 760px;
+  margin: 0 auto;
+  border-top: 1.5px solid var(--line);
+  padding: 26px 0 4px;
+}
+.lp-proof .lp-stat { flex: 1; align-items: center; text-align: center; }
+.lp-proof .lp-stat + .lp-stat { border-left: 1.5px solid var(--line); }
+.lp-proof .lp-stat b { font-size: 30px; }
 
 /* ---------- Hero art (CSS scene) ---------- */
 
@@ -244,29 +263,37 @@ a { color: inherit; }
   font-size: 14px;
   margin-bottom: 12px;
 }
-.art-card-row {
-  display: grid;
-  grid-template-columns: 118px 1fr 36px;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
+
+.art-note-text {
+  margin: 0 0 10px;
+  font-size: 12.5px;
   font-weight: 700;
-  margin-bottom: 9px;
+  line-height: 1.55;
+  color: var(--ink);
 }
-.art-bar {
-  height: 9px;
+.art-note-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+.art-note-lines span {
+  height: 7px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #F8B195, #F39A82);
+  background: rgba(243, 154, 130, .25);
 }
+.art-note-lines span:nth-child(2) { width: 88%; background: rgba(168, 195, 160, .3); }
+.art-note-lines span:nth-child(3) { width: 64%; background: rgba(243, 154, 130, .18); }
+
 .art-card-foot {
   display: flex;
   justify-content: space-between;
-  margin-top: 12px;
+  margin-top: 0;
   padding-top: 10px;
   border-top: 1.5px dashed var(--line);
   font-size: 11.5px;
   font-weight: 800;
-  color: #D97E60;
+  color: var(--accent-deep);
 }
 
 .art-grass {
@@ -310,7 +337,7 @@ a { color: inherit; }
 
 .lp-features {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 18px;
   text-align: left;
 }
@@ -349,6 +376,16 @@ a { color: inherit; }
   color: var(--ink-soft);
 }
 
+/* Card tối — phá vỡ nhịp các card trắng đều nhau */
+.lp-feature.feat-dark {
+  background: #4A403A;
+  border-color: #4A403A;
+}
+.lp-feature.feat-dark h3 { color: #FFFDF8; }
+.lp-feature.feat-dark p { color: rgba(255, 253, 248, .78); }
+.lp-feature.feat-dark .lp-f-icon { background: rgba(255, 253, 248, .14); }
+.lp-feature.feat-dark:hover { box-shadow: 0 14px 30px rgba(74, 64, 58, .28); }
+
 .lp-how {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -360,26 +397,18 @@ a { color: inherit; }
   border: 1.5px solid var(--line);
   border-radius: 18px;
   padding: 24px 20px;
-  position: relative;
 }
-.lp-how-num {
-  position: absolute;
-  top: -14px;
-  left: 18px;
-  width: 30px;
-  height: 30px;
-  display: flex;
+.lp-how-emoji {
+  font-size: 30px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Baloo 2', sans-serif;
-  font-weight: 800;
-  font-size: 15px;
-  color: #fff;
-  background: var(--accent);
-  border-radius: 50%;
-  box-shadow: 0 6px 14px rgba(243, 154, 130, .4);
+  width: 58px;
+  height: 58px;
+  background: rgba(243, 154, 130, .16);
+  border-radius: 18px;
+  margin-bottom: 12px;
 }
-.lp-how-emoji { font-size: 34px; display: block; margin-bottom: 8px; }
 .lp-how-step h3 {
   font-family: 'Baloo 2', sans-serif;
   font-weight: 800;
@@ -445,14 +474,27 @@ a { color: inherit; }
 
 @media (max-width: 860px) {
   .lp-hero { grid-template-columns: 1fr; padding-top: 36px; }
-  .lp-features, .lp-how { grid-template-columns: 1fr 1fr; }
+  .lp-how { grid-template-columns: 1fr 1fr; }
+  .lp-features { grid-template-columns: 1fr; }
+  .lp-proof .lp-stats { flex-wrap: wrap; gap: 16px 12px; }
+  .lp-proof .lp-stat { flex: 1 1 40%; }
+  .lp-proof .lp-stat + .lp-stat { border-left: none; }
 }
 
 @media (max-width: 640px) {
   .lp-header { flex-wrap: wrap; gap: 10px; }
   .lp-nav { order: 3; width: 100%; justify-content: space-between; gap: 8px; }
   .lp-nav a { font-size: 13px; }
-  .lp-features, .lp-how { grid-template-columns: 1fr; }
+  .lp-how { grid-template-columns: 1fr; }
   .lp-btn-big { width: 100%; text-align: center; }
-  .lp-stats { gap: 12px 22px; }
+  .lp-proof .lp-stats { gap: 14px 10px; padding-top: 20px; }
+  .lp-proof .lp-stat { flex: 1 1 45%; }
+}
+
+/* ---------- Giảm chuyển động (a11y) ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .bricks { animation: none; }
+  .art-cloud, .art-critter, .art-flower { animation: none; }
+  .lp-feature, .lp-btn-primary, .lp-btn-ghost, .lp-lang { transition: none; }
 }
