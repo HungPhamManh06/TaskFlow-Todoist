@@ -13,7 +13,7 @@ Giao diện pastel kawaii · Hoạt động **100% offline** · Dữ liệu lưu
 [![Offline](https://img.shields.io/badge/Offline-Ready-7FAFD3?style=flat-square)]()
 [![MIT License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-**🚀 Demo:** [https://hungphammanh06.github.io/Todoist/](https://hungphammanh06.github.io/Todoist/)
+**🚀taskflow-todoist.vercel.app
 
 </div>
 
