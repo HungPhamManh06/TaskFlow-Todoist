@@ -50,6 +50,38 @@
     return best;
   }
 
+  // Sắp xếp task trong ngày (Phase 5.2 mở rộng): di chuyển task ở vị trí fromIdx trong
+  // mảng phẳng tasks sang nhóm toKind ('priority' | 'regular') tại vị trí toPos
+  // (0-based trong nhóm đích; toPos >= số task nhóm đích = chèn cuối nhóm).
+  // Đổi nhóm thì gán lại kind. THUẦN: không sửa mảng gốc; trả về MẢNG GỐC (cùng
+  // tham chiếu) khi kết quả hiển thị không đổi (no-op) — ví dụ thả task cuối nhóm
+  // lên đúng vùng nhóm của nó — để caller tránh push undo phantom.
+  function reorderTask(tasks, fromIdx, toKind, toPos) {
+    var t = tasks[fromIdx];
+    if (!t || (toKind !== 'priority' && toKind !== 'regular')) return tasks;
+    var fromKind = t.kind;
+    var src = tasks.slice();
+    src.splice(fromIdx, 1);
+    var moved = fromKind === toKind ? t : Object.assign({}, t, { kind: toKind });
+    var ins = src.length;
+    var seen = 0;
+    for (var i = 0; i < src.length; i++) {
+      if (src[i].kind === toKind) {
+        if (seen === toPos) { ins = i; break; }
+        seen++;
+      }
+    }
+    if (fromKind === toKind) {
+      // Vị trí mới trong nhóm đích = seen (append: tổng task cùng nhóm; break: toPos).
+      var newPos = seen;
+      var oldPos = 0;
+      for (var j = 0; j < fromIdx; j++) if (tasks[j].kind === fromKind) oldPos++;
+      if (oldPos === newPos) return tasks; // hiển thị không đổi → no-op
+    }
+    src.splice(ins, 0, moved);
+    return src;
+  }
+
   // Undo stack (Phase 5): push snapshot, undo/redo với limit, canUndo/canRedo, clear.
   function makeUndoStack(limit) {
     var max = limit > 0 ? limit : 50;
@@ -108,6 +140,7 @@
     bestStreak: bestStreak,
     evaluateBadges: evaluateBadges,
     makeUndoStack: makeUndoStack,
+    reorderTask: reorderTask,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.PlanMath = api;

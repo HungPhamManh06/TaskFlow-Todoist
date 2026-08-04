@@ -3210,6 +3210,15 @@ sup.remind-dot {
 [draggable="true"] { cursor: grab; }
 .drag-over { outline: 2px dashed var(--terracotta); outline-offset: 1px; background: rgba(243, 154, 130, .12); }
 .dragging { opacity: .5; }
+/* Vùng nhóm task (ưu tiên ↔ thường) cũng là drop target → highlight cả khối */
+.task-rows.drag-over {
+  outline: 2px dashed var(--terracotta);
+  outline-offset: 2px;
+  border-radius: 8px;
+  background: rgba(243, 154, 130, .10);
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
 
 .btn-icon:disabled { opacity: .38; cursor: default; transform: none; }
 

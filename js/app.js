@@ -4161,17 +4161,17 @@ function dayColumnHTML(w, di, isToday) {
     <div class="day-tasks">
       <div class="task-group">
         <div class="v-strip pink"><span>${t('priLbl')}</span></div>
-        <div class="task-rows">
+        <div class="task-rows" data-drop="taskzone" data-week="${w.n}" data-day="${di}" data-kind="priority">
           <span class="task-sub-head">${t('taskPriSub')}</span>
-          ${pri.map(({ t, ti }) => taskRowHTML(w.n, di, ti, 'pink', t)).join('')}
+          ${pri.map(({ t, ti }, i) => taskRowHTML(w.n, di, ti, 'pink', t, i)).join('')}
           <button type="button" class="btn-add" data-action="addtask" data-week="${w.n}" data-day="${di}" data-kind="priority" aria-label="${t('addPriTaskAria')}" title="${t('addPriTaskAria')}">＋</button>
         </div>
       </div>
       <div class="task-group">
         <div class="v-strip blue"><span>${t('regLbl')}</span></div>
-        <div class="task-rows">
+        <div class="task-rows" data-drop="taskzone" data-week="${w.n}" data-day="${di}" data-kind="regular">
           <span class="task-sub-head">${t('taskRegSub')}</span>
-          ${reg.map(({ t, ti }) => taskRowHTML(w.n, di, ti, 'blue', t)).join('')}
+          ${reg.map(({ t, ti }, i) => taskRowHTML(w.n, di, ti, 'blue', t, i)).join('')}
           <button type="button" class="btn-add" data-action="addtask" data-week="${w.n}" data-day="${di}" data-kind="regular" aria-label="${t('addRegTaskAria')}" title="${t('addRegTaskAria')}">＋</button>
         </div>
       </div>
@@ -4183,9 +4183,9 @@ function dayColumnHTML(w, di, isToday) {
   </div>`;
 }
 
-function taskRowHTML(wn, di, ti, mod, task) {
+function taskRowHTML(wn, di, ti, mod, task, pos) {
   const tags = Array.isArray(task.tags) ? task.tags : [];
-  return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}" draggable="true" data-drag="task" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('dragHint')}" aria-label="${t('dragHint')}">
+  return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}" draggable="true" data-drag="task" data-week="${wn}" data-day="${di}" data-task="${ti}" data-kind="${task.kind}" data-pos="${pos ?? 0}" title="${t('dragHint')}" aria-label="${t('dragHint')}">
     ${checkboxHTML(mod, task.done, `data-action="task" data-week="${wn}" data-day="${di}" data-task="${ti}"`)}
     <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${wn}" data-day="${di}" data-task="${ti}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: ti + 1 })}">${esc(task.text ?? '')}</span>
     ${tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : ''}
@@ -4793,12 +4793,28 @@ document.addEventListener('dragstart', (e) => {
   el.classList.add('dragging');
 });
 document.addEventListener('dragover', (e) => {
-  const el = e.target.closest('[data-drag]');
-  if (!el || !dragState || el === dragState.el) return;
+  if (!dragState) return;
+  // Task: thả lên row khác CÙNG ngày (chèn tại vị trí row) HOẶC lên vùng nhóm
+  // (chèn cuối nhóm) — row được ưu tiên vì nó nằm BÊN TRONG vùng nhóm.
   if (dragState.type === 'task') {
-    if (el.dataset.drag !== 'task') return;
-    if (el.dataset.week !== dragState.week || el.dataset.day !== dragState.day) return;
-  } else if (dragState.type === 'goal') {
+    const el = e.target.closest('[data-drag]');
+    if (el && el.dataset.drag === 'task' && el !== dragState.el
+        && el.dataset.week === dragState.week && el.dataset.day === dragState.day) {
+      e.preventDefault();
+      el.classList.add('drag-over');
+      return;
+    }
+    const zone = e.target.closest('[data-drop="taskzone"]');
+    if (zone && zone.dataset.week === dragState.week && zone.dataset.day === dragState.day) {
+      e.preventDefault();
+      zone.classList.add('drag-over');
+      return;
+    }
+    return;
+  }
+  const el = e.target.closest('[data-drag]');
+  if (!el || el === dragState.el) return;
+  if (dragState.type === 'goal') {
     if (el.dataset.drag !== 'goal') return;
     if (dragState.scope !== el.dataset.scope) return;
     if (dragState.scope === 'w' && el.dataset.week !== dragState.week) return;
@@ -4813,27 +4829,50 @@ document.addEventListener('dragover', (e) => {
 document.addEventListener('dragleave', (e) => {
   const el = e.target.closest('[data-drag]');
   if (el) el.classList.remove('drag-over');
+  const zone = e.target.closest('[data-drop="taskzone"]');
+  if (zone) zone.classList.remove('drag-over');
 });
 document.addEventListener('drop', (e) => {
   e.preventDefault();
   const el = e.target.closest('[data-drag]');
+  const zone = e.target.closest('[data-drop="taskzone"]');
   document.querySelectorAll('.drag-over').forEach((n) => n.classList.remove('drag-over'));
-  if (!el || !dragState || el === dragState.el) { dragState = null; return; }
-  if (dragState.type === 'task' && (el.dataset.drag !== 'task' || el.dataset.week !== dragState.week || el.dataset.day !== dragState.day)) { dragState = null; return; }
-  if (dragState.type === 'goal' && (el.dataset.drag !== 'goal' || dragState.scope !== el.dataset.scope || (dragState.scope === 'w' && el.dataset.week !== dragState.week))) { dragState = null; return; }
-  if (dragState.type === 'habit' && el.dataset.drag !== 'habit') { dragState = null; return; }
+  if (!dragState) return;
   if (dragState.type === 'task') {
     const w = state.weeks[+dragState.week - 1];
     const d = w && w.days[+dragState.day];
-    if (!d) return;
+    if (!d || !window.PlanMath || !window.PlanMath.reorderTask) { dragState = null; return; }
     const from = +dragState.task;
-    const to = +el.dataset.task;
-    if (from === to || from < 0 || to < 0 || from >= d.tasks.length || to >= d.tasks.length) return;
-    pushUndo(); // chỉ push undo sau khi validation pass (tránh phantom entry)
-    const item = d.tasks.splice(from, 1)[0];
-    d.tasks.splice(to, 0, item);
+    if (from < 0 || from >= d.tasks.length) { dragState = null; return; }
+    let toKind = null;
+    let toPos = 0;
+    if (el && el.dataset.drag === 'task') {
+      // Thả lên đúng row đang kéo → không làm gì (no-op)
+      if (el === dragState.el) { dragState = null; return; }
+      // Thả lên row khác: chèn đúng vị trí của row trong nhóm đích
+      if (el.dataset.week !== dragState.week || el.dataset.day !== dragState.day) { dragState = null; return; }
+      toKind = el.dataset.kind;
+      toPos = +el.dataset.pos;
+    } else if (zone) {
+      // Thả vào vùng nhóm (khoảng trống / nút + / nhóm rỗng) → chèn CUỐI nhóm đích
+      if (zone.dataset.week !== dragState.week || zone.dataset.day !== dragState.day) { dragState = null; return; }
+      toKind = zone.dataset.kind;
+      toPos = d.tasks.filter((x) => x.kind === toKind).length;
+    }
+    if (toKind !== 'priority' && toKind !== 'regular') { dragState = null; return; }
+    // reorderTask THUẦN: trả về đúng mảng gốc khi hiển thị không đổi (no-op)
+    // → không push undo phantom (vd: thả task cuối nhóm lên đúng vùng nhóm của nó)
+    const next = window.PlanMath.reorderTask(d.tasks, from, toKind, toPos);
+    if (next === d.tasks) { dragState = null; return; }
+    pushUndo(); // snapshot trước khi gán mảng mới
+    d.tasks = next;
     renderWeek(); save(); trackEvent('reorder_task');
-  } else if (dragState.type === 'goal') {
+  } else {
+    if (!el || el === dragState.el) { dragState = null; return; }
+    if (dragState.type === 'goal' && (el.dataset.drag !== 'goal' || dragState.scope !== el.dataset.scope || (dragState.scope === 'w' && el.dataset.week !== dragState.week))) { dragState = null; return; }
+    if (dragState.type === 'habit' && el.dataset.drag !== 'habit') { dragState = null; return; }
+  }
+  if (dragState.type === 'goal') {
     if (dragState.scope === 'm') {
       const from = state.monthlyGoals.findIndex((g) => g.id === dragState.id);
       const to = state.monthlyGoals.findIndex((g) => g.id === el.dataset.id);
@@ -5059,10 +5098,14 @@ document.addEventListener('click', (e) => {
     if (t) { t.done = !t.done; refreshTaskUI(w, +el.dataset.day); save(); refreshFocusIfOpen(); }
   } else if (act === 'addtask') {
     const w = state.weeks[+el.dataset.week - 1];
-    w.days[+el.dataset.day].tasks.push({ kind: el.dataset.kind, done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
+    const d = w.days[+el.dataset.day];
+    d.tasks.push({ kind: el.dataset.kind, done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
     renderWeek();
     save();
     trackEvent('create_task', { kind: el.dataset.kind });
+    // Tiện ích: sau khi tạo, nhảy thẳng vào ô viết task mới để gõ luôn (Enter = xong)
+    const fresh = document.querySelector(`[data-role="task-text"][data-week="${w.n}"][data-day="${el.dataset.day}"][data-task="${d.tasks.length - 1}"]`);
+    if (fresh) fresh.focus();
   } else if (act === 'deltask') {
     const w = state.weeks[+el.dataset.week - 1];
     w.days[+el.dataset.day].tasks.splice(+el.dataset.task, 1);

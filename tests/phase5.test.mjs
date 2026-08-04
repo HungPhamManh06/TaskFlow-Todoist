@@ -95,6 +95,83 @@ test('5.2: i18n dragHint đủ vi+en', () => {
 });
 
 /* ============================================================
+   Phase 5.2b — Kéo-thả CHÉO giữa task ưu tiên ↔ task thường
+   ============================================================ */
+
+const T = (kind, text) => ({ kind, text, done: false, tags: [] });
+
+const sameOrder = (a, b) => a.map((x) => x.text).join('|') === b.map((x) => x.text).join('|');
+const kinds = (a) => a.map((x) => x.kind);
+
+test('5.2b: reorderTask đổi nhóm ưu tiên → thường (đổi kind, chèn đúng vị trí)', () => {
+  const tasks = [T('priority', 'A'), T('regular', 'B'), T('regular', 'C')];
+  // Kéo A (ưu tiên, from 0) thả lên C (thường, vị trí nhóm 1)
+  const out = PlanMath.reorderTask(tasks, 0, 'regular', 1);
+  assert.deepEqual(out.map((x) => x.text), ['B', 'A', 'C'], 'A phải vào nhóm thường giữa B và C');
+  assert.deepEqual(kinds(out), ['regular', 'regular', 'regular'], 'A phải đổi kind sang regular');
+  assert.equal(tasks[0].kind, 'priority', 'mảng gốc không bị sửa (thuần)');
+});
+
+test('5.2b: reorderTask đổi nhóm thường → ưu tiên (chèn đầu nhóm)', () => {
+  const tasks = [T('priority', 'A'), T('priority', 'B'), T('regular', 'C')];
+  // Kéo C (thường, from 2) thả lên A (ưu tiên, vị trí nhóm 0)
+  const out = PlanMath.reorderTask(tasks, 2, 'priority', 0);
+  assert.deepEqual(out.map((x) => x.text), ['C', 'A', 'B']);
+  assert.deepEqual(kinds(out), ['priority', 'priority', 'priority']);
+});
+
+test('5.2b: reorderTask sắp xếp lại trong CÙNG nhóm (không đổi kind)', () => {
+  const tasks = [T('priority', 'A'), T('priority', 'B'), T('priority', 'C')];
+  // Kéo A (from 0) thả lên C (vị trí nhóm 2) → A xuống cuối
+  const out = PlanMath.reorderTask(tasks, 0, 'priority', 2);
+  assert.deepEqual(out.map((x) => x.text), ['B', 'C', 'A']);
+  assert.deepEqual(kinds(out), ['priority', 'priority', 'priority']);
+});
+
+test('5.2b: reorderTask toPos >= số task nhóm đích → chèn cuối nhóm (append)', () => {
+  const tasks = [T('priority', 'A'), T('regular', 'B')];
+  const out = PlanMath.reorderTask(tasks, 0, 'regular', 99);
+  assert.deepEqual(out.map((x) => x.text), ['B', 'A'], 'A chèn cuối nhóm regular');
+  assert.deepEqual(kinds(out), ['regular', 'regular']);
+});
+
+test('5.2b: reorderTask mảng xáo trộn liên nhóm vẫn chèn đúng (index phẳng không theo nhóm)', () => {
+  const tasks = [T('priority', 'P1'), T('regular', 'R1'), T('priority', 'P2')];
+  // Kéo R1 (from 1) thả lên P2 (vị trí nhóm priority 1) → R1 đổi sang priority, xen giữa P1..P2
+  const out = PlanMath.reorderTask(tasks, 1, 'priority', 1);
+  assert.deepEqual(out.map((x) => x.text), ['P1', 'R1', 'P2']);
+  assert.deepEqual(kinds(out), ['priority', 'priority', 'priority']);
+});
+
+test('5.2b: reorderTask giữ nguyên mảng khi index/kind không hợp lệ', () => {
+  const tasks = [T('priority', 'A'), T('regular', 'B')];
+  assert.ok(sameOrder(PlanMath.reorderTask(tasks, -1, 'regular', 0), tasks), 'fromIdx âm → trả nguyên');
+  assert.ok(sameOrder(PlanMath.reorderTask(tasks, 5, 'regular', 0), tasks), 'fromIdx quá lớn → trả nguyên');
+  assert.ok(sameOrder(PlanMath.reorderTask(tasks, 0, 'bogus', 0), tasks), 'kind lạ → trả nguyên');
+});
+
+test('5.2b: reorderTask trả về ĐÚNG mảng gốc khi không đổi (no-op, chống phantom undo)', () => {
+  const tasks = [T('priority', 'A'), T('priority', 'B'), T('regular', 'C')];
+  // Thả task cuối nhóm ưu tiên (B) lên vùng nhóm ưu tiên của nó → hiển thị không đổi
+  assert.equal(PlanMath.reorderTask(tasks, 1, 'priority', 2), tasks, 'cuối nhóm + vùng của nó → no-op');
+  // Thả task đầu nhóm về đúng vị trí cũ của nó → no-op
+  assert.equal(PlanMath.reorderTask(tasks, 0, 'priority', 0), tasks, 'về đúng vị trí cũ → no-op');
+  // Nhưng chuyển sang nhóm khác dù chỉ 1 task → vẫn đổi (mảng mới)
+  const moved = PlanMath.reorderTask(tasks, 1, 'regular', 0);
+  assert.notEqual(moved, tasks, 'đổi nhóm → mảng mới');
+  assert.deepEqual(kinds(moved), ['priority', 'regular', 'regular']);
+});
+
+test('5.2b: task row có data-kind/data-pos + vùng nhóm data-drop=taskzone', () => {
+  assert.match(APP_JS, /data-drop="taskzone"/);
+  assert.match(APP_JS, /data-pos="/);
+  assert.match(APP_JS, /data-kind="\$\{task\.kind\}"/);
+  assert.match(APP_JS, /PlanMath\.reorderTask/);
+  assert.match(APP_JS, /toPos = d\.tasks\.filter\(\(x\) => x\.kind === toKind\)\.length/);
+  assert.match(CSS, /\.task-rows\.drag-over/);
+});
+
+/* ============================================================
    Phase 5.3 — Phím tắt
    ============================================================ */
 
@@ -159,6 +236,18 @@ test('5.6: focus overlay + open/close + body.focus-mode', () => {
 test('5.6: i18n focus keys đủ vi+en', () => {
   assert.ok(APP_JS.includes("focusTitle: '🎯 Chế độ Tập trung'") && APP_JS.includes("focusTitle: '🎯 Focus Mode'"), 'thiếu focusTitle');
   assert.ok(APP_JS.includes("focusToday: 'Task hôm nay'") && APP_JS.includes("focusToday: \"Today's tasks\""), 'thiếu focusToday');
+});
+
+/* ============================================================
+   Phase 5.8 — Nút ＋ tạo task nhảy thẳng vào ô viết task
+   ============================================================ */
+
+test('5.8: nút + tạo task → focus ngay ô viết task mới', () => {
+  assert.match(APP_JS, /act === 'addtask'/);
+  assert.match(APP_JS, /d\.tasks\.push\(\{ kind: el\.dataset\.kind/);
+  assert.match(APP_JS, /data-role=\"task-text\"/);
+  assert.match(APP_JS, /d\.tasks\.length - 1/);
+  assert.match(APP_JS, /fresh\.focus\(\)/);
 });
 
 /* ============================================================
