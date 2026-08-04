@@ -16,13 +16,18 @@
   }
 
   // % hoàn thành habit so với mục tiêu: đạt 100% khi làm đủ (elapsed * target/100) ngày.
-  function habitPctFrom(days, elapsed, target) {
+  function habitPctFrom(days, elapsed, target, skipMap) {
     var t = target > 0 ? target : 100;
     var total = Math.max(1, Math.round((elapsed * t) / 100));
     var done = 0;
     var upto = Math.min(days.length, elapsed);
-    for (var i = 0; i < upto; i++) if (days[i]) done++;
-    return Math.min(100, Math.round((done / total) * 100));
+    for (var i = 0; i < upto; i++) {
+      if (skipMap && skipMap[i]) continue;
+      if (days[i]) done++;
+    }
+    var effectiveTotal = Math.max(1, total);
+    if (skipMap) effectiveTotal = Math.max(1, total - skipMap.slice(0, upto).filter(Boolean).length);
+    return Math.min(100, Math.round((done / effectiveTotal) * 100));
   }
 
   function nextMonth(y, m) {
@@ -34,16 +39,21 @@
   }
 
   // Streak hiện tại: đếm lùi từ cuối mảng.
-  function currentStreak(flags) {
+  function currentStreak(flags, skipMap) {
     var n = 0;
-    for (var i = flags.length - 1; i >= 0 && flags[i]; i--) n++;
+    for (var i = flags.length - 1; i >= 0; i--) {
+      if (skipMap && skipMap[i]) continue;
+      if (flags[i]) n++;
+      else break;
+    }
     return n;
   }
 
   // Chuỗi dài nhất trong mảng.
-  function bestStreak(flags) {
+  function bestStreak(flags, skipMap) {
     var best = 0, run = 0;
     for (var i = 0; i < flags.length; i++) {
+      if (skipMap && skipMap[i]) continue;
       if (flags[i]) { run++; if (run > best) best = run; }
       else run = 0;
     }
@@ -56,6 +66,25 @@
   // Đổi nhóm thì gán lại kind. THUẦN: không sửa mảng gốc; trả về MẢNG GỐC (cùng
   // tham chiếu) khi kết quả hiển thị không đổi (no-op) — ví dụ thả task cuối nhóm
   // lên đúng vùng nhóm của nó — để caller tránh push undo phantom.
+  // Di chuyển task từ mảng tasksFrom (ngày A, vị trí fromIdx) sang mảng tasksTo (ngày B,
+  // cuối nhóm toKind). Task đổi kind nếu khác nhóm đích. Thuần: không sửa mảng gốc.
+  // Trả về mảng gốc (no-op) khi không có gì thay đổi — để caller tránh push undo phantom.
+  function moveTaskAcrossDays(tasksFrom, tasksTo, fromIdx, toKind) {
+    var t = tasksFrom[fromIdx];
+    if (!t || (toKind !== 'priority' && toKind !== 'regular')) return { tasksFrom: tasksFrom.slice(), tasksTo: tasksTo.slice() };
+    var src = tasksFrom.slice();
+    var dst = tasksTo.slice();
+    var moved = t.kind === toKind ? t : Object.assign({}, t, { kind: toKind });
+    src.splice(fromIdx, 1);
+    dst.push(moved);
+    // No-op: nếu src giống hệt tasksFrom và dst giống hệt tasksTo (vd ko có task nào chuyển đi được)
+    if (src.length === tasksFrom.length && src.every(function (x, i) { return x === tasksFrom[i]; })
+        && dst.length === tasksTo.length && dst.every(function (x, i) { return x === tasksTo[i]; })) {
+      return { tasksFrom: tasksFrom, tasksTo: tasksTo };
+    }
+    return { tasksFrom: src, tasksTo: dst };
+  }
+
   function reorderTask(tasks, fromIdx, toKind, toPos) {
     var t = tasks[fromIdx];
     if (!t || (toKind !== 'priority' && toKind !== 'regular')) return tasks;
@@ -80,6 +109,59 @@
     }
     src.splice(ins, 0, moved);
     return src;
+  }
+
+  // Sinh ngày xuất hiện tiếp theo của task lặp (Phase 7.1). Trả về Date hoặc null nếu
+  // repeat không hợp lệ. every >= 1, freq: 'daily' | 'weekly' | 'monthly'.
+  function nextOccurrence(date, repeat) {
+    if (!repeat || !repeat.freq) return null;
+    var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    var freq = repeat.freq;
+    var every = repeat.every > 0 ? repeat.every : 1;
+    if (freq === 'daily') { d.setDate(d.getDate() + every); return d; }
+    if (freq === 'weekly') { d.setDate(d.getDate() + 7 * every); return d; }
+    if (freq === 'monthly') { d.setMonth(d.getMonth() + every); return d; }
+    return null;
+  }
+
+  // Phase 7.1: lập kế hoạch sinh lại task lặp cho hôm nay. todayIdx = chỉ số ngày hôm nay
+  // (0-based tính từ PLAN_START, khớp nowInfo().dayIdx). Với mỗi task có repeat ở ngày
+  // QUÁ KHỨ, chưa từng sinh (t._recurred), và CHƯA có task cùng (kind+text) từ hôm nay trở
+  // đi → tạo bản sao (repeat giữ nguyên để chuỗi lặp tiếp tục; không đánh dấu _recurred trên
+  // bản sao). Trả về { copies: [...task mới cần push vào ngày hôm nay], mark: [...task gốc
+  // cần đánh dấu _recurred] }. THUẦN: không sửa mảng/task đầu vào.
+  function planRecurrence(weeks, todayIdx) {
+    var copies = [];
+    var mark = [];
+    var seen = new Set();
+    weeks.forEach(function (w, wi) {
+      (w.days || []).forEach(function (d, di) {
+        if (wi * 7 + di < todayIdx) return;
+        (d.tasks || []).forEach(function (x) { seen.add(x.kind + '\u0000' + x.text); });
+      });
+    });
+    weeks.forEach(function (w, wi) {
+      (w.days || []).forEach(function (d, di) {
+        if (wi * 7 + di >= todayIdx) return; // chỉ task ngày QUÁ KHỨ sinh bản mới
+        (d.tasks || []).forEach(function (t) {
+          if (!t.repeat || !t.repeat.freq) return;
+          if (t._recurred) return;
+          var key = t.kind + '\u0000' + t.text;
+          if (seen.has(key)) return; // đã có từ hôm nay trở đi → không sinh trùng
+          seen.add(key);
+          mark.push(t);
+          copies.push({
+            kind: t.kind,
+            done: false,
+            text: t.text,
+            tags: (t.tags || []).slice(),
+            remind: { enabled: false, time: '20:00' },
+            repeat: { freq: t.repeat.freq, every: t.repeat.every || 1 },
+          });
+        });
+      });
+    });
+    return { copies: copies, mark: mark };
   }
 
   // Undo stack (Phase 5): push snapshot, undo/redo với limit, canUndo/canRedo, clear.
@@ -141,6 +223,9 @@
     evaluateBadges: evaluateBadges,
     makeUndoStack: makeUndoStack,
     reorderTask: reorderTask,
+    moveTaskAcrossDays: moveTaskAcrossDays,
+    nextOccurrence: nextOccurrence,
+    planRecurrence: planRecurrence,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.PlanMath = api;

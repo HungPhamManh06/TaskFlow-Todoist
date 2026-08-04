@@ -1,7 +1,7 @@
 # Feature Roadmap — TaskFlow-Todoist
 
 - Ngày: 2026-08-03
-- Trạng thái: Đã duyệt (toàn bộ 6 pha) — Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, Phase 4 ✅, Phase 5 ✅ hoàn thành 2026-08-03, Phase 6 đang triển khai (6A.1 theme, 6A.3 onboarding, 6A.4 confetti đã có; 6A.2 + 6B.1–6B.4 vừa code xong, đang verify)
+- Trạng thái: Đã duyệt (toàn bộ 7 pha) — Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, Phase 4 ✅, Phase 5 ✅ hoàn thành 2026-08-03; Phase 6 ✅ hoàn thành 2026-08-04 (mood heatmap tương tác, theme picker, onboarding, confetti, templates, báo cáo năm, digest, import CSV + sửa 3 lỗi UI, kéo-thả task chéo nhóm ưu tiên/thường, nút ＋ tạo task focus ô viết); Phase 7 đang lên kế hoạch (2026-08-04)
 
 ## Bối cảnh
 
@@ -69,6 +69,16 @@ Kiểm thử: `tests/phase0.test.mjs` 12/12 PASS (node --test), `node test-sync.
 | 5.4 | Sao lưu tự động ✅ | Ring buffer 7 bản `planner-backup-0..6` + `rotateBackup()` (throttle 1/phút qua `maybeAutoBackup` trong save, chốt bản trước import); modal khôi phục `backupModal` 1-click |
 | 5.5 | Kích hoạt Analytics & Feedback ✅ | Nút `data-action="feedback"` trong dataPop (mở `FB_FORM_URL`, fallback alert `fbNoForm`); README hướng dẫn điền `GA4_ID`/`FB_FORM_URL` |
 | 5.6 | Chế độ Tập trung (Focus Mode) ✅ | `#focusOverlay` + `body.focus-mode` (ẩn header/view/bricks); task hôm nay + habit chưa tick + nút Esc thoát; `refreshFocusIfOpen()` sau mỗi toggle |
+
+## Pha 7 — Tự động hoá & trải nghiệm 🚧 PLANNED (2026-08-04)
+
+| # | Việc | Chi tiết kỹ thuật |
+|---|---|---|
+| 7.1 | Task lặp lại (recurring) | Field `repeat: { freq: 'daily'\|'weekly'\|'monthly', every: n, on: [thứ] }` + migration; nút 🔁 trong task row mở picker inline (giống remind); `PlanMath.nextOccurrence(date, repeat)` + `applyRecurrence()` tự sinh task tương lai khi qua ngày; thuộc UNDOABLE_ACTS |
+| 7.2 | Kéo-thả task qua ngày khác | Mở rộng drag&drop: thả task lên vùng nhóm (`data-drop="taskzone"`) của NGÀY KHÁC trong cùng tuần → chuyển task sang ngày đó (cuối nhóm cùng kind); `PlanMath.moveTaskAcrossDays` thuần + `moveTaskAcrossDays` app-side; row→row vẫn giới hạn cùng ngày |
+| 7.3 | Habit heatmap năm | Card trong year view: chọn habit → heatmap 12×31 (ô theo target % như heatmap tháng) + streak tổng năm; helper thuần `habitYearMatrix` trong plan-stats |
+| 7.4 | Hoàn thiện undo/redo | Thêm `mood`, `theme`, `target`, `repeat` vào UNDOABLE_ACTS; mở rộng `snapshotAll()`/`applySnapshot()` phủ cả mood + theme (hiện chỉ chụp state + yearState) |
+| 7.5 | Ngày nghỉ habit (skip days) | `skipDays` map trên habit + migration; click chuột phải ô ngày habit → toggle skip (không phá streak, không tính %); `habitPctFrom`/`currentStreak`/`bestStreak` nhận thêm `skipMap` optional |
 
 ## Loại bỏ (YAGNI)
 

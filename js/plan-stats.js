@@ -190,9 +190,39 @@
     return out;
   }
 
+  // Trả về ma trận habit × 12 tháng: mỗi habit có months[m] = { month, pct, streak }.
+  // Đọc từ localStorage trực tiếp (thuần, không đụng state global).
+  function habitYearMatrix(habits, year) {
+    if (!Array.isArray(habits)) return [];
+    return habits.map(function (h) {
+      var months = [];
+      for (var m = 0; m < 12; m++) {
+        var raw = null;
+        try {
+          var k = 'planner-' + year + '-' + (m + 1);
+          raw = typeof localStorage !== 'undefined' ? localStorage.getItem(k) : null;
+        } catch (e) { /* ẩn */ }
+        var s = raw ? JSON.parse(raw) : null;
+        var hh = null;
+        if (s && Array.isArray(s.habits)) {
+          hh = s.habits.find(function (x) { return x.id === h.id; }) || s.habits.find(function (x) { return x.name === h.name; }) || null;
+        }
+        var days = hh && Array.isArray(hh.days) ? hh.days : [];
+        var done = 0;
+        for (var d = 0; d < days.length; d++) { if (days[d]) done++; }
+        var pct = days.length > 0 ? Math.round((done / days.length) * 100) : 0;
+        var cur = 0;
+        for (var i = days.length - 1; i >= 0 && days[i]; i--) cur++;
+        months.push({ month: m, pct: pct, streak: cur });
+      }
+      return { id: h.id, name: h.name, target: h.target || 100, months: months };
+    });
+  }
+
   var api = {
     weekGoalPct: weekGoalPct,
     yearMonthlyFrom: yearMonthlyFrom,
+    habitYearMatrix: habitYearMatrix,
     csvRow: csvRow,
     buildCSVRows: buildCSVRows,
     moodSummary: moodSummary,

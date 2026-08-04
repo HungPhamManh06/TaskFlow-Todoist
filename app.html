@@ -61,7 +61,7 @@
       } catch (e) { /* ẩn */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/styles.css?v=48" />
+  <link rel="stylesheet" href="css/styles.css?v=51" />
 </head>
 
 <body>
@@ -154,6 +154,8 @@
       </div>
       <button type="button" class="btn-icon" id="btnInstall" data-action="install-app" hidden
         title="Cài đặt ứng dụng" data-i18n-title="installTitle" data-i18n-aria="installTitle">📲</button>
+      <button type="button" class="btn-icon" id="btnHelp" data-action="help-toggle" title="Hướng dẫn sử dụng"
+        data-i18n-title="helpTitle" data-i18n-aria="helpTitle">❓</button>
       <button type="button" class="btn-icon" id="btnDark" data-action="dark" title="Bật/tắt chế độ tối"
         data-i18n-title="darkTitle" data-i18n-aria="darkTitle">🌙</button>
       <button type="button" class="lang-btn" id="langBtn" data-action="lang" title="Đổi ngôn ngữ"
@@ -283,6 +285,7 @@
     <div class="pomo-panel" id="pomoPanel" hidden>
       <div class="pomo-mode" id="pomoMode"></div>
       <div class="pomo-time" id="pomoTime">25:00</div>
+      <div class="pomo-tomato-wrap" id="pomoTomatoCounter"></div>
       <div class="pomo-actions">
         <button type="button" class="pop-btn primary" data-action="pomo-start" id="pomoStart"></button>
         <button type="button" class="pop-btn" data-action="pomo-reset" data-i18n="pomoReset">↺</button>
@@ -290,20 +293,48 @@
     </div>
   </div>
 
-  <!-- ===== Góp ý / phản hồi (FAB) ===== -->
-  <div class="fb-fab-wrap">
-    <button type="button" class="fb-fab" data-action="fb-toggle" title="Góp ý / phản hồi"
-      data-i18n-title="fbTitle" data-i18n-aria="fbTitle">💬</button>
-    <div class="header-pop fb-fab-pop" id="fbPop" hidden>
-      <strong data-i18n="fbTitle">💬 Góp ý / phản hồi</strong>
-      <button type="button" class="pop-btn" data-action="fb-form" data-i18n="fbForm">📝 Góp ý qua Google Form</button>
-      <button type="button" class="pop-btn" data-action="fb-mail" data-i18n="fbMail">📧 Gửi email</button>
+  <!-- ===== Trợ lý học tập (Chatbot FAB) ===== -->
+  <div class="fb-fab-wrap" id="chatFabWrap">
+    <button type="button" class="fb-fab" data-action="chat-toggle" title="Trợ lý học tập"
+      data-i18n-title="chatTitle" data-i18n-aria="chatTitle">🤖</button>
+    <div class="chat-pop" id="chatPop" hidden>
+      <div class="chat-header">
+        <strong data-i18n="chatTitle">🤖 Trợ lý học tập</strong>
+        <button type="button" class="sync-close" data-action="chat-close" aria-label="Đóng"
+          data-i18n-aria="closeBtn">✕</button>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg bot">
+          <span data-i18n="chatWelcome">👋 Chào bạn! Tôi là trợ lý học tập. Bạn cần hỗ trợ gì?</span>
+        </div>
+      </div>
+      <div class="chat-actions" id="chatActions">
+        <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="study-plan">📚 Lên kế hoạch học tập</button>
+        <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="goal-tips">🎯 Mẹo đạt mục tiêu</button>
+        <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="habit-tips">🔥 Xây thói quen mới</button>
+        <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="pomodoro-tips">🍅 Cách dùng Pomodoro</button>
+      </div>
+      <div class="chat-input-wrap">
+        <input type="text" class="chat-input" id="chatInput" placeholder="" data-i18n-placeholder="chatPh"
+          autocomplete="off" />
+        <button type="button" class="pop-btn primary chat-send" data-action="chat-send" data-i18n="chatSend">Gửi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Hướng dẫn sử dụng (Help Modal) ===== -->
+  <div class="report-modal" id="helpModal" hidden>
+    <div class="report-modal-card" role="dialog" aria-modal="true" aria-label="Hướng dẫn sử dụng"
+      data-i18n-aria="helpTitle">
+      <button type="button" class="sync-close" data-action="help-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h3 class="sync-modal-title">❓ <span data-i18n="helpTitle">Hướng dẫn sử dụng</span></h3>
+      <div class="help-content" id="helpContent"></div>
     </div>
   </div>
 
   <div class="sync-modal" id="syncModal" hidden>
     <div class="sync-modal-card">
-      <button type="button" class="sync-close" data-action="sync-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
       <h3 class="sync-modal-title">☁️ <span data-i18n="syncTitle">Đồng bộ đám mây</span></h3>
       <p class="sync-desc" data-i18n="syncDesc">Đăng nhập để đồng bộ dữ liệu giữa các thiết bị. Dữ liệu hiện tại sẽ tự
@@ -384,6 +415,19 @@
     </div>
   </div>
 
+  <!-- ===== Phase 8: Widget Settings (Dashboard tuỳ chỉnh) ===== -->
+  <div class="widget-modal" id="widgetSettingsModal" hidden>
+    <div class="widget-modal-card" role="dialog" aria-modal="true" aria-label="Widget settings">
+      <button type="button" class="sync-close" data-action="widget-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h3 class="sync-modal-title">⚙️ <span data-i18n="widgetSettings">Tuỳ chỉnh Widget</span></h3>
+      <div id="widgetList" class="widget-list"></div>
+      <div class="sync-actions">
+        <button type="button" class="pop-btn primary" data-action="widget-save" data-i18n="widgetSave">Lưu</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Onboarding 3 bước (lần dùng đầu) ===== -->
   <div class="onboard-modal" id="onboardModal" hidden>
     <div class="onboard-card">
@@ -436,10 +480,10 @@
 
   <script src="js/api-config.js?v=1"></script>
   <script src="js/deeplink.js?v=2"></script>
-  <script src="js/plan-math.js?v=3"></script>
-  <script src="js/plan-stats.js?v=2"></script>
+  <script src="js/plan-math.js?v=7"></script>
+  <script src="js/plan-stats.js?v=3"></script>
   <script src="js/sync.js?v=3"></script>
-  <script src="js/app.js?v=43"></script>
+  <script src="js/app.js?v=51"></script>
 </body>
 
 </html>

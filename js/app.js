@@ -413,6 +413,79 @@ function lineChartSVG(values, w = 480, h = 110) {
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* ============================ Phase 8: Widget Dashboard System ============================ */
+
+/* 8.1 — Widget config: định nghĩa widget + helpers */
+
+const WIDGET_DEFS_OVERVIEW = [
+  { id: 'date-card',     labelKey: 'widgetLabel_date-card',     render: function (ms) { return dateCardHTML(); } },
+  { id: 'weekly-chart',  labelKey: 'widgetLabel_weekly-chart',  render: function (ms) { return weeklyChartHTML(); } },
+  { id: 'scene-card',    labelKey: 'widgetLabel_scene-card',    render: function (ms) { return sceneCardHTML(); } },
+  { id: 'goals',         labelKey: 'widgetLabel_goals',         render: function (ms) { return goalsPanelHTML(ms); } },
+  { id: 'habits',        labelKey: 'widgetLabel_habits',        render: function (ms) { return habitPanelHTML(); } },
+  { id: 'streak-heatmap',labelKey: 'widgetLabel_streak-heatmap',render: function (ms) { return habitHeatCardHTML(); } },
+  { id: 'mood',          labelKey: 'widgetLabel_mood',          render: function (ms) { return moodCardHTML(); } },
+  { id: 'badges',        labelKey: 'widgetLabel_badges',        render: function (ms) { return badgePanelHTML(); } },
+];
+
+const WIDGET_DEFS_YEAR = [
+  { id: 'year-dashboard',        labelKey: 'widgetLabel_year-dashboard',        render: function (gs) { return yearDashboardHTML(); } },
+  { id: 'year-card',             labelKey: 'widgetLabel_year-card',             render: function (gs) { return yearCardHTML(); } },
+  { id: 'year-charts',           labelKey: 'widgetLabel_year-charts',           render: function (gs) { return yearChartsHTML(); } },
+  { id: 'year-goals',            labelKey: 'widgetLabel_year-goals',            render: function (gs) { return yearGoalsCardHTML(gs); } },
+  { id: 'year-overview-ref',     labelKey: 'widgetLabel_year-overview-ref',     render: function (gs) { return yearOverviewReflectionHTML(); } },
+  { id: 'year-quarters',         labelKey: 'widgetLabel_year-quarters',         render: function (gs) { return yearQuartersHTML(); } },
+  { id: 'year-months',           labelKey: 'widgetLabel_year-months',           render: function (gs) { return yearMonthsHTML(); } },
+  { id: 'year-reflections',      labelKey: 'widgetLabel_year-reflections',      render: function (gs) { return yearReflectionsHTML(); } },
+  { id: 'year-heatmap',          labelKey: 'widgetLabel_year-heatmap',          render: function (gs) { return yearHabitHeatmapHTML(); } },
+];
+
+function widgetConfigKey(view) { return 'planner-widgets-' + view; }
+
+function initWidgetConfig(view) {
+  const defs = view === 'year' ? WIDGET_DEFS_YEAR : WIDGET_DEFS_OVERVIEW;
+  try {
+    const raw = localStorage.getItem(widgetConfigKey(view));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Validate: giữ lại các widget hợp lệ, bỏ widget cũ không còn trong defs
+        const validIds = new Set(defs.map(function (d) { return d.id; }));
+        var cleaned = parsed.filter(function (w) { return validIds.has(w.id); });
+        // Thêm widget mới (nếu chưa có trong config)
+        var existingIds = new Set(cleaned.map(function (w) { return w.id; }));
+        defs.forEach(function (d) {
+          if (!existingIds.has(d.id)) {
+            cleaned.push({ id: d.id, visible: true, order: cleaned.length });
+          }
+        });
+        return cleaned;
+      }
+    }
+  } catch (e) { /* ẩn */ }
+  // Fallback: hiện tất cả, thứ tự mặc định
+  return defs.map(function (d, i) { return { id: d.id, visible: true, order: i }; });
+}
+
+function saveWidgetConfig(view, config) {
+  try { localStorage.setItem(widgetConfigKey(view), JSON.stringify(config)); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push(widgetConfigKey(view));
+}
+
+function getVisibleWidgets(view) {
+  const defs = view === 'year' ? WIDGET_DEFS_YEAR : WIDGET_DEFS_OVERVIEW;
+  const config = initWidgetConfig(view);
+  var sorted = config.slice().sort(function (a, b) { return a.order - b.order; });
+  var map = {};
+  defs.forEach(function (d) { map[d.id] = d; });
+  return sorted
+    .filter(function (w) { return w.visible && map[w.id]; })
+    .map(function (w) {
+      var def = map[w.id];
+      return { id: w.id, html: def.render(), label: t(def.labelKey) };
+    });
+}
+
 /* ============================ i18n VI/EN ============================ */
 
 const MONTH_NAMES_VI = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
@@ -753,6 +826,16 @@ const I18N = {
     pomoWidgetStats: '{today} · {week}',
     pomoWorkDoneTxt: 'Xong phiên tập trung! Nghỉ 5 phút nhé 🍅',
     pomoBreakDoneTxt: 'Hết giờ nghỉ! Bắt đầu phiên mới 🍅',
+    pomoTomatoCounter: '🍅 {n}/{total}',
+    pomoLongBreak: 'Nghỉ dài 🧘',
+    pomoLongBreakDone: 'Hết giờ nghỉ dài! Bắt đầu chu kỳ mới 🍅',
+    pomoSessionCount: 'Đã tập trung {n} lần',
+    chatTitle: '🤖 Trợ lý học tập',
+    chatWelcome: '👋 Chào bạn! Tôi là trợ lý học tập. Bạn cần hỗ trợ gì?',
+    chatPh: 'Nhập câu hỏi của bạn...',
+    chatSend: 'Gửi',
+    helpTitle: '❓ Hướng dẫn sử dụng',
+    helpContent: '<h3>📋 Các chức năng của TaskFlow-Todoist</h3><ul><li><b>📅 Tổng quan tháng:</b> Xem mục tiêu, thói quen và tiến độ tháng.</li><li><b>🗓️ Kế hoạch năm:</b> Mục tiêu năm, biểu đồ 12 tháng, phản ánh quý/năm.</li><li><b>📋 Kế hoạch tuần:</b> Mục tiêu & task theo ngày, thói quen, phản ánh, Pomodoro.</li><li><b>🎯 Mục tiêu:</b> Thêm/sửa/xoá mục tiêu ưu tiên và thường. Tick ✓ để đánh dấu hoàn thành.</li><li><b>🔥 Thói quen:</b> Theo dõi thói quen 31 ngày, tính % hoàn thành, streak và heatmap.</li><li><b>🍅 Pomodoro:</b> Timer tập trung 25 phút. Sau 4 lần tập trung sẽ được nghỉ dài 25 phút.</li><li><b>📝 Phản ánh:</b> Viết nhật ký reflection theo tuần, tháng, quý, năm.</li><li><b>🏷️ Tag:</b> Gắn tag cho task để lọc và tìm kiếm.</li><li><b>🔍 Tìm kiếm:</b> Tìm kiếm xuyên tháng (Ctrl+K).</li><li><b>📊 Dashboard:</b> Thống kê tổng quan năm.</li><li><b>🌙 Chế độ tối:</b> Bật/tắt giao diện tối.</li><li><b>🌐 Ngôn ngữ:</b> Chuyển đổi VI/EN.</li><li><b>🎯 Chế độ Tập trung:</b> Xem task & thói quen hôm nay trong giao diện tối giản.</li><li><b>↩️ Hoàn tác/Làm lại:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Dữ liệu:</b> Xuất/nhập JSON, CSV, sao lưu tự động, khôi phục.</li><li><b>☁️ Đồng bộ:</b> Đăng nhập để đồng bộ dữ liệu giữa các thiết bị.</li><li><b>📅 Lịch:</b> Xem task theo lịch tháng.</li><li><b>📋 Templates:</b> Sao chép cấu trúc tháng.</li><li><b>🎨 Chủ đề:</b> 4 chủ đề màu kem/bạc hà/oải hương/đào.</li><li><b>🤖 Trợ lý học tập:</b> Chatbot hỗ trợ lên kế hoạch học tập và trả lời câu hỏi.</li></ul><p>💡 <b>Mẹo:</b> Dùng phím số 1-5 để chuyển nhanh giữa các view.</p>',
     profileTitle: '👤 Tài khoản',
     profileUser: 'Tên người dùng: {u}',
     pwTitle: 'Đổi mật khẩu',
@@ -820,6 +903,28 @@ const I18N = {
     importCsvDone: 'Đã nhập CSV!',
     importCsvError: 'Không đọc được CSV. Đảm bảo file là bản xuất từ TaskFlow-Todoist.',
     digestNone: 'Hôm qua bạn điểm danh đủ thói quen! 🎉',
+    /* ===== Phase 8: Widget Dashboard ===== */
+    widgetSettings: '⚙️ Tuỳ chỉnh Widget',
+    widgetSave: 'Lưu',
+    widgetHide: 'Ẩn widget này',
+    widgetShow: 'Hiện widget này',
+    widgetLabel_date-card: 'Ngày tháng',
+    widgetLabel_weekly-chart: 'Tiến độ tuần',
+    widgetLabel_scene-card: 'Cảnh vật',
+    widgetLabel_goals: 'Mục tiêu tháng',
+    widgetLabel_habits: 'Thói quen',
+    widgetLabel_streak-heatmap: 'Streak & Heatmap',
+    widgetLabel_mood: 'Tâm trạng',
+    widgetLabel_badges: 'Huy hiệu',
+    widgetLabel_year-dashboard: 'Dashboard',
+    widgetLabel_year-card: 'Thông tin năm',
+    widgetLabel_year-charts: 'Biểu đồ 12 tháng',
+    widgetLabel_year-goals: 'Mục tiêu năm',
+    widgetLabel_year-overview-ref: 'Tổng quan năm',
+    widgetLabel_year-quarters: 'Quý',
+    widgetLabel_year-months: '12 tháng',
+    widgetLabel_year-reflections: 'Phản ánh quý',
+    widgetLabel_year-heatmap: 'Habit Heatmap',
     digestBody: 'Hôm qua chưa điểm danh: {names}',
   },
   en: {
@@ -1124,6 +1229,16 @@ const I18N = {
     pomoDoneBreak: 'Break over! Start a new session 🍅',
     pomoWorkDoneTxt: 'Focus session done! Take a 5-min break 🍅',
     pomoBreakDoneTxt: 'Break over! Start a new session 🍅',
+    pomoTomatoCounter: '🍅 {n}/{total}',
+    pomoLongBreak: 'Long break 🧘',
+    pomoLongBreakDone: 'Long break done! Start a new cycle 🍅',
+    pomoSessionCount: 'Focused {n} times',
+    chatTitle: '🤖 Study Assistant',
+    chatWelcome: '👋 Hi! I am your study assistant. How can I help you?',
+    chatPh: 'Type your question...',
+    chatSend: 'Send',
+    helpTitle: '❓ User Guide',
+    helpContent: '<h3>📋 TaskFlow-Todoist Features</h3><ul><li><b>📅 Month Overview:</b> View monthly goals, habits and progress.</li><li><b>🗓️ Year Plan:</b> Year goals, 12-month chart, quarter/year reflections.</li><li><b>📋 Week Plan:</b> Daily goals & tasks, habits, reflections, Pomodoro.</li><li><b>🎯 Goals:</b> Add/edit/delete priority & regular goals. Tick ✓ to mark done.</li><li><b>🔥 Habits:</b> Track 31-day habits, calculate %, streak and heatmap.</li><li><b>🍅 Pomodoro:</b> 25-min focus timer. After 4 focus sessions, take a 25-min long break.</li><li><b>📝 Reflection:</b> Write reflection journals by week, month, quarter, year.</li><li><b>🏷️ Tags:</b> Tag tasks for filtering and searching.</li><li><b>🔍 Search:</b> Search across months (Ctrl+K).</li><li><b>📊 Dashboard:</b> Year overview statistics.</li><li><b>🌙 Dark Mode:</b> Toggle dark interface.</li><li><b>🌐 Language:</b> Switch VI/EN.</li><li><b>🎯 Focus Mode:</b> View today tasks & habits in a minimalist interface.</li><li><b>↩️ Undo/Redo:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Data:</b> Export/import JSON, CSV, auto backup, restore.</li><li><b>☁️ Sync:</b> Sign in to sync data across devices.</li><li><b>📅 Calendar:</b> View tasks in monthly calendar.</li><li><b>📋 Templates:</b> Copy month structure.</li><li><b>🎨 Themes:</b> 4 color themes: cream/mint/lavender/peach.</li><li><b>🤖 Study Assistant:</b> Chatbot for study planning and answering questions.</li></ul><p>💡 <b>Tip:</b> Use number keys 1-5 to quickly switch between views.</p>',
     /* Phase 4 — habit/task reminders */
     remindHabitAria: 'Set reminder for habit',
     remindTaskAria: 'Set reminder for task',
@@ -1224,6 +1339,28 @@ const I18N = {
     importCsvDone: 'CSV imported!',
     importCsvError: 'Could not read CSV. Make sure it is a TaskFlow-Todoist export.',
     digestNone: 'All habits ticked yesterday! 🎉',
+    /* ===== Phase 8: Widget Dashboard ===== */
+    widgetSettings: '⚙️ Customize Widgets',
+    widgetSave: 'Save',
+    widgetHide: 'Hide this widget',
+    widgetShow: 'Show this widget',
+    widgetLabel_date-card: 'Date card',
+    widgetLabel_weekly-chart: 'Weekly progress',
+    widgetLabel_scene-card: 'Scene',
+    widgetLabel_goals: 'Monthly goals',
+    widgetLabel_habits: 'Habits',
+    widgetLabel_streak-heatmap: 'Streak & Heatmap',
+    widgetLabel_mood: 'Mood',
+    widgetLabel_badges: 'Badges',
+    widgetLabel_year-dashboard: 'Dashboard',
+    widgetLabel_year-card: 'Year info',
+    widgetLabel_year-charts: '12-month chart',
+    widgetLabel_year-goals: 'Year goals',
+    widgetLabel_year-overview-ref: 'Year overview',
+    widgetLabel_year-quarters: 'Quarters',
+    widgetLabel_year-months: '12 months',
+    widgetLabel_year-reflections: 'Quarterly reflections',
+    widgetLabel_year-heatmap: 'Habit Heatmap',
     digestBody: 'Missed yesterday: {names}',
   },
 };
@@ -1589,6 +1726,48 @@ function turnOffRemind(el) {
   save();
   syncReminderTimers();
   trackEvent('reminder_item_off', { kind });
+}
+
+/* ---------- Phase 7.1: Chỉnh sửa lặp lại task (repeat-edit) ---------- */
+
+function beginRepeatEdit(btn) {
+  const host = btn.closest('.task-row');
+  if (!host) return;
+  const existing = host.querySelector('.repeat-edit-input');
+  if (existing) { existing.remove(); return; }
+  const wrap = document.createElement('span');
+  wrap.className = 'repeat-edit-input';
+  wrap.style.cssText = 'display:inline-flex;gap:4px;align-items:center;font-size:11px;';
+  const sel = document.createElement('select');
+  sel.innerHTML = '<option value="">' + t('repeatOff') + '</option><option value="daily">' + t('repeatDaily') + '</option><option value="weekly">' + t('repeatWeekly') + '</option><option value="monthly">' + t('repeatMonthly') + '</option>';
+  const w = state.weeks[+btn.dataset.week - 1];
+  const d = w && w.days[+btn.dataset.day];
+  const tk = d && d.tasks[+btn.dataset.task];
+  if (tk && tk.repeat && tk.repeat.freq) sel.value = tk.repeat.freq;
+  sel.addEventListener('change', () => {
+    if (!tk) return;
+    if (sel.value) tk.repeat = { freq: sel.value, every: 1 };
+    else tk.repeat = null;
+    renderWeek(); save(); trackEvent('repeat_set');
+  });
+  wrap.appendChild(sel);
+  btn.parentElement.insertBefore(wrap, btn.nextSibling);
+  sel.focus();
+}
+
+/* ---------- Phase 7.1: Tự sinh task lặp lại ---------- */
+
+function applyRecurrence() {
+  // Lỗi cũ: scan "alreadyExists" quét cả ngày quá khứ (gồm chính task đang xét) → luôn
+  // true → không bao giờ sinh; giờ chuyển logic thuần sang PlanMath.planRecurrence
+  // (chỉ so sánh với task từ hôm nay trở đi) và push bản sao vào ĐÚNG ngày hôm nay.
+  const ti = nowInfo();
+  if (!ti.inRange || !window.PlanMath || !window.PlanMath.planRecurrence) return; // hôm nay ngoài kỳ kế hoạch → không có chỗ sinh
+  const todayDay = state.weeks[ti.week - 1] && state.weeks[ti.week - 1].days[ti.dayInWeek];
+  if (!todayDay) return;
+  const plan = window.PlanMath.planRecurrence(state.weeks, ti.dayIdx);
+  plan.mark.forEach((t) => { t._recurred = true; });
+  plan.copies.forEach((c) => todayDay.tasks.push(c));
 }
 
 /* ============================ Xuất / Nhập dữ liệu ============================ */
@@ -2297,6 +2476,7 @@ function loadState() {
         (d.tasks || []).forEach((tk) => {
           if (!Array.isArray(tk.tags)) tk.tags = [];
           if (!tk.remind || typeof tk.remind !== 'object') tk.remind = { enabled: false, time: '20:00' };
+          if (typeof tk.repeat === 'undefined') tk.repeat = null;
         });
       });
     });
@@ -2311,6 +2491,8 @@ function loadState() {
         if (typeof h.target !== 'number' || h.target < 1) h.target = 100;
         // Migration: habit cũ thiếu remind → tắt
         if (!h.remind || typeof h.remind !== 'object') h.remind = { enabled: false, time: '20:00' };
+        // Phase 7.5: skipDays mặc định là mảng rỗng
+        if (!Array.isArray(h.skipDays)) h.skipDays = [];
         if (Array.isArray(h.days)) {
           for (let d = today; d < h.days.length; d++) {
             if (h.days[d]) { h.days[d] = false; dirty = true; }
@@ -2487,17 +2669,17 @@ function renderOverview() {
   const el = document.getElementById('ov-content');
   const ms = monthlyStats();
   evaluateMonthBadges();
+  const widgets = getVisibleWidgets('overview');
+  // Giữ 3 card đầu trong ov-top grid, các card còn lại bên ngoài
+  const topIds = new Set(['date-card', 'weekly-chart', 'scene-card']);
+  const topWidgets = widgets.filter(function (w) { return topIds.has(w.id); });
+  const restWidgets = widgets.filter(function (w) { return !topIds.has(w.id); });
   el.innerHTML = `
     <div class="ov-top">
-      ${dateCardHTML()}
-      ${weeklyChartHTML()}
-      ${sceneCardHTML()}
+      ${topWidgets.map(function (w) { return w.html; }).join('')}
     </div>
-    ${goalsPanelHTML(ms)}
-    ${habitPanelHTML()}
-    ${habitHeatCardHTML()}
-    ${moodCardHTML()}
-    ${badgePanelHTML()}
+    ${restWidgets.map(function (w) { return w.html; }).join('')}
+    <button type="button" class="pop-btn widget-settings-btn" data-action="widget-settings" data-view="overview" title="${t('widgetSettings')}">⚙️ ${t('widgetSettings')}</button>
   `;
 }
 
@@ -2716,7 +2898,7 @@ function habitPanelHTML() {
                   </span>
                 </span></td>
                 <td class="sticky pct-col"><b data-role="habit-pct" data-id="${h.id}">${p}%</b></td>
-                ${h.days.map((v, d) => `<td class="day-cell${d === habitToday ? ' today' : ''}">${checkboxHTML('', v, `data-action="habit" data-id="${h.id}" data-day="${d}"`)}</td>`).join('')}
+                ${h.days.map((v, d) => `<td class="day-cell${d === habitToday ? ' today' : ''}${h.skipDays && h.skipDays.includes(d) ? ' skipped' : ''}" data-context="habit-day" data-id="${h.id}" data-day="${d}">${checkboxHTML('', v, `data-action="habit" data-id="${h.id}" data-day="${d}"`)}</td>`).join('')}
               </tr>`;
             }).join('') : `<tr>
               <td class="sticky name-col"></td>
@@ -3800,21 +3982,21 @@ function renderYear() {
   invalidateYearCache();
   const el = document.getElementById('view-year');
   const gs = yearGoalStats();
+  const widgets = getVisibleWidgets('year');
+  // Giữ year-card + year-charts trong year-top grid
+  const topIds = new Set(['year-card', 'year-charts']);
+  const topWidgets = widgets.filter(function (w) { return topIds.has(w.id); });
+  const restWidgets = widgets.filter(function (w) { return !topIds.has(w.id); });
   el.innerHTML = `
     <div class="year-banner">
       <h2 class="year-banner-title">${t('yGoalsTitle', { y: PLAN_YEAR })}</h2>
       <button type="button" class="pop-btn share-btn week-report-btn" data-action="year-report" title="${t('yearReportTitle')}">📊 ${t('yearReportTitle')}</button>
     </div>
-    ${yearDashboardHTML()}
+    ${restWidgets.map(function (w) { return w.html; }).join('')}
     <div class="year-top">
-      ${yearCardHTML()}
-      ${yearChartsHTML()}
+      ${topWidgets.map(function (w) { return w.html; }).join('')}
     </div>
-    ${yearGoalsCardHTML(gs)}
-    ${yearOverviewReflectionHTML()}
-    ${yearQuartersHTML()}
-    ${yearMonthsHTML()}
-    ${yearReflectionsHTML()}
+    <button type="button" class="pop-btn widget-settings-btn" data-action="widget-settings" data-view="year" title="${t('widgetSettings')}">⚙️ ${t('widgetSettings')}</button>
   `;
 }
 
@@ -4030,6 +4212,27 @@ function yearReflectionsHTML() {
   </div>`;
 }
 
+function yearHabitHeatmapHTML() {
+  var habits = state.habits;
+  if (!habits || !habits.length) return '';
+  var matrix = window.PlanStats && window.PlanStats.habitYearMatrix ? window.PlanStats.habitYearMatrix(habits, PLAN_YEAR) : [];
+  if (!matrix.length) return '';
+  var rows = matrix.map(function (h) {
+    var cells = '';
+    for (var m = 0; m < 12; m++) {
+      var pct = h.months[m].pct;
+      var cls = 'yhm-cell';
+      if (pct >= 100) cls += ' l4';
+      else if (pct >= 75) cls += ' l3';
+      else if (pct >= 50) cls += ' l2';
+      else if (pct > 0) cls += ' l1';
+      cells += '<span class="' + cls + '" title="' + t('hmDayFullT', { m: m + 1, d: 1, p: pct }) + '"></span>';
+    }
+    return '<div class="yhm-row"><div class="yhm-name">' + esc(h.name) + '</div><div class="yhm-cells">' + cells + '</div></div>';
+  }).join('');
+  return '<div class="card year-heat-card"><div class="card-title">🔥 ' + t('hmTitle') + '</div>' + rows + '</div>';
+}
+
 /* ---------- Trang tuần ---------- */
 
 let tagFilter = null;
@@ -4044,6 +4247,7 @@ function weekTagFilterBar() {
 }
 
 function renderWeek() {
+  applyRecurrence();
   const el = document.getElementById('view-week');
   const w = state.weeks[state.currentWeek - 1];
   const st = weekStats(w);
@@ -4094,6 +4298,7 @@ function renderWeek() {
             <button type="button" class="pop-btn" data-action="pomo-mode" data-mode="break">${t('pomoBreak')}</button>
           </div>
           <div class="pomo-widget-stats" id="pomoWidgetStats"></div>
+          <div class="pomo-tomato-wrap" id="pomoWidgetTomato"></div>
         </div>
       </div>
     </div>
@@ -4192,6 +4397,7 @@ function taskRowHTML(wn, di, ti, mod, task, pos) {
     <span class="dotted-line" aria-hidden="true"></span>
     <button type="button" class="btn-tag" data-action="remind-task" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('remindTaskAria')}" aria-label="${t('remindTaskAria')}">🔔${task.remind && task.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
     <button type="button" class="btn-tag" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('tagAdd')}" aria-label="${t('tagAria')}">🏷️</button>
+    <button type="button" class="btn-tag" data-action="repeat-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('repeatTitle')}" aria-label="${t('repeatTitle')}">🔁${task.repeat && task.repeat.freq ? '<sup class="remind-dot"></sup>' : ''}</button>
     <button type="button" class="btn-del" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}" aria-label="${t('delTaskAria', { n: ti + 1 })}" title="${t('delTaskAria', { n: ti + 1 })}">✕</button>
   </div>`;
 }
@@ -4401,8 +4607,8 @@ function copyMonthTemplate() {
 
 /* ============================ Phase 2: Pomodoro ============================ */
 
-const POMO_WORK = 25 * 60, POMO_BREAK = 5 * 60;
-let pomo = { mode: 'work', left: POMO_WORK, running: false, timer: null };
+const POMO_WORK = 25 * 60, POMO_BREAK = 5 * 60, POMO_LONG_BREAK = 25 * 60;
+let pomo = { mode: 'work', left: POMO_WORK, running: false, timer: null, sessionCount: 0, todayCount: 0 };
 
 function renderPomo() {
   const mm = String(Math.floor(pomo.left / 60)).padStart(2, '0');
@@ -4410,14 +4616,22 @@ function renderPomo() {
   const tEl = document.getElementById('pomoTime');
   if (tEl) tEl.textContent = mm + ':' + ss;
   const mEl = document.getElementById('pomoMode');
-  if (mEl) mEl.textContent = (pomo.mode === 'work' ? t('pomoWork') : t('pomoBreak')) + ' · ' + t('pomoMin', { n: pomo.mode === 'work' ? 25 : 5 });
+  if (mEl) {
+    const modeLabel = pomo.mode === 'work' ? t('pomoWork') : (pomo.mode === 'longBreak' ? t('pomoLongBreak') : t('pomoBreak'));
+    const minLabel = pomo.mode === 'longBreak' ? 25 : (pomo.mode === 'work' ? 25 : 5);
+    mEl.textContent = modeLabel + ' · ' + t('pomoMin', { n: minLabel });
+  }
   const bEl = document.getElementById('pomoStart');
   if (bEl) bEl.textContent = pomo.running ? t('pomoPause') : t('pomoStart');
   // Widget tuần view (nếu có)
   const wT = document.getElementById('pomoWidgetTime');
   if (wT) wT.textContent = mm + ':' + ss;
   const wM = document.getElementById('pomoWidgetMode');
-  if (wM) wM.textContent = (pomo.mode === 'work' ? t('pomoWork') : t('pomoBreak')) + ' · ' + t('pomoMin', { n: pomo.mode === 'work' ? 25 : 5 });
+  if (wM) {
+    const modeLabel = pomo.mode === 'work' ? t('pomoWork') : (pomo.mode === 'longBreak' ? t('pomoLongBreak') : t('pomoBreak'));
+    const minLabel = pomo.mode === 'longBreak' ? 25 : (pomo.mode === 'work' ? 25 : 5);
+    wM.textContent = modeLabel + ' · ' + t('pomoMin', { n: minLabel });
+  }
   const wB = document.getElementById('pomoWidgetStart');
   if (wB) wB.textContent = pomo.running ? t('pomoPause') : t('pomoStart');
 }
@@ -4435,8 +4649,20 @@ function pomoStart() {
       trackEvent('pomodoro_complete', { mode: finished });
       if (finished === 'work') {
         pomoAddSession(POMO_WORK);
-        alert(t('pomoDoneWork'));
-        pomo.mode = 'break'; pomo.left = POMO_BREAK;
+        // Tăng session count và kiểm tra 4 lần → long break
+        const log = loadPomoLog();
+        const todayKey = pomoDateKey(new Date());
+        const todaySessions = log[todayKey] ? log[todayKey].count : 0;
+        if (todaySessions > 0 && todaySessions % 4 === 0) {
+          pomo.mode = 'longBreak'; pomo.left = POMO_LONG_BREAK;
+          alert(t('pomoWorkDoneTxt') + ' 🎉 ' + t('pomoLongBreak'));
+        } else {
+          alert(t('pomoDoneWork'));
+          pomo.mode = 'break'; pomo.left = POMO_BREAK;
+        }
+      } else if (finished === 'longBreak') {
+        alert(t('pomoLongBreakDone'));
+        pomo.mode = 'work'; pomo.left = POMO_WORK;
       } else {
         alert(t('pomoDoneBreak'));
         pomo.mode = 'work'; pomo.left = POMO_WORK;
@@ -4451,15 +4677,15 @@ function pomoStart() {
 function pomoReset() {
   clearInterval(pomo.timer);
   pomo.running = false;
-  pomo.left = pomo.mode === 'work' ? POMO_WORK : POMO_BREAK;
+  pomo.left = pomo.mode === 'work' ? POMO_WORK : (pomo.mode === 'longBreak' ? POMO_LONG_BREAK : POMO_BREAK);
   renderPomo();
 }
 
 function pomoSetMode(mode) {
   clearInterval(pomo.timer);
   pomo.running = false;
-  pomo.mode = mode === 'break' ? 'break' : 'work';
-  pomo.left = pomo.mode === 'work' ? POMO_WORK : POMO_BREAK;
+  pomo.mode = mode === 'break' ? 'break' : mode === 'longBreak' ? 'longBreak' : 'work';
+  pomo.left = pomo.mode === 'work' ? POMO_WORK : (pomo.mode === 'longBreak' ? POMO_LONG_BREAK : POMO_BREAK);
   renderPomo();
   trackEvent('pomodoro_mode', { mode: pomo.mode });
 }
@@ -4513,6 +4739,100 @@ function renderPomoWidgetStats() {
   const weekTxt = t('pomoWeek') + ': ' + t('pomoMinShort', { n: Math.round(pomoWeekSecs() / 60) });
   el.textContent = t('pomoWidgetStats', { today: todayTxt, week: weekTxt });
 }
+
+function renderPomoTomatoCounter() {
+  // Vẽ icon cà chua bên dưới panel pomo và widget
+  const log = loadPomoLog();
+  const todayKey = pomoDateKey(new Date());
+  const todaySessions = log[todayKey] ? log[todayKey].count : 0;
+  const sessionCount = todaySessions || 0;
+  const target = 4;
+  const done = sessionCount % target;
+  const total = target;
+  let html = '<div class="pomo-tomato-row" title="' + t('pomoSessionCount', { n: sessionCount }) + '">';
+  for (var i = 0; i < total; i++) {
+    html += '<span class="pomo-tomato-icon" data-state="' + (i < done ? 'done' : 'pending') + '">' + (i < done ? '🍅' : '🍅') + '</span>';
+  }
+  html += '</div>';
+  // Cập nhật cả panel widget và overlay
+  var panelEl = document.getElementById('pomoTomatoCounter');
+  if (panelEl) panelEl.innerHTML = html;
+  var widgetEl = document.getElementById('pomoWidgetTomato');
+  if (widgetEl) widgetEl.innerHTML = html;
+}
+
+// Ghi đè renderPomoWidgetStats để cập nhật tomato counter
+const _origRenderPomoWidgetStats = renderPomoWidgetStats;
+renderPomoWidgetStats = function() {
+  _origRenderPomoWidgetStats();
+  renderPomoTomatoCounter();
+};
+
+/* ============================ Chatbot trợ lý học tập ============================ */
+
+const CHAT_RESPONSES = {
+  'study-plan': '📚 <b>Kế hoạch học tập hiệu quả:</b><br><br>1. <b>Xác định mục tiêu:</b> Bạn muốn đạt được gì? (VD: thi đỗ, học ngoại ngữ, kỹ năng mới)<br><br>2. <b>Chia nhỏ mục tiêu:</b> Chia thành các mục tiêu theo tháng/tuần trong app.<br><br>3. <b>Phân bổ thời gian:</b> Dùng Pomodoro 25 phút tập trung, 5 phút nghỉ — sau 4 lần nghỉ dài 25 phút.<br><br>4. <b>Theo dõi thói quen:</b> Tạo habit học tập trong app để theo dõi % hoàn thành và streak 🔥<br><br>5. <b>Phản ánh:</b> Cuối tuần viết reflection để xem lại tiến độ.<br><br>💡 Gợi ý: Dùng tính năng Mục tiêu năm để đặt mục tiêu lớn, Mục tiêu tháng để chia nhỏ, và Task tuần để hành động cụ thể!',
+  'goal-tips': '🎯 <b>Mẹo đạt mục tiêu:</b><br><br>1. <b>SMART goals:</b> Cụ thể, đo lường được, khả thi, liên quan, có thời hạn.<br><br>2. <b>Chia nhỏ:</b> Mục tiêu năm → tháng → tuần. App có sẵn cấu trúc này!<br><br>3. <b>Theo dõi:</b> Tick ✓ mỗi mục tiêu khi hoàn thành. App tự tính % tiến độ.<br><br>4. <b>Streak 🔥:</b> Duy trì mỗi ngày — streak càng dài càng có động lực!<br><br>5. <b>Phản ánh:</b> Viết reflection mỗi tuần/tháng để rút kinh nghiệm.<br><br>💡 Bạn có thể dùng Pull Goals từ Dashboard để tổng hợp mục tiêu từ 12 tháng!',
+  'habit-tips': '🔥 <b>Mẹo xây thói quen mới:</b><br><br>1. <b>Bắt đầu nhỏ:</b> Chỉ 1 thói quen, cực kỳ dễ (VD: đọc 1 trang sách).<br><br>2. <b>Gắn với thói quen cũ:</b> "Sau khi uống cà phê sáng, tôi sẽ đọc 1 trang sách."<br><br>3. <b>Theo dõi liên tục:</b> Tick ✓ mỗi ngày trong app, duy trì streak 🔥<br><br>4. <b>Đặt mục tiêu %:</b> Mỗi habit có target %, app tự tính. Đạt 100% là cíuu!<br><br>5. <b>Heatmap:</b> Xem heatmap tháng và năm để thấy sự tiến bộ.<br><br>💡 App có sẵn 10 thói quen mẫu — bạn có thể xoá/sửa và thêm thói quen của riêng mình!',
+  'pomodoro-tips': '🍅 <b>Cách dùng Pomodoro hiệu quả:</b><br><br>1. <b>Chọn task:</b> Chọn 1 task cụ thể để tập trung.<br><br>2. <b>Bắt đầu timer:</b> Ấn nút 🍅, tập trung 25 phút.<br><br>3. <b>Nghỉ ngắn:</b> Hết 25 phút → nghỉ 5 phút. Đứng dậy, vươn vai.<br><br>4. <b>Lặp lại:</b> Sau 4 lần tập trung → nghỉ dài 25 phút 🧘<br><br>5. <b>Theo dõi:</b> App ghi lại số lần tập trung hôm nay và tuần này.<br><br>💡 Mẹo: Dùng Pomodoro widget ngay trong view tuần để tiện theo dõi!',
+};
+
+function doChatSend() {
+  const input = document.getElementById('chatInput');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  const msgs = document.getElementById('chatMessages');
+  if (!msgs) return;
+  // Thêm tin nhắn user
+  const userDiv = document.createElement('div');
+  userDiv.className = 'chat-msg user';
+  userDiv.innerHTML = esc(text);
+  msgs.appendChild(userDiv);
+  // Tự động trả lời
+  setTimeout(() => {
+    const botDiv = document.createElement('div');
+    botDiv.className = 'chat-msg bot';
+    botDiv.innerHTML = chatBotReply(text);
+    msgs.appendChild(botDiv);
+    msgs.scrollTop = msgs.scrollHeight;
+  }, 500);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function doChatSuggest(topic) {
+  const msgs = document.getElementById('chatMessages');
+  if (!msgs) return;
+  const botDiv = document.createElement('div');
+  botDiv.className = 'chat-msg bot';
+  botDiv.innerHTML = CHAT_RESPONSES[topic] || 'Cảm ơn bạn! Tôi sẽ giúp bạn học tập tốt hơn.';
+  msgs.appendChild(botDiv);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function chatBotReply(text) {
+  const lower = text.toLowerCase();
+  // Kiểm tra từ khóa
+  if (lower.includes('kế hoạch') || lower.includes('học tập') || lower.includes('study') || lower.includes('plan'))
+    return CHAT_RESPONSES['study-plan'];
+  if (lower.includes('mục tiêu') || lower.includes('goal') || lower.includes('target'))
+    return CHAT_RESPONSES['goal-tips'];
+  if (lower.includes('thói quen') || lower.includes('habit') || lower.includes('streak') || lower.includes('xây'))
+    return CHAT_RESPONSES['habit-tips'];
+  if (lower.includes('pomodoro') || lower.includes('tập trung') || lower.includes('focus') || lower.includes('timer') || lower.includes('cà chua'))
+    return CHAT_RESPONSES['pomodoro-tips'];
+  // Trả lời mặc định
+  return 'Cảm ơn câu hỏi của bạn! 🐥<br><br>Bạn có thể tham khảo các chủ đề:<br>• 📚 <b>Lên kế hoạch học tập</b> — bấm nút gợi ý bên trên<br>• 🎯 <b>Mẹo đạt mục tiêu</b><br>• 🔥 <b>Xây thói quen mới</b><br>• 🍅 <b>Cách dùng Pomodoro</b><br><br>Hoặc gõ trực tiếp câu hỏi của bạn!';
+}
+
+// Enter key trong chat input gửi tin nhắn
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'chatInput') {
+    e.preventDefault();
+    doChatSend();
+  }
+});
 
 /* ============================ Phase 2: Dashboard (year view) ============================ */
 
@@ -4570,6 +4890,83 @@ function yearDashboardHTML() {
         <b>${gs.done}/${gs.total}</b><small>${t('dashGoalTotal')} · ${t('dashGoalDone', { d: gs.done, t: gs.total })}</small></div>
     </div>
   </div>`;
+}
+
+/* ============================ Phase 8: Widget Settings Modal ============================ */
+
+function openWidgetSettingsModal(view) {
+  const m = document.getElementById('widgetSettingsModal');
+  if (!m) return;
+  m.hidden = false;
+  m.dataset.widgetView = view;
+  renderWidgetSettingsModal(view);
+}
+
+function closeWidgetSettingsModal() {
+  const m = document.getElementById('widgetSettingsModal');
+  if (m) m.hidden = true;
+}
+
+function renderWidgetSettingsModal(view) {
+  const el = document.getElementById('widgetList');
+  if (!el) return;
+  const defs = view === 'year' ? WIDGET_DEFS_YEAR : WIDGET_DEFS_OVERVIEW;
+  const config = initWidgetConfig(view);
+  const configMap = {};
+  config.forEach(function (w) { configMap[w.id] = w; });
+  var sorted = config.slice().sort(function (a, b) { return a.order - b.order; });
+  el.innerHTML = sorted.map(function (w, i) {
+    var def = defs.find(function (d) { return d.id === w.id; });
+    if (!def) return '';
+    var label = t(def.labelKey);
+    return `<div class="widget-item" draggable="true" data-widget-id="${w.id}" data-widget-order="${w.order}">
+      <span class="widget-handle" data-widget-drag="${w.id}" aria-label="${esc(t('dragHint'))}">🟰</span>
+      <span class="widget-name">${esc(label)}</span>
+      <button type="button" class="widget-toggle${w.visible ? ' on' : ' off'}" data-action="widget-toggle" data-widget-id="${w.id}" aria-checked="${w.visible ? 'true' : 'false'}" aria-label="${esc(w.visible ? t('widgetHide') : t('widgetShow'))}">${w.visible ? '✓' : '✕'}</button>
+    </div>`;
+  }).join('');
+  // Attach drag events for reorder
+  el.querySelectorAll('.widget-item').forEach(function (item) {
+    item.addEventListener('dragstart', function (e) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', item.dataset.widgetId);
+      item.classList.add('dragging');
+    });
+    item.addEventListener('dragend', function () {
+      item.classList.remove('dragging');
+      document.querySelectorAll('.widget-item').forEach(function (n) { return n.classList.remove('drag-over'); });
+    });
+    item.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', function () {
+      item.classList.remove('drag-over');
+    });
+    item.addEventListener('drop', function (e) {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      var fromId = e.dataTransfer.getData('text/plain');
+      if (!fromId || fromId === item.dataset.widgetId) return;
+      var items = Array.from(el.querySelectorAll('.widget-item'));
+      var fromIdx = items.findIndex(function (x) { return x.dataset.widgetId === fromId; });
+      var toIdx = items.indexOf(item);
+      if (fromIdx < 0 || toIdx < 0) return;
+      // Reorder by swapping order values
+      var fromOrder = parseInt(items[fromIdx].dataset.widgetOrder, 10);
+      var toOrder = parseInt(items[toIdx].dataset.widgetOrder, 10);
+      var configNow = initWidgetConfig(view);
+      var fromCfg = configNow.find(function (c) { return c.id === fromId; });
+      var toCfg = configNow.find(function (c) { return c.id === item.dataset.widgetId; });
+      if (fromCfg && toCfg) {
+        fromCfg.order = toOrder;
+        toCfg.order = fromOrder;
+        saveWidgetConfig(view, configNow);
+        renderWidgetSettingsModal(view);
+      }
+    });
+  });
 }
 
 /* ============================ Phase 3: Profile / tài khoản ============================ */
@@ -4715,7 +5112,13 @@ let undoStack = window.PlanMath ? window.PlanMath.makeUndoStack(50) : null;
 let lastSnapshotJson = null;
 
 function snapshotAll() {
-  return { state: JSON.parse(JSON.stringify(state)), yearState: JSON.parse(JSON.stringify(yearState)) };
+  return {
+    state: JSON.parse(JSON.stringify(state)),
+    yearState: JSON.parse(JSON.stringify(yearState)),
+    mood: typeof moodMap !== 'undefined' ? JSON.parse(JSON.stringify(moodMap)) : null,
+    theme: (typeof THEME !== 'undefined' ? THEME : null) || null,
+    plan: { y: PLAN_YEAR, m: PLAN_MONTH, cw: state.currentWeek },
+  };
 }
 function pushUndo() {
   if (!undoStack) return;
@@ -4730,10 +5133,20 @@ function applySnapshot(snap) {
   if (!snap) return;
   state = snap.state;
   yearState = snap.yearState;
+  if (snap.mood && typeof moodMap !== 'undefined') { moodMap = JSON.parse(JSON.stringify(snap.mood)); }
+  if (snap.theme) {
+    setTheme(snap.theme);
+  }
+  if (snap.plan) {
+    PLAN_YEAR = snap.plan.y;
+    PLAN_MONTH = snap.plan.m;
+    state.currentWeek = snap.plan.cw;
+  }
   invalidateYearCache();
   renderCurrentView();
   save();
   saveYear();
+  saveMood();
   lastSnapshotJson = null; // bản khôi phục không được "ăn" lần push kế tiếp
   updateUndoButtons();
 }
@@ -4805,7 +5218,7 @@ document.addEventListener('dragover', (e) => {
       return;
     }
     const zone = e.target.closest('[data-drop="taskzone"]');
-    if (zone && zone.dataset.week === dragState.week && zone.dataset.day === dragState.day) {
+    if (zone && zone.dataset.week === dragState.week) {
       e.preventDefault();
       zone.classList.add('drag-over');
       return;
@@ -4844,7 +5257,25 @@ document.addEventListener('drop', (e) => {
     if (!d || !window.PlanMath || !window.PlanMath.reorderTask) { dragState = null; return; }
     const from = +dragState.task;
     if (from < 0 || from >= d.tasks.length) { dragState = null; return; }
+    // Phải khai báo TRƯỚC nhánh kéo qua ngày khác — gán trước khai báo `let` = TDZ ReferenceError
     let toKind = null;
+    // Nếu thả vào zone khác ngày trong cùng tuần → moveTaskAcrossDays
+    if (zone && zone.dataset.day !== dragState.day) {
+      if (zone.dataset.week !== dragState.week) { dragState = null; return; }
+      toKind = zone.dataset.kind;
+      if (toKind !== 'priority' && toKind !== 'regular') { dragState = null; return; }
+      var srcDay = state.weeks[+dragState.week - 1].days[+dragState.day];
+      var dstDay = state.weeks[+zone.dataset.week - 1].days[+zone.dataset.day];
+      if (!srcDay || !dstDay) { dragState = null; return; }
+      var result = window.PlanMath.moveTaskAcrossDays(srcDay.tasks, dstDay.tasks, +dragState.task, toKind);
+      // No-op check: mảng không đổi (vd thả vào ngày trống không có gì để di chuyển)
+      if (result.tasksFrom === srcDay.tasks && result.tasksTo === dstDay.tasks) { dragState = null; return; }
+      pushUndo();
+      srcDay.tasks = result.tasksFrom;
+      dstDay.tasks = result.tasksTo;
+      renderWeek(); save(); trackEvent('move_task_across_days');
+      dragState = null; return;
+    }
     let toPos = 0;
     if (el && el.dataset.drag === 'task') {
       // Thả lên đúng row đang kéo → không làm gì (no-op)
@@ -4912,6 +5343,23 @@ document.addEventListener('drop', (e) => {
 document.addEventListener('dragend', () => {
   dragState = null;
   document.querySelectorAll('.drag-over, .dragging').forEach((n) => n.classList.remove('drag-over', 'dragging'));
+});
+
+/* ---------- Phase 7.5: Ngày nghỉ habit (contextmenu → skip) ---------- */
+document.addEventListener('contextmenu', (e) => {
+  const cell = e.target.closest('[data-context="habit-day"]');
+  if (!cell) return;
+  e.preventDefault();
+  const h = state.habits.find(x => x.id === cell.dataset.id);
+  if (!h) return;
+  const day = +cell.dataset.day;
+  if (!Array.isArray(h.skipDays)) h.skipDays = [];
+  const idx = h.skipDays.indexOf(day);
+  if (idx >= 0) h.skipDays.splice(idx, 1);
+  else h.skipDays.push(day);
+  save();
+  renderOverview();
+  trackEvent('habit_skip_day');
 });
 
 /* ---------- Sao lưu tự động (Phase 5.4) ---------- */
@@ -5036,7 +5484,7 @@ document.addEventListener('click', (e) => {
 
   // Phase 5: bọc mọi mutation bằng undo snapshot (trước khi đổi state)
   // Lưu ý: 'reset' KHÔNG nằm trong set — pushUndo được gọi trong nhánh đã confirm (tránh phantom entry khi user bấm Hủy)
-  const UNDOABLE_ACTS = new Set(['goal', 'ygoal', 'habit', 'wgoal', 'task', 'addtask', 'deltask', 'addgoal', 'confirm-addgoal', 'delgoal', 'addhabit', 'delhabit', 'remind-off-item', 'mgoal', 'qgoal', 'copyhabits', 'template-do', 'pullyear', 'template-add', 'demo-data']);
+  const UNDOABLE_ACTS = new Set(['goal', 'ygoal', 'habit', 'wgoal', 'task', 'addtask', 'deltask', 'addgoal', 'confirm-addgoal', 'delgoal', 'addhabit', 'delhabit', 'remind-off-item', 'mgoal', 'qgoal', 'copyhabits', 'template-do', 'pullyear', 'template-add', 'demo-data', 'mood-set', 'mood-clear', 'theme', 'repeat-edit']);
   if (UNDOABLE_ACTS.has(act)) pushUndo();
 
   if (act === 'undo') { doUndo(); return; }
@@ -5050,6 +5498,40 @@ document.addEventListener('click', (e) => {
     trackEvent('feedback_click', { kind: 'form' });
     if (!FB_FORM_URL) { alert(t('fbNoForm')); return; }
     window.open(FB_FORM_URL, '_blank', 'noopener');
+    return;
+  }
+  else if (act === 'chat-toggle') {
+    const p = document.getElementById('chatPop');
+    if (p) p.hidden = !p.hidden;
+    return;
+  }
+  else if (act === 'chat-close') {
+    const p = document.getElementById('chatPop');
+    if (p) p.hidden = true;
+    return;
+  }
+  else if (act === 'chat-send') {
+    doChatSend();
+    return;
+  }
+  else if (act === 'chat-suggest') {
+    doChatSuggest(el.dataset.topic);
+    return;
+  }
+  else if (act === 'help-toggle') {
+    const m = document.getElementById('helpModal');
+    if (m) {
+      m.hidden = !m.hidden;
+      if (!m.hidden) {
+        const content = document.getElementById('helpContent');
+        if (content) content.innerHTML = t('helpContent');
+      }
+    }
+    return;
+  }
+  else if (act === 'help-close') {
+    const m = document.getElementById('helpModal');
+    if (m) m.hidden = true;
     return;
   }
 
@@ -5300,6 +5782,18 @@ document.addEventListener('click', (e) => {
   } else if (act === 'export-csv') {
     togglePop('dataPop');
     exportCSV();
+  } else if (act === 'widget-settings') {
+    openWidgetSettingsModal(el.dataset.view);
+  } else if (act === 'widget-toggle') {
+    const view = document.getElementById('widgetSettingsModal').dataset.widgetView;
+    const config = initWidgetConfig(view);
+    const w = config.find(function (c) { return c.id === el.dataset.widgetId; });
+    if (w) { w.visible = !w.visible; saveWidgetConfig(view, config); renderWidgetSettingsModal(view); }
+  } else if (act === 'widget-save') {
+    closeWidgetSettingsModal();
+    renderCurrentView();
+  } else if (act === 'widget-close') {
+    closeWidgetSettingsModal();
   } else if (act === 'print') {
     trackEvent('print');
     window.print();
@@ -5315,18 +5809,6 @@ document.addEventListener('click', (e) => {
     }
   } else if (act === 'share-streak') {
     doShareStreak();
-  } else if (act === 'fb-toggle') {
-    togglePop('fbPop');
-  } else if (act === 'fb-form') {
-    togglePop('fbPop');
-    trackEvent('feedback_click', { kind: 'form' });
-    if (!FB_FORM_URL) { alert(t('fbNoForm')); return; }
-    window.open(FB_FORM_URL, '_blank', 'noopener');
-  } else if (act === 'fb-mail') {
-    togglePop('fbPop');
-    trackEvent('feedback_click', { kind: 'mail' });
-    if (!FB_EMAIL) { alert(t('fbNoForm')); return; }
-    location.href = 'mailto:' + FB_EMAIL + '?subject=' + encodeURIComponent(t('mailSubj'));
   } else if (act === 'ob-goal') {
     trackEvent('onboarding_goal');
     obDoGoal();

@@ -68,6 +68,24 @@ test('currentStreak: đếm lùi từ cuối', () => {
   assert.equal(PlanMath.currentStreak([false, false]), 0);
 });
 
+/* ---------- Phase 7.5: skipDays ---------- */
+
+test('1.6: habitPctFrom với skipDays', () => {
+  const days = [true, false, true, false, true];
+  // skip ngày 1 (index 1) — 4 ngày tính, 3 done → 75%
+  assert.equal(PlanMath.habitPctFrom(days, 5, 100, [false, true, false, false, false]), 75);
+});
+test('1.7: currentStreak với skipMap', () => {
+  // skip ngày 1 (index 1) — skip không phá streak, streak = 4 (indices 0,2,3,4)
+  const flags = [true, false, true, true, true];
+  assert.equal(PlanMath.currentStreak(flags, [false, true, false, false, false]), 4);
+});
+test('1.8: bestStreak với skipMap', () => {
+  const flags = [true, false, true, true, true];
+  // skip không phá streak → best streak = 4
+  assert.equal(PlanMath.bestStreak(flags, [false, true, false, false, false]), 4);
+});
+
 test('bestStreak: chuỗi dài nhất', () => {
   assert.equal(PlanMath.bestStreak([]), 0);
   assert.equal(PlanMath.bestStreak([true, true, false, true, true, true, true]), 4);

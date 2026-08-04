@@ -907,6 +907,8 @@ input:focus-visible {
 .bar-col.current .bar { outline: 3px solid rgba(var(--ink-rgb), .35); outline-offset: 2px; }
 .habit-table thead .day-num.today { background: var(--peach-bar); }
 .habit-table .day-cell.today { background: #FCE3D2; }
+.day-cell.skipped { background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(var(--ink-rgb), .08) 4px, rgba(var(--ink-rgb), .08) 8px); }
+.day-cell.skipped .checkbox { opacity: .3; pointer-events: none; }
 .week-range-note { margin: 6px 0 0; font-size: 12.5px; font-weight: 800; color: var(--ink-soft); }
 
 /* ---------- Kế hoạch năm ---------- */
@@ -2745,6 +2747,20 @@ sup.remind-dot {
 :root[data-dark="true"] .remind-edit-input input[type="time"] { background: #2E241C; color: #F2E8D5; border-color: rgba(255, 255, 255, .18); }
 :root[data-dark="true"] .q-head { background: #3A3127; }
 
+:root[data-dark="true"] .pomo-panel { background: #2E241C; border-color: rgba(255, 255, 255, .12); box-shadow: 0 14px 38px rgba(0, 0, 0, .5); }
+:root[data-dark="true"] .chat-pop { background: #2E241C; border-color: rgba(255, 255, 255, .12); box-shadow: 0 14px 38px rgba(0, 0, 0, .5); }
+:root[data-dark="true"] .chat-msg.bot { background: rgba(243, 232, 213, .12); color: #F2E8D5; }
+:root[data-dark="true"] .chat-msg.user { background: #C24E28; }
+:root[data-dark="true"] .chat-input { background: #1E1812; color: #F2E8D5; border-color: rgba(255, 255, 255, .12); }
+:root[data-dark="true"] .chat-chip { color: #C9B7A0; border-color: rgba(255, 255, 255, .12); }
+:root[data-dark="true"] .chat-chip:hover { border-color: #E07A50; color: #E07A50; }
+:root[data-dark="true"] .chat-header { border-color: rgba(255, 255, 255, .08); }
+:root[data-dark="true"] .chat-actions { border-color: rgba(255, 255, 255, .08); }
+:root[data-dark="true"] .chat-input-wrap { border-color: rgba(255, 255, 255, .08); }
+:root[data-dark="true"] .help-content { color: #F2E8D5; }
+:root[data-dark="true"] .help-content li { border-color: rgba(255, 255, 255, .06); }
+:root[data-dark="true"] .help-content p { background: rgba(224, 122, 80, .12); }
+
 :root[data-dark="true"] .hm-hero {
   background: linear-gradient(120deg, #2E261E 0%, #3A2E22 100%);
   border-color: rgba(243, 232, 213, .14);
@@ -3159,6 +3175,142 @@ sup.remind-dot {
 }
 .pomo-actions { display: flex; gap: 8px; justify-content: center; }
 
+/* ---------- Pomodoro tomato counter ---------- */
+.pomo-tomato-wrap { display: flex; justify-content: center; margin: 8px 0 0; }
+.pomo-tomato-row { display: flex; gap: 4px; justify-content: center; }
+.pomo-tomato-icon { font-size: 16px; opacity: .3; transition: opacity .3s ease, transform .3s ease; }
+.pomo-tomato-icon[data-state="done"] { opacity: 1; transform: scale(1.1); }
+.pomo-tomato-icon[data-state="pending"] { filter: grayscale(1); opacity: .25; }
+
+/* ---------- Chatbot trợ lý học tập ---------- */
+.chat-pop {
+  position: absolute;
+  top: auto;
+  bottom: calc(100% + 12px);
+  right: 0;
+  width: 340px;
+  max-height: 480px;
+  background: var(--card-bg, #fff);
+  border: 1.5px solid var(--card-border, #e8dfd0);
+  border-radius: 16px;
+  box-shadow: 0 14px 38px rgba(60, 48, 38, .26);
+  animation: syncPop .2s ease-out;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.chat-pop[hidden] { display: none; }
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--card-border, #e8dfd0);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #3C3026);
+}
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+}
+.chat-msg {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 85%;
+  word-break: break-word;
+}
+.chat-msg.bot {
+  background: rgba(var(--ink-rgb), .06);
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+  color: var(--ink, #3C3026);
+}
+.chat-msg.user {
+  background: var(--peach-bar, #F39A82);
+  color: #fff;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+.chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--card-border, #e8dfd0);
+}
+.chat-chip {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid rgba(var(--ink-rgb), .15);
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-soft, #857062);
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+.chat-chip:hover {
+  border-color: var(--accent-btn, #c24e28);
+  color: var(--accent-btn, #c24e28);
+  background: rgba(194, 78, 40, .06);
+}
+.chat-input-wrap {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--card-border, #e8dfd0);
+}
+.chat-input {
+  flex: 1;
+  border: 1.5px solid rgba(var(--ink-rgb), .15);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  outline: none;
+  background: var(--surface, #faf7f1);
+  color: var(--ink, #3C3026);
+  transition: border-color .2s ease;
+}
+.chat-input:focus { border-color: var(--accent-btn, #c24e28); }
+.chat-send { font-size: 12px; padding: 6px 14px; border-radius: 20px; }
+
+/* ---------- Help modal ---------- */
+.help-content {
+  padding: 0 4px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink, #3C3026);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.help-content h3 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+.help-content ul {
+  padding-left: 0;
+  list-style: none;
+}
+.help-content li {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(var(--ink-rgb), .06);
+}
+.help-content li:last-child { border-bottom: none; }
+.help-content p {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  background: rgba(var(--accent-rgb, 194, 78, 40), .06);
+  border-radius: 8px;
+}
+
 /* ---------- Profile / tài khoản ---------- */
 .profile-modal {
   position: fixed;
@@ -3326,6 +3478,17 @@ body.focus-mode .container { padding: 0; }
 :root[data-dark="true"] .habit-table .day-cell.today { background: rgba(224, 122, 80, .18); }
 :root[data-dark="true"] .habit-table thead .day-num.today { background: var(--accent-btn); color: #fff; }
 
+/* Phase 7.3 — Habit heatmap năm */
+.year-heat-card { margin-top: 16px; padding: 12px; }
+.year-heat-card .yhm-row { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.year-heat-card .yhm-name { width: 100px; font-size: 11px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.year-heat-card .yhm-cells { display: flex; gap: 2px; }
+.year-heat-card .yhm-cell { width: 12px; height: 12px; border-radius: 2px; background: rgba(var(--ink-rgb), .08); }
+.year-heat-card .yhm-cell.l1 { background: rgba(243, 154, 130, .25); }
+.year-heat-card .yhm-cell.l2 { background: rgba(243, 154, 130, .50); }
+.year-heat-card .yhm-cell.l3 { background: rgba(243, 154, 130, .75); }
+.year-heat-card .yhm-cell.l4 { background: var(--terracotta); }
+
 /* Heatmap ribbon — giữ thang tăng dần, tint tối hơn cho hợp nền */
 :root[data-dark="true"] .hm-rb-cell.hm-l1 { background: rgba(224, 122, 80, .22); }
 :root[data-dark="true"] .hm-rb-cell.hm-l2 { background: rgba(224, 122, 80, .4); }
@@ -3446,3 +3609,92 @@ body.focus-mode .container { padding: 0; }
   }
   :root[data-dark="true"] .landing-logo { background: rgba(255, 253, 248, .8); border-color: rgba(74, 64, 58, .18); }
 }
+
+/* ===== Phase 8: Widget Settings Modal ===== */
+
+.widget-settings-btn {
+  display: block;
+  margin: 16px auto 0;
+  font-size: 13px;
+}
+
+.widget-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, .35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeUp .2s ease;
+}
+
+.widget-modal-card {
+  background: var(--card-bg);
+  border: 2px solid var(--card-border);
+  border-radius: 14px;
+  padding: 20px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .2);
+  position: relative;
+}
+
+.widget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.widget-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(var(--ink-rgb), .2);
+  background: var(--surface);
+  transition: background .15s, border-color .15s;
+  cursor: grab;
+}
+.widget-item:active { cursor: grabbing; }
+.widget-item.dragging { opacity: .5; }
+.widget-item.drag-over { border-color: var(--terracotta); background: var(--surface-hover); }
+
+.widget-handle {
+  font-size: 16px;
+  cursor: grab;
+  flex: none;
+  opacity: .5;
+  user-select: none;
+}
+.widget-handle:active { cursor: grabbing; }
+
+.widget-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.widget-toggle {
+  font: inherit;
+  font-size: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--ink-rgb), .3);
+  background: var(--surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: .15s;
+  flex: none;
+}
+.widget-toggle.on { background: var(--olive-donut); color: #fff; border-color: var(--olive-donut); }
+.widget-toggle.off { background: var(--surface); color: var(--ink-light); }
+.widget-toggle:hover { transform: scale(1.1); }

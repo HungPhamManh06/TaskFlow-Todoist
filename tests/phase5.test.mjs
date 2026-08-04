@@ -250,6 +250,217 @@ test('5.8: nút + tạo task → focus ngay ô viết task mới', () => {
   assert.match(APP_JS, /fresh\.focus\(\)/);
 });
 
+
+
+
+
+/* ============================================================
+   Phase 7.1 — Task lặp lại (recurring)
+   ============================================================ */
+
+test('7.1: task lặp lại (recurring)', () => {
+  assert.match(APP_JS, /data-action="repeat-edit"/);
+  assert.match(APP_JS, /function applyRecurrence\(\)/);
+  assert.match(APP_JS, /repeat\.freq/);
+  assert.match(APP_JS, /applyRecurrence\(\);/);
+  assert.match(APP_JS, /beginRepeatEdit/);
+  assert.ok(APP_JS.includes('repeatOff') && APP_JS.includes('repeatDaily'), 'thiếu repeat i18n usage');
+  // applyRecurrence phải đẻ vào ngày HÔM NAY (dayIdx) chứ không phải ngày quá khứ
+  assert.match(APP_JS, /planRecurrence\(state\.weeks, ti\.dayIdx\)/);
+});
+
+test('7.1b: planRecurrence sinh bản sao task lặp quá khứ vào hôm nay', () => {
+  const weeks = [
+    { n: 1, days: [
+      { tasks: [{ kind: 'priority', text: 'Đọc sách', done: true, repeat: { freq: 'daily', every: 1 } }] }, // CN (quá khứ)
+      { tasks: [] }, { tasks: [] }, { tasks: [] }, { tasks: [] }, { tasks: [] }, { tasks: [] },
+    ]},
+  ];
+  const res = PlanMath.planRecurrence(weeks, 3); // hôm nay = chỉ số 3
+  assert.equal(res.copies.length, 1);
+  assert.equal(res.copies[0].text, 'Đọc sách');
+  assert.equal(res.copies[0].done, false, 'bản sao chưa hoàn thành');
+  assert.equal(res.copies[0].repeat.freq, 'daily', 'bản sao giữ repeat để chuỗi tiếp tục');
+  assert.equal(res.copies[0]._recurred, undefined, 'bản sao KHÔNG bị đánh dấu _recurred');
+  assert.equal(res.mark.length, 1);
+  assert.equal(res.mark[0], weeks[0].days[0].tasks[0], 'đánh dấu task GỐC');
+  assert.equal(weeks[0].days[0].tasks[0]._recurred, undefined, 'hàm thuần: không mutate đầu vào');
+});
+
+test('7.1c: planRecurrence không sinh trùng khi đã có task tương tự từ hôm nay trở đi', () => {
+  const weeks = [
+    { n: 1, days: [
+      { tasks: [{ kind: 'regular', text: 'Gym', done: true, repeat: { freq: 'weekly', every: 1 } }] },
+      { tasks: [] }, { tasks: [] }, { tasks: [] },
+      { tasks: [{ kind: 'regular', text: 'Gym', done: false }] }, // hôm nay đã có sẵn
+      { tasks: [] }, { tasks: [] },
+    ]},
+  ];
+  const res = PlanMath.planRecurrence(weeks, 4);
+  assert.equal(res.copies.length, 0);
+  assert.equal(res.mark.length, 0);
+});
+
+test('7.1d: planRecurrence chỉ sinh 1 bản khi nhiều ngày quá khứ cùng text', () => {
+  const weeks = [
+    { n: 1, days: [
+      { tasks: [{ kind: 'priority', text: 'Nước', repeat: { freq: 'daily', every: 1 } }] },
+      { tasks: [{ kind: 'priority', text: 'Nước', repeat: { freq: 'daily', every: 1 } }] },
+      { tasks: [] }, { tasks: [] }, { tasks: [] }, { tasks: [] }, { tasks: [] },
+    ]},
+  ];
+  const res = PlanMath.planRecurrence(weeks, 3);
+  assert.equal(res.copies.length, 1);
+  assert.equal(res.mark.length, 1);
+});
+
+test('7.1e: planRecurrence bỏ qua task đã _recurred và task không repeat', () => {
+  const weeks = [
+    { n: 1, days: [
+      { tasks: [
+        { kind: 'priority', text: 'A', repeat: { freq: 'daily', every: 1 }, _recurred: true },
+        { kind: 'regular', text: 'B', done: false },
+        { kind: 'regular', text: 'C', repeat: null },
+      ]},
+      { tasks: [] }, { tasks: [] }, { tasks: [] }, { tasks: [] }, { tasks: [] }, { tasks: [] },
+    ]},
+  ];
+  const res = PlanMath.planRecurrence(weeks, 3);
+  assert.equal(res.copies.length, 0);
+  assert.equal(res.mark.length, 0);
+});
+
+test('7.1f: planRecurrence task hôm nay trở đi không sinh bản mới', () => {
+  const weeks = [
+    { n: 1, days: [
+      { tasks: [] }, { tasks: [] }, { tasks: [] },
+      { tasks: [{ kind: 'priority', text: 'Tương lai', repeat: { freq: 'daily', every: 1 } }] }, // hôm nay
+      { tasks: [] }, { tasks: [] }, { tasks: [] },
+    ]},
+  ];
+  const res = PlanMath.planRecurrence(weeks, 3);
+  assert.equal(res.copies.length, 0);
+});
+
+/* ============================================================
+   Phase 7.2 — Kéo-thả task qua ngày khác
+   ============================================================ */
+
+test('7.2: kéo-thả task qua ngày khác', () => {
+  assert.match(APP_JS, /moveTaskAcrossDays/);
+  assert.match(APP_JS, /zone\.dataset\.day !== dragState\.day/);
+  assert.match(APP_JS, /move_task_across_days/);
+  // TDZ: `let toKind` phải khai báo TRƯỚC chỗ gán `toKind = zone.dataset.kind` —
+  // trước đây gán trước khai báo làm drop qua ngày vỡ với ReferenceError.
+  const decl = APP_JS.indexOf('let toKind');
+  const assign = APP_JS.indexOf('toKind = zone.dataset.kind');
+  assert.ok(decl >= 0 && assign > decl, `toKind phải khai báo trước khi gán (decl=${decl}, assign=${assign})`);
+});
+
+test('7.2b: moveTaskAcrossDays đổi ngày', () => {
+  const from = [{ kind: 'priority', text: 'A', done: false }];
+  const to = [{ kind: 'regular', text: 'B', done: false }];
+  const r = PlanMath.moveTaskAcrossDays(from, to, 0, 'regular');
+  assert.equal(r.tasksFrom.length, 0);
+  assert.equal(r.tasksTo.length, 2);
+  assert.equal(r.tasksTo[1].kind, 'regular');
+  assert.equal(from[0].kind, 'priority', 'mảng gốc không bị sửa');
+});
+
+/* ============================================================
+   Phase 7.3 — Habit heatmap năm
+   ============================================================ */
+
+test('7.3: habit heatmap năm', () => {
+  assert.match(APP_JS, /function yearHabitHeatmapHTML\(\)/);
+  assert.match(APP_JS, /yhm-cell/);
+  assert.match(APP_JS, /habitYearMatrix/);
+  assert.match(CSS, /\.yhm-cell/);
+  assert.match(CSS, /\.year-heat-card/);
+});
+
+/* ============================================================
+   Phase 7.4 — Undo/redo phủ mood, theme, repeat
+   ============================================================ */
+
+test('7.4: undo/redo phủ mood, theme, repeat', () => {
+  assert.match(APP_JS, /snap\.mood/);
+  assert.match(APP_JS, /snap\.theme/);
+  assert.match(APP_JS, /snap\.plan/);
+  assert.match(APP_JS, /saveMood\(\)/);
+  assert.match(APP_JS, /setTheme\(snap\.theme\)/);
+});
+
+/* ============================================================
+   Phase 7.5 — Ngày nghỉ habit (skip days)
+   ============================================================ */
+
+test('7.5: ngày nghỉ habit (skip days)', () => {
+  assert.match(APP_JS, /data-context="habit-day"/);
+  assert.match(APP_JS, /habit_skip_day/);
+  assert.match(APP_JS, /if \(!Array\.isArray\(h\.skipDays\)\) h\.skipDays = \[\]/);
+  assert.match(CSS, /\.day-cell\.skipped/);
+});
+
+/* ============================================================
+   Phase 8 — Widget Dashboard System
+   ============================================================ */
+
+test('8.1: widget config + helpers', () => {
+  assert.match(APP_JS, /WIDGET_DEFS_OVERVIEW/);
+  assert.match(APP_JS, /WIDGET_DEFS_YEAR/);
+  assert.match(APP_JS, /function initWidgetConfig/);
+  assert.match(APP_JS, /function saveWidgetConfig/);
+  assert.match(APP_JS, /function getVisibleWidgets/);
+  assert.match(APP_JS, /function openWidgetSettingsModal/);
+  assert.match(APP_JS, /function renderWidgetSettingsModal/);
+  assert.match(APP_JS, /widgetConfigKey/);
+  assert.match(APP_JS, /planner-widgets-/);
+});
+
+test('8.2: renderOverview dùng widget config', () => {
+  assert.match(APP_JS, /getVisibleWidgets\('overview'\)/);
+  assert.match(APP_JS, /ov-top/);
+  assert.match(APP_JS, /data-action="widget-settings"/);
+});
+
+test('8.3: renderYear dùng widget config', () => {
+  assert.match(APP_JS, /getVisibleWidgets\('year'\)/);
+  assert.match(APP_JS, /data-action="widget-settings"/);
+});
+
+test('8.4: widget settings modal trong HTML', () => {
+  assert.match(APP_HTML, /id="widgetSettingsModal"/);
+  assert.match(APP_HTML, /data-action="widget-save"/);
+  assert.match(APP_HTML, /data-action="widget-close"/);
+  assert.match(APP_HTML, /widget-list/);
+});
+
+test('8.5: i18n widget keys đủ vi+en', () => {
+  assert.ok(APP_JS.includes("widgetSettings: '⚙️ Tuỳ chỉnh Widget'") && APP_JS.includes("widgetSettings: '⚙️ Customize Widgets'"), 'thiếu widgetSettings');
+  assert.ok(APP_JS.includes("widgetSave: 'Lưu'") && APP_JS.includes("widgetSave: 'Save'"), 'thiếu widgetSave');
+  assert.ok(APP_JS.includes("widgetHide: 'Ẩn widget này'") && APP_JS.includes("widgetHide: 'Hide this widget'"), 'thiếu widgetHide');
+  assert.ok(APP_JS.includes("widgetShow: 'Hiện widget này'") && APP_JS.includes("widgetShow: 'Show this widget'"), 'thiếu widgetShow');
+  // Kiểm tra widgetLabel overview
+  assert.ok(APP_JS.includes("widgetLabel_date-card: 'Ngày tháng'") && APP_JS.includes("widgetLabel_date-card: 'Date card'"), 'thiếu widgetLabel_date-card');
+  assert.ok(APP_JS.includes("widgetLabel_goals: 'Mục tiêu tháng'") && APP_JS.includes("widgetLabel_goals: 'Monthly goals'"), 'thiếu widgetLabel_goals');
+  assert.ok(APP_JS.includes("widgetLabel_mood: 'Tâm trạng'") && APP_JS.includes("widgetLabel_mood: 'Mood'"), 'thiếu widgetLabel_mood');
+  // Kiểm tra widgetLabel year
+  assert.ok(APP_JS.includes("widgetLabel_year-card: 'Thông tin năm'") && APP_JS.includes("widgetLabel_year-card: 'Year info'"), 'thiếu widgetLabel_year-card');
+  assert.ok(APP_JS.includes("widgetLabel_year-charts: 'Biểu đồ 12 tháng'") && APP_JS.includes("widgetLabel_year-charts: '12-month chart'"), 'thiếu widgetLabel_year-charts');
+  assert.ok(APP_JS.includes("widgetLabel_year-heatmap: 'Habit Heatmap'") && APP_JS.includes("widgetLabel_year-heatmap: 'Habit Heatmap'"), 'thiếu widgetLabel_year-heatmap');
+  assert.ok(APP_JS.includes("widgetLabel_year-reflections: 'Phản ánh quý'") && APP_JS.includes("widgetLabel_year-reflections: 'Quarterly reflections'"), 'thiếu widgetLabel_year-reflections');
+});
+
+test('8.6: CSS widget modal', () => {
+  assert.match(CSS, /\.widget-item/);
+  assert.match(CSS, /\.widget-toggle/);
+  assert.match(CSS, /\.widget-handle/);
+  assert.match(CSS, /\.widget-modal/);
+  assert.match(CSS, /\.widget-list/);
+  assert.match(CSS, /\.widget-settings-btn/);
+});
+
 /* ============================================================
    Phase 5 — Version bumps
    ============================================================ */
