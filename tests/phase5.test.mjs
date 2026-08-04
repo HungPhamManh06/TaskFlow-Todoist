@@ -264,6 +264,8 @@ test('7.1: task lặp lại (recurring)', () => {
   assert.match(APP_JS, /repeat\.freq/);
   assert.match(APP_JS, /applyRecurrence\(\);/);
   assert.match(APP_JS, /beginRepeatEdit/);
+  // Nút 🔁 phải được wire vào click handler (từng bị chết: beginRepeatEdit không được gọi)
+  assert.match(APP_JS, /act === 'repeat-edit'/);
   assert.ok(APP_JS.includes('repeatOff') && APP_JS.includes('repeatDaily'), 'thiếu repeat i18n usage');
   // applyRecurrence phải đẻ vào ngày HÔM NAY (dayIdx) chứ không phải ngày quá khứ
   assert.match(APP_JS, /planRecurrence\(state\.weeks, ti\.dayIdx\)/);
@@ -442,14 +444,14 @@ test('8.5: i18n widget keys đủ vi+en', () => {
   assert.ok(APP_JS.includes("widgetHide: 'Ẩn widget này'") && APP_JS.includes("widgetHide: 'Hide this widget'"), 'thiếu widgetHide');
   assert.ok(APP_JS.includes("widgetShow: 'Hiện widget này'") && APP_JS.includes("widgetShow: 'Show this widget'"), 'thiếu widgetShow');
   // Kiểm tra widgetLabel overview
-  assert.ok(APP_JS.includes("widgetLabel_date-card: 'Ngày tháng'") && APP_JS.includes("widgetLabel_date-card: 'Date card'"), 'thiếu widgetLabel_date-card');
+  assert.ok(APP_JS.includes("'widgetLabel_date-card': 'Ngày tháng'") && APP_JS.includes("'widgetLabel_date-card': 'Date card'"), 'thiếu widgetLabel_date-card');
   assert.ok(APP_JS.includes("widgetLabel_goals: 'Mục tiêu tháng'") && APP_JS.includes("widgetLabel_goals: 'Monthly goals'"), 'thiếu widgetLabel_goals');
   assert.ok(APP_JS.includes("widgetLabel_mood: 'Tâm trạng'") && APP_JS.includes("widgetLabel_mood: 'Mood'"), 'thiếu widgetLabel_mood');
   // Kiểm tra widgetLabel year
-  assert.ok(APP_JS.includes("widgetLabel_year-card: 'Thông tin năm'") && APP_JS.includes("widgetLabel_year-card: 'Year info'"), 'thiếu widgetLabel_year-card');
-  assert.ok(APP_JS.includes("widgetLabel_year-charts: 'Biểu đồ 12 tháng'") && APP_JS.includes("widgetLabel_year-charts: '12-month chart'"), 'thiếu widgetLabel_year-charts');
-  assert.ok(APP_JS.includes("widgetLabel_year-heatmap: 'Habit Heatmap'") && APP_JS.includes("widgetLabel_year-heatmap: 'Habit Heatmap'"), 'thiếu widgetLabel_year-heatmap');
-  assert.ok(APP_JS.includes("widgetLabel_year-reflections: 'Phản ánh quý'") && APP_JS.includes("widgetLabel_year-reflections: 'Quarterly reflections'"), 'thiếu widgetLabel_year-reflections');
+  assert.ok(APP_JS.includes("'widgetLabel_year-card': 'Thông tin năm'") && APP_JS.includes("'widgetLabel_year-card': 'Year info'"), 'thiếu widgetLabel_year-card');
+  assert.ok(APP_JS.includes("'widgetLabel_year-charts': 'Biểu đồ 12 tháng'") && APP_JS.includes("'widgetLabel_year-charts': '12-month chart'"), 'thiếu widgetLabel_year-charts');
+  assert.ok(APP_JS.includes("'widgetLabel_year-heatmap': 'Habit Heatmap'") && APP_JS.includes("'widgetLabel_year-heatmap': 'Habit Heatmap'"), 'thiếu widgetLabel_year-heatmap');
+  assert.ok(APP_JS.includes("'widgetLabel_year-reflections': 'Phản ánh quý'") && APP_JS.includes("'widgetLabel_year-reflections': 'Quarterly reflections'"), 'thiếu widgetLabel_year-reflections');
 });
 
 test('8.6: CSS widget modal', () => {

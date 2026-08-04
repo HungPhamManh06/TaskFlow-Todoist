@@ -3618,6 +3618,8 @@ body.focus-mode .container { padding: 0; }
   font-size: 13px;
 }
 
+.widget-modal[hidden] { display: none; }
+
 .widget-modal {
   position: fixed;
   inset: 0;

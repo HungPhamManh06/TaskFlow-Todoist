@@ -482,7 +482,10 @@ function getVisibleWidgets(view) {
     .filter(function (w) { return w.visible && map[w.id]; })
     .map(function (w) {
       var def = map[w.id];
-      return { id: w.id, html: def.render(), label: t(def.labelKey) };
+      // Một số widget cần stats (goalsPanelHTML nhận monthStats, yearGoalsCardHTML nhận
+      // yearGoalStats) — truyền đúng tham số, tránh TypeError "reading 'pct'".
+      var stats = view === 'year' ? yearGoalStats() : monthlyStats();
+      return { id: w.id, html: def.render(stats), label: t(def.labelKey) };
     });
 }
 
@@ -908,23 +911,23 @@ const I18N = {
     widgetSave: 'Lưu',
     widgetHide: 'Ẩn widget này',
     widgetShow: 'Hiện widget này',
-    widgetLabel_date-card: 'Ngày tháng',
-    widgetLabel_weekly-chart: 'Tiến độ tuần',
-    widgetLabel_scene-card: 'Cảnh vật',
+    'widgetLabel_date-card': 'Ngày tháng',
+    'widgetLabel_weekly-chart': 'Tiến độ tuần',
+    'widgetLabel_scene-card': 'Cảnh vật',
     widgetLabel_goals: 'Mục tiêu tháng',
     widgetLabel_habits: 'Thói quen',
-    widgetLabel_streak-heatmap: 'Streak & Heatmap',
+    'widgetLabel_streak-heatmap': 'Streak & Heatmap',
     widgetLabel_mood: 'Tâm trạng',
     widgetLabel_badges: 'Huy hiệu',
-    widgetLabel_year-dashboard: 'Dashboard',
-    widgetLabel_year-card: 'Thông tin năm',
-    widgetLabel_year-charts: 'Biểu đồ 12 tháng',
-    widgetLabel_year-goals: 'Mục tiêu năm',
-    widgetLabel_year-overview-ref: 'Tổng quan năm',
-    widgetLabel_year-quarters: 'Quý',
-    widgetLabel_year-months: '12 tháng',
-    widgetLabel_year-reflections: 'Phản ánh quý',
-    widgetLabel_year-heatmap: 'Habit Heatmap',
+    'widgetLabel_year-dashboard': 'Dashboard',
+    'widgetLabel_year-card': 'Thông tin năm',
+    'widgetLabel_year-charts': 'Biểu đồ 12 tháng',
+    'widgetLabel_year-goals': 'Mục tiêu năm',
+    'widgetLabel_year-overview-ref': 'Tổng quan năm',
+    'widgetLabel_year-quarters': 'Quý',
+    'widgetLabel_year-months': '12 tháng',
+    'widgetLabel_year-reflections': 'Phản ánh quý',
+    'widgetLabel_year-heatmap': 'Habit Heatmap',
     digestBody: 'Hôm qua chưa điểm danh: {names}',
   },
   en: {
@@ -1344,23 +1347,23 @@ const I18N = {
     widgetSave: 'Save',
     widgetHide: 'Hide this widget',
     widgetShow: 'Show this widget',
-    widgetLabel_date-card: 'Date card',
-    widgetLabel_weekly-chart: 'Weekly progress',
-    widgetLabel_scene-card: 'Scene',
+    'widgetLabel_date-card': 'Date card',
+    'widgetLabel_weekly-chart': 'Weekly progress',
+    'widgetLabel_scene-card': 'Scene',
     widgetLabel_goals: 'Monthly goals',
     widgetLabel_habits: 'Habits',
-    widgetLabel_streak-heatmap: 'Streak & Heatmap',
+    'widgetLabel_streak-heatmap': 'Streak & Heatmap',
     widgetLabel_mood: 'Mood',
     widgetLabel_badges: 'Badges',
-    widgetLabel_year-dashboard: 'Dashboard',
-    widgetLabel_year-card: 'Year info',
-    widgetLabel_year-charts: '12-month chart',
-    widgetLabel_year-goals: 'Year goals',
-    widgetLabel_year-overview-ref: 'Year overview',
-    widgetLabel_year-quarters: 'Quarters',
-    widgetLabel_year-months: '12 months',
-    widgetLabel_year-reflections: 'Quarterly reflections',
-    widgetLabel_year-heatmap: 'Habit Heatmap',
+    'widgetLabel_year-dashboard': 'Dashboard',
+    'widgetLabel_year-card': 'Year info',
+    'widgetLabel_year-charts': '12-month chart',
+    'widgetLabel_year-goals': 'Year goals',
+    'widgetLabel_year-overview-ref': 'Year overview',
+    'widgetLabel_year-quarters': 'Quarters',
+    'widgetLabel_year-months': '12 months',
+    'widgetLabel_year-reflections': 'Quarterly reflections',
+    'widgetLabel_year-heatmap': 'Habit Heatmap',
     digestBody: 'Missed yesterday: {names}',
   },
 };
@@ -5670,6 +5673,10 @@ document.addEventListener('click', (e) => {
     else renderWeek();
   } else if (act === 'tag-edit') {
     beginTagEdit(el);
+  } else if (act === 'repeat-edit') {
+    // Phase 7.1: mở select chọn tần suất lặp cho task (trước đây beginRepeatEdit
+    // tồn tại nhưng KHÔNG được gọi — nút 🔁 không làm gì cả)
+    beginRepeatEdit(el);
   } else if (act === 'template') {
     openTemplateModal();
   } else if (act === 'template-close') {
