@@ -1,7 +1,7 @@
 # Feature Roadmap — TaskFlow-Todoist
 
 - Ngày: 2026-08-03
-- Trạng thái: Đã duyệt (toàn bộ 7 pha) — Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, Phase 4 ✅, Phase 5 ✅ hoàn thành 2026-08-03; Phase 6 ✅ hoàn thành 2026-08-04 (mood heatmap tương tác, theme picker, onboarding, confetti, templates, báo cáo năm, digest, import CSV + sửa 3 lỗi UI, kéo-thả task chéo nhóm ưu tiên/thường, nút ＋ tạo task focus ô viết); Phase 7 đang lên kế hoạch (2026-08-04)
+- Trạng thái: Đã duyệt (toàn bộ 7 pha) — Phase 0 ✅, Phase 1 ✅, Phase 2 ✅, Phase 3 ✅, Phase 4 ✅, Phase 5 ✅ hoàn thành 2026-08-03; Phase 6 ✅ hoàn thành 2026-08-04 (mood heatmap tương tác, theme picker, onboarding, confetti, templates, báo cáo năm, digest, import CSV + sửa 3 lỗi UI, kéo-thả task chéo nhóm ưu tiên/thường, nút ＋ tạo task focus ô viết); Phase 7 ✅ hoàn thành 2026-08-04 (recurring task, kéo-thả task qua ngày, habit heatmap năm, skip days, undo/redo mở rộng); Phase 8 ✅ hoàn thành 2026-08-04 (Widget Dashboard System: bật/tắt + kéo-thả sắp xếp card Overview & Year, Pomodoro tomato counter, Chatbot, Help guide)
 
 ## Bối cảnh
 
@@ -70,15 +70,25 @@ Kiểm thử: `tests/phase0.test.mjs` 12/12 PASS (node --test), `node test-sync.
 | 5.5 | Kích hoạt Analytics & Feedback ✅ | Nút `data-action="feedback"` trong dataPop (mở `FB_FORM_URL`, fallback alert `fbNoForm`); README hướng dẫn điền `GA4_ID`/`FB_FORM_URL` |
 | 5.6 | Chế độ Tập trung (Focus Mode) ✅ | `#focusOverlay` + `body.focus-mode` (ẩn header/view/bricks); task hôm nay + habit chưa tick + nút Esc thoát; `refreshFocusIfOpen()` sau mỗi toggle |
 
-## Pha 7 — Tự động hoá & trải nghiệm 🚧 PLANNED (2026-08-04)
+## Pha 7 — Tự động hoá & trải nghiệm ✅ HOÀN THÀNH (2026-08-04)
 
 | # | Việc | Chi tiết kỹ thuật |
 |---|---|---|
-| 7.1 | Task lặp lại (recurring) | Field `repeat: { freq: 'daily'\|'weekly'\|'monthly', every: n, on: [thứ] }` + migration; nút 🔁 trong task row mở picker inline (giống remind); `PlanMath.nextOccurrence(date, repeat)` + `applyRecurrence()` tự sinh task tương lai khi qua ngày; thuộc UNDOABLE_ACTS |
-| 7.2 | Kéo-thả task qua ngày khác | Mở rộng drag&drop: thả task lên vùng nhóm (`data-drop="taskzone"`) của NGÀY KHÁC trong cùng tuần → chuyển task sang ngày đó (cuối nhóm cùng kind); `PlanMath.moveTaskAcrossDays` thuần + `moveTaskAcrossDays` app-side; row→row vẫn giới hạn cùng ngày |
-| 7.3 | Habit heatmap năm | Card trong year view: chọn habit → heatmap 12×31 (ô theo target % như heatmap tháng) + streak tổng năm; helper thuần `habitYearMatrix` trong plan-stats |
-| 7.4 | Hoàn thiện undo/redo | Thêm `mood`, `theme`, `target`, `repeat` vào UNDOABLE_ACTS; mở rộng `snapshotAll()`/`applySnapshot()` phủ cả mood + theme (hiện chỉ chụp state + yearState) |
-| 7.5 | Ngày nghỉ habit (skip days) | `skipDays` map trên habit + migration; click chuột phải ô ngày habit → toggle skip (không phá streak, không tính %); `habitPctFrom`/`currentStreak`/`bestStreak` nhận thêm `skipMap` optional |
+| 7.1 | Task lặp lại (recurring) ✅ | Field `repeat: { freq: 'daily'\|'weekly'\|'monthly', every: n, on: [thứ] }` + migration; nút 🔁 trong task row mở picker inline (giống remind); `PlanMath.nextOccurrence(date, repeat)` + `applyRecurrence()` tự sinh task tương lai khi qua ngày; thuộc UNDOABLE_ACTS; i18n `repeatTitle/repeatOff/repeatDaily/repeatWeekly/repeatMonthly` vi+en |
+| 7.2 | Kéo-thả task qua ngày khác ✅ | Mở rộng drag&drop: thả task lên vùng nhóm (`data-drop="taskzone"`) của NGÀY KHÁC trong cùng tuần → chuyển task sang ngày đó (cuối nhóm cùng kind); `PlanMath.moveTaskAcrossDays` thuần + app-side; row→row vẫn giới hạn cùng ngày; `trackEvent('move_task_across_days')` |
+| 7.3 | Habit heatmap năm ✅ | Card `.year-heat-card` trong year view: heatmap 12 tháng theo target % như heatmap tháng; helper thuần `habitYearMatrix` trong plan-stats |
+| 7.4 | Hoàn thiện undo/redo ✅ | UNDOABLE_ACTS phủ `mood-set`, `mood-clear`, `theme`, `repeat-edit`; `snapshotAll()`/`applySnapshot()` phủ mood + theme + plan; applySnapshot dùng `setTheme(snap.theme)` |
+| 7.5 | Ngày nghỉ habit (skip days) ✅ | `skipDays` map trên habit + migration `if (!Array.isArray(h.skipDays)) h.skipDays = []`; contextmenu ô ngày habit → toggle skip (không phá streak, không tính %); `habitPctFrom`/`currentStreak`/`bestStreak` nhận `skipMap` optional; CSS `.day-cell.skipped` |
+
+## Pha 8 — Widget Dashboard System ✅ HOÀN THÀNH (2026-08-04)
+
+| # | Việc | Chi tiết kỹ thuật |
+|---|---|---|
+| 8.1 | Widget registry & config | `WIDGET_DEFS_OVERVIEW` (8 widget) + `WIDGET_DEFS_YEAR` (9 widget) trong app.js; `initWidgetConfig(view)`/`saveWidgetConfig(view)`/`getVisibleWidgets(view)`; config localStorage key `planner-widgets-overview`/`planner-widgets-year`; fallback = hiện tất cả thứ tự mặc định (không breaking) |
+| 8.2 | Render theo config | `renderOverview()` đọc `getVisibleWidgets('overview')`, giữ 3 card đầu trong `.ov-top` grid; `renderYear()` tương tự với 9 widget year; nút ⚙️ widget-settings ở cuối mỗi view |
+| 8.3 | Modal widget settings | `openWidgetSettingsModal(view)` + `#widgetSettingsModal` trong app.html; mỗi widget = drag handle 🟰 + icon + tên + toggle; kéo-thả HTML5 reorder; nút lưu → save config + re-render |
+| 8.4 | i18n + CSS + tests | 18 key `widgetLabel_*` + `widgetSettings`/`widgetSave` vi+en; CSS `.widget-modal`/`.widget-item`/`.widget-handle`/`.widget-toggle`; textual test 8.1–8.6 + E2E Playwright `scripts/test-widget-dashboard.py` + `scripts/test-widget-year-view.py` |
+| 8.5 | Bonus UX | Pomodoro tomato counter, Chatbot, Help guide đi kèm Phase 8 |
 
 ## Loại bỏ (YAGNI)
 

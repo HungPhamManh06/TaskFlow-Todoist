@@ -1,7 +1,7 @@
 # Phase 8 — Widget Dashboard System
 
 - **Ngày:** 2026-08-04
-- **Trạng thái:** Đã duyệt spec → Đang lên kế hoạch triển khai
+- **Trạng thái:** ✅ HOÀN THÀNH (2026-08-04) — tất cả 10 bước 8.1–8.10 đã triển khai, 127/127 unit tests + 7/7 sync + E2E widget dashboard (overview + year) PASS
 - **Spec:** `docs/superpowers/specs/2026-08-04-phase8-widget-dashboard-design.md`
 - **Tổng quan:** Biến card trong Overview (tháng) và Year view thành widget có thể bật/tắt & sắp xếp qua modal settings.
 

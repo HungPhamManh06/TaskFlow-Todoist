@@ -1,5 +1,7 @@
 # Phase 7 — Tự động hoá & Trải nghiệm nâng cao Implementation Plan
 
+> **Trạng thái:** ✅ HOÀN THÀNH (2026-08-04) — Task 1–5 đều đã code + test (7.1–7.5 trong tests/phase5.test.mjs, 127/127 unit tests PASS).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Mở rộng trải nghiệm TaskFlow với task lặp lại, kéo-thả task qua ngày, habit heatmap năm, ngày nghỉ habit, và hoàn thiện undo/redo cho toàn bộ state mới.
