@@ -1,7 +1,5 @@
 """Debug the 'Cannot read properties of undefined (reading pct)' error.
-
-Start own HTTP server, capture page errors with stack traces.
-Close all modals before switching views.
+Simplified: just check for errors after loading each view.
 """
 import http.server
 import os
@@ -30,78 +28,51 @@ def main():
         page = browser.new_page(viewport={"width": 1440, "height": 900})
 
         page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+        page.add_init_script("localStorage.removeItem('planner-widgets-overview');")
 
         errors = []
-
-        page.on("pageerror", lambda e: errors.append({
-            'msg': str(e),
-            'stack': e.stack[:500] if e.stack else 'no stack'
-        }))
+        page.on("pageerror", lambda e: errors.append(str(e)))
         page.on("console", lambda msg: (
-            errors.append({'msg': f"[console.{msg.type}] {msg.text}", 'stack': ''})
+            errors.append(f"[console.{msg.type}] {msg.text}")
             if msg.type == "error" else None
         ))
 
         page.goto(f"{base}/app.html")
         page.wait_for_timeout(1500)
-
         if page.locator("#onboardModal:not([hidden])").count():
             page.locator('[data-action="ob-skip"]').click()
             page.wait_for_timeout(300)
+        errors_at_load = len(errors)
 
-        def close_modal_if_open():
-            m = page.locator('#widgetSettingsModal:not([hidden])')
-            if m.count() and m.is_visible(timeout=500):
-                page.keyboard.press('Escape')
-                page.wait_for_timeout(300)
-
-        print("[OK] Page loaded")
-
-        # --- Overview view ---
+        # Overview
         page.locator('#tab-overview').click()
-        page.wait_for_timeout(1500)
-        print("[OK] Overview view")
+        page.wait_for_timeout(2000)
+        errors_at_overview = len(errors) - errors_at_load
 
-        # Widget settings in overview
-        ws_btn = page.locator('[data-action="widget-settings"]')
-        if ws_btn.count():
-            ws_btn.first.scroll_into_view_if_needed()
-            ws_btn.first.click()
-            page.wait_for_timeout(1000)
-            modal = page.locator('#widgetSettingsModal')
-            if modal.is_visible(timeout=1000):
-                print("[OK] Widget modal opened in Overview")
-                close_modal_if_open()
-        else:
-            print("[!!] No widget settings button in Overview")
-
-        # --- Year view ---
-        close_modal_if_open()
+        # Year
         page.locator('#tab-year').click()
-        page.wait_for_timeout(1500)
-        print("[OK] Year view")
+        page.wait_for_timeout(2000)
+        errors_at_year = len(errors) - errors_at_load - errors_at_overview
 
-        # Widget settings in year view
-        ws_btn = page.locator('[data-action="widget-settings"]')
-        if ws_btn.count():
-            ws_btn.first.scroll_into_view_if_needed()
-            page.wait_for_timeout(500)
-            ws_btn.first.click()
-            page.wait_for_timeout(1000)
-            modal = page.locator('#widgetSettingsModal')
-            print(f"[OK] Year widget modal open: {modal.is_visible(timeout=1000)}")
+        # Week 1
+        page.locator('#tab-week-1').click()
+        page.wait_for_timeout(2000)
+        errors_at_week = len(errors) - errors_at_load - errors_at_overview - errors_at_year
 
-        # Summary
-        print(f"\n=== FINAL SUMMARY ===")
+        print(f"Errors at load:        {errors_at_load}")
+        print(f"Errors after Overview: {errors_at_overview}")
+        print(f"Errors after Year:     {errors_at_year}")
+        print(f"Errors after Week:     {errors_at_week}")
+        print(f"Total errors:          {len(errors)}")
+
         if errors:
-            print(f"ERRORS: {len(errors)}")
-            for e in errors:
-                print(f"  {e['msg']}")
-                if e['stack']:
-                    for line in e['stack'].split('\n')[:5]:
-                        print(f"    {line}")
+            print("\n=== ALL ERRORS ===")
+            for i, e in enumerate(errors):
+                print(f"  [{i+1}] {e[:200]}")
+                if 'pct' in e.lower():
+                    print("       <<< PCT-RELATED >>>")
         else:
-            print("NO ERRORS FOUND")
+            print("\n*** NO ERRORS ***")
 
         browser.close()
         httpd.shutdown()
