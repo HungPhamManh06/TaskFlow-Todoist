@@ -42,6 +42,11 @@ def desktop_checks(browser, base, errors, screenshots):
     assert page.locator(".app-primary-action").count() == 1
     assert_no_overflow(page, "desktop")
 
+    widget_button = page.locator(".overview-header .widget-settings-btn")
+    widget_label = widget_button.locator("span")
+    assert page.evaluate("button => getComputedStyle(button).alignItems === 'center'", widget_button.element_handle())
+    assert widget_label.bounding_box()["height"] < widget_button.bounding_box()["height"] - 8
+
     overview_tab = page.locator('#desktopSidebar [data-nav-view="overview"]')
     overview_tab.focus()
     page.keyboard.press("ArrowRight")
@@ -60,6 +65,12 @@ def desktop_checks(browser, base, errors, screenshots):
         page.wait_for_selector(f"#view-{view}.active")
         assert page.locator(f'#desktopSidebar [data-nav-view="{view}"][aria-current="page"]').count() == 1
         assert page.locator(f'#mobileNav [data-nav-view="{view}"][aria-current="page"]').count() == 1
+
+    goals_card_box = page.locator(".week-goals-card").bounding_box()
+    for strip in page.locator(".week-goals-card .v-strip").all():
+        strip_box = strip.bounding_box()
+        assert strip_box["y"] >= goals_card_box["y"] - 1
+        assert strip_box["y"] + strip_box["height"] <= goals_card_box["y"] + goals_card_box["height"] + 1
 
     page.locator('[data-action="search-toggle"]').first.click()
     page.wait_for_selector("#searchModal:not([hidden])")

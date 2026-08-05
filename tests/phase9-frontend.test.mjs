@@ -309,6 +309,14 @@ test('overview styles contain wide data surfaces and stack widgets on mobile', (
   assert.match(mobile, /\.overview-primary-grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
 });
 
+test('overview widget settings control vertically centers its visible label', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  assert.match(
+    styles,
+    /\.overview-header \.widget-settings-btn\s*{[^}]*align-items:\s*center[^}]*}/s
+  );
+});
+
 test('overview habit grid has a named scroll region and table', () => {
   const habits = APP_JS.slice(
     APP_JS.indexOf('function habitPanelHTML()'),
@@ -363,6 +371,14 @@ test('week workspace uses responsive panels without page-level horizontal scroll
   const mobile = styles.slice(styles.lastIndexOf('@media (max-width: 767px)'));
   assert.match(mobile, /\.week-day-selector\s*{[^}]*display:\s*flex/s);
   assert.match(mobile, /\.week-day-list\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+});
+
+test('week goal strips use content height so they stay inside their card', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  assert.match(
+    styles,
+    /\.week-goals-card \.legend-groups\s*{[^}]*height:\s*auto[^}]*}/s
+  );
 });
 
 test('week progress bars stay synchronized after inline task and goal changes', () => {
@@ -537,7 +553,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v58';/);
+  assert.match(SW, /const CACHE = 'taskflow-v59';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -600,8 +616,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system and landing assets are available in the v58 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v58';/);
+test('design system and landing assets are available in the v59 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v59';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
