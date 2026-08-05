@@ -676,7 +676,7 @@ const I18N = {
     rw3: 'Ba mục tiêu tôi cần tập trung trong tuần tiếp theo là?',
     rq3: 'Ba mục tiêu tôi cần tập trung trong quý tới là?',
     closeBtn: 'Đóng',
-    syncTitle: '☁️ Đồng bộ đám mây',
+    syncTitle: 'Đồng bộ đám mây',
     syncDesc: 'Đăng nhập để đồng bộ dữ liệu giữa các thiết bị. Dữ liệu hiện tại sẽ tự động được nâng cấp lên đám mây.',
     syncLogin: 'Đăng nhập',
     syncSignup: 'Tạo tài khoản',
@@ -781,7 +781,7 @@ const I18N = {
     emptyHabitsT: 'Chưa có thói quen nào',
     emptyHabitsH: 'Nhập tên thói quen ở ô bên trên rồi bấm "+ Thêm thói quen".',
     /* ===== Phase 2: Tìm kiếm, Tag, Lịch, Template, Dashboard, Pomodoro ===== */
-    searchTitle: '🔍 Tìm kiếm xuyên tháng',
+    searchTitle: 'Tìm kiếm xuyên tháng',
     searchPh: 'Nhập từ khoá... (mục tiêu, task, thói quen, phản ánh)',
     searchEmpty: 'Gõ ít nhất 2 ký tự để tìm kiếm.',
     searchNoResults: 'Không tìm thấy kết quả nào 🐥',
@@ -811,7 +811,7 @@ const I18N = {
     calendarAgendaEmpty: 'Không có công việc phù hợp với bộ lọc hiện tại.',
     calendarTaskCount: '{n} công việc',
     calEmpty: 'Chưa có công việc',
-    templateTitle: '📋 Sao chép cấu trúc tháng',
+    templateTitle: 'Sao chép cấu trúc tháng',
     templateDesc: 'Sao chép mục tiêu, thói quen & cấu trúc tuần (bỏ ô tick ✓) sang tháng khác.',
     templateSrc: 'Tháng nguồn',
     templateDst: 'Tháng đích',
@@ -881,9 +881,9 @@ const I18N = {
     chatWelcome: '👋 Chào bạn! Tôi là trợ lý học tập. Bạn cần hỗ trợ gì?',
     chatPh: 'Nhập câu hỏi của bạn...',
     chatSend: 'Gửi',
-    helpTitle: '❓ Hướng dẫn sử dụng',
+    helpTitle: 'Hướng dẫn sử dụng',
     helpContent: '<h3>📋 Các chức năng của TaskFlow-Todoist</h3><ul><li><b>📅 Tổng quan tháng:</b> Xem mục tiêu, thói quen và tiến độ tháng.</li><li><b>🗓️ Kế hoạch năm:</b> Mục tiêu năm, biểu đồ 12 tháng, phản ánh quý/năm.</li><li><b>📋 Kế hoạch tuần:</b> Mục tiêu & task theo ngày, thói quen, phản ánh, Pomodoro.</li><li><b>🎯 Mục tiêu:</b> Thêm/sửa/xoá mục tiêu ưu tiên và thường. Tick ✓ để đánh dấu hoàn thành.</li><li><b>🔥 Thói quen:</b> Theo dõi thói quen 31 ngày, tính % hoàn thành, streak và heatmap.</li><li><b>🍅 Pomodoro:</b> Timer tập trung 25 phút. Sau 4 lần tập trung sẽ được nghỉ dài 25 phút.</li><li><b>📝 Phản ánh:</b> Viết nhật ký reflection theo tuần, tháng, quý, năm.</li><li><b>🏷️ Tag:</b> Gắn tag cho task để lọc và tìm kiếm.</li><li><b>🔍 Tìm kiếm:</b> Tìm kiếm xuyên tháng (Ctrl+K).</li><li><b>📊 Dashboard:</b> Thống kê tổng quan năm.</li><li><b>🌙 Chế độ tối:</b> Bật/tắt giao diện tối.</li><li><b>🌐 Ngôn ngữ:</b> Chuyển đổi VI/EN.</li><li><b>🎯 Chế độ Tập trung:</b> Xem task & thói quen hôm nay trong giao diện tối giản.</li><li><b>↩️ Hoàn tác/Làm lại:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Dữ liệu:</b> Xuất/nhập JSON, CSV, sao lưu tự động, khôi phục.</li><li><b>☁️ Đồng bộ:</b> Đăng nhập để đồng bộ dữ liệu giữa các thiết bị.</li><li><b>📅 Lịch:</b> Xem task theo lịch tháng.</li><li><b>📋 Templates:</b> Sao chép cấu trúc tháng.</li><li><b>🎨 Chủ đề:</b> 4 chủ đề màu kem/bạc hà/oải hương/đào.</li><li><b>🤖 Trợ lý học tập:</b> Chatbot hỗ trợ lên kế hoạch học tập và trả lời câu hỏi.</li></ul><p>💡 <b>Mẹo:</b> Dùng phím số 1-5 để chuyển nhanh giữa các view.</p>',
-    profileTitle: '👤 Tài khoản',
+    profileTitle: 'Tài khoản',
     profileUser: 'Tên người dùng: {u}',
     pwTitle: 'Đổi mật khẩu',
     pwCurrentPh: 'Mật khẩu hiện tại',
@@ -907,7 +907,7 @@ const I18N = {
     dragHint: 'Kéo để sắp xếp lại',
     reorderDone: 'Đã sắp xếp lại',
     shortcutHint: 'Phím tắt: Ctrl+K tìm kiếm · 1-5 chuyển view · / thêm task',
-    backupRestore: '🕑 Khôi phục bản sao lưu tự động',
+    backupRestore: 'Khôi phục bản sao lưu tự động',
     backupEmpty: 'Chưa có bản sao lưu nào. Bản sao lưu tự lưu sau mỗi lần bạn thay đổi dữ liệu.',
     backupRestoreDone: 'Đã khôi phục bản sao lưu! Trang sẽ tải lại.',
     backupRestoreConfirm: 'Khôi phục bản sao lưu sẽ GHI ĐÈ dữ liệu hiện tại. Tiếp tục?',
@@ -951,7 +951,7 @@ const I18N = {
     importCsvError: 'Không đọc được CSV. Đảm bảo file là bản xuất từ TaskFlow-Todoist.',
     digestNone: 'Hôm qua bạn điểm danh đủ thói quen! 🎉',
     /* ===== Phase 8: Widget Dashboard ===== */
-    widgetSettings: '⚙️ Tuỳ chỉnh Widget',
+    widgetSettings: 'Tuỳ chỉnh Widget',
     widgetSave: 'Lưu',
     widgetHide: 'Ẩn widget này',
     widgetShow: 'Hiện widget này',
@@ -1154,7 +1154,7 @@ const I18N = {
     rw3: 'Three goals I should focus on next week?',
     rq3: 'Three goals I should focus on next quarter?',
     closeBtn: 'Close',
-    syncTitle: '☁️ Cloud sync',
+    syncTitle: 'Cloud sync',
     syncDesc: 'Sign in to sync data across devices. Your existing data will be automatically upgraded to the cloud.',
     syncLogin: 'Sign in',
     syncSignup: 'Create account',
@@ -1259,7 +1259,7 @@ const I18N = {
     emptyHabitsT: 'No habits yet',
     emptyHabitsH: 'Type a habit in the box above, then tap "+ Add habit".',
     /* ===== Phase 2: Search, Tags, Calendar, Template, Dashboard, Pomodoro ===== */
-    searchTitle: '🔍 Search across months',
+    searchTitle: 'Search across months',
     searchPh: 'Type to search... (goals, tasks, habits, reflections)',
     searchEmpty: 'Type at least 2 characters to search.',
     searchNoResults: 'No results found 🐥',
@@ -1289,7 +1289,7 @@ const I18N = {
     calendarAgendaEmpty: 'No tasks match the current filters.',
     calendarTaskCount: '{n} tasks',
     calEmpty: 'No tasks',
-    templateTitle: '📋 Copy month structure',
+    templateTitle: 'Copy month structure',
     templateDesc: 'Copy goals, habits & week structure (without ✓ ticks) to another month.',
     templateSrc: 'Source month',
     templateDst: 'Target month',
@@ -1326,7 +1326,7 @@ const I18N = {
     chatWelcome: '👋 Hi! I am your study assistant. How can I help you?',
     chatPh: 'Type your question...',
     chatSend: 'Send',
-    helpTitle: '❓ User Guide',
+    helpTitle: 'User Guide',
     helpContent: '<h3>📋 TaskFlow-Todoist Features</h3><ul><li><b>📅 Month Overview:</b> View monthly goals, habits and progress.</li><li><b>🗓️ Year Plan:</b> Year goals, 12-month chart, quarter/year reflections.</li><li><b>📋 Week Plan:</b> Daily goals & tasks, habits, reflections, Pomodoro.</li><li><b>🎯 Goals:</b> Add/edit/delete priority & regular goals. Tick ✓ to mark done.</li><li><b>🔥 Habits:</b> Track 31-day habits, calculate %, streak and heatmap.</li><li><b>🍅 Pomodoro:</b> 25-min focus timer. After 4 focus sessions, take a 25-min long break.</li><li><b>📝 Reflection:</b> Write reflection journals by week, month, quarter, year.</li><li><b>🏷️ Tags:</b> Tag tasks for filtering and searching.</li><li><b>🔍 Search:</b> Search across months (Ctrl+K).</li><li><b>📊 Dashboard:</b> Year overview statistics.</li><li><b>🌙 Dark Mode:</b> Toggle dark interface.</li><li><b>🌐 Language:</b> Switch VI/EN.</li><li><b>🎯 Focus Mode:</b> View today tasks & habits in a minimalist interface.</li><li><b>↩️ Undo/Redo:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Data:</b> Export/import JSON, CSV, auto backup, restore.</li><li><b>☁️ Sync:</b> Sign in to sync data across devices.</li><li><b>📅 Calendar:</b> View tasks in monthly calendar.</li><li><b>📋 Templates:</b> Copy month structure.</li><li><b>🎨 Themes:</b> 4 color themes: cream/mint/lavender/peach.</li><li><b>🤖 Study Assistant:</b> Chatbot for study planning and answering questions.</li></ul><p>💡 <b>Tip:</b> Use number keys 1-5 to quickly switch between views.</p>',
     /* Phase 4 — habit/task reminders */
     remindHabitAria: 'Set reminder for habit',
@@ -1361,7 +1361,7 @@ const I18N = {
     pomoWeek: 'This week',
     pomoMinShort: '{n} min',
     pomoWidgetStats: '{today} · {week}',
-    profileTitle: '👤 Account',
+    profileTitle: 'Account',
     profileUser: 'Username: {u}',
     pwTitle: 'Change password',
     pwCurrentPh: 'Current password',
@@ -1385,7 +1385,7 @@ const I18N = {
     dragHint: 'Drag to reorder',
     reorderDone: 'Reordered',
     shortcutHint: 'Shortcuts: Ctrl+K search · 1-5 switch view · / add task',
-    backupRestore: '🕑 Restore auto backup',
+    backupRestore: 'Restore auto backup',
     backupEmpty: 'No backups yet. Backups are saved automatically after each change.',
     backupRestoreDone: 'Backup restored! The page will reload.',
     backupRestoreConfirm: 'Restoring a backup will OVERWRITE current data. Continue?',
@@ -1429,7 +1429,7 @@ const I18N = {
     importCsvError: 'Could not read CSV. Make sure it is a TaskFlow-Todoist export.',
     digestNone: 'All habits ticked yesterday! 🎉',
     /* ===== Phase 8: Widget Dashboard ===== */
-    widgetSettings: '⚙️ Customize Widgets',
+    widgetSettings: 'Customize Widgets',
     widgetSave: 'Save',
     widgetHide: 'Hide this widget',
     widgetShow: 'Show this widget',
@@ -1661,17 +1661,17 @@ function enableReminder() {
   const input = document.getElementById('remindTime');
   const time = input && input.value ? input.value : '20:00';
   requestRemindPermission().then((granted) => {
-    if (!granted) { alert(t('remindDenied')); return; }
+    if (!granted) { TaskFlowUI.toast(t('remindDenied'), 'error'); return; }
     setRemindTime(time);
     registerPeriodicReminder();
-    alert(t('remindEnabled', { t: time }));
+    TaskFlowUI.toast(t('remindEnabled', { t: time }), 'success');
     trackEvent('reminder_enabled');
   });
 }
 
 function disableReminder() {
   setRemindTime(null);
-  alert(t('remindDisabled'));
+  TaskFlowUI.toast(t('remindDisabled'), 'info');
   trackEvent('reminder_disabled');
 }
 
@@ -1800,7 +1800,7 @@ function beginRemindEdit(btn) {
     save();
     syncReminderTimers();
     trackEvent('reminder_item_set', { kind });
-    alert(t('remindSetDone', { kind: t(kind === 'habit' ? 'remindKindHabit' : 'remindKindTask'), t: target.remind.time }));
+    TaskFlowUI.toast(t('remindSetDone', { kind: t(kind === 'habit' ? 'remindKindHabit' : 'remindKindTask'), t: target.remind.time }), 'success');
   };
   save.addEventListener('click', commit);
   off.addEventListener('click', () => wrap.remove());
@@ -1986,13 +1986,13 @@ function importJSONFile(file) {
       Object.keys(data.keys).forEach((k) => {
         try { localStorage.setItem(k, data.keys[k]); } catch (e) { /* ẩn */ }
       });
-      alert(t('importOk'));
+      TaskFlowUI.toast(t('importOk'), 'success');
       location.reload();
     } catch (e) {
-      alert(t('importError'));
+      TaskFlowUI.toast(t('importError'), 'error');
     }
   };
-  reader.onerror = () => alert(t('importError'));
+  reader.onerror = () => TaskFlowUI.toast(t('importError'), 'error');
   reader.readAsText(file);
 }
 
@@ -2013,7 +2013,7 @@ document.addEventListener('click', (e) => {
   const tp = document.getElementById('templatesPop');
   if (tp && !tp.hidden && !e.target.closest('.templates-pop') && !e.target.closest('[data-action="templates-toggle"]')) tp.hidden = true;
   const pk = document.getElementById('moodPicker');
-  if (pk && !pk.hidden && !e.target.closest('.mood-picker') && !e.target.closest('[data-action="mood-pick"]')) pk.hidden = true;
+  if (pk && !pk.hidden && !e.target.closest('.mood-picker') && !e.target.closest('[data-action="mood-pick"]')) closeMoodPicker();
 });
 
 /* ============================ Confetti ============================ */
@@ -2207,7 +2207,7 @@ function moodCardHTML() {
       <span class="mood-hint">${t('moodHint')}</span>
     </div>
     <div class="mood-heat" role="group" aria-label="${t('moodTitle')}">${cells.join('')}</div>
-    <div class="mood-picker" id="moodPicker" hidden role="dialog" aria-label="${t('moodTitle')}"></div>
+    <div class="mood-picker" id="moodPicker" hidden role="dialog" aria-modal="false" aria-labelledby="moodPickerTitle"></div>
     ${insight ? `<p class="mood-insight">${insight}</p>` : ''}
   </div>`;
 }
@@ -2217,16 +2217,15 @@ function openMoodPicker(day) {
   const pk = document.getElementById('moodPicker');
   if (!pk) return;
   const cur = moodMap[moodDateKey(day)];
-  pk.innerHTML = `<div class="mood-picker-title">${t('moodPickTitle', { d: day })}</div>
+  pk.innerHTML = `<div class="mood-picker-title" id="moodPickerTitle">${t('moodPickTitle', { d: day })}</div>
     <div class="mood-picker-opts">
       ${MOODS.map((m, i) => `<button type="button" class="mood-btn${cur === i ? ' on' : ''}" data-action="mood-set" data-day="${day}" data-mood="${i}" title="${t(m.labelKey)}" aria-label="${t(m.labelKey)}">${m.icon}</button>`).join('')}
     </div>
     <button type="button" class="mood-picker-clear" data-action="mood-clear" data-day="${day}">${t('moodClear')}</button>`;
-  pk.hidden = false;
+  TaskFlowUI.openDialog('moodPicker');
 }
 function closeMoodPicker() {
-  const pk = document.getElementById('moodPicker');
-  if (pk) pk.hidden = true;
+  TaskFlowUI.closeDialog('moodPicker');
 }
 function rerenderMoodCard() {
   const card = document.getElementById('moodCard');
@@ -2285,12 +2284,11 @@ function openYearReportModal() {
   const m = document.getElementById('yearReportModal');
   if (!m) return;
   renderYearReportModal();
-  m.hidden = false;
+  TaskFlowUI.openDialog('yearReportModal');
 }
 
 function closeYearReportModal() {
-  const m = document.getElementById('yearReportModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('yearReportModal');
 }
 
 // Ảnh tổng kết năm 1080×1080 — style streak/week report card.
@@ -2399,9 +2397,9 @@ async function doShareYearReport() {
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
     trackEvent('share_year_report', { pct: r.pct, via: 'download' });
-    alert(t('shareDone'));
+    TaskFlowUI.toast(t('shareDone'), 'success');
   } catch (e) {
-    alert(t('shareFail'));
+    TaskFlowUI.toast(t('shareFail'), 'error');
   }
 }
 
@@ -2491,13 +2489,13 @@ function importCSVFile(file) {
       saveYear();
       invalidateYearCache();
       setView(state.view, state.currentWeek);
-      alert(t('importCsvDone'));
+      TaskFlowUI.toast(t('importCsvDone'), 'success');
       trackEvent('import_csv');
     } catch (e) {
-      alert(t('importCsvError'));
+      TaskFlowUI.toast(t('importCsvError'), 'error');
     }
   };
-  reader.onerror = () => alert(t('importCsvError'));
+  reader.onerror = () => TaskFlowUI.toast(t('importCsvError'), 'error');
   reader.readAsText(file);
 }
 
@@ -3489,7 +3487,7 @@ function streakCardBlob(name, habitName, cur, best) {
 
 async function doShareStreak() {
   const top = shareTopInfo();
-  if (!top || top.s.cur === 0) { alert(t('shareNoStreak')); return; }
+  if (!top || top.s.cur === 0) { TaskFlowUI.toast(t('shareNoStreak'), 'error'); return; }
   let name = localStorage.getItem('planner-name');
   if (!name) {
     name = (prompt(t('shareNamePrompt')) || '').trim() || t('meName');
@@ -3519,9 +3517,9 @@ async function doShareStreak() {
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
     trackEvent('share_streak', { days: top.s.cur, via: 'download' });
-    alert(t('shareDone'));
+    TaskFlowUI.toast(t('shareDone'), 'success');
   } catch (e) {
-    alert(t('shareFail'));
+    TaskFlowUI.toast(t('shareFail'), 'error');
   }
 }
 
@@ -3572,12 +3570,11 @@ function openReportModal() {
   const m = document.getElementById('reportModal');
   if (!m) return;
   renderReportModal();
-  m.hidden = false;
+  TaskFlowUI.openDialog('reportModal');
 }
 
 function closeReportModal() {
-  const m = document.getElementById('reportModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('reportModal');
 }
 
 // Tạo ảnh báo cáo 1080×1080 (style streak card) để chia sẻ.
@@ -3682,9 +3679,9 @@ async function doShareReport() {
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
     trackEvent('share_report', { goalPct: r.goalPct, via: 'download' });
-    alert(t('shareDone'));
+    TaskFlowUI.toast(t('shareDone'), 'success');
   } catch (e) {
-    alert(t('shareFail'));
+    TaskFlowUI.toast(t('shareFail'), 'error');
   }
 }
 
@@ -3739,12 +3736,11 @@ function openWeekReportModal() {
   const m = document.getElementById('weekReportModal');
   if (!m) return;
   renderWeekReportModal();
-  m.hidden = false;
+  TaskFlowUI.openDialog('weekReportModal');
 }
 
 function closeWeekReportModal() {
-  const m = document.getElementById('weekReportModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('weekReportModal');
 }
 
 // Ảnh báo cáo tuần 1080×1080 — style streak/report card.
@@ -3857,9 +3853,9 @@ async function doShareWeekReport() {
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
     trackEvent('share_week_report', { pct: r.pct, via: 'download' });
-    alert(t('shareDone'));
+    TaskFlowUI.toast(t('shareDone'), 'success');
   } catch (e) {
-    alert(t('shareFail'));
+    TaskFlowUI.toast(t('shareFail'), 'error');
   }
 }
 
@@ -3916,7 +3912,7 @@ function evaluateMonthBadges() {
     fresh++;
     trackEvent('award_badge', { badge: id });
     const def = BADGE_DEFS.find((x) => x.id === id);
-    alert(t('badgeNew', { b: def ? t(def.nameKey) : id }));
+    TaskFlowUI.toast(t('badgeNew', { b: def ? t(def.nameKey) : id }), 'success');
   });
   if (fresh) saveBadges(badgesStore);
   return fresh;
@@ -4050,7 +4046,7 @@ function copyHabitsToNextMonth() {
   saveMonthState(y, m, s);
   invalidateYearCache();
   trackEvent('copy_habits', { n });
-  if (n) alert(t('copyHabitsDone', { n }));
+  if (n) TaskFlowUI.toast(t('copyHabitsDone', { n }), 'success');
   return n;
 }
 
@@ -4637,15 +4633,14 @@ function taskRowHTML(wn, di, ti, mod, task, pos) {
 function openSearchModal() {
   const m = document.getElementById('searchModal');
   if (!m) return;
-  m.hidden = false;
   const inp = document.getElementById('searchInput');
-  if (inp) { inp.value = ''; inp.focus(); }
+  if (inp) inp.value = '';
   renderSearchResults('');
+  TaskFlowUI.openDialog('searchModal');
 }
 
 function closeSearchModal() {
-  const m = document.getElementById('searchModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('searchModal');
 }
 
 // Tìm kiếm xuyên tháng: đọc chéo 12 tháng qua monthStateRaw() + yearState (tháng đang xem dùng state trực tiếp).
@@ -4842,12 +4837,11 @@ function openTemplateModal() {
     const dstOpts = MONTH_NAMES.map((n, i) => `<option value="${i}" ${i === def ? 'selected' : ''}>${t('monthOption', { m: monthLabel(i), n: i + 1, y: PLAN_YEAR })}</option>`).join('');
     dst.innerHTML = dstOpts;
   }
-  m.hidden = false;
+  TaskFlowUI.openDialog('templateModal');
 }
 
 function closeTemplateModal() {
-  const m = document.getElementById('templateModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('templateModal');
 }
 
 // Sao chép CẤU TRÚC tháng (goals + habits + tuần) sang tháng đích, BỎ ô tick ✓.
@@ -4857,9 +4851,9 @@ function closeTemplateModal() {
 function copyMonthTemplate() {
   const srcM = +document.getElementById('templateSrc').value;
   const dstM = +document.getElementById('templateDst').value;
-  if (srcM === dstM) { alert(t('templateSame')); return; }
+  if (srcM === dstM) { TaskFlowUI.toast(t('templateSame'), 'error'); return; }
   const src = loadMonthStateOrCreate(PLAN_YEAR, srcM);
-  if (!src || (!src.monthlyGoals.length && !src.habits.length)) { alert(t('templateNoData')); return; }
+  if (!src || (!src.monthlyGoals.length && !src.habits.length)) { TaskFlowUI.toast(t('templateNoData'), 'error'); return; }
   const prev = capturePlan();
   let dst = null;
   try {
@@ -4895,7 +4889,7 @@ function copyMonthTemplate() {
   saveMonthState(PLAN_YEAR, dstM, dst);
   invalidateYearCache();
   trackEvent('copy_month_template', { src: srcM, dst: dstM });
-  alert(t('templateDone', { src: monthLabel(srcM), dst: monthLabel(dstM) }));
+  TaskFlowUI.toast(t('templateDone', { src: monthLabel(srcM), dst: monthLabel(dstM) }), 'success');
   closeTemplateModal();
 }
 
@@ -4949,16 +4943,16 @@ function pomoStart() {
         const todaySessions = log[todayKey] ? log[todayKey].count : 0;
         if (todaySessions > 0 && todaySessions % 4 === 0) {
           pomo.mode = 'longBreak'; pomo.left = POMO_LONG_BREAK;
-          alert(t('pomoWorkDoneTxt') + ' 🎉 ' + t('pomoLongBreak'));
+          TaskFlowUI.toast(t('pomoWorkDoneTxt') + ' · ' + t('pomoLongBreak'), 'success');
         } else {
-          alert(t('pomoDoneWork'));
+          TaskFlowUI.toast(t('pomoDoneWork'), 'success');
           pomo.mode = 'break'; pomo.left = POMO_BREAK;
         }
       } else if (finished === 'longBreak') {
-        alert(t('pomoLongBreakDone'));
+        TaskFlowUI.toast(t('pomoLongBreakDone'), 'success');
         pomo.mode = 'work'; pomo.left = POMO_WORK;
       } else {
-        alert(t('pomoDoneBreak'));
+        TaskFlowUI.toast(t('pomoDoneBreak'), 'success');
         pomo.mode = 'work'; pomo.left = POMO_WORK;
       }
       renderPomoWidgetStats();
@@ -4988,7 +4982,11 @@ function togglePomoPanel() {
   const p = document.getElementById('pomoPanel');
   if (!p) return;
   p.hidden = !p.hidden;
-  if (!p.hidden) renderPomo();
+  if (!p.hidden) {
+    const chat = document.getElementById('chatPop');
+    if (chat) chat.hidden = true;
+    renderPomo();
+  }
 }
 
 /* ---------- Pomodoro widget trong tuần view (Phase 4) ---------- */
@@ -5191,14 +5189,13 @@ function yearDashboardHTML() {
 function openWidgetSettingsModal(view) {
   const m = document.getElementById('widgetSettingsModal');
   if (!m) return;
-  m.hidden = false;
   m.dataset.widgetView = view;
   renderWidgetSettingsModal(view);
+  TaskFlowUI.openDialog('widgetSettingsModal');
 }
 
 function closeWidgetSettingsModal() {
-  const m = document.getElementById('widgetSettingsModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('widgetSettingsModal');
 }
 
 function renderWidgetSettingsModal(view) {
@@ -5265,48 +5262,74 @@ function renderWidgetSettingsModal(view) {
 
 /* ============================ Phase 3: Profile / tài khoản ============================ */
 
+function setFieldError(fieldId, message) {
+  const field = document.getElementById(fieldId);
+  if (!field) return null;
+  const errorId = (field.getAttribute('aria-describedby') || '').split(/\s+/).find((id) => id.endsWith('Error')) || fieldId + 'Error';
+  const error = document.getElementById(errorId);
+  field.setAttribute('aria-invalid', 'true');
+  if (error) {
+    error.textContent = message;
+    error.hidden = false;
+  }
+  return field;
+}
+
+function clearFormErrors(root) {
+  const scope = root || document;
+  scope.querySelectorAll('[aria-invalid="true"]').forEach((field) => field.removeAttribute('aria-invalid'));
+  scope.querySelectorAll('.field-error').forEach((error) => {
+    error.hidden = true;
+    error.textContent = '';
+  });
+}
+
 function openProfileModal() {
   const m = document.getElementById('profileModal');
   if (!m) return;
   const u = document.getElementById('profileUser');
   const uname = (window.Sync && window.Sync.getUsername) ? window.Sync.getUsername() : '';
   if (u) u.textContent = uname ? t('profileUser', { u: uname }) : '';
-  m.hidden = false;
+  clearFormErrors(m);
+  TaskFlowUI.openDialog('profileModal');
 }
 
 function closeProfileModal() {
-  const m = document.getElementById('profileModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('profileModal');
 }
 
 async function doChangePassword() {
-  if (!window.Sync || !window.Sync.changePassword) { alert(t('pwNeedLogin')); return; }
+  if (!window.Sync || !window.Sync.changePassword) { TaskFlowUI.toast(t('pwNeedLogin'), 'error'); return; }
   const cur = document.getElementById('pwCurrent');
   const nw = document.getElementById('pwNew');
   if (!cur || !nw) return;
-  if (!cur.value || !nw.value) { alert(t('pwNeedLogin')); return; }
+  clearFormErrors(document.getElementById('profileModal'));
+  let firstInvalid = null;
+  if (!cur.value) firstInvalid = setFieldError('pwCurrent', t('pwCurrentPh'));
+  if (!nw.value) firstInvalid = firstInvalid || setFieldError('pwNew', t('pwNewPh'));
+  if (firstInvalid) { firstInvalid.focus(); return; }
   const r = await window.Sync.changePassword(cur.value, nw.value);
   if (r && r.ok) {
-    alert(t('pwOk'));
+    TaskFlowUI.toast(t('pwOk'), 'success');
     cur.value = ''; nw.value = '';
     closeProfileModal();
   } else {
-    alert(t('pwErr'));
+    setFieldError('pwNew', t('pwErr')).focus();
   }
 }
 
 async function doDeleteAccount() {
-  if (!window.Sync || !window.Sync.deleteAccount) { alert(t('pwNeedLogin')); return; }
+  if (!window.Sync || !window.Sync.deleteAccount) { TaskFlowUI.toast(t('pwNeedLogin'), 'error'); return; }
   if (!confirm(t('acctDeleteConfirm'))) return;
   const r = await window.Sync.deleteAccount();
   if (r && r.ok) {
-    alert(t('acctDeleted'));
+    TaskFlowUI.toast(t('acctDeleted'), 'success');
     closeProfileModal();
     closeSyncModal();
     updateSyncStatus();
     rebootState();
   } else {
-    alert(t('acctDeleteErr'));
+    TaskFlowUI.toast(t('acctDeleteErr'), 'error');
   }
 }
 
@@ -5382,34 +5405,24 @@ function updateShellContext() {
   if (period) period.textContent = `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`;
 }
 
-let toolsDrawerOpener = null;
 function openToolsDrawer(opener) {
   const drawer = document.getElementById('toolsDrawer');
   const backdrop = document.getElementById('toolsDrawerBackdrop');
   if (!drawer || !backdrop) return;
-  toolsDrawerOpener = opener || document.activeElement;
-  drawer.hidden = false;
   backdrop.hidden = false;
   document.body.classList.add('tools-drawer-open');
   document.querySelectorAll('[data-action="tools-open"]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
-  const first = drawer.querySelector('[data-action="tools-close"]');
-  if (first) first.focus();
+  TaskFlowUI.openDrawer('toolsDrawer', opener);
 }
 
 function closeToolsDrawer() {
   const drawer = document.getElementById('toolsDrawer');
   const backdrop = document.getElementById('toolsDrawerBackdrop');
   if (!drawer || drawer.hidden) return;
-  drawer.hidden = true;
   if (backdrop) backdrop.hidden = true;
   document.body.classList.remove('tools-drawer-open');
   document.querySelectorAll('[data-action="tools-open"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
-  const focusTarget = toolsDrawerOpener && toolsDrawerOpener.isConnected
-    ? toolsDrawerOpener
-    : Array.from(document.querySelectorAll('[data-action="tools-open"]'))
-      .find((button) => button.getClientRects().length);
-  if (focusTarget) focusTarget.focus();
-  toolsDrawerOpener = null;
+  TaskFlowUI.closeDrawer('toolsDrawer');
 }
 
 function addTaskFromShell() {
@@ -5421,30 +5434,6 @@ function addTaskFromShell() {
     || document.querySelector(`[data-action="addtask"][data-week="${week}"]`);
   if (add) add.click();
 }
-
-document.addEventListener('keydown', (e) => {
-  const drawer = document.getElementById('toolsDrawer');
-  if (!drawer || drawer.hidden) return;
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    closeToolsDrawer();
-    return;
-  }
-  if (e.key !== 'Tab') return;
-  const focusable = Array.from(drawer.querySelectorAll(
-    'a[href], button:not([disabled]):not([hidden]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-  )).filter((element) => element.offsetParent !== null);
-  if (!focusable.length) return;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (e.shiftKey && document.activeElement === first) {
-    e.preventDefault();
-    last.focus();
-  } else if (!e.shiftKey && document.activeElement === last) {
-    e.preventDefault();
-    first.focus();
-  }
-});
 
 function setView(view, week) {
   state.view = view;
@@ -5840,11 +5829,10 @@ function openBackupModal() {
       ? list.map((b) => `<button type="button" class="backup-row" data-action="backup-use" data-idx="${b.idx}"><span>🕑 ${new Date(b.savedAt).toLocaleString(dateLocale())}</span><small>${t('backupSlot', { n: b.keys })}</small></button>`).join('')
       : `<p class="pop-note">${t('backupEmpty')}</p>`;
   }
-  m.hidden = false;
+  TaskFlowUI.openDialog('backupModal');
 }
 function closeBackupModal() {
-  const m = document.getElementById('backupModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('backupModal');
 }
 function doRestoreBackup(idx) {
   try {
@@ -5856,8 +5844,8 @@ function doRestoreBackup(idx) {
       if (k === 'planner-token' || k === 'planner-backup-idx' || k.startsWith('planner-backup-')) return;
       try { localStorage.setItem(k, b.data.keys[k]); } catch (e) { /* ẩn */ }
     });
-    alert(t('backupRestoreDone'));
-    location.reload();
+    TaskFlowUI.toast(t('backupRestoreDone'), 'success');
+    window.setTimeout(() => location.reload(), 450);
   } catch (e) { /* ẩn */ }
 }
 
@@ -5865,15 +5853,13 @@ function doRestoreBackup(idx) {
 
 function openFocusMode() {
   document.body.classList.add('focus-mode');
-  const m = document.getElementById('focusOverlay');
-  if (m) m.hidden = false;
   renderFocusContent();
+  TaskFlowUI.openDialog('focusOverlay');
   trackEvent('focus_open');
 }
 function closeFocusMode() {
   document.body.classList.remove('focus-mode');
-  const m = document.getElementById('focusOverlay');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('focusOverlay');
 }
 function renderFocusContent() {
   const box = document.getElementById('focusContent');
@@ -5928,13 +5914,19 @@ document.addEventListener('click', (e) => {
   else if (act === 'backup-use') { doRestoreBackup(+el.dataset.idx); return; }
   else if (act === 'feedback') {
     trackEvent('feedback_click', { kind: 'form' });
-    if (!FB_FORM_URL) { alert(t('fbNoForm')); return; }
+    if (!FB_FORM_URL) { TaskFlowUI.toast(t('fbNoForm'), 'error'); return; }
     window.open(FB_FORM_URL, '_blank', 'noopener');
     return;
   }
   else if (act === 'chat-toggle') {
     const p = document.getElementById('chatPop');
-    if (p) p.hidden = !p.hidden;
+    if (p) {
+      p.hidden = !p.hidden;
+      if (!p.hidden) {
+        const pomoPanel = document.getElementById('pomoPanel');
+        if (pomoPanel) pomoPanel.hidden = true;
+      }
+    }
     return;
   }
   else if (act === 'chat-close') {
@@ -5953,17 +5945,16 @@ document.addEventListener('click', (e) => {
   else if (act === 'help-toggle') {
     const m = document.getElementById('helpModal');
     if (m) {
-      m.hidden = !m.hidden;
-      if (!m.hidden) {
+      if (m.hidden) {
         const content = document.getElementById('helpContent');
         if (content) content.innerHTML = t('helpContent');
-      }
+        TaskFlowUI.openDialog('helpModal', el);
+      } else TaskFlowUI.closeDialog('helpModal');
     }
     return;
   }
   else if (act === 'help-close') {
-    const m = document.getElementById('helpModal');
-    if (m) m.hidden = true;
+    TaskFlowUI.closeDialog('helpModal');
     return;
   }
 
@@ -6173,7 +6164,7 @@ document.addEventListener('click', (e) => {
   } else if (act === 'demo-data') {
     togglePop('dataPop');
     demoPlan();
-    alert(t('demoDataDone'));
+    TaskFlowUI.toast(t('demoDataDone'), 'success');
   } else if (act === 'mood') {
     moodMap[el.dataset.dayKey] = +el.dataset.mood;
     saveMood();
@@ -6645,58 +6636,41 @@ function updateSyncStatus() {
 function toggleSyncModal() {
   const m = document.getElementById('syncModal');
   if (!m) return;
-  m.hidden = !m.hidden;
-  if (!m.hidden) {
+  if (m.hidden) {
     setSyncMode('login');
     updateSyncStatus();
-  }
+    clearFormErrors(m);
+    TaskFlowUI.openDialog('syncModal');
+  } else closeSyncModal();
 }
 
 function closeSyncModal() {
-  const m = document.getElementById('syncModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('syncModal');
 }
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    const m = document.getElementById('syncModal');
-    if (m && !m.hidden) m.hidden = true;
-    const r = document.getElementById('reportModal');
-    if (r && !r.hidden) r.hidden = true;
-    const wr = document.getElementById('weekReportModal');
-    if (wr && !wr.hidden) wr.hidden = true;
-    const yr = document.getElementById('yearReportModal');
-    if (yr && !yr.hidden) yr.hidden = true;
-    const s = document.getElementById('searchModal');
-    if (s && !s.hidden) closeSearchModal();
-    const t = document.getElementById('templateModal');
-    if (t && !t.hidden) t.hidden = true;
-    const p = document.getElementById('profileModal');
-    if (p && !p.hidden) p.hidden = true;
-    const bm = document.getElementById('backupModal');
-    if (bm && !bm.hidden) bm.hidden = true;
-    const pk = document.getElementById('moodPicker');
-    if (pk && !pk.hidden) pk.hidden = true;
-    if (document.body.classList.contains('focus-mode')) closeFocusMode();
-  }
-});
 document.addEventListener('click', (e) => {
   const m = document.getElementById('syncModal');
-  if (m && !m.hidden && e.target === m) m.hidden = true;
+  if (m && !m.hidden && e.target === m) closeSyncModal();
   const r = document.getElementById('reportModal');
-  if (r && !r.hidden && e.target === r) r.hidden = true;
+  if (r && !r.hidden && e.target === r) closeReportModal();
   const wr = document.getElementById('weekReportModal');
-  if (wr && !wr.hidden && e.target === wr) wr.hidden = true;
+  if (wr && !wr.hidden && e.target === wr) closeWeekReportModal();
   const yr = document.getElementById('yearReportModal');
-  if (yr && !yr.hidden && e.target === yr) yr.hidden = true;
+  if (yr && !yr.hidden && e.target === yr) closeYearReportModal();
   const s = document.getElementById('searchModal');
   if (s && !s.hidden && e.target === s) closeSearchModal();
   const t = document.getElementById('templateModal');
-  if (t && !t.hidden && e.target === t) t.hidden = true;
+  if (t && !t.hidden && e.target === t) closeTemplateModal();
   const p = document.getElementById('profileModal');
-  if (p && !p.hidden && e.target === p) p.hidden = true;
+  if (p && !p.hidden && e.target === p) closeProfileModal();
   const bm = document.getElementById('backupModal');
-  if (bm && !bm.hidden && e.target === bm) bm.hidden = true;
+  if (bm && !bm.hidden && e.target === bm) closeBackupModal();
+  const help = document.getElementById('helpModal');
+  if (help && !help.hidden && e.target === help) TaskFlowUI.closeDialog('helpModal');
+  const widget = document.getElementById('widgetSettingsModal');
+  if (widget && !widget.hidden && e.target === widget) closeWidgetSettingsModal();
+  const focus = document.getElementById('focusOverlay');
+  if (focus && !focus.hidden && e.target === focus) closeFocusMode();
 });
 
 function syncFormValues() {
@@ -6721,6 +6695,7 @@ function setSyncMode(mode) {
     const el = document.getElementById(id);
     if (el) el.placeholder = t(ph[id]);
   });
+  clearFormErrors(document.getElementById('syncModal'));
 }
 
 const USER_RE = /^[A-Za-z0-9_.-]{3,30}$/;
@@ -6739,37 +6714,47 @@ function syncErrorText(code) {
 async function doSyncSignup() {
   if (!window.Sync) return;
   const { user, pass, pass2 } = syncFormValues();
-  if (!user || !pass) { alert(t('syncNeedUser')); return; }
-  if (!USER_RE.test(user)) { alert(t('syncUserInvalid')); return; }
-  if (pass.length < 6) { alert(t('syncPassShort')); return; }
-  if (pass !== pass2) { alert(t('syncPassMismatch')); return; }
+  clearFormErrors(document.getElementById('syncModal'));
+  let firstInvalid = null;
+  if (!user) firstInvalid = setFieldError('syncUser', t('syncNeedUser'));
+  else if (!USER_RE.test(user)) firstInvalid = setFieldError('syncUser', t('syncUserInvalid'));
+  if (!pass) firstInvalid = firstInvalid || setFieldError('syncPass', t('syncNeedUser'));
+  else if (pass.length < 6) firstInvalid = firstInvalid || setFieldError('syncPass', t('syncPassShort'));
+  if (pass !== pass2) firstInvalid = firstInvalid || setFieldError('syncPass2', t('syncPassMismatch'));
+  if (firstInvalid) { firstInvalid.focus(); return; }
   const r = await window.Sync.signup(user, pass);
   updateSyncStatus();
   if (r && r.ok) {
     trackEvent('signup');
-    alert(t('syncSignupOk'));
+    TaskFlowUI.toast(t('syncSignupOk'), 'success');
     closeSyncModal();
     // Dữ liệu local đã được làm sạch → reload để app khởi động lại với dữ liệu mới của tài khoản vừa tạo
     location.reload();
   } else {
-    alert(syncErrorText(r && r.error));
+    const target = r && r.error === 'username-taken' ? 'syncUser' : 'syncPass';
+    setFieldError(target, syncErrorText(r && r.error)).focus();
   }
 }
 
 async function doSyncLogin() {
   if (!window.Sync) return;
   const { user, pass } = syncFormValues();
-  if (!user || !pass) { alert(t('syncNeedUser')); return; }
+  clearFormErrors(document.getElementById('syncModal'));
+  let firstInvalid = null;
+  if (!user) firstInvalid = setFieldError('syncUser', t('syncNeedUser'));
+  if (!pass) firstInvalid = firstInvalid || setFieldError('syncPass', t('syncNeedUser'));
+  if (firstInvalid) { firstInvalid.focus(); return; }
   const r = await window.Sync.login(user, pass);
   updateSyncStatus();
   if (r && r.ok) {
     trackEvent('login');
+    TaskFlowUI.toast(t('syncStatusReady'), 'success');
     closeSyncModal();
     // Tài khoản mới/khác = dữ liệu mới: localStorage đã được xoá + pull remote,
     // boot lại state để KHÔNG còn hiển thị (và vô tình lưu) dữ liệu của tài khoản cũ
     rebootState();
   } else {
-    alert(syncErrorText(r && r.error));
+    setFieldError('syncPass', syncErrorText(r && r.error)).focus();
     // Lỗi mạng khi pull: token đã đổi + local đã bị xoá nhưng chưa kéo được dữ liệu.
     // Vẫn reboot để UI khớp với local trống — tránh save() vô tình đẩy dữ liệu tài khoản cũ
     if (r && r.error === 'pull-failed') rebootState();
@@ -6779,10 +6764,13 @@ async function doSyncLogin() {
 async function doSyncGoogle() {
   if (!window.Sync) return;
   const s = window.Sync.getStatus();
-  if (s === 'off') { alert(t('syncNeedConfig')); return; }
+  if (s === 'off') { TaskFlowUI.toast(t('syncNeedConfig'), 'error'); return; }
   const r = await window.Sync.loginWithGoogle();
-  if (!(r && r.ok)) alert(t('syncGoogleErr'));
-  else closeSyncModal();
+  if (!(r && r.ok)) TaskFlowUI.toast(t('syncGoogleErr'), 'error');
+  else {
+    TaskFlowUI.toast(t('syncStatusReady'), 'success');
+    closeSyncModal();
+  }
 }
 
 function doSyncLogout() {
@@ -6870,13 +6858,12 @@ function startOnboarding() {
     if (el) el.placeholder = t(ph[id]);
   });
   obGoStep(1);
-  m.hidden = false;
+  TaskFlowUI.openDialog('onboardModal');
 }
 
 function obFinish() {
   try { localStorage.setItem(ONBOARD_KEY, '1'); } catch (e) { /* ẩn */ }
-  const m = document.getElementById('onboardModal');
-  if (m) m.hidden = true;
+  TaskFlowUI.closeDialog('onboardModal');
   setView(state.view, state.currentWeek);
 }
 

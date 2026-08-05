@@ -386,12 +386,62 @@ test('calendar responsive contract keeps grid desktop and agenda mobile', () => 
   assert.match(mobile, /\.calendar-agenda-mobile\s*{[^}]*display:\s*grid/s);
 });
 
+test('shared dialog and drawer API manages focus, dismissal, and feedback', () => {
+  const ui = readRequiredAsset('js/ui.js');
+  assert.match(ui, /function openDialog\(id, opener/);
+  assert.match(ui, /function closeDialog\(id\)/);
+  assert.match(ui, /function openDrawer\(id, opener/);
+  assert.match(ui, /function closeDrawer\(id\)/);
+  assert.match(ui, /function toast\(message, kind/);
+  assert.match(ui, /event\.key [!=]== 'Tab'/);
+  assert.match(ui, /event\.key === 'Escape'/);
+  assert.match(ui, /return \{[^}]*openDialog[^}]*closeDialog[^}]*openDrawer[^}]*closeDrawer[^}]*toast/s);
+});
+
+test('all application dialogs have named headings and a polite toast region', () => {
+  const html = readRequiredAsset('app.html');
+  assert.match(html, /id="toastRegion"[^>]*aria-live="polite"/);
+  const dialogCards = [...html.matchAll(/<[^>]+role="dialog"[^>]*>/g)].map((match) => match[0]);
+  assert.ok(dialogCards.length >= 12, `expected at least 12 dialogs, found ${dialogCards.length}`);
+  dialogCards.forEach((tag) => assert.match(tag, /aria-labelledby="[^"]+"/, tag));
+  const labelledBy = dialogCards.map((tag) => tag.match(/aria-labelledby="([^"]+)"/)[1]);
+  labelledBy.forEach((id) => assert.match(html, new RegExp(`id="${id}"`), `missing heading ${id}`));
+  assert.match(html, /id="syncModal"[^>]*hidden[^]*class="sync-modal-card dialog"[^>]*role="dialog"/);
+});
+
+test('authentication forms expose inline error containers', () => {
+  const html = readRequiredAsset('app.html');
+  ['syncUserError', 'syncPassError', 'syncPass2Error', 'pwCurrentError', 'pwNewError'].forEach((id) => {
+    assert.match(html, new RegExp(`<p[^>]*class="field-error"[^>]*id="${id}"`));
+  });
+  assert.match(APP_JS, /function setFieldError\(/);
+  assert.match(APP_JS, /function clearFormErrors\(/);
+});
+
+test('routine completion feedback uses non-blocking toasts', () => {
+  assert.match(APP_JS, /TaskFlowUI\.toast\(t\('shareDone'\)/);
+  assert.match(APP_JS, /TaskFlowUI\.toast\(t\('templateDone'/);
+  assert.match(APP_JS, /TaskFlowUI\.toast\(t\('pomoDoneWork'/);
+  assert.doesNotMatch(APP_JS, /alert\(t\('shareDone'\)/);
+});
+
+test('onboarding Escape follows the persisted skip action', () => {
+  const html = readRequiredAsset('app.html');
+  const ui = readRequiredAsset('js/ui.js');
+  assert.match(html, /data-action="ob-skip"[^>]*data-dialog-dismiss/);
+  assert.match(ui, /querySelector\('\[data-dialog-dismiss\],[^']*data-action\$="-close"/);
+  assert.match(APP_JS, /act === 'ob-skip'[\s\S]{0,120}obFinish\(\)/);
+  assert.match(APP_JS, /function obFinish\(\)[\s\S]{0,180}localStorage\.setItem\(ONBOARD_KEY, '1'\)/);
+});
+
 test('tools drawer supports dismissal and focus restoration', () => {
+  const ui = readRequiredAsset('js/ui.js');
   assert.match(APP_JS, /function openToolsDrawer\(/);
   assert.match(APP_JS, /function closeToolsDrawer\(/);
-  assert.match(APP_JS, /focusTarget\.focus\(\)/);
-  assert.match(APP_JS, /toolsDrawerOpener\.isConnected[\s\S]{0,320}getClientRects\(\)\.length/);
-  assert.match(APP_JS, /e\.key === 'Escape'[\s\S]{0,240}closeToolsDrawer\(\)/);
+  assert.match(APP_JS, /TaskFlowUI\.openDrawer\('toolsDrawer', opener\)/);
+  assert.match(APP_JS, /TaskFlowUI\.closeDrawer\('toolsDrawer'\)/);
+  assert.match(ui, /opener\.isConnected[^]*opener\.getClientRects\(\)\.length[^]*opener\.focus\(\)/);
+  assert.match(ui, /event\.key === 'Escape'[^]*requestLayerClose\(id\)/);
   assert.match(APP, /id="toolsDrawerBackdrop"[^>]*data-action="tools-close"/);
 });
 
@@ -436,7 +486,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v54';/);
+  assert.match(SW, /const CACHE = 'taskflow-v55';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -499,8 +549,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system assets are available in the v54 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v54';/);
+test('design system assets are available in the v55 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v55';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './icons/ui-sprite.svg', './js/ui.js',

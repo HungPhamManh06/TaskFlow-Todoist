@@ -271,6 +271,11 @@ body.tools-drawer-open {
   overflow: hidden;
 }
 
+body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .tools-drawer-head {
   display: flex;
   align-items: flex-start;

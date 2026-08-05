@@ -238,25 +238,78 @@ def calendar_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def dialog_checks(browser, base, width, height, errors, screenshot):
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"dialogs {width}px: {error}"))
+    load_app(page, base)
+
+    opener = page.locator('[data-action="search-toggle"]').first
+    opener.focus()
+    page.keyboard.press("Control+K")
+    page.wait_for_selector("#searchModal:not([hidden])")
+    assert page.evaluate("document.activeElement && document.activeElement.id") == "searchInput"
+    page.keyboard.press("Escape")
+    assert page.locator("#searchModal[hidden]").count() == 1
+    assert opener.evaluate("el => document.activeElement === el")
+
+    tools = page.locator('[data-action="tools-open"]:visible').first
+    tools.click()
+    page.wait_for_selector("#toolsDrawer:not([hidden])")
+    assert page.locator('#toolsDrawer [data-action="tools-close"]').evaluate(
+        "el => document.activeElement === el"
+    )
+    page.keyboard.press("Escape")
+    assert page.locator("#toolsDrawer[hidden]").count() == 1
+    assert tools.evaluate("el => document.activeElement === el")
+
+    page.evaluate("TaskFlowUI.openDialog('syncModal')")
+    page.locator("#syncForm button[type='submit']").click()
+    assert page.locator("#syncUser").get_attribute("aria-invalid") == "true"
+    assert page.locator("#syncUserError:not([hidden])").count() == 1
+    assert page.locator("#syncUser").evaluate("el => document.activeElement === el")
+    page.keyboard.press("Escape")
+
+    page.evaluate("TaskFlowUI.toast('Saved', 'success', 2000)")
+    assert page.locator("#toastRegion .toast-success", has_text="Saved").count() == 1
+
+    if width <= 390:
+        page.locator('[data-action="chat-toggle"]').click()
+        assert page.locator("#chatPop:not([hidden])").count() == 1
+        page.locator('[data-action="pomo-toggle"]').click()
+        assert page.locator("#chatPop[hidden]").count() == 1
+        assert page.locator("#pomoPanel:not([hidden])").count() == 1
+        page.locator('[data-action="chat-toggle"]').click()
+        assert page.locator("#pomoPanel[hidden]").count() == 1
+
+    assert_no_page_overflow(page, f"dialogs {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--view", choices=["overview", "week", "year", "calendar"], default="overview")
+    parser.add_argument("--dialogs", action="store_true")
     args = parser.parse_args()
 
     httpd = socketserver.TCPServer(("127.0.0.1", 0), Handler)
     port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{port}"
+    shot_label = "dialogs" if args.dialogs else args.view
     shots = {
-        "desktop": os.path.join(tempfile.gettempdir(), f"taskflow-{args.view}-desktop.png"),
-        "mobile": os.path.join(tempfile.gettempdir(), f"taskflow-{args.view}-mobile.png"),
+        "desktop": os.path.join(tempfile.gettempdir(), f"taskflow-{shot_label}-desktop.png"),
+        "mobile": os.path.join(tempfile.gettempdir(), f"taskflow-{shot_label}-mobile.png"),
     }
     errors = []
 
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
-            if args.view == "overview":
+            if args.dialogs:
+                dialog_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                dialog_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "overview":
                 overview_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 overview_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "week":
@@ -275,7 +328,8 @@ def main():
     if errors:
         print("PAGE ERRORS:", errors[:8])
         return 1
-    print(f"E2E {args.view.upper()} OK")
+    label = "DIALOGS" if args.dialogs else args.view.upper()
+    print(f"E2E {label} OK")
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0
 

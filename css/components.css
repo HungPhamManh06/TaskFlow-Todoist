@@ -1,4 +1,16 @@
 /* Shared TaskFlow Refined component contracts. */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 .ui-icon {
   display: inline-block;
   width: 1.125rem;
@@ -92,7 +104,16 @@
 }
 
 .field-hint { color: var(--color-text-muted); }
-.field-error { color: var(--color-danger); }
+.field-error {
+  margin: -2px 0 var(--space-1);
+  color: var(--color-danger);
+  font-weight: 650;
+}
+
+[aria-invalid="true"] {
+  border-color: var(--color-danger) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-danger) 20%, transparent);
+}
 
 .metric {
   min-width: 0;
@@ -119,6 +140,17 @@ time,
 
 .dialog { border-radius: var(--radius-panel); }
 
+.dialog > :is(h1, h2, h3),
+.dialog .sync-modal-title {
+  color: var(--color-text);
+  font-family: var(--font-brand);
+  letter-spacing: -.02em;
+}
+
+body:has([data-ui-layer="open"]) {
+  overflow: hidden;
+}
+
 .drawer {
   height: min(100dvh, 48rem);
   max-height: 100dvh;
@@ -144,6 +176,23 @@ time,
   background: var(--color-surface);
   box-shadow: var(--shadow-floating);
 }
+
+.toast {
+  border-inline-start: 3px solid var(--color-info);
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-success { border-inline-start-color: var(--color-accent); }
+.toast-error { border-inline-start-color: var(--color-danger); }
 
 button:focus-visible,
 a:focus-visible,
@@ -180,6 +229,12 @@ textarea:focus-visible,
 
   /* Dense planner grid checkboxes are intentionally excluded here. Their compact
      target-spacing treatment remains pending the dedicated view redesign. */
+}
+
+@media (max-width: 767px) {
+  .toast-region {
+    inset-block-end: calc(84px + env(safe-area-inset-bottom));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

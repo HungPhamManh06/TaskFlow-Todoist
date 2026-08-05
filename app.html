@@ -62,7 +62,7 @@
     })();
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=1" />
-  <link rel="stylesheet" href="css/components.css?v=1" />
+  <link rel="stylesheet" href="css/components.css?v=2" />
   <link rel="stylesheet" href="css/app-shell.css?v=2" />
   <link rel="stylesheet" href="css/styles.css?v=54" />
 </head>
@@ -271,15 +271,16 @@
 
   <nav class="app-mobile-nav" id="mobileNav" role="tablist" aria-label="Điều hướng chính trên di động"></nav>
 
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+
   <input type="file" id="importFile" accept=".json,application/json,.csv,text/csv" hidden />
 
   <!-- ===== Tìm kiếm xuyên tháng (Phase 2) ===== -->
   <div class="search-modal" id="searchModal" hidden>
-    <div class="search-modal-card" role="dialog" aria-modal="true" aria-label="Tìm kiếm xuyên tháng"
-      data-i18n-aria="searchTitle">
+    <div class="search-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="searchDialogTitle">
       <button type="button" class="sync-close" data-action="search-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">🔍 <span data-i18n="searchTitle">Tìm kiếm xuyên tháng</span></h3>
+      <h2 class="sync-modal-title" id="searchDialogTitle"><span data-i18n="searchTitle">Tìm kiếm xuyên tháng</span></h2>
       <input type="search" id="searchInput" class="inline-input search-input" placeholder=""
         data-i18n-placeholder="searchPh" aria-label="" data-i18n-aria="searchTitle" autocomplete="off" />
       <div id="searchResults" class="search-results"></div>
@@ -288,11 +289,10 @@
 
   <!-- ===== Template tháng (Phase 2) ===== -->
   <div class="template-modal" id="templateModal" hidden>
-    <div class="template-modal-card" role="dialog" aria-modal="true" aria-label="Template tháng"
-      data-i18n-aria="templateTitle">
+    <div class="template-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="templateDialogTitle">
       <button type="button" class="sync-close" data-action="template-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">📋 <span data-i18n="templateTitle">Sao chép cấu trúc tháng</span></h3>
+      <h2 class="sync-modal-title" id="templateDialogTitle"><span data-i18n="templateTitle">Sao chép cấu trúc tháng</span></h2>
       <p class="sync-desc" data-i18n="templateDesc">Sao chép mục tiêu, thói quen &amp; cấu trúc tuần (bỏ ô tick ✓) sang tháng khác.</p>
       <div class="template-fields">
         <label class="pop-field"><span data-i18n="templateSrc">Tháng nguồn</span>
@@ -310,21 +310,19 @@
 
   <!-- ===== Sao lưu tự động (Phase 5) ===== -->
   <div class="backup-modal" id="backupModal" hidden>
-    <div class="backup-modal-card" role="dialog" aria-modal="true" aria-label="Khôi phục bản sao lưu"
-      data-i18n-aria="backupRestore">
+    <div class="backup-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle">
       <button type="button" class="sync-close" data-action="backup-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">🕑 <span data-i18n="backupRestore">Khôi phục bản sao lưu tự động</span></h3>
+      <h2 class="sync-modal-title" id="backupDialogTitle"><span data-i18n="backupRestore">Khôi phục bản sao lưu tự động</span></h2>
       <div id="backupList" class="backup-list"></div>
     </div>
   </div>
 
   <!-- ===== Focus Mode (Phase 5) ===== -->
   <div class="focus-overlay" id="focusOverlay" hidden>
-    <div class="focus-card" role="dialog" aria-modal="true" aria-label="Chế độ Tập trung"
-      data-i18n-aria="focusOpen">
+    <div class="focus-card dialog" role="dialog" aria-modal="true" aria-labelledby="focusDialogTitle">
       <div class="focus-head">
-        <h3 class="focus-title">🎯 <span data-i18n="focusOpen">Chế độ Tập trung</span></h3>
+        <h2 class="focus-title" id="focusDialogTitle"><span data-i18n="focusOpen">Chế độ Tập trung</span></h2>
         <button type="button" class="sync-close" data-action="focus-close" aria-label="Đóng"
           data-i18n-aria="focusClose" title="Đóng (Esc)" data-i18n-title="focusClose">✕</button>
       </div>
@@ -334,18 +332,19 @@
 
   <!-- ===== Profile / Tài khoản (Phase 3) ===== -->
   <div class="profile-modal" id="profileModal" hidden>
-    <div class="profile-modal-card" role="dialog" aria-modal="true" aria-label="Tài khoản"
-      data-i18n-aria="profileTitle">
+    <div class="profile-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle">
       <button type="button" class="sync-close" data-action="profile-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">👤 <span data-i18n="profileTitle">Tài khoản</span></h3>
+      <h2 class="sync-modal-title" id="profileDialogTitle"><span data-i18n="profileTitle">Tài khoản</span></h2>
       <p class="sync-desc" id="profileUser"></p>
       <div class="profile-section">
         <h4 class="profile-h">🔑 <span data-i18n="pwTitle">Đổi mật khẩu</span></h4>
         <input type="password" id="pwCurrent" class="inline-input" placeholder="" autocomplete="current-password"
-          data-i18n-placeholder="pwCurrentPh" aria-label="" data-i18n-aria="pwCurrentPh" />
+          data-i18n-placeholder="pwCurrentPh" aria-label="" data-i18n-aria="pwCurrentPh" aria-describedby="pwCurrentError" />
+        <p class="field-error" id="pwCurrentError" hidden></p>
         <input type="password" id="pwNew" class="inline-input" placeholder="" autocomplete="new-password"
-          data-i18n-placeholder="pwNewPh" aria-label="" data-i18n-aria="pwNewPh" />
+          data-i18n-placeholder="pwNewPh" aria-label="" data-i18n-aria="pwNewPh" aria-describedby="pwNewError" />
+        <p class="field-error" id="pwNewError" hidden></p>
         <button type="button" class="pop-btn primary" data-action="pw-change" data-i18n="pwBtn">Đổi mật khẩu</button>
       </div>
       <div class="profile-section danger">
@@ -400,19 +399,19 @@
 
   <!-- ===== Hướng dẫn sử dụng (Help Modal) ===== -->
   <div class="report-modal" id="helpModal" hidden>
-    <div class="report-modal-card" role="dialog" aria-modal="true" aria-label="Hướng dẫn sử dụng"
-      data-i18n-aria="helpTitle">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="helpDialogTitle">
       <button type="button" class="sync-close" data-action="help-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">❓ <span data-i18n="helpTitle">Hướng dẫn sử dụng</span></h3>
+      <h2 class="sync-modal-title" id="helpDialogTitle"><span data-i18n="helpTitle">Hướng dẫn sử dụng</span></h2>
       <div class="help-content" id="helpContent"></div>
     </div>
   </div>
 
   <div class="sync-modal" id="syncModal" hidden>
-    <div class="sync-modal-card">
+    <div class="sync-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="syncDialogTitle">
+      <button type="button" class="sync-close" data-action="sync-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">☁️ <span data-i18n="syncTitle">Đồng bộ đám mây</span></h3>
+      <h2 class="sync-modal-title" id="syncDialogTitle"><span data-i18n="syncTitle">Đồng bộ đám mây</span></h2>
       <p class="sync-desc" data-i18n="syncDesc">Đăng nhập để đồng bộ dữ liệu giữa các thiết bị. Dữ liệu hiện tại sẽ tự
         động được nâng cấp lên đám mây.</p>
       <p class="sync-status" id="syncStatus"></p>
@@ -428,11 +427,14 @@
       <div class="sync-or"><span data-i18n="syncOr">hoặc bằng tài khoản</span></div>
       <form class="sync-form" id="syncForm">
         <input type="text" id="syncUser" placeholder="Tên người dùng" autocomplete="username" maxlength="30"
-          data-i18n-placeholder="syncUserPh" aria-label="Tên người dùng" data-i18n-aria="syncUserPh" />
+          data-i18n-placeholder="syncUserPh" aria-label="Tên người dùng" data-i18n-aria="syncUserPh" aria-describedby="syncUserError" />
+        <p class="field-error" id="syncUserError" hidden></p>
         <input type="password" id="syncPass" placeholder="Mật khẩu" autocomplete="current-password"
-          data-i18n-placeholder="syncPassPh" aria-label="Mật khẩu" data-i18n-aria="syncPassPh" />
+          data-i18n-placeholder="syncPassPh" aria-label="Mật khẩu" data-i18n-aria="syncPassPh" aria-describedby="syncPassError" />
+        <p class="field-error" id="syncPassError" hidden></p>
         <input type="password" id="syncPass2" placeholder="Xác nhận mật khẩu" autocomplete="new-password"
-          data-i18n-placeholder="syncPass2Ph" aria-label="Xác nhận mật khẩu" data-i18n-aria="syncPass2Ph" hidden />
+          data-i18n-placeholder="syncPass2Ph" aria-label="Xác nhận mật khẩu" data-i18n-aria="syncPass2Ph" aria-describedby="syncPass2Error" hidden />
+        <p class="field-error" id="syncPass2Error" hidden></p>
         <div class="sync-actions">
           <button type="submit" class="pop-btn primary" data-i18n="syncLogin">Đăng nhập</button>
           <button type="button" class="pop-btn" data-action="sync-toggle-mode" data-i18n="syncNoAccount">Chưa có tài
@@ -448,11 +450,10 @@
 
   <!-- ===== Báo cáo tháng ===== -->
   <div class="report-modal" id="reportModal" hidden>
-    <div class="report-modal-card" role="dialog" aria-modal="true" aria-label="Báo cáo tháng"
-      data-i18n-aria="reportTitle">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="reportDialogTitle">
       <button type="button" class="sync-close" data-action="close-report" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">📊 <span data-i18n="reportTitle">Báo cáo tháng</span></h3>
+      <h2 class="sync-modal-title" id="reportDialogTitle"><span data-i18n="reportTitle">Báo cáo tháng</span></h2>
       <div id="reportContent"></div>
       <div class="report-actions">
         <button type="button" class="pop-btn share-btn" data-action="share-report">📤 <span
@@ -463,11 +464,10 @@
 
   <!-- ===== Báo cáo tuần (Phase 4) ===== -->
   <div class="report-modal" id="weekReportModal" hidden>
-    <div class="report-modal-card" role="dialog" aria-modal="true" aria-label="Báo cáo tuần"
-      data-i18n-aria="weekReportTitle">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="weekReportDialogTitle">
       <button type="button" class="sync-close" data-action="close-week-report" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">📊 <span data-i18n="weekReportTitle">Báo cáo tuần</span></h3>
+      <h2 class="sync-modal-title" id="weekReportDialogTitle"><span data-i18n="weekReportTitle">Báo cáo tuần</span></h2>
       <div id="weekReportContent"></div>
       <div class="report-actions">
         <button type="button" class="pop-btn share-btn" data-action="share-week-report">📤 <span
@@ -478,11 +478,10 @@
 
   <!-- ===== Báo cáo năm (Phase 6) ===== -->
   <div class="report-modal" id="yearReportModal" hidden>
-    <div class="report-modal-card" role="dialog" aria-modal="true" aria-label="Báo cáo năm"
-      data-i18n-aria="yearReportTitle">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="yearReportDialogTitle">
       <button type="button" class="sync-close" data-action="close-year-report" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">📊 <span data-i18n="yearReportTitle">Báo cáo năm</span></h3>
+      <h2 class="sync-modal-title" id="yearReportDialogTitle"><span data-i18n="yearReportTitle">Báo cáo năm</span></h2>
       <div id="yearReportContent"></div>
       <div class="report-actions">
         <button type="button" class="pop-btn share-btn" data-action="share-year-report">📤 <span
@@ -493,10 +492,10 @@
 
   <!-- ===== Phase 8: Widget Settings (Dashboard tuỳ chỉnh) ===== -->
   <div class="widget-modal" id="widgetSettingsModal" hidden>
-    <div class="widget-modal-card" role="dialog" aria-modal="true" aria-label="Widget settings">
+    <div class="widget-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="widgetDialogTitle">
       <button type="button" class="sync-close" data-action="widget-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
-      <h3 class="sync-modal-title">⚙️ <span data-i18n="widgetSettings">Tuỳ chỉnh Widget</span></h3>
+      <h2 class="sync-modal-title" id="widgetDialogTitle"><span data-i18n="widgetSettings">Tuỳ chỉnh Widget</span></h2>
       <div id="widgetList" class="widget-list"></div>
       <div class="sync-actions">
         <button type="button" class="pop-btn primary" data-action="widget-save" data-i18n="widgetSave">Lưu</button>
@@ -506,7 +505,8 @@
 
   <!-- ===== Onboarding 3 bước (lần dùng đầu) ===== -->
   <div class="onboard-modal" id="onboardModal" hidden>
-    <div class="onboard-card">
+    <div class="onboard-card dialog" role="dialog" aria-modal="true" aria-labelledby="onboardDialogTitle">
+      <h2 class="sr-only" id="onboardDialogTitle">Bắt đầu với TaskFlow</h2>
       <div class="ob-steps" aria-hidden="true">
         <span class="ob-dot" data-ob-dot="1"></span><span class="ob-dot" data-ob-dot="2"></span><span
           class="ob-dot" data-ob-dot="3"></span>
@@ -517,7 +517,7 @@
         <h3 class="ob-title" data-i18n="obGoalTitle">Mục tiêu số 1 của năm là gì?</h3>
         <p class="ob-sub" data-i18n="obGoalSub">Gợi ý nhanh: chọn một mục tiêu, hoặc tự gõ ở dưới:</p>
         <div class="ob-chips" id="obGoalChips"></div>
-        <input class="inline-input ob-input" id="obGoalInput" maxlength="80" autocomplete="off" />
+        <input class="inline-input ob-input" id="obGoalInput" maxlength="80" autocomplete="off" aria-label="Mục tiêu năm" />
         <button type="button" class="pop-btn primary ob-cta" data-action="ob-goal" data-i18n="obNext">Tiếp tục
           →</button>
       </section>
@@ -526,8 +526,8 @@
         <div class="ob-emoji" aria-hidden="true">🐥</div>
         <h3 class="ob-title" data-i18n="obHabitTitle">2 thói quen muốn xây dựng?</h3>
         <p class="ob-sub" data-i18n="obHabitSub">Mỗi ngày tích ✓ một ô, app tự tính %, streak 🔥 và heatmap.</p>
-        <input class="inline-input ob-input" id="obHabit1" maxlength="60" autocomplete="off" />
-        <input class="inline-input ob-input" id="obHabit2" maxlength="60" autocomplete="off" />
+        <input class="inline-input ob-input" id="obHabit1" maxlength="60" autocomplete="off" aria-label="Thói quen thứ nhất" />
+        <input class="inline-input ob-input" id="obHabit2" maxlength="60" autocomplete="off" aria-label="Thói quen thứ hai" />
         <button type="button" class="pop-btn primary ob-cta" data-action="ob-habits" data-i18n="obNext">Tiếp tục
           →</button>
       </section>
@@ -550,7 +550,7 @@
           hoạch 🚀</button>
       </section>
 
-      <button type="button" class="ob-skip" data-action="ob-skip" data-i18n="obSkip">Bỏ qua phần giới thiệu</button>
+      <button type="button" class="ob-skip" data-action="ob-skip" data-dialog-dismiss data-i18n="obSkip">Bỏ qua phần giới thiệu</button>
     </div>
   </div>
 
@@ -559,8 +559,8 @@
   <script src="js/plan-math.js?v=7"></script>
   <script src="js/plan-stats.js?v=3"></script>
   <script src="js/sync.js?v=3"></script>
-  <script src="js/ui.js?v=2"></script>
-  <script src="js/app.js?v=54"></script>
+  <script src="js/ui.js?v=3"></script>
+  <script src="js/app.js?v=55"></script>
 </body>
 
 </html>
