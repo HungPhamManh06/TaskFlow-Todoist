@@ -69,135 +69,189 @@
 
 <body>
   <a class="skip-link" href="#appMain">Bỏ qua đến nội dung chính</a>
-  <div class="bricks bricks-top" aria-hidden="true"></div>
+  <div class="app-layout">
+    <aside class="app-sidebar" id="desktopSidebar" aria-label="Điều hướng chính">
+      <a class="app-brand" href="app.html" aria-label="TaskFlow">
+        <img class="app-brand-mark" src="icons/taskflow-mark.svg" alt="" width="32" height="32" />
+        <span class="app-brand-copy">
+          <span id="brandTitle">TaskFlow-Todoist</span>
+          <span id="brandSub" hidden>Kế hoạch tháng 1 · 2026</span>
+        </span>
+      </a>
+      <nav class="app-sidebar-nav" id="navTabs" role="tablist" aria-label="Điều hướng kế hoạch"
+        data-i18n-aria="navPlan"></nav>
+      <div class="app-sidebar-secondary" aria-label="Công cụ nhanh">
+        <button type="button" class="app-nav-item" data-action="focus" data-shell-icon="focus"
+          aria-label="Chế độ Tập trung" data-i18n-aria="focusOpen"><span>Chế độ tập trung</span></button>
+        <button type="button" class="app-nav-item" data-action="report" data-shell-icon="report"
+          aria-label="Báo cáo tháng"><span>Báo cáo</span></button>
+        <button type="button" class="app-nav-item" data-action="tools-open" data-shell-icon="settings"
+          aria-controls="toolsDrawer" aria-expanded="false"><span>Công cụ và cài đặt</span></button>
+        <a class="app-nav-item landing-link" href="index.html" data-shell-icon="overview">
+          <span>Trang giới thiệu</span>
+        </a>
+      </div>
+    </aside>
 
-  <header class="site-header">
-    <div class="brand">
-      <img class="brand-mark" src="icons/taskflow-mark.svg" alt="" width="30" height="30" />
-      <div class="brand-text">
-        <h1 id="brandTitle">TaskFlow-Todoist</h1>
-        <p id="brandSub">Kế hoạch tháng 1 · 2026</p>
-      </div>
-    </div>
-    <div class="header-center">
-      <nav class="month-nav" aria-label="Chuyển tháng trong năm" data-i18n-aria="navMonths">
-        <button type="button" class="btn-month" data-action="prevyear" title="Năm trước" aria-label="Năm trước"
-          data-i18n-title="prevYear" data-i18n-aria="prevYear">«</button>
-        <button type="button" class="btn-month" data-action="prevmonth" title="Tháng trước" aria-label="Tháng trước"
-          data-i18n-title="prevMonth" data-i18n-aria="prevMonth">‹</button>
-        <select id="monthSelect" class="month-select" data-action="monthselect" aria-label="Chọn tháng"
-          data-i18n-aria="selectMonth"></select>
-        <button type="button" class="btn-month" data-action="nextmonth" title="Tháng sau" aria-label="Tháng sau"
-          data-i18n-title="nextMonth" data-i18n-aria="nextMonth">›</button>
-        <button type="button" class="btn-month" data-action="nextyear" title="Năm sau" aria-label="Năm sau"
-          data-i18n-title="nextYear" data-i18n-aria="nextYear">»</button>
-      </nav>
-      <button type="button" class="btn-reset" data-action="reset" title="Xoá toàn bộ dữ liệu đã lưu"
-        data-i18n-title="resetTitle" data-i18n="resetTxt">↺ Đặt lại</button>
-      <button type="button" class="btn-now" id="btnNow" data-action="gotoday" title="Về hôm nay & tuần hiện tại"
-        data-i18n-title="todayTitle" data-i18n="todayTxt">📍 Hôm nay</button>
-      <div class="now" id="nowBox" aria-label="Ngày giờ hiện tại" data-i18n-aria="nowAria"><span
-          aria-hidden="true">🕗</span><span id="nowText"></span></div>
-    </div>
-    <nav class="tabs" id="navTabs" role="tablist" aria-label="Điều hướng kế hoạch" data-i18n-aria="navPlan"></nav>
-    <div class="header-controls">
-      <div class="remind-wrap">
-        <button type="button" class="btn-icon" id="btnRemind" data-action="remind-toggle" title="Nhắc việc hằng ngày"
-          data-i18n-title="remindTitle" data-i18n-aria="remindTitle">🔔</button>
-        <div class="header-pop remind-pop" id="remindPop" hidden>
-          <strong data-i18n="remindTitle">🔔 Nhắc việc hằng ngày</strong>
-          <label class="pop-field"><span data-i18n="remindTimeLbl">Giờ nhắc</span>
-            <input type="time" id="remindTime" value="20:00" />
-          </label>
-          <div class="pop-actions">
-            <button type="button" class="pop-btn primary" data-action="remind-on" data-i18n="remindOn">Bật</button>
-            <button type="button" class="pop-btn" data-action="remind-off" data-i18n="remindOff">Tắt</button>
-          </div>
-          <p class="pop-note" data-i18n="remindNote">Trình duyệt sẽ nhắc bạn một lần mỗi ngày để điểm danh thói quen.</p>
-          <div class="remind-list" id="remindList" aria-label="Nhắc việc habit/task"></div>
+    <div class="app-workspace">
+      <header class="app-topbar" id="appTopbar">
+        <div class="app-topbar-context">
+          <span class="app-view-title" id="appViewTitle">Tổng quan tháng</span>
+          <span class="app-period" id="appPeriod">Tháng 1 · 2026</span>
         </div>
-      </div>
-      <div class="data-wrap">
-        <button type="button" class="btn-icon" id="btnData" data-action="data-toggle" title="Xuất / nhập dữ liệu"
-          data-i18n-title="dataTitle" data-i18n-aria="dataTitle">💾</button>
-        <div class="header-pop data-pop" id="dataPop" hidden>
-          <strong data-i18n="dataTitle">💾 Dữ liệu của bạn</strong>
-          <button type="button" class="pop-btn" data-action="export-json" data-i18n="exportJson">📤 Xuất JSON (sao lưu)</button>
-          <button type="button" class="pop-btn" data-action="import-json" data-i18n="importJson">📥 Nhập JSON (khôi phục)</button>
-          <button type="button" class="pop-btn" data-action="import-csv" data-i18n="importCsv">📥 Nhập CSV (khôi phục)</button>
-          <button type="button" class="pop-btn" data-action="export-csv" data-i18n="exportCsv">📊 Xuất CSV (Google Sheets)</button>
-          <button type="button" class="pop-btn" data-action="backup-restore" data-i18n="backupRestore">🕑 Khôi phục bản sao lưu tự động</button>
-          <button type="button" class="pop-btn" data-action="demo-data" data-i18n="demoData">✨ Tạo dữ liệu mẫu</button>
-          <button type="button" class="pop-btn" data-action="feedback" data-i18n="feedbackBtn">💬 Góp ý / phản hồi</button>
+        <nav class="app-month-nav" aria-label="Chuyển tháng trong năm" data-i18n-aria="navMonths">
+          <button type="button" class="icon-button btn-month" data-action="prevmonth" title="Tháng trước"
+            aria-label="Tháng trước" data-i18n-title="prevMonth" data-i18n-aria="prevMonth"
+            data-shell-icon="chevron-left"></button>
+          <select id="monthSelect" class="month-select" data-action="monthselect" aria-label="Chọn tháng"
+            data-i18n-aria="selectMonth"></select>
+          <button type="button" class="icon-button btn-month" data-action="nextmonth" title="Tháng sau"
+            aria-label="Tháng sau" data-i18n-title="nextMonth" data-i18n-aria="nextMonth"
+            data-shell-icon="chevron-right"></button>
+        </nav>
+        <div class="app-topbar-actions">
+          <button type="button" class="icon-button app-desktop-action" id="btnUndo" data-action="undo"
+            title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác" data-i18n-title="undoBtn" data-i18n-aria="undoBtn"
+            data-shell-icon="undo" disabled></button>
+          <button type="button" class="icon-button app-desktop-action" id="btnRedo" data-action="redo"
+            title="Làm lại (Ctrl+Shift+Z)" aria-label="Làm lại" data-i18n-title="redoBtn" data-i18n-aria="redoBtn"
+            data-shell-icon="redo" disabled></button>
+          <button type="button" class="icon-button" data-action="search-toggle" title="Tìm kiếm xuyên tháng"
+            aria-label="Tìm kiếm xuyên tháng" data-i18n-title="searchOpenAria" data-i18n-aria="searchOpenAria"
+            data-shell-icon="search"></button>
+          <button type="button" class="icon-button app-tools-trigger" data-action="tools-open"
+            aria-label="Mở công cụ và cài đặt" aria-controls="toolsDrawer" aria-expanded="false"
+            data-shell-icon="more"></button>
+          <button type="button" class="button button-primary app-primary-action" data-action="shell-add-task">
+            <span data-inline-icon="plus"></span><span>Thêm công việc</span>
+          </button>
         </div>
-      </div>
-      <button type="button" class="btn-icon" id="btnUndo" data-action="undo" title="Hoàn tác (Ctrl+Z)"
-        data-i18n-title="undoBtn" data-i18n-aria="undoBtn" disabled>↩️</button>
-      <button type="button" class="btn-icon" id="btnRedo" data-action="redo" title="Làm lại (Ctrl+Shift+Z)"
-        data-i18n-title="redoBtn" data-i18n-aria="redoBtn" disabled>↪️</button>
-      <button type="button" class="btn-icon" data-action="focus" title="Chế độ Tập trung"
-        data-i18n-title="focusOpen" data-i18n-aria="focusOpen">🎯</button>
-      <button type="button" class="btn-icon" data-action="search-toggle" title="Tìm kiếm xuyên tháng"
-        data-i18n-title="searchOpenAria" data-i18n-aria="searchOpenAria">🔍</button>
-      <button type="button" class="btn-icon" data-action="template" title="Sao chép cấu trúc tháng"
-        data-i18n-title="templateOpenT" data-i18n-aria="templateOpenT">📋</button>
-      <button type="button" class="btn-icon" data-action="print" title="In / Lưu PDF"
-        data-i18n-title="printTitle" data-i18n-aria="printTitle">🖨️</button>
-      <button type="button" class="btn-icon sync-wrap" id="syncBtn" data-action="sync-toggle"
-        title="Đồng bộ đám mây" data-i18n-title="syncTitle" data-i18n-aria="syncTitle">☁️<span
-          class="sync-dot" id="syncDot" aria-hidden="true"></span></button>
-      <div class="theme-picker" role="group" aria-label="Chọn chủ đề màu" data-i18n-aria="themeLbl">
-        <button type="button" class="theme-dot dot-cream" data-action="theme" data-theme="cream" title="Cream"
-          data-i18n-title="themeCream" aria-label="Chủ đề kem" data-i18n-aria="themeCream"></button>
-        <button type="button" class="theme-dot dot-mint" data-action="theme" data-theme="mint" title="Mint"
-          data-i18n-title="themeMint" aria-label="Chủ đề bạc hà" data-i18n-aria="themeMint"></button>
-        <button type="button" class="theme-dot dot-lavender" data-action="theme" data-theme="lavender" title="Lavender"
-          data-i18n-title="themeLavender" aria-label="Chủ đề oải hương" data-i18n-aria="themeLavender"></button>
-        <button type="button" class="theme-dot dot-peach" data-action="theme" data-theme="peach" title="Peach"
-          data-i18n-title="themePeach" aria-label="Chủ đề đào" data-i18n-aria="themePeach"></button>
-      </div>
-      <button type="button" class="btn-icon" id="btnInstall" data-action="install-app" hidden
-        title="Cài đặt ứng dụng" data-i18n-title="installTitle" data-i18n-aria="installTitle">📲</button>
-      <button type="button" class="btn-icon" id="btnHelp" data-action="help-toggle" title="Hướng dẫn sử dụng"
-        data-i18n-title="helpTitle" data-i18n-aria="helpTitle">❓</button>
-      <button type="button" class="btn-icon" id="btnDark" data-action="dark" title="Bật/tắt chế độ tối"
-        data-i18n-title="darkTitle" data-i18n-aria="darkTitle">🌙</button>
-      <button type="button" class="lang-btn" id="langBtn" data-action="lang" title="Đổi ngôn ngữ"
-        data-i18n-title="langTitle">EN</button>
-      <a class="btn-icon home-link" href="index.html" title="Về trang giới thiệu" data-i18n-title="homeTitle"
-        data-i18n-aria="homeTitle">🏠</a>
-    </div>
-  </header>
+      </header>
 
-  <main class="container" id="appMain" tabindex="-1">
+      <main class="container" id="appMain" tabindex="-1">
     <section id="view-calendar" class="view" role="tabpanel" aria-label="Lịch tháng" data-i18n-aria="viewCalendar"></section>
     <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng" data-i18n-aria="viewOverview">
-      <div class="landing-hero">
-        <div class="landing-inner">
-          <p class="landing-logo">
-            <img class="landing-logo-mark" src="icons/taskflow-mark.svg" alt="" width="28" height="28" />
-            <span>TaskFlow-Todoist</span>
-          </p>
-          <h2 class="landing-title" data-i18n-html="landTitle">Lên kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương</em></h2>
-          <p class="landing-sub" data-i18n="landSub">Chốt mục tiêu, điểm danh thói quen và ghi nhật ký reflection. Dữ liệu nằm ngay trong trình duyệt của bạn, miễn phí và riêng tư.</p>
-          <button type="button" class="landing-cta" data-action="journey" data-i18n="landCta">Khám phá kế hoạch</button>
-        </div>
-        <div class="landing-art" aria-hidden="true">
-          <span class="la-sun">☀️</span>
-          <span class="la-cloud c1">☁️</span>
-          <span class="la-cloud c2">☁️</span>
-          <span class="la-chick">🐥</span>
-          <span class="la-flower">🌸</span>
-          <span class="la-flower">🌼</span>
-        </div>
-      </div>
       <div id="ov-content"></div>
     </section>
     <section id="view-year" class="view" role="tabpanel" aria-label="Kế hoạch năm" data-i18n-aria="viewYear"></section>
     <section id="view-week" class="view" role="tabpanel" aria-label="Kế hoạch tuần" data-i18n-aria="viewWeek"></section>
-  </main>
+      </main>
+    </div>
+  </div>
 
-  <footer class="bricks bricks-bottom" aria-hidden="true"></footer>
+  <div class="drawer-backdrop" id="toolsDrawerBackdrop" data-action="tools-close" hidden></div>
+  <aside class="drawer tools-drawer" id="toolsDrawer" role="dialog" aria-modal="true"
+    aria-labelledby="toolsDrawerTitle" hidden>
+    <div class="tools-drawer-head">
+      <div>
+        <p class="tools-drawer-kicker">TaskFlow</p>
+        <h2 id="toolsDrawerTitle">Công cụ và cài đặt</h2>
+      </div>
+      <button type="button" class="icon-button" data-action="tools-close" aria-label="Đóng công cụ"
+        data-shell-icon="close"></button>
+    </div>
+
+    <div class="tools-drawer-scroll">
+      <section class="tools-group" aria-labelledby="toolsPlanningTitle">
+        <h3 id="toolsPlanningTitle">Lập kế hoạch</h3>
+        <div class="tools-action-grid">
+          <button type="button" class="tools-action" id="btnNow" data-action="gotoday"
+            data-i18n-title="todayTitle" data-shell-icon="calendar"><span data-i18n="todayTxt">Hôm nay</span></button>
+          <button type="button" class="tools-action" data-action="focus" data-shell-icon="focus">
+            <span data-i18n="focusOpen">Chế độ Tập trung</span></button>
+          <button type="button" class="tools-action" data-action="report" data-shell-icon="report">
+            <span data-i18n="reportTitle">Báo cáo tháng</span></button>
+          <button type="button" class="tools-action" data-action="template" data-shell-icon="week">
+            <span data-i18n="templateOpenT">Sao chép cấu trúc tháng</span></button>
+          <button type="button" class="tools-action" data-action="prevyear" data-shell-icon="chevron-left">
+            <span data-i18n="prevYear">Năm trước</span></button>
+          <button type="button" class="tools-action" data-action="nextyear" data-shell-icon="chevron-right">
+            <span data-i18n="nextYear">Năm sau</span></button>
+        </div>
+        <div class="now tools-now" id="nowBox" aria-label="Ngày giờ hiện tại" data-i18n-aria="nowAria">
+          <span id="nowText"></span>
+        </div>
+      </section>
+
+      <section class="tools-group" aria-labelledby="toolsReminderTitle">
+        <h3 id="toolsReminderTitle">Nhắc việc và dữ liệu</h3>
+        <div class="remind-wrap tools-disclosure">
+          <button type="button" class="tools-row" id="btnRemind" data-action="remind-toggle"
+            data-i18n-title="remindTitle" data-i18n-aria="remindTitle" data-shell-icon="bell">
+            <span data-i18n="remindTitle">Nhắc việc hằng ngày</span>
+          </button>
+          <div class="header-pop remind-pop" id="remindPop" hidden>
+            <strong data-i18n="remindTitle">Nhắc việc hằng ngày</strong>
+            <label class="pop-field"><span data-i18n="remindTimeLbl">Giờ nhắc</span>
+              <input type="time" id="remindTime" value="20:00" />
+            </label>
+            <div class="pop-actions">
+              <button type="button" class="pop-btn primary" data-action="remind-on" data-i18n="remindOn">Bật</button>
+              <button type="button" class="pop-btn" data-action="remind-off" data-i18n="remindOff">Tắt</button>
+            </div>
+            <p class="pop-note" data-i18n="remindNote">Trình duyệt sẽ nhắc bạn một lần mỗi ngày để điểm danh thói quen.</p>
+            <div class="remind-list" id="remindList" aria-label="Nhắc việc habit/task"></div>
+          </div>
+        </div>
+
+        <div class="data-wrap tools-disclosure">
+          <button type="button" class="tools-row" id="btnData" data-action="data-toggle"
+            data-i18n-title="dataTitle" data-i18n-aria="dataTitle" data-shell-icon="data">
+            <span data-i18n="dataTitle">Dữ liệu của bạn</span>
+          </button>
+          <div class="header-pop data-pop" id="dataPop" hidden>
+            <strong data-i18n="dataTitle">Dữ liệu của bạn</strong>
+            <button type="button" class="pop-btn" data-action="export-json" data-i18n="exportJson">Xuất JSON (sao lưu)</button>
+            <button type="button" class="pop-btn" data-action="import-json" data-i18n="importJson">Nhập JSON (khôi phục)</button>
+            <button type="button" class="pop-btn" data-action="import-csv" data-i18n="importCsv">Nhập CSV (khôi phục)</button>
+            <button type="button" class="pop-btn" data-action="export-csv" data-i18n="exportCsv">Xuất CSV (Google Sheets)</button>
+            <button type="button" class="pop-btn" data-action="backup-restore" data-i18n="backupRestore">Khôi phục bản sao lưu tự động</button>
+            <button type="button" class="pop-btn" data-action="demo-data" data-i18n="demoData">Tạo dữ liệu mẫu</button>
+            <button type="button" class="pop-btn" data-action="feedback" data-i18n="feedbackBtn">Góp ý / phản hồi</button>
+          </div>
+        </div>
+
+        <button type="button" class="tools-row sync-wrap" id="syncBtn" data-action="sync-toggle"
+          data-i18n-title="syncTitle" data-i18n-aria="syncTitle" data-shell-icon="sync">
+          <span data-i18n="syncTitle">Đồng bộ đám mây</span><span class="sync-dot" id="syncDot" aria-hidden="true"></span>
+        </button>
+      </section>
+
+      <section class="tools-group" aria-labelledby="toolsAppearanceTitle">
+        <h3 id="toolsAppearanceTitle">Giao diện</h3>
+        <div class="theme-picker tools-themes" role="group" aria-label="Chọn chủ đề màu" data-i18n-aria="themeLbl">
+          <button type="button" class="theme-dot dot-cream" data-action="theme" data-theme="cream" title="Cream"
+            data-i18n-title="themeCream" aria-label="Chủ đề kem" data-i18n-aria="themeCream"></button>
+          <button type="button" class="theme-dot dot-mint" data-action="theme" data-theme="mint" title="Mint"
+            data-i18n-title="themeMint" aria-label="Chủ đề bạc hà" data-i18n-aria="themeMint"></button>
+          <button type="button" class="theme-dot dot-lavender" data-action="theme" data-theme="lavender" title="Lavender"
+            data-i18n-title="themeLavender" aria-label="Chủ đề oải hương" data-i18n-aria="themeLavender"></button>
+          <button type="button" class="theme-dot dot-peach" data-action="theme" data-theme="peach" title="Peach"
+            data-i18n-title="themePeach" aria-label="Chủ đề đào" data-i18n-aria="themePeach"></button>
+        </div>
+        <button type="button" class="tools-row" id="btnDark" data-action="dark" data-i18n-title="darkTitle"
+          data-i18n-aria="darkTitle" data-shell-icon="theme"><span data-i18n="darkTitle">Bật/tắt chế độ tối</span></button>
+        <button type="button" class="tools-row" id="langBtn" data-action="lang" data-i18n-title="langTitle"
+          data-shell-icon="overview"><span>EN</span></button>
+      </section>
+
+      <section class="tools-group" aria-labelledby="toolsMoreTitle">
+        <h3 id="toolsMoreTitle">Hỗ trợ và hệ thống</h3>
+        <button type="button" class="tools-row" data-action="print" data-i18n-title="printTitle"
+          data-i18n-aria="printTitle" data-shell-icon="print"><span data-i18n="printTitle">In / Lưu PDF</span></button>
+        <button type="button" class="tools-row" id="btnInstall" data-action="install-app" hidden
+          data-i18n-title="installTitle" data-i18n-aria="installTitle" data-shell-icon="plus">
+          <span data-i18n="installTitle">Cài đặt ứng dụng</span></button>
+        <button type="button" class="tools-row" id="btnHelp" data-action="help-toggle" data-i18n-title="helpTitle"
+          data-i18n-aria="helpTitle" data-shell-icon="help"><span data-i18n="helpTitle">Hướng dẫn sử dụng</span></button>
+        <button type="button" class="tools-row tools-row-danger" data-action="reset" data-i18n-title="resetTitle"
+          data-shell-icon="close"><span data-i18n="resetTxt">Đặt lại</span></button>
+        <a class="tools-row landing-link" href="index.html" data-shell-icon="overview"><span>Trang giới thiệu</span></a>
+      </section>
+    </div>
+  </aside>
+
+  <nav class="app-mobile-nav" id="mobileNav" role="tablist" aria-label="Điều hướng chính trên di động"></nav>
 
   <input type="file" id="importFile" accept=".json,application/json,.csv,text/csv" hidden />
 

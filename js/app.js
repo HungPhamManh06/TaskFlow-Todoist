@@ -1396,7 +1396,11 @@ function applyStaticI18N() {
   document.querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
   document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
   const b = document.getElementById('langBtn');
-  if (b) b.textContent = LANG === 'vi' ? 'EN' : 'VI';
+  if (b) {
+    const label = b.querySelector('span:last-child');
+    if (label) label.textContent = LANG === 'vi' ? 'EN' : 'VI';
+    else b.textContent = LANG === 'vi' ? 'EN' : 'VI';
+  }
 }
 
 function setLang(l) {
@@ -5029,25 +5033,142 @@ async function doDeleteAccount() {
 
 /* ============================ Điều hướng ============================ */
 
+function shellNavLabel(value) {
+  return String(value || '').replace(/^[\p{Extended_Pictographic}\uFE0F]+\s*/u, '');
+}
+
 function buildNav() {
-  const nav = document.getElementById('navTabs');
-  nav.innerHTML = `
-    <button type="button" class="tab" role="tab" id="tab-overview" aria-controls="view-overview" data-action="nav" data-view="overview">${t('tabOverview')}</button>
-    <button type="button" class="tab" role="tab" id="tab-calendar" aria-controls="view-calendar" data-action="nav" data-view="calendar">${t('tabCalendar')}</button>
-    <button type="button" class="tab" role="tab" id="tab-year" aria-controls="view-year" data-action="nav" data-view="year">${t('tabYear', { y: PLAN_YEAR })}</button>
-    ${state.weeks.map((w) => `<button type="button" class="tab" role="tab" id="tab-week-${w.n}" aria-controls="view-week" data-action="nav" data-view="week" data-week="${w.n}">${t('weekN', { n: w.n })}</button>`).join('')}
-  `;
+  const desktop = document.getElementById('navTabs');
+  const mobile = document.getElementById('mobileNav');
+  const items = [
+    { view: 'overview', icon: 'overview', label: shellNavLabel(t('tabOverview')), id: 'tab-overview', controls: 'view-overview' },
+    { view: 'week', icon: 'week', label: shellNavLabel(t('weekN', { n: state.currentWeek })), id: 'tab-week-' + state.currentWeek, controls: 'view-week', week: state.currentWeek },
+    { view: 'year', icon: 'year', label: shellNavLabel(t('tabYear', { y: PLAN_YEAR })), id: 'tab-year', controls: 'view-year' },
+    { view: 'calendar', icon: 'calendar', label: shellNavLabel(t('tabCalendar')), id: 'tab-calendar', controls: 'view-calendar' },
+  ];
+  const navAttributes = {
+    overview: 'data-nav-view="overview" data-view="overview"',
+    week: 'data-nav-view="week" data-view="week"',
+    year: 'data-nav-view="year" data-view="year"',
+    calendar: 'data-nav-view="calendar" data-view="calendar"',
+  };
+  if (desktop) {
+    desktop.innerHTML = items.map((item) => `<button type="button" class="app-nav-item tab" role="tab"
+      id="${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
+      ${item.week ? `data-week="${item.week}"` : ''}>
+      ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`).join('');
+  }
+  if (mobile) {
+    mobile.innerHTML = items.map((item) => `<button type="button" class="app-mobile-nav-item tab" role="tab"
+      id="mobile-${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
+      ${item.week ? `data-week="${item.week}"` : ''}>
+      ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`).join('') +
+      `<button type="button" class="app-mobile-nav-item" data-action="tools-open" aria-controls="toolsDrawer"
+        aria-expanded="false">${window.TaskFlowUI.icon('more')}<span>Thêm</span></button>`;
+  }
+  renderShellIcons();
 }
 function updateNav() {
-  document.querySelectorAll('#navTabs .tab').forEach((b) => {
+  document.querySelectorAll('[data-nav-view]').forEach((b) => {
     const active = b.dataset.view === state.view && (!b.dataset.week || +b.dataset.week === state.currentWeek);
     b.classList.toggle('active', active);
-    b.setAttribute('aria-selected', active);
+    b.setAttribute('aria-current', active ? 'page' : 'false');
+    b.setAttribute('aria-selected', String(active));
+    b.tabIndex = active ? 0 : -1;
+  });
+  updateShellContext();
+}
+
+function renderShellIcons() {
+  document.querySelectorAll('[data-shell-icon]').forEach((el) => {
+    if (!el.querySelector('.ui-icon')) {
+      el.insertAdjacentHTML('afterbegin', window.TaskFlowUI.icon(el.dataset.shellIcon));
+    }
+  });
+  document.querySelectorAll('[data-inline-icon]').forEach((el) => {
+    el.innerHTML = window.TaskFlowUI.icon(el.dataset.inlineIcon);
   });
 }
+
+function updateShellContext() {
+  const title = document.getElementById('appViewTitle');
+  const period = document.getElementById('appPeriod');
+  const labels = {
+    overview: t('tabOverview'),
+    week: t('weekN', { n: state.currentWeek }),
+    year: t('tabYear', { y: PLAN_YEAR }),
+    calendar: t('tabCalendar'),
+  };
+  if (title) title.textContent = labels[state.view] || labels.overview;
+  if (period) period.textContent = `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`;
+}
+
+let toolsDrawerOpener = null;
+function openToolsDrawer(opener) {
+  const drawer = document.getElementById('toolsDrawer');
+  const backdrop = document.getElementById('toolsDrawerBackdrop');
+  if (!drawer || !backdrop) return;
+  toolsDrawerOpener = opener || document.activeElement;
+  drawer.hidden = false;
+  backdrop.hidden = false;
+  document.body.classList.add('tools-drawer-open');
+  document.querySelectorAll('[data-action="tools-open"]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
+  const first = drawer.querySelector('[data-action="tools-close"]');
+  if (first) first.focus();
+}
+
+function closeToolsDrawer() {
+  const drawer = document.getElementById('toolsDrawer');
+  const backdrop = document.getElementById('toolsDrawerBackdrop');
+  if (!drawer || drawer.hidden) return;
+  drawer.hidden = true;
+  if (backdrop) backdrop.hidden = true;
+  document.body.classList.remove('tools-drawer-open');
+  document.querySelectorAll('[data-action="tools-open"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
+  if (toolsDrawerOpener && toolsDrawerOpener.isConnected) toolsDrawerOpener.focus();
+  toolsDrawerOpener = null;
+}
+
+function addTaskFromShell() {
+  const today = nowInfo();
+  const week = today.inRange ? today.week : state.currentWeek;
+  const day = today.inRange && today.week === week ? today.dayInWeek : 0;
+  setView('week', week);
+  const add = document.querySelector(`.day-col-${day} [data-action="addtask"][data-kind="regular"]`)
+    || document.querySelector(`[data-action="addtask"][data-week="${week}"]`);
+  if (add) add.click();
+}
+
+document.addEventListener('keydown', (e) => {
+  const drawer = document.getElementById('toolsDrawer');
+  if (!drawer || drawer.hidden) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeToolsDrawer();
+    return;
+  }
+  if (e.key !== 'Tab') return;
+  const focusable = Array.from(drawer.querySelectorAll(
+    'a[href], button:not([disabled]):not([hidden]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => element.offsetParent !== null);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
 function setView(view, week) {
   state.view = view;
-  if (week) state.currentWeek = week;
+  if (week) {
+    state.currentWeek = week;
+    buildNav();
+  }
   updateNav();
   const ov = document.getElementById('view-overview');
   const wk = document.getElementById('view-week');
@@ -5504,7 +5625,10 @@ document.addEventListener('click', (e) => {
   const UNDOABLE_ACTS = new Set(['goal', 'ygoal', 'habit', 'wgoal', 'task', 'addtask', 'deltask', 'addgoal', 'confirm-addgoal', 'delgoal', 'addhabit', 'delhabit', 'remind-off-item', 'mgoal', 'qgoal', 'copyhabits', 'template-do', 'pullyear', 'template-add', 'demo-data', 'mood-set', 'mood-clear', 'theme', 'repeat-edit']);
   if (UNDOABLE_ACTS.has(act)) pushUndo();
 
-  if (act === 'undo') { doUndo(); return; }
+  if (act === 'tools-open') { openToolsDrawer(el); return; }
+  else if (act === 'tools-close') { closeToolsDrawer(); return; }
+  else if (act === 'shell-add-task') { addTaskFromShell(); return; }
+  else if (act === 'undo') { doUndo(); return; }
   else if (act === 'redo') { doRedo(); return; }
   else if (act === 'focus') { openFocusMode(); return; }
   else if (act === 'focus-close') { closeFocusMode(); return; }
@@ -5968,10 +6092,11 @@ document.addEventListener('keydown', (e) => {
     ed.blur();
     return;
   }
-  const tab = e.target.closest('#navTabs .tab');
+  const tab = e.target.closest('[data-nav-view]');
   if (!tab || !['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return;
   e.preventDefault();
-  const tabs = Array.from(document.querySelectorAll('#navTabs .tab'));
+  const nav = tab.closest('[role="tablist"]');
+  const tabs = Array.from(nav ? nav.querySelectorAll('[data-nav-view]') : document.querySelectorAll('[data-nav-view]'));
   let i = tabs.indexOf(tab);
   if (e.key === 'ArrowRight') i = (i + 1) % tabs.length;
   else if (e.key === 'ArrowLeft') i = (i - 1 + tabs.length) % tabs.length;

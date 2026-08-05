@@ -1,12 +1,9 @@
-"""E2E smoke (Task 3.4): Playwright — load app → toggle habit → switch view → export.
-
-Tự khởi động HTTP server tĩnh (tránh phụ thuộc port bên ngoài), chạy trên Chromium
-headless. Thoát 0 = PASS, khác 0 = FAIL. Chạy:  python scripts/e2e-smoke.py
-"""
+"""TaskFlow frontend smoke test for the responsive application shell."""
 import http.server
 import os
 import socketserver
 import sys
+import tempfile
 import threading
 
 from playwright.sync_api import sync_playwright
@@ -16,87 +13,135 @@ os.chdir(ROOT)
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *args):  # im lặng
+    def log_message(self, *args):
         pass
 
 
-def start_server(port):
-    httpd = socketserver.TCPServer(("127.0.0.1", port), Handler)
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    return httpd
+def assert_no_overflow(page, label):
+    overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
+    assert overflow <= 1, f"{label} horizontal overflow: {overflow}px"
+
+
+def load_app(page, base):
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.goto(f"{base}/app.html", wait_until="networkidle")
+    if page.locator("#onboardModal:not([hidden])").count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector("#view-overview.active")
+
+
+def desktop_checks(browser, base, errors, screenshots):
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.on("pageerror", lambda error: errors.append(f"desktop: {error}"))
+    load_app(page, base)
+
+    assert page.locator("#desktopSidebar:visible").count() == 1
+    assert page.locator("#appTopbar:visible").count() == 1
+    assert page.locator("[data-nav-view]").count() == 8
+    assert page.locator(".landing-hero").count() == 0
+    assert page.locator(".app-primary-action").count() == 1
+    assert_no_overflow(page, "desktop")
+
+    habit = page.locator('[data-action="habit"]').first
+    before = habit.get_attribute("aria-checked")
+    habit.click()
+    assert habit.get_attribute("aria-checked") != before
+
+    for view in ("calendar", "year", "week"):
+        page.locator(f'#desktopSidebar [data-nav-view="{view}"]').click()
+        page.wait_for_selector(f"#view-{view}.active")
+        assert page.locator(f'#desktopSidebar [data-nav-view="{view}"][aria-current="page"]').count() == 1
+        assert page.locator(f'#mobileNav [data-nav-view="{view}"][aria-current="page"]').count() == 1
+
+    page.locator('[data-action="search-toggle"]').first.click()
+    page.wait_for_selector("#searchModal:not([hidden])")
+    page.locator('[data-action="search-close"]').click()
+
+    tools_trigger = page.locator('#appTopbar [data-action="tools-open"]')
+    tools_trigger.click()
+    page.wait_for_selector("#toolsDrawer:not([hidden])")
+    assert page.locator("#toolsDrawer").get_attribute("role") == "dialog"
+    page.keyboard.press("Escape")
+    assert page.locator("#toolsDrawer[hidden]").count() == 1
+    assert page.evaluate("document.activeElement === document.querySelector('#appTopbar [data-action=\"tools-open\"]')")
+
+    tools_trigger.click()
+    page.locator('#toolsDrawer [data-action="data-toggle"]').click()
+    with page.expect_download() as download_info:
+        page.locator('#toolsDrawer [data-action="export-csv"]').click()
+    assert download_info.value.suggested_filename.endswith(".csv")
+    page.locator('#toolsDrawer [data-action="tools-close"]').click()
+
+    task_count = page.locator('[data-role="task-text"]').count()
+    page.locator(".app-primary-action").click()
+    page.wait_for_selector("#view-week.active")
+    assert page.locator('[data-role="task-text"]').count() == task_count + 1
+    page.locator("#appViewTitle").click()
+    page.keyboard.press("4")
+    page.wait_for_selector("#view-calendar.active")
+
+    page.locator('[data-action="pomo-toggle"]').click()
+    page.wait_for_selector("#pomoPanel:not([hidden])")
+    assert_no_overflow(page, "desktop after interactions")
+    page.screenshot(path=screenshots["desktop"], full_page=True)
+    page.close()
+
+
+def mobile_checks(browser, base, errors, screenshots):
+    page = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True)
+    page.on("pageerror", lambda error: errors.append(f"mobile: {error}"))
+    load_app(page, base)
+
+    assert page.locator("#desktopSidebar:visible").count() == 0
+    assert page.locator("#mobileNav:visible").count() == 1
+    assert_no_overflow(page, "mobile")
+
+    page.locator('#mobileNav [data-nav-view="week"]').click()
+    page.wait_for_selector("#view-week.active")
+    assert page.locator('#mobileNav [data-nav-view="week"][aria-current="page"]').count() == 1
+
+    more = page.locator('#mobileNav [data-action="tools-open"]')
+    more.click()
+    page.wait_for_selector("#toolsDrawer:not([hidden])")
+    assert page.locator("#toolsDrawerBackdrop:not([hidden])").count() == 1
+    page.keyboard.press("Escape")
+    assert page.locator("#toolsDrawer[hidden]").count() == 1
+    assert page.evaluate("document.activeElement === document.querySelector('#mobileNav [data-action=\"tools-open\"]')")
+
+    page.locator(".app-primary-action").click()
+    page.wait_for_selector("#view-week.active")
+    assert_no_overflow(page, "mobile after interactions")
+    page.screenshot(path=screenshots["mobile"], full_page=True)
+    page.close()
 
 
 def main():
-    port = 0
     httpd = socketserver.TCPServer(("127.0.0.1", 0), Handler)
     port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{port}"
+    screenshots = {
+        "desktop": os.path.join(tempfile.gettempdir(), "taskflow-task3-desktop.png"),
+        "mobile": os.path.join(tempfile.gettempdir(), "taskflow-task3-mobile.png"),
+    }
+    errors = []
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": 1440, "height": 900})
-        errors = []
-        page.on("pageerror", lambda e: errors.append(str(e)))
-
-        # 1) Load app — pre-set onboarded để modal onboarding không chặn thao tác
-        page.add_init_script("localStorage.setItem('planner-onboarded','1');")
-        page.goto(f"{base}/app.html")
-        page.wait_for_timeout(1200)
-        # Nếu vẫn lọt onboarding (lần đầu), đóng luôn
-        if page.locator("#onboardModal:not([hidden])").count():
-            page.locator('[data-action="ob-skip"]').click()
-            page.wait_for_timeout(300)
-        assert page.locator("#navTabs .tab").count() >= 4, "thiếu tabs (overview/calendar/year/weeks)"
-
-        # 2) Toggle một ô habit ✓
-        habit = page.locator('[data-action="habit"]').first
-        assert habit.count() > 0, "không có checkbox habit"
-        before = habit.get_attribute("aria-checked")
-        habit.click()
-        page.wait_for_timeout(200)
-        after = habit.get_attribute("aria-checked")
-        assert before != after, f"toggle habit không đổi: {before} -> {after}"
-
-        # 3) Chuyển view: calendar → year → week
-        page.locator('[data-action="nav"][data-view="calendar"]').click()
-        page.wait_for_timeout(300)
-        assert page.locator("#view-calendar.active").count() == 1, "view-calendar không active"
-        page.locator('[data-action="nav"][data-view="year"]').click()
-        page.wait_for_timeout(300)
-        assert page.locator("#view-year.active").count() == 1, "view-year không active"
-        page.locator('[data-action="nav"][data-view="week"][data-week="1"]').first.click()
-        page.wait_for_timeout(300)
-        assert page.locator("#view-week.active").count() == 1, "view-week không active"
-
-        # 4) Tìm kiếm xuyên tháng mở được
-        page.locator('[data-action="search-toggle"]').click()
-        page.wait_for_timeout(200)
-        assert page.locator("#searchModal:not([hidden])").count() == 1, "searchModal không mở"
-        page.locator('[data-action="search-close"]').click()
-        page.wait_for_timeout(200)
-
-        # 5) Export CSV → bắt sự kiện download
-        with page.expect_download() as dl_info:
-            page.locator('[data-action="data-toggle"]').click()
-            page.locator('[data-action="export-csv"]').click()
-        dl = dl_info.value
-        assert dl.suggested_filename.endswith(".csv"), f"tên file lạ: {dl.suggested_filename}"
-
-        # 6) Pomodoro panel mở được
-        page.locator('[data-action="pomo-toggle"]').click()
-        page.wait_for_timeout(200)
-        assert page.locator("#pomoPanel:not([hidden])").count() == 1, "pomoPanel không mở"
-
-        browser.close()
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            desktop_checks(browser, base, errors, screenshots)
+            mobile_checks(browser, base, errors, screenshots)
+            browser.close()
+    finally:
+        httpd.shutdown()
 
     if errors:
-        print("PAGE ERRORS:", errors[:5])
-        sys.exit(1)
-    print("E2E SMOKE OK: habit toggle · calendar/year/week views · search modal · CSV export · pomodoro")
-    httpd.shutdown()
-    sys.exit(0)
+        print("PAGE ERRORS:", errors[:8])
+        return 1
+    print("E2E SMOKE OK: responsive nav, tools drawer, Add Task, keyboard, export, Pomodoro, overflow")
+    print("SCREENSHOTS:", screenshots["desktop"], screenshots["mobile"])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

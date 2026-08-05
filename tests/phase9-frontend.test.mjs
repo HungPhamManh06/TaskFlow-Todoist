@@ -117,6 +117,59 @@ test('app exposes skip link and main landmark', () => {
   assert.match(APP, /<main[^>]*id="appMain"/);
 });
 
+test('application shell exposes responsive navigation and working surfaces', () => {
+  ['desktopSidebar', 'mobileNav', 'appTopbar', 'toolsDrawer']
+    .forEach((id) => assert.match(APP, new RegExp(`id=["']${id}["']`)));
+  assert.match(APP, /class="[^"]*app-layout\b/);
+  assert.match(APP, /class="[^"]*app-workspace\b/);
+  assert.match(APP, /id="desktopSidebar"[^>]*aria-label=/);
+  assert.match(APP, /id="mobileNav"[^>]*aria-label=/);
+  assert.doesNotMatch(APP, /class="landing-hero"/);
+});
+
+test('application shell keeps one primary Add Task action and every header capability reachable', () => {
+  assert.equal((APP.match(/class="[^"]*app-primary-action\b/g) || []).length, 1);
+  assert.match(APP, /class="[^"]*app-primary-action\b[^>]*data-action="shell-add-task"/);
+  [
+    'prevyear', 'prevmonth', 'monthselect', 'nextmonth', 'nextyear', 'gotoday', 'reset',
+    'remind-toggle', 'data-toggle', 'undo', 'redo', 'focus', 'search-toggle', 'template',
+    'print', 'sync-toggle', 'theme', 'install-app', 'help-toggle', 'dark', 'lang', 'report',
+  ].forEach((action) => assert.match(APP, new RegExp(`data-action=["']${action}["']`), `missing shell action: ${action}`));
+  assert.match(APP, /class="[^"]*landing-link[^>]*href="index\.html"/);
+});
+
+test('navigation renderer synchronizes every desktop and mobile destination', () => {
+  assert.match(APP_JS, /querySelectorAll\('\[data-nav-view\]'\)/);
+  assert.match(APP_JS, /setAttribute\('aria-current',\s*active\s*\?\s*'page'\s*:\s*'false'\)/);
+  assert.match(APP_JS, /setAttribute\('aria-selected',\s*String\(active\)\)/);
+  assert.match(APP_JS, /data-nav-view/);
+  assert.doesNotMatch(APP_JS, /closest\('#navTabs \.tab'\)/);
+});
+
+test('tools drawer supports dismissal and focus restoration', () => {
+  assert.match(APP_JS, /function openToolsDrawer\(/);
+  assert.match(APP_JS, /function closeToolsDrawer\(/);
+  assert.match(APP_JS, /toolsDrawerOpener\.focus\(\)/);
+  assert.match(APP_JS, /e\.key === 'Escape'[\s\S]{0,240}closeToolsDrawer\(\)/);
+  assert.match(APP, /id="toolsDrawerBackdrop"[^>]*data-action="tools-close"/);
+});
+
+test('mobile floating tools clear the fixed bottom navigation', () => {
+  const shell = readRequiredAsset('css/app-shell.css');
+  const mobile = shell.slice(shell.indexOf('@media (max-width: 767px)'));
+  assert.match(mobile, /body\s+\.pomo-fab-wrap[\s\S]{0,160}bottom:\s*calc\([^)]*safe-area-inset-bottom[^)]*\)/);
+  assert.match(mobile, /body\s+\.fb-fab-wrap[\s\S]{0,160}bottom:\s*calc\([^)]*safe-area-inset-bottom[^)]*\)/);
+});
+
+test('shell hides the skip link until focus and removes decorative nav emoji', () => {
+  const shell = readRequiredAsset('css/app-shell.css');
+  assert.match(shell, /\.skip-link\s*{[^}]*position:\s*fixed[^}]*transform:\s*translateY\(-150%\)/s);
+  assert.match(shell, /\.skip-link:focus-visible\s*{[^}]*transform:\s*translateY\(0\)/s);
+  assert.match(APP_JS, /function shellNavLabel\(/);
+  assert.match(APP_JS, /label:\s*shellNavLabel\(t\('tabOverview'\)\)/);
+  assert.match(APP_JS, /label:\s*shellNavLabel\(t\('tabCalendar'\)\)/);
+});
+
 test('setView synchronizes the selected view and plan period to the URL', () => {
   assert.match(
     APP_JS,
@@ -142,7 +195,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v48';/);
+  assert.match(SW, /const CACHE = 'taskflow-v49';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -205,8 +258,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system assets are available in the v48 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v48';/);
+test('design system assets are available in the v49 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v49';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './icons/ui-sprite.svg', './js/ui.js',
