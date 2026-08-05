@@ -4778,3 +4778,592 @@ body.focus-mode .container { padding: 0; }
     display: none !important;
   }
 }
+
+/* ============================ Refined year and calendar ============================ */
+
+.year-page,
+.calendar-page {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.year-page-header,
+.calendar-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.year-page-eyebrow,
+.calendar-page-eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-accent);
+  font: 750 .76rem/1.3 var(--font-body);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.year-page-title,
+.calendar-page-title {
+  margin: 0;
+  color: var(--color-text);
+  font: 760 clamp(1.8rem, 3vw, 2.6rem)/1.08 var(--font-brand);
+  letter-spacing: -.04em;
+}
+
+.year-page-subtitle,
+.calendar-page-subtitle {
+  max-width: 680px;
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font: 560 .94rem/1.55 var(--font-body);
+}
+
+.year-page-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.year-page-actions .pop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 42px;
+  margin: 0;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: none;
+}
+
+.year-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.year-summary-metric {
+  display: grid;
+  align-content: space-between;
+  min-width: 0;
+  min-height: 126px;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.year-summary-metric > span,
+.year-summary-metric > small {
+  color: var(--color-text-muted);
+  font: 620 .75rem/1.35 var(--font-body);
+}
+
+.year-summary-metric > strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font: 760 clamp(1.35rem, 2vw, 2rem)/1.12 var(--font-brand);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.year-widget-flow {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.year-widget,
+.year-widget > * {
+  min-width: 0;
+}
+
+.year-page .card {
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.year-page .card-title {
+  color: var(--color-text);
+  font: 740 1.12rem/1.3 var(--font-brand);
+  letter-spacing: -.02em;
+}
+
+.year-card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+.year-page .info-table {
+  max-width: 520px;
+  margin: 0;
+}
+
+.year-page .info-table th,
+.year-page .info-table td {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.year-motto {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.year-goals-card,
+.year-charts-card,
+.year-mid-card,
+.year-months-card,
+.year-reflections-card,
+.year-heat-card,
+.year-dash-card {
+  padding: var(--space-5);
+  background: var(--color-surface) !important;
+}
+
+.year-goal-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, .65fr) minmax(190px, .55fr) minmax(0, 1.8fr);
+  gap: 0;
+}
+
+.year-goal-grid > .sub {
+  padding: var(--space-4);
+  border: 0;
+  border-inline-end: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.year-goal-grid > .sub:last-child {
+  border-inline-end: 0;
+}
+
+.year-page .v-strip {
+  width: 4px;
+  min-width: 4px;
+  border-radius: var(--radius-pill);
+  color: transparent;
+  font-size: 0;
+}
+
+.year-page .v-strip.pink { background: var(--color-accent); }
+.year-page .v-strip.blue { background: var(--color-info); }
+
+.year-page .charts-head,
+.year-page .dash-head {
+  min-height: 0;
+}
+
+.year-page .bear-big,
+.year-page .dash-emoji,
+.year-page .ym-fruit {
+  display: none;
+}
+
+.year-page .chart-row .bar {
+  border: 0;
+  background: var(--color-accent);
+  box-shadow: none;
+}
+
+.quarter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.year-page .quarter-card {
+  padding: var(--space-4);
+}
+
+.year-page .q-head {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.month-progress-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  overflow: visible;
+  padding: 0;
+}
+
+.year-page .ym-col {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: none;
+}
+
+.year-page .ym-col:hover {
+  transform: none;
+  box-shadow: var(--shadow-panel);
+}
+
+.year-page .ym-head {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.year-page .ym-bar-wrap {
+  width: 6px;
+  background: var(--color-border);
+}
+
+.year-page .ym-bar {
+  background: var(--color-accent);
+}
+
+.year-page .year-reflections {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.year-page .reflection {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted) !important;
+}
+
+.year-page .ref-title {
+  border-block-end: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-brand);
+}
+
+.calendar-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+
+.calendar-filter-bar > span {
+  margin-inline-end: var(--space-1);
+  color: var(--color-text-muted);
+  font: 650 .78rem/1.3 var(--font-body);
+}
+
+.calendar-page .cal-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 42px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.calendar-grid-desktop {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.calendar-page .cal-dow {
+  padding: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: .74rem;
+  text-transform: uppercase;
+}
+
+.calendar-page .cal-cell {
+  min-width: 0;
+  min-height: 132px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  box-shadow: none;
+}
+
+.calendar-page .cal-cell.outside {
+  background: var(--color-surface-muted);
+  opacity: .58;
+}
+
+.calendar-page .cal-cell.today {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 3px 0 var(--color-accent);
+}
+
+.calendar-page .cal-cell:hover {
+  border-color: var(--color-control-border);
+  box-shadow: var(--shadow-panel);
+}
+
+.calendar-page .cal-date {
+  color: var(--color-text);
+  font-family: var(--font-brand);
+}
+
+.calendar-page .cal-pct {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.calendar-page .cal-task {
+  min-width: 0;
+  padding: 3px 0;
+  color: var(--color-text);
+}
+
+.calendar-page .cal-task .task-tags {
+  display: none;
+}
+
+.calendar-page .cal-task-text {
+  color: inherit;
+}
+
+.calendar-agenda-mobile {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .year-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .year-goal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .year-goal-grid .goal-list {
+    grid-column: 1 / -1;
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .quarter-grid,
+  .month-progress-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .calendar-page .cal-cell {
+    min-height: 112px;
+    padding: var(--space-2);
+  }
+
+  .calendar-page .cal-task {
+    font-size: .65rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .year-page,
+  .calendar-page {
+    gap: var(--space-4);
+  }
+
+  .year-page-header,
+  .calendar-page-header {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .year-page-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .year-page-actions .pop-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .year-summary,
+  .year-goal-grid,
+  .quarter-grid,
+  .month-progress-grid,
+  .year-page .year-reflections,
+  .year-page .year-mid-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .year-goal-grid > .sub {
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .year-goal-grid .goal-list {
+    grid-column: auto;
+  }
+
+  .calendar-page .cal-legend {
+    width: 100%;
+  }
+
+  .calendar-filter-bar {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .calendar-filter-bar > span,
+  .calendar-filter-bar .tag-chip {
+    flex: 0 0 auto;
+  }
+
+  .calendar-grid-desktop {
+    display: none;
+  }
+
+  .calendar-agenda-mobile {
+    display: grid;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .calendar-agenda-mobile > h2 {
+    margin: 0;
+    color: var(--color-text);
+    font: 740 1.05rem/1.3 var(--font-brand);
+  }
+
+  .calendar-agenda-day {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-panel);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-panel);
+  }
+
+  .calendar-agenda-day.today {
+    border-color: var(--color-accent);
+  }
+
+  .calendar-agenda-day > header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-block-end: 1px solid var(--color-border);
+    background: var(--color-surface-muted);
+  }
+
+  .calendar-agenda-day time {
+    color: var(--color-text);
+    font: 710 .86rem/1.3 var(--font-brand);
+    text-transform: capitalize;
+  }
+
+  .calendar-agenda-day header span {
+    color: var(--color-text-muted);
+    font: 600 .7rem/1.3 var(--font-body);
+  }
+
+  .calendar-agenda-tasks {
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .calendar-page .calendar-agenda-task {
+    min-height: 34px;
+    font-size: .82rem;
+  }
+
+  .calendar-page .calendar-agenda-task .task-tags {
+    display: inline-flex;
+  }
+
+  .calendar-agenda-empty {
+    margin: 0;
+    padding: var(--space-5);
+    border: 1px dashed var(--color-control-border);
+    border-radius: var(--radius-panel);
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+}
+
+@media print {
+  .week-page .tag-filter-bar,
+  .week-day-selector,
+  .week-page-actions,
+  .week-habits-card,
+  .week-page .pomo-widget,
+  .year-page-actions,
+  .calendar-filter-bar,
+  .calendar-agenda-mobile {
+    display: none !important;
+  }
+
+  .week-page-header {
+    display: block;
+    margin-block-end: 6mm;
+  }
+
+  .week-support-grid {
+    display: block;
+    margin-block-start: 6mm;
+  }
+
+  .week-reflection-card {
+    display: block;
+    break-inside: avoid;
+  }
+
+  .week-goals-summary {
+    grid-template-columns: minmax(0, .65fr) minmax(0, 1.35fr);
+    gap: 6mm;
+  }
+
+  .week-days-section {
+    break-before: page;
+  }
+
+  .week-day-list {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2mm;
+    overflow: visible !important;
+  }
+
+  .week-day-panel {
+    min-width: 0;
+    overflow: visible;
+    break-inside: avoid;
+    box-shadow: none;
+  }
+
+  .year-summary,
+  .quarter-grid,
+  .month-progress-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .calendar-grid-desktop {
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}

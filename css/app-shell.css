@@ -1,7 +1,12 @@
 /* TaskFlow Refined application shell. View-specific layouts remain in styles.css. */
+html {
+  overflow-x: clip;
+}
+
 body:has(.app-layout) {
   min-width: 320px;
   min-height: 100dvh;
+  overflow-x: clip;
   color: var(--color-text);
   background: var(--color-canvas);
   background-image: none;
@@ -426,7 +431,7 @@ body.tools-drawer-open {
   font-size: .75rem;
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1180px) {
   .app-layout {
     grid-template-columns: 200px minmax(0, 1fr);
   }
@@ -537,6 +542,12 @@ body.tools-drawer-open {
   .app-mobile-nav-item .ui-icon {
     width: 20px;
     height: 20px;
+  }
+
+  .app-mobile-nav-item span:last-child {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
   }
 
   body .pomo-fab-wrap,

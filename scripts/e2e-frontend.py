@@ -42,6 +42,14 @@ def load_week(page, base):
     page.wait_for_selector("#view-week.active .week-page")
 
 
+def load_planning_view(page, base, view):
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.goto(f"{base}/app.html?view={view}", wait_until="networkidle")
+    if page.locator("#onboardModal:not([hidden])").count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector(f"#view-{view}.active .{view}-page")
+
+
 def overview_checks(browser, base, width, height, errors, screenshot):
     page = browser.new_page(viewport={"width": width, "height": height})
     page.on("pageerror", lambda error: errors.append(f"{width}px: {error}"))
@@ -174,9 +182,65 @@ def week_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def year_checks(browser, base, width, height, errors, screenshot):
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"year {width}px: {error}"))
+    load_planning_view(page, base, "year")
+
+    assert page.locator("#view-year h1").count() == 1
+    assert page.locator(".year-summary .year-summary-metric").count() == 4
+    assert page.locator(".year-goal-grid").count() == 1
+    assert page.locator(".quarter-grid").count() == 1
+    assert page.locator(".month-progress-grid").count() == 1
+    assert page.locator(".month-progress-grid [data-action='month']").count() == 12
+    assert_no_page_overflow(page, f"year {width}px")
+
+    goal_metric = page.locator('[data-role="year-summary-goals"]')
+    before = goal_metric.inner_text()
+    page.locator('[data-action="ygoal"]').first.click()
+    assert goal_metric.inner_text() != before
+
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def calendar_checks(browser, base, width, height, errors, screenshot):
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"calendar {width}px: {error}"))
+    load_planning_view(page, base, "calendar")
+
+    assert page.locator("#view-calendar h1").count() == 1
+    assert page.locator(".calendar-grid-desktop .cal-dow").count() == 7
+    assert page.locator(".calendar-grid-desktop .cal-cell").count() >= 28
+    assert_no_page_overflow(page, f"calendar {width}px")
+
+    if width <= 390:
+        assert page.locator(".calendar-agenda-mobile").is_visible()
+        assert not page.locator(".calendar-grid-desktop").is_visible()
+    else:
+        assert page.locator(".calendar-grid-desktop").is_visible()
+        assert not page.locator(".calendar-agenda-mobile").is_visible()
+
+    tag = page.locator('[data-action="calendar-tagfilter"][data-tag]:not([data-tag=""])').first
+    if tag.count():
+        tag_value = tag.get_attribute("data-tag")
+        tag.click()
+        assert tag.get_attribute("aria-pressed") == "true"
+        assert f"tag={tag_value}" in page.url or "tag=" in page.url
+
+    task = page.locator('.cal-task [data-action="task"]:visible').first
+    if task.count():
+        before = task.get_attribute("aria-checked")
+        task.click()
+        assert task.get_attribute("aria-checked") != before
+
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--view", choices=["overview", "week"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar"], default="overview")
     args = parser.parse_args()
 
     httpd = socketserver.TCPServer(("127.0.0.1", 0), Handler)
@@ -198,6 +262,12 @@ def main():
             elif args.view == "week":
                 week_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 week_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "year":
+                year_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                year_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "calendar":
+                calendar_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                calendar_checks(browser, base, 390, 844, errors, shots["mobile"])
             browser.close()
     finally:
         httpd.shutdown()

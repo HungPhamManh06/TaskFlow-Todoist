@@ -19,11 +19,14 @@
     return `role="checkbox" aria-checked="${Boolean(checked)}" aria-label="${escapeAttribute(text)}"`;
   }
 
-  function buildViewUrl({ view, year, month, week }) {
+  function buildViewUrl({ view, year, month, week, tags }) {
     const q = new URLSearchParams();
     q.set('view', view);
     q.set('m', `${year}-${String(month + 1).padStart(2, '0')}`);
     if (view === 'week' && week) q.set('w', String(week));
+    if (view === 'calendar' && Array.isArray(tags)) {
+      tags.map((tag) => String(tag).trim()).filter(Boolean).forEach((tag) => q.append('tag', tag));
+    }
     return `?${q.toString()}`;
   }
 

@@ -45,6 +45,11 @@
       var maxWeeks = out.year !== null && out.month !== null ? numWeeksOf(out.year, out.month) : 6;
       if (week >= 1 && week <= maxWeeks) out.week = week;
     }
+    if (out.view === 'calendar') {
+      var tags = url.searchParams.getAll('tag').map(function (tag) { return String(tag).trim(); }).filter(Boolean);
+      tags = tags.filter(function (tag, index) { return tags.indexOf(tag) === index; }).slice(0, 8);
+      if (tags.length) out.tags = tags;
+    }
     return out;
   }
 

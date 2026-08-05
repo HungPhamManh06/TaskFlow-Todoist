@@ -530,6 +530,13 @@ const I18N = {
     overviewHabitGridAria: 'Bảng theo dõi thói quen trong tháng',
     viewYear: 'Kế hoạch năm',
     viewWeek: 'Kế hoạch tuần',
+    yearWorkspaceEyebrow: 'Không gian làm việc năm',
+    yearPageTitle: 'Kế hoạch năm {y}',
+    yearPageSubtitle: 'Biến mục tiêu dài hạn thành nhịp tiến bộ có thể theo dõi mỗi tháng.',
+    yearSummaryGoals: 'Mục tiêu hoàn thành',
+    yearSummaryAverage: 'Tiến độ trung bình',
+    yearSummaryQuarter: 'Quý nổi bật',
+    yearSummaryHabit: 'Thói quen dẫn đầu',
     weekWorkspaceEyebrow: 'Không gian làm việc tuần',
     weekPageTitle: 'Kế hoạch Tuần {n}',
     weekPageSubtitle: 'Chọn việc quan trọng, phân bổ theo ngày và giữ nhịp tập trung.',
@@ -796,7 +803,14 @@ const I18N = {
     tagAria: 'Thêm tag cho task',
     tabCalendar: '📅 Lịch',
     viewCalendar: 'Lịch tháng',
-    calEmpty: 'Không có task nào',
+    calendarWorkspaceEyebrow: 'Lịch công việc',
+    calendarPageTitle: 'Lịch {m} {y}',
+    calendarPageSubtitle: 'Xem khối lượng theo ngày và lọc nhanh theo ngữ cảnh công việc.',
+    calendarFilterAria: 'Lọc lịch theo tag',
+    calendarAgendaTitle: 'Lịch trình trong tháng',
+    calendarAgendaEmpty: 'Không có công việc phù hợp với bộ lọc hiện tại.',
+    calendarTaskCount: '{n} công việc',
+    calEmpty: 'Chưa có công việc',
     templateTitle: '📋 Sao chép cấu trúc tháng',
     templateDesc: 'Sao chép mục tiêu, thói quen & cấu trúc tuần (bỏ ô tick ✓) sang tháng khác.',
     templateSrc: 'Tháng nguồn',
@@ -994,6 +1008,13 @@ const I18N = {
     overviewHabitGridAria: 'Monthly habit tracking table',
     viewYear: 'Year plan',
     viewWeek: 'Week plan',
+    yearWorkspaceEyebrow: 'Annual workspace',
+    yearPageTitle: '{y} plan',
+    yearPageSubtitle: 'Turn long-term goals into a monthly rhythm you can review and improve.',
+    yearSummaryGoals: 'Goals completed',
+    yearSummaryAverage: 'Average progress',
+    yearSummaryQuarter: 'Best quarter',
+    yearSummaryHabit: 'Leading habit',
     weekWorkspaceEyebrow: 'Weekly workspace',
     weekPageTitle: 'Week {n} plan',
     weekPageSubtitle: 'Choose what matters, distribute the work, and protect your focus.',
@@ -1260,6 +1281,13 @@ const I18N = {
     tagAria: 'Add tag to task',
     tabCalendar: '📅 Calendar',
     viewCalendar: 'Month calendar',
+    calendarWorkspaceEyebrow: 'Work calendar',
+    calendarPageTitle: '{m} {y} calendar',
+    calendarPageSubtitle: 'See daily workload and filter the month by work context.',
+    calendarFilterAria: 'Filter calendar by tag',
+    calendarAgendaTitle: 'Monthly agenda',
+    calendarAgendaEmpty: 'No tasks match the current filters.',
+    calendarTaskCount: '{n} tasks',
     calEmpty: 'No tasks',
     templateTitle: '📋 Copy month structure',
     templateDesc: 'Copy goals, habits & week structure (without ✓ ticks) to another month.',
@@ -4143,36 +4171,46 @@ function renderYear() {
   const el = document.getElementById('view-year');
   const gs = yearGoalStats();
   const widgets = getVisibleWidgets('year');
-  // Giữ year-card + year-charts trong year-top grid
-  const topIds = new Set(['year-card', 'year-charts']);
-  const topWidgets = widgets.filter(function (w) { return topIds.has(w.id); });
-  const restWidgets = widgets.filter(function (w) { return !topIds.has(w.id); });
+  const monthly = yearMonthlyData();
+  const average = monthly.length ? Math.round(monthly.reduce((sum, item) => sum + item.pct, 0) / monthly.length) : 0;
+  const quarters = quarterStats();
+  const bestQuarterIndex = quarters.reduce((best, quarter, index) => quarter.pct > quarters[best].pct ? index : best, 0);
+  const bestHabit = bestHabitAcrossYear();
   el.innerHTML = `
-    <div class="year-banner">
-      <h2 class="year-banner-title">${t('yGoalsTitle', { y: PLAN_YEAR })}</h2>
-      <button type="button" class="pop-btn share-btn week-report-btn" data-action="year-report" title="${t('yearReportTitle')}">📊 ${t('yearReportTitle')}</button>
+    <div class="year-page">
+      <header class="year-page-header">
+        <div>
+          <p class="year-page-eyebrow">${t('yearWorkspaceEyebrow')}</p>
+          <h1 class="year-page-title">${t('yearPageTitle', { y: PLAN_YEAR })}</h1>
+          <p class="year-page-subtitle">${t('yearPageSubtitle')}</p>
+        </div>
+        <div class="year-page-actions">
+          <button type="button" class="pop-btn" data-action="year-report" title="${t('yearReportTitle')}">${window.TaskFlowUI.icon('report')}<span>${t('yearReportTitle')}</span></button>
+          <button type="button" class="pop-btn widget-settings-btn" data-action="widget-settings" data-view="year" title="${t('widgetSettings')}">${window.TaskFlowUI.icon('settings')}<span>${t('widgetSettings')}</span></button>
+        </div>
+      </header>
+      <section class="year-summary" aria-label="${t('yearWorkspaceEyebrow')}">
+        <article class="metric year-summary-metric"><span>${t('yearSummaryGoals')}</span><strong data-role="year-summary-goals">${gs.done}/${gs.total}</strong><small data-role="year-summary-goals-pct">${gs.pct}%</small></article>
+        <article class="metric year-summary-metric"><span>${t('yearSummaryAverage')}</span><strong>${average}%</strong><small>${PLAN_YEAR}</small></article>
+        <article class="metric year-summary-metric"><span>${t('yearSummaryQuarter')}</span><strong>Q${bestQuarterIndex + 1}</strong><small>${quarters[bestQuarterIndex].pct}%</small></article>
+        <article class="metric year-summary-metric"><span>${t('yearSummaryHabit')}</span><strong>${bestHabit.name ? esc(bestHabit.name) : '—'}</strong><small>${bestHabit.days}</small></article>
+      </section>
+      <div class="year-widget-flow">
+        ${widgets.map(function (widget) { return `<section class="year-widget year-widget--${widget.id}" data-widget-id="${widget.id}">${widget.html}</section>`; }).join('')}
+      </div>
     </div>
-    ${restWidgets.map(function (w) { return w.html; }).join('')}
-    <div class="year-top">
-      ${topWidgets.map(function (w) { return w.html; }).join('')}
-    </div>
-    <button type="button" class="pop-btn widget-settings-btn" data-action="widget-settings" data-view="year" title="${t('widgetSettings')}">⚙️ ${t('widgetSettings')}</button>
   `;
 }
 
 function yearCardHTML() {
   const now = new Date();
   return `<div class="card year-card">
-    <div class="chick-orn orn-l" aria-hidden="true">🐥<span class="mini">🎧</span></div>
-    <div class="chick-orn orn-r" aria-hidden="true">🐥<span class="mini">🎧</span></div>
+    <h2 class="week-section-title">${t('widgetLabel_year-card')}</h2>
     <table class="info-table">
       <tr><th>${t('yearTh')}</th><td>${PLAN_YEAR}</td></tr>
       <tr><th>${t('curMonthTh')}</th><td>${now.getMonth() + 1}</td></tr>
     </table>
     <p class="year-motto">${t('motto')}</p>
-    <div class="chick-row" aria-label="${t('chicks12Aria')}">
-      ${Array.from({ length: 12 }, () => `<span class="chick-unit" aria-hidden="true">🐥<span class="chick-phones">🎧</span></span>`).join('')}
-    </div>
   </div>`;
 }
 
@@ -4181,9 +4219,8 @@ function yearGoalsCardHTML(gs) {
   const pri = yearState.goals.filter((g) => g.kind === 'priority');
   const reg = yearState.goals.filter((g) => g.kind === 'regular');
   return `<div class="card year-goals-card">
-    <div class="year-goals-top">
+    <div class="year-goal-grid year-goals-top">
       <div class="goals-info sub">
-        <div class="peek-chick" aria-hidden="true">🐥<span class="mini">📷</span></div>
         <div class="big-pct" data-role="year-big-pct">${gs.pct}%</div>
         <h3 class="card-title">${t('yGoalsTitle', { y })}</h3>
         <table class="stats-table">
@@ -4232,7 +4269,7 @@ function yearChartsHTML() {
   const monthly = yearMonthlyData();
   const quarters = [0, 1, 2, 3].map((q) => Math.round((monthly[q * 3].pct + monthly[q * 3 + 1].pct + monthly[q * 3 + 2].pct) / 3));
   return `<div class="card year-charts-card">
-    <div class="charts-head"><h3 class="card-title">${t('progressYear')}</h3><span class="bear-big" aria-hidden="true">🐻</span></div>
+    <div class="charts-head"><h3 class="card-title">${t('progressYear')}</h3></div>
     <div class="mini-chart-block">
       <div class="mini-chart-title">${t('quarterT')}</div>
       <div class="chart-row chart-row-q">
@@ -4273,7 +4310,7 @@ function yearQuartersHTML() {
   const qs = quarterStats();
   return `<div class="year-quarters-card">
     <h3 class="card-title">${t('qOverview')}</h3>
-    <div class="quarters-grid">
+    <div class="quarter-grid quarters-grid">
       ${qs.map((q, i) => {
         const pri = q.goals.filter((g) => g.kind === 'priority');
         const reg = q.goals.filter((g) => g.kind === 'regular');
@@ -4312,7 +4349,7 @@ function yearMonthsHTML() {
   const realM = new Date().getMonth();
   return `<div class="card year-months-card">
     <h3 class="card-title">${t('mCardT')}</h3>
-    <div class="months-scroll">
+    <div class="month-progress-grid months-scroll">
       ${Array.from({ length: 12 }, (_, m) => {
         const p = monthly[m].pct;
         const goals = monthly[m].goals;
@@ -4390,12 +4427,13 @@ function yearHabitHeatmapHTML() {
     }
     return '<div class="yhm-row"><div class="yhm-name">' + esc(h.name) + '</div><div class="yhm-cells">' + cells + '</div></div>';
   }).join('');
-  return '<div class="card year-heat-card"><div class="card-title">🔥 ' + t('hmTitle') + '</div>' + rows + '</div>';
+  return '<div class="card year-heat-card"><div class="card-title">' + t('hmTitle') + '</div>' + rows + '</div>';
 }
 
 /* ---------- Trang tuần ---------- */
 
 let tagFilter = null;
+let calendarTagFilters = [];
 
 function weekTagFilterBar() {
   const allTags = new Set();
@@ -4692,37 +4730,101 @@ function goSearchResult(btn) {
 
 /* ============================ Phase 2: View Lịch ============================ */
 
+function calendarDayEntries() {
+  const now = new Date();
+  return state.weeks.flatMap((week) => week.days.map((day, dayIndex) => {
+    const date = new Date(PLAN_START.getTime() + ((week.n - 1) * 7 + dayIndex) * 86400000);
+    return {
+      week,
+      day,
+      dayIndex,
+      date,
+      dayNumber: date.getDate(),
+      currentMonth: date.getMonth() === PLAN_MONTH && date.getFullYear() === PLAN_YEAR,
+      today: date.toDateString() === now.toDateString(),
+      tasks: day.tasks.map((task, taskIndex) => ({ task, taskIndex }))
+        .sort((a, b) => (a.task.kind === b.task.kind ? 0 : a.task.kind === 'priority' ? -1 : 1)),
+    };
+  }));
+}
+
+function localISODate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function calendarTaskMatches(task) {
+  if (!calendarTagFilters.length) return true;
+  const tags = Array.isArray(task.tags) ? task.tags : [];
+  return calendarTagFilters.some((tag) => tags.includes(tag));
+}
+
+function calendarVisibleTasks(entry) {
+  return entry.tasks.filter(({ task }) => String(task.text || '').trim() && calendarTaskMatches(task));
+}
+
+function calendarDayPct(day) {
+  const tasks = day.tasks.filter((task) => String(task.text || '').trim());
+  return tasks.length ? Math.round((tasks.filter((task) => task.done).length / tasks.length) * 100) : 0;
+}
+
+function calendarTagFilterBar() {
+  const tags = new Set();
+  state.weeks.forEach((week) => week.days.forEach((day) => day.tasks.forEach((task) => {
+    (Array.isArray(task.tags) ? task.tags : []).forEach((tag) => tags.add(tag));
+  })));
+  if (!tags.size) return '';
+  const all = `<button type="button" class="tag-chip${calendarTagFilters.length ? '' : ' active'}" data-action="calendar-tagfilter" data-tag="" aria-pressed="${calendarTagFilters.length ? 'false' : 'true'}">${t('tagAll')}</button>`;
+  const buttons = Array.from(tags).map((tag) => {
+    const active = calendarTagFilters.includes(tag);
+    return `<button type="button" class="tag-chip${active ? ' active' : ''}" data-action="calendar-tagfilter" data-tag="${esc(tag)}" aria-pressed="${active}">#${esc(tag)}</button>`;
+  }).join('');
+  return `<div class="calendar-filter-bar" role="group" aria-label="${t('calendarFilterAria')}"><span>${t('tagFilter')}</span>${all}${buttons}</div>`;
+}
+
+function calendarTasksHTML(entry, extraClass = '') {
+  const tasks = calendarVisibleTasks(entry);
+  if (!tasks.length) return `<span class="cal-empty">${t('calEmpty')}</span>`;
+  const context = entry.date.toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return tasks.map(({ task, taskIndex }) => `<div class="cal-task${extraClass ? ' ' + extraClass : ''}${task.done ? ' done' : ''}" data-week="${entry.week.n}" data-day="${entry.dayIndex}" data-task="${taskIndex}">
+    ${checkboxHTML(task.kind === 'priority' ? 'pink' : 'blue', task.done, `data-action="task" data-week="${entry.week.n}" data-day="${entry.dayIndex}" data-task="${taskIndex}"`, window.TaskFlowUI.checkboxLabel('task', task.text, context))}
+    <span class="cal-task-text">${esc(task.text || '')}</span>
+    ${(Array.isArray(task.tags) && task.tags.length) ? `<span class="task-tags">${task.tags.map((tag) => `<span class="tag-chip">#${esc(tag)}</span>`).join('')}</span>` : ''}
+  </div>`).join('');
+}
+
 function renderCalendar() {
   const el = document.getElementById('view-calendar');
-  const now = new Date();
-  const today = (now.getFullYear() === PLAN_YEAR && now.getMonth() === PLAN_MONTH) ? now.getDate() : null;
+  const entries = calendarDayEntries();
   const dowLbl = t('dayNames');
-  let html = `<div class="cal-toolbar"><h2>📅 ${t('viewCalendar')} · ${monthLabel(PLAN_MONTH)} ${PLAN_YEAR}</h2>
-    <div class="cal-legend"><span class="dot on"></span> ${t('legendDone')} <span class="dot off"></span> ${t('legendNotDone')}</div></div>
-    <div class="cal-grid">`;
-  dowLbl.forEach((d) => { html += `<div class="cal-dow">${d}</div>`; });
-  state.weeks.forEach((w) => {
-    w.days.forEach((d, di) => {
-      const dt = new Date(PLAN_START.getTime() + ((w.n - 1) * 7 + di) * 86400000);
-      const dnum = dt.getDate();
-      const isToday = today === dnum && dt.getMonth() === PLAN_MONTH;
-      const p = dayPct(d);
-      const pri = d.tasks.map((tk, ti) => ({ tk, ti })).filter((x) => x.tk.kind === 'priority');
-      const reg = d.tasks.map((tk, ti) => ({ tk, ti })).filter((x) => x.tk.kind === 'regular');
-      html += `<div class="cal-cell${isToday ? ' today' : ''}" data-week="${w.n}" data-day="${di}">
-        <div class="cal-cell-head"><span class="cal-date">${dnum}</span><span class="cal-pct" data-role="cal-pct" data-week="${w.n}" data-day="${di}">${p}%</span></div>
-        <div class="cal-tasks">
-          ${[...pri, ...reg].map(({ tk, ti }) => `<div class="cal-task ${tk.done ? 'done' : ''}" data-tag-match="${tagFilter === null || (Array.isArray(tk.tags) && tk.tags.includes(tagFilter)) ? '1' : '0'}">
-            ${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${w.n}" data-day="${di}" data-task="${ti}"`, window.TaskFlowUI.checkboxLabel('task', tk.text, `${String(dnum).padStart(2, '0')}/${String(PLAN_MONTH + 1).padStart(2, '0')}/${PLAN_YEAR}`))}
-            <span class="cal-task-text">${esc(tk.text || '')}</span>
-            ${(Array.isArray(tk.tags) && tk.tags.length) ? `<span class="task-tags">${tk.tags.map((tg) => `<span class="tag-chip">#${esc(tg)}</span>`).join('')}</span>` : ''}
-          </div>`).join('') || `<span class="cal-empty">${t('calEmpty')}</span>`}
-        </div>
-      </div>`;
-    });
-  });
-  html += '</div>';
-  el.innerHTML = html;
+  const agendaEntries = entries.filter((entry) => entry.currentMonth && calendarVisibleTasks(entry).length);
+  el.innerHTML = `<div class="calendar-page">
+    <header class="calendar-page-header">
+      <div>
+        <p class="calendar-page-eyebrow">${t('calendarWorkspaceEyebrow')}</p>
+        <h1 class="calendar-page-title">${t('calendarPageTitle', { m: monthLabel(PLAN_MONTH), y: PLAN_YEAR })}</h1>
+        <p class="calendar-page-subtitle">${t('calendarPageSubtitle')}</p>
+      </div>
+      <div class="cal-legend"><span class="dot on"></span> ${t('legendDone')} <span class="dot off"></span> ${t('legendNotDone')}</div>
+    </header>
+    ${calendarTagFilterBar()}
+    <section class="calendar-grid-desktop" aria-label="${t('viewCalendar')}">
+      ${dowLbl.map((day) => `<div class="cal-dow">${day}</div>`).join('')}
+      ${entries.map((entry) => `<article class="cal-cell${entry.today ? ' today' : ''}${entry.currentMonth ? '' : ' outside'}" data-week="${entry.week.n}" data-day="${entry.dayIndex}">
+        <div class="cal-cell-head"><span class="cal-date">${entry.dayNumber}</span><span class="cal-pct" data-role="cal-pct" data-week="${entry.week.n}" data-day="${entry.dayIndex}">${calendarDayPct(entry.day)}%</span></div>
+        <div class="cal-tasks">${calendarTasksHTML(entry)}</div>
+      </article>`).join('')}
+    </section>
+    <section class="calendar-agenda-mobile" aria-labelledby="calendar-agenda-title">
+      <h2 id="calendar-agenda-title">${t('calendarAgendaTitle')}</h2>
+      ${agendaEntries.length ? agendaEntries.map((entry) => `<article class="calendar-agenda-day${entry.today ? ' today' : ''}">
+        <header><time datetime="${localISODate(entry.date)}">${entry.date.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</time><span>${t('calendarTaskCount', { n: calendarVisibleTasks(entry).length })}</span></header>
+        <div class="calendar-agenda-tasks">${calendarTasksHTML(entry, 'calendar-agenda-task')}</div>
+      </article>`).join('') : `<p class="calendar-agenda-empty">${t('calendarAgendaEmpty')}</p>`}
+    </section>
+  </div>`;
 }
 
 /* ============================ Phase 2: Template tháng ============================ */
@@ -5378,6 +5480,7 @@ function setView(view, week) {
     year: PLAN_YEAR,
     month: PLAN_MONTH,
     week: view === 'week' ? state.currentWeek : undefined,
+    tags: view === 'calendar' ? calendarTagFilters : undefined,
   });
   save();
 }
@@ -5385,6 +5488,7 @@ function goWeek(v) {
   const n = Math.min(NUM_WEEKS, Math.max(1, v));
   // Tag filter theo tuần cũ — reset để không còn task bị ẩn khi sang tuần không có tag đó
   tagFilter = null;
+  calendarTagFilters = [];
   setView('week', n);
 }
 function openMonth(m) {
@@ -5401,6 +5505,7 @@ function openMonth(m) {
   state.view = 'overview';
   // Tag filter theo tháng cũ — reset để không còn task bị ẩn mà không có UI gỡ
   tagFilter = null;
+  calendarTagFilters = [];
   updateBrand();
   updateNowBtn();
   buildNav();
@@ -6002,6 +6107,13 @@ document.addEventListener('click', (e) => {
     tagFilter = el.dataset.tag || null;
     if (state.view === 'calendar') renderCalendar();
     else renderWeek();
+  } else if (act === 'calendar-tagfilter') {
+    const selectedTag = el.dataset.tag || '';
+    if (!selectedTag) calendarTagFilters = [];
+    else if (calendarTagFilters.includes(selectedTag)) calendarTagFilters = calendarTagFilters.filter((tag) => tag !== selectedTag);
+    else calendarTagFilters = calendarTagFilters.concat(selectedTag);
+    renderCalendar();
+    window.TaskFlowUI.syncUrl({ view: 'calendar', year: PLAN_YEAR, month: PLAN_MONTH, tags: calendarTagFilters });
   } else if (act === 'tag-edit') {
     beginTagEdit(el);
   } else if (act === 'repeat-edit') {
@@ -6339,6 +6451,10 @@ function afterYearGoalToggle() {
   if (don) don.innerHTML = donutSVG(gs.pct, 140, 18, '#666854');
   const stats = document.querySelector('[data-role="year-stats"]');
   if (stats) stats.innerHTML = `<td>${gs.done}</td><td>${gs.inProg}</td><td>${gs.total}</td>`;
+  const yearSummaryGoals = document.querySelector('[data-role="year-summary-goals"]');
+  if (yearSummaryGoals) yearSummaryGoals.textContent = gs.done + '/' + gs.total;
+  const yearSummaryPct = document.querySelector('[data-role="year-summary-goals-pct"]');
+  if (yearSummaryPct) yearSummaryPct.textContent = gs.pct + '%';
   saveYear();
 }
 
@@ -6399,8 +6515,8 @@ function refreshTaskUI(w, di) {
   if (dayProgressFill) dayProgressFill.style.width = p + '%';
   // View Lịch: cập nhật % ngày trong ô calendar
   const calPct = document.querySelector(`[data-role="cal-pct"][data-week="${w.n}"][data-day="${di}"]`);
-  if (calPct) calPct.textContent = p + '%';
-  document.querySelectorAll(`.cal-cell[data-week="${w.n}"][data-day="${di}"] .cal-task`).forEach((cell) => {
+  if (calPct) calPct.textContent = calendarDayPct(d) + '%';
+  document.querySelectorAll(`.cal-task[data-week="${w.n}"][data-day="${di}"]`).forEach((cell) => {
     const cb = cell.querySelector('[data-action="task"]');
     if (cb) cell.classList.toggle('done', d.tasks[+cb.dataset.task].done);
   });
@@ -6829,6 +6945,7 @@ if (window.DeepLink) {
   }
   if (dl.view) state.view = dl.view;
   if (dl.view === 'week' && dl.week !== null && dl.week <= NUM_WEEKS) state.currentWeek = dl.week;
+  if (dl.view === 'calendar' && Array.isArray(dl.tags)) calendarTagFilters = dl.tags;
 }
 
 setTheme(THEME);

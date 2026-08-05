@@ -80,6 +80,14 @@ test('week parser rejects invalid and month-specific out-of-range values', () =>
   assert.equal(DeepLink.parse('https://x.app/app.html?view=week&m=2027-02&w=5').week, null);
 });
 
+test('calendar URL preserves repeated encoded tag filters', () => {
+  const query = UI.buildViewUrl({
+    view: 'calendar', year: 2026, month: 7, tags: ['ưu tiên', 'học tập'],
+  });
+  assert.equal(query, '?view=calendar&m=2026-08&tag=%C6%B0u+ti%C3%AAn&tag=h%E1%BB%8Dc+t%E1%BA%ADp');
+  assert.deepEqual(DeepLink.parse(`https://x.app/app.html${query}`).tags, ['ưu tiên', 'học tập']);
+});
+
 test('OAuth URL cleanup removes only the token and preserves navigation state', () => {
   assert.equal(
     DeepLink.withoutParam(
@@ -337,6 +345,47 @@ test('print layout targets the refined seven-day week grid', () => {
   assert.match(print, /\.week-reflection-card\s*{[^}]*display:\s*block/s);
 });
 
+test('year renderer exposes the refined annual planning contract', () => {
+  const year = APP_JS.slice(APP_JS.indexOf('function renderYear()'), APP_JS.indexOf('function yearCardHTML'));
+  assert.match(year, /class="year-page"/);
+  assert.match(year, /<h1[^>]*class="year-page-title"/);
+  assert.match(year, /class="year-summary"/);
+  assert.match(APP_JS, /class="[^"]*\byear-goal-grid\b/);
+  assert.match(APP_JS, /class="[^"]*\bquarter-grid\b/);
+  assert.match(APP_JS, /class="[^"]*\bmonth-progress-grid\b/);
+  assert.doesNotMatch(year, /year-banner|year-top/);
+});
+
+test('year summary synchronizes after an inline annual-goal change', () => {
+  assert.match(APP_JS, /data-role="year-summary-goals"/);
+  assert.match(APP_JS, /data-role="year-summary-goals-pct"/);
+  const sync = APP_JS.slice(APP_JS.indexOf('function afterYearGoalToggle'), APP_JS.indexOf('function afterHabitToggle'));
+  assert.match(sync, /yearSummaryGoals[^]*textContent = gs\.done \+ '\/' \+ gs\.total/);
+  assert.match(sync, /yearSummaryPct[^]*textContent = gs\.pct \+ '%'/);
+});
+
+test('calendar renders one heading with desktop grid and mobile agenda from shared entries', () => {
+  const calendar = APP_JS.slice(APP_JS.indexOf('function renderCalendar()'), APP_JS.indexOf('Phase 2: Template'));
+  assert.match(calendar, /class="calendar-page"/);
+  assert.match(calendar, /<h1[^>]*class="calendar-page-title"/);
+  assert.match(calendar, /class="calendar-grid-desktop"/);
+  assert.match(calendar, /class="calendar-agenda-mobile"/);
+  assert.match(calendar, /calendarDayEntries\(\)/);
+  assert.match(calendar, /calendarVisibleTasks\(/);
+  assert.match(APP_JS, /function calendarVisibleTasks\(entry\)/);
+  assert.match(APP_JS, /function calendarDayPct\(day\)/);
+  assert.match(APP_JS, /String\(task\.text \|\| ''\)\.trim\(\)/);
+});
+
+test('calendar responsive contract keeps grid desktop and agenda mobile', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  assert.match(styles, /\.calendar-grid-desktop\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(7,/s);
+  assert.match(styles, /\.calendar-agenda-mobile\s*{[^}]*display:\s*none/s);
+  const mobile = styles.slice(styles.lastIndexOf('@media (max-width: 720px)'));
+  assert.match(mobile, /\.calendar-grid-desktop\s*{[^}]*display:\s*none/s);
+  assert.match(mobile, /\.calendar-agenda-mobile\s*{[^}]*display:\s*grid/s);
+});
+
 test('tools drawer supports dismissal and focus restoration', () => {
   assert.match(APP_JS, /function openToolsDrawer\(/);
   assert.match(APP_JS, /function closeToolsDrawer\(/);
@@ -365,7 +414,7 @@ test('shell hides the skip link until focus and removes decorative nav emoji', (
 test('setView synchronizes the selected view and plan period to the URL', () => {
   assert.match(
     APP_JS,
-    /TaskFlowUI\.syncUrl\(\{\s*view,\s*year:\s*PLAN_YEAR,\s*month:\s*PLAN_MONTH,\s*week:\s*view === 'week' \? state\.currentWeek : undefined,?\s*\}\);/
+    /TaskFlowUI\.syncUrl\(\{\s*view,\s*year:\s*PLAN_YEAR,\s*month:\s*PLAN_MONTH,\s*week:\s*view === 'week' \? state\.currentWeek : undefined,\s*tags:\s*view === 'calendar' \? calendarTagFilters : undefined,?\s*\}\);/
   );
   assert.match(
     APP_JS,
@@ -387,7 +436,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v53';/);
+  assert.match(SW, /const CACHE = 'taskflow-v54';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -450,8 +499,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system assets are available in the v53 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v53';/);
+test('design system assets are available in the v54 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v54';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './icons/ui-sprite.svg', './js/ui.js',
