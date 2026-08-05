@@ -21,3 +21,6 @@ desktop.ini
 .claude/
 .opencode/
 skills-lock.json
+
+# Git worktrees do Codex tạo để triển khai cô lập
+.worktrees/
