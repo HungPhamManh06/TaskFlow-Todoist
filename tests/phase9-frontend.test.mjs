@@ -489,6 +489,8 @@ test('tools drawer supports dismissal and focus restoration', () => {
   assert.match(APP_JS, /function closeToolsDrawer\(/);
   assert.match(APP_JS, /TaskFlowUI\.openDrawer\('toolsDrawer', opener\)/);
   assert.match(APP_JS, /TaskFlowUI\.closeDrawer\('toolsDrawer'\)/);
+  assert.match(APP_JS, /toolsDrawerReturnFocusSelector[^]*#mobileNav \[data-action="tools-open"\]/);
+  assert.match(APP_JS, /returnTarget\.getClientRects\(\)\.length[^]*returnTarget\.focus\(\)/);
   assert.match(ui, /opener\.isConnected[^]*opener\.getClientRects\(\)\.length[^]*opener\.focus\(\)/);
   assert.match(ui, /event\.key === 'Escape'[^]*requestLayerClose\(id\)/);
   assert.match(APP, /id="toolsDrawerBackdrop"[^>]*data-action="tools-close"/);
@@ -535,7 +537,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v57';/);
+  assert.match(SW, /const CACHE = 'taskflow-v58';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -598,8 +600,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system and landing assets are available in the v57 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v57';/);
+test('design system and landing assets are available in the v58 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v58';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',

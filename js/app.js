@@ -5405,10 +5405,17 @@ function updateShellContext() {
   if (period) period.textContent = `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`;
 }
 
+let toolsDrawerReturnFocusSelector = null;
+
 function openToolsDrawer(opener) {
   const drawer = document.getElementById('toolsDrawer');
   const backdrop = document.getElementById('toolsDrawerBackdrop');
   if (!drawer || !backdrop) return;
+  toolsDrawerReturnFocusSelector = opener && opener.closest('#mobileNav')
+    ? '#mobileNav [data-action="tools-open"]'
+    : opener && opener.closest('#desktopSidebar')
+      ? '#desktopSidebar [data-action="tools-open"]'
+      : '#appTopbar [data-action="tools-open"]';
   backdrop.hidden = false;
   document.body.classList.add('tools-drawer-open');
   document.querySelectorAll('[data-action="tools-open"]').forEach((button) => button.setAttribute('aria-expanded', 'true'));
@@ -5423,6 +5430,11 @@ function closeToolsDrawer() {
   document.body.classList.remove('tools-drawer-open');
   document.querySelectorAll('[data-action="tools-open"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
   TaskFlowUI.closeDrawer('toolsDrawer');
+  const returnTarget = toolsDrawerReturnFocusSelector
+    ? document.querySelector(toolsDrawerReturnFocusSelector)
+    : null;
+  toolsDrawerReturnFocusSelector = null;
+  if (returnTarget && returnTarget.getClientRects().length) returnTarget.focus();
 }
 
 function addTaskFromShell() {

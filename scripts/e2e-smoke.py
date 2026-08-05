@@ -117,7 +117,7 @@ def mobile_checks(browser, base, errors, screenshots):
     page.locator("#drawerNextMonth").click()
     page.wait_for_function(
         "before => document.querySelector('#appPeriod').textContent.trim() !== before",
-        period_before,
+        arg=period_before,
     )
     drawer_month = page.locator("#drawerMonthSelect")
     current_month = int(drawer_month.input_value())
@@ -144,7 +144,7 @@ def mobile_checks(browser, base, errors, screenshots):
     assert page.locator("#drawerRedo").is_disabled()
     page.locator("#drawerUndo").click()
     assert not page.locator("#drawerRedo").is_disabled()
-    page.locator('[data-action="tools-close"]').first.click()
+    page.locator('#toolsDrawer [data-action="tools-close"]').click()
     assert page.locator("#toolsDrawer[hidden]").count() == 1
     assert_no_overflow(page, "mobile after interactions")
     page.screenshot(path=screenshots["mobile"], full_page=True)
