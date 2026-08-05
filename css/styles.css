@@ -3706,3 +3706,438 @@ body.focus-mode .container { padding: 0; }
   outline: 3px solid var(--color-focus);
   outline-offset: 3px;
 }
+
+/* ============================ TaskFlow Refined: Month overview ============================ */
+
+#view-overview,
+#ov-content,
+.overview-page,
+.overview-widget {
+  min-width: 0;
+}
+
+.overview-page {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.overview-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-block: 4px var(--space-2);
+}
+
+.overview-eyebrow,
+.section-kicker {
+  margin: 0 0 var(--space-2);
+  color: var(--color-accent);
+  font: 750 .72rem/1.2 var(--font-body);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.overview-title {
+  margin: 0;
+  color: var(--color-text);
+  font: 760 clamp(1.8rem, 3vw, 2.55rem)/1.08 var(--font-brand);
+  letter-spacing: -.035em;
+}
+
+.overview-subtitle {
+  max-width: 640px;
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font: 450 .96rem/1.55 var(--font-body);
+}
+
+.overview-header .widget-settings-btn {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.metric {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-height: 126px;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgb(52 47 43 / .055);
+}
+
+.metric::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--color-accent);
+}
+
+.metric--goals::before { background: var(--color-positive); }
+.metric--habits::before { background: var(--color-info); }
+.metric--streak::before { background: var(--color-warning); }
+
+.metric-label {
+  color: var(--color-text-muted);
+  font: 650 .78rem/1.3 var(--font-body);
+}
+
+.metric-value {
+  align-self: end;
+  color: var(--color-text);
+  font: 760 2rem/1 var(--font-brand);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.035em;
+}
+
+.metric-meta {
+  color: var(--color-text-muted);
+  font: 500 .76rem/1.35 var(--font-body);
+}
+
+.overview-primary-grid,
+.overview-support-grid,
+.overview-secondary-grid {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.overview-primary-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.overview-support-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.overview-secondary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.overview-primary-grid > .overview-widget {
+  grid-column: span 6;
+}
+
+.overview-primary-grid > .overview-widget--date-card,
+.overview-primary-grid > .overview-widget--weekly-chart,
+.overview-primary-grid > .overview-widget--scene-card {
+  grid-column: span 4;
+}
+
+.overview-primary-grid > .overview-widget--goals,
+.overview-primary-grid > .overview-widget--habits,
+.overview-primary-grid > .overview-widget--streak-heatmap {
+  grid-column: 1 / -1;
+}
+
+.overview-widget--deferred {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 520px;
+}
+
+.overview-widget > .card {
+  height: 100%;
+  margin: 0;
+  padding: clamp(16px, 2vw, 22px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: 0 8px 24px rgb(52 47 43 / .055);
+}
+
+.overview-page .card-title {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text);
+  font: 740 1.08rem/1.3 var(--font-brand);
+  letter-spacing: -.015em;
+}
+
+.overview-page .date-card {
+  display: grid;
+  align-content: space-between;
+  min-height: 250px;
+}
+
+.date-card-period {
+  display: grid;
+  gap: 2px;
+}
+
+.date-card-period strong {
+  color: var(--color-text);
+  font: 760 clamp(1.5rem, 2.4vw, 2.1rem)/1.1 var(--font-brand);
+  letter-spacing: -.03em;
+}
+
+.date-card-period span {
+  color: var(--color-text-muted);
+  font: 650 1rem/1.4 var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.date-card-week {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font: 650 .78rem/1.3 var(--font-body);
+}
+
+.date-card-week .week-select {
+  width: 100%;
+  min-height: 42px;
+  padding-inline: 12px;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: 650 .88rem/1 var(--font-body);
+}
+
+.overview-page .chart-card {
+  min-height: 250px;
+  border-color: var(--color-border);
+}
+
+.overview-page .chart-wrap {
+  height: 198px;
+}
+
+.overview-page .bar {
+  border: 0;
+  border-radius: 5px 5px 2px 2px;
+  background: var(--color-accent);
+  box-shadow: none;
+}
+
+.overview-page .chart-grid .gl-line {
+  background: var(--color-border);
+}
+
+.overview-page .focus-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 250px;
+  background: var(--color-surface-muted);
+}
+
+.focus-card-title {
+  align-self: center;
+  margin: var(--space-3) 0;
+  color: var(--color-text);
+  font: 735 clamp(1.2rem, 2vw, 1.55rem)/1.35 var(--font-brand);
+  letter-spacing: -.025em;
+}
+
+.focus-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font: 600 .78rem/1.3 var(--font-body);
+}
+
+.overview-page .goals-panel,
+.overview-page .habit-panel {
+  background: var(--color-surface);
+}
+
+.overview-page .goals-top {
+  grid-template-columns: minmax(190px, .7fr) minmax(170px, .55fr) minmax(320px, 1.4fr);
+  gap: 0;
+}
+
+.overview-page .goals-top .sub {
+  padding: var(--space-4);
+  border: 0;
+  border-inline-end: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.overview-page .goals-top .reflection {
+  grid-column: 1 / -1;
+  margin-block-start: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted) !important;
+}
+
+.overview-page .ref-title {
+  padding: 10px 12px;
+  border-block-end: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font: 720 .9rem/1.3 var(--font-brand);
+}
+
+.overview-page .big-pct,
+.overview-page .donut-center span {
+  color: var(--color-text);
+  font-family: var(--font-brand);
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-page .stats-table th,
+.overview-page .stats-table td {
+  border-color: var(--color-border);
+}
+
+.overview-page .stats-table th { background: var(--color-surface-muted); }
+.overview-page .stats-table td { background: var(--color-surface); }
+
+.overview-page .v-strip {
+  width: 4px;
+  min-width: 4px;
+  border-radius: var(--radius-pill);
+  color: transparent;
+  font-size: 0;
+}
+
+.overview-page .v-strip.pink { background: var(--color-accent); }
+.overview-page .v-strip.blue { background: var(--color-info); }
+
+.overview-page .habit-title-row {
+  margin-block-end: var(--space-4);
+}
+
+.overview-page .habit-add-row {
+  margin-block-end: var(--space-4);
+}
+
+.overview-page .habit-layout {
+  grid-template-columns: minmax(0, 1.65fr) minmax(260px, .8fr);
+  gap: var(--space-4);
+}
+
+.habit-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  scrollbar-gutter: stable;
+}
+
+.overview-page .habit-chart {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+
+@media (max-width: 1100px) {
+  .overview-primary-grid > .overview-widget--date-card,
+  .overview-primary-grid > .overview-widget--weekly-chart {
+    grid-column: span 6;
+  }
+
+  .overview-primary-grid > .overview-widget--scene-card {
+    grid-column: 1 / -1;
+  }
+
+  .overview-page .goals-top {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-page .goal-list,
+  .overview-page .goals-top .reflection {
+    grid-column: 1 / -1;
+  }
+
+  .overview-page .habit-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .overview-page {
+    gap: var(--space-4);
+  }
+
+  .overview-header {
+    align-items: flex-start;
+  }
+
+  .overview-header .widget-settings-btn {
+    width: 44px;
+    min-width: 44px;
+    padding-inline: 0;
+  }
+
+  .overview-header .widget-settings-btn span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .overview-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric {
+    min-height: 116px;
+    padding: 15px;
+  }
+
+  .overview-primary-grid,
+  .overview-support-grid,
+  .overview-secondary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overview-primary-grid > .overview-widget,
+  .overview-widget--scene-card,
+  .overview-widget--streak-heatmap {
+    grid-column: auto;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .overview-page .goals-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overview-page .goal-list,
+  .overview-page .goals-top .reflection {
+    grid-column: auto;
+  }
+
+  .overview-page .goals-top .sub {
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  .overview-page .habit-add-row {
+    align-items: stretch;
+  }
+
+  .overview-page .habit-add-row .inline-input {
+    flex-basis: 100%;
+  }
+
+  .focus-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -422,7 +422,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const WIDGET_DEFS_OVERVIEW = [
   { id: 'date-card',     labelKey: 'widgetLabel_date-card',     render: function (ms) { return dateCardHTML(); } },
   { id: 'weekly-chart',  labelKey: 'widgetLabel_weekly-chart',  render: function (ms) { return weeklyChartHTML(); } },
-  { id: 'scene-card',    labelKey: 'widgetLabel_scene-card',    render: function (ms) { return sceneCardHTML(); } },
+  { id: 'scene-card',    labelKey: 'widgetLabel_scene-card',    render: function (ms) { return focusCardHTML(); } },
   { id: 'goals',         labelKey: 'widgetLabel_goals',         render: function (ms) { return goalsPanelHTML(ms); } },
   { id: 'habits',        labelKey: 'widgetLabel_habits',        render: function (ms) { return habitPanelHTML(); } },
   { id: 'streak-heatmap',labelKey: 'widgetLabel_streak-heatmap',render: function (ms) { return habitHeatCardHTML(); } },
@@ -513,6 +513,21 @@ const I18N = {
     tabYear: '🗓️ Năm {y}',
     weekN: 'Tuần {n}',
     viewOverview: 'Tổng quan tháng',
+    overviewEyebrow: 'Không gian làm việc tháng',
+    overviewTitle: 'Tổng quan {m}',
+    overviewSubtitle: 'Theo dõi điều quan trọng, điều chỉnh nhịp độ và giữ đà mỗi ngày.',
+    overviewMetricWeek: 'Tiến độ tuần',
+    overviewMetricGoals: 'Mục tiêu hoàn thành',
+    overviewMetricHabits: 'Thói quen hôm nay',
+    overviewMetricStreak: 'Chuỗi hiện tại',
+    overviewMetricWeekMeta: 'Tuần {n}',
+    overviewMetricGoalsMeta: '{done}/{total} mục tiêu',
+    overviewMetricHabitsMeta: '{done}/{total} thói quen',
+    overviewMetricStreakMeta: 'ngày liên tiếp tốt nhất',
+    overviewFocusTitle: 'Ưu tiên tiếp theo',
+    overviewFocusEmpty: 'Chọn một mục tiêu quan trọng để bắt đầu.',
+    overviewOpenWeek: 'Mở kế hoạch tuần',
+    overviewHabitGridAria: 'Bảng theo dõi thói quen trong tháng',
     viewYear: 'Kế hoạch năm',
     viewWeek: 'Kế hoạch tuần',
     brandSub: 'Kế hoạch tháng {n} · {y}',
@@ -915,7 +930,7 @@ const I18N = {
     widgetShow: 'Hiện widget này',
     'widgetLabel_date-card': 'Ngày tháng',
     'widgetLabel_weekly-chart': 'Tiến độ tuần',
-    'widgetLabel_scene-card': 'Cảnh vật',
+    'widgetLabel_scene-card': 'Ưu tiên tiếp theo',
     widgetLabel_goals: 'Mục tiêu tháng',
     widgetLabel_habits: 'Thói quen',
     'widgetLabel_streak-heatmap': 'Streak & Heatmap',
@@ -949,6 +964,21 @@ const I18N = {
     tabYear: '🗓️ Year {y}',
     weekN: 'Week {n}',
     viewOverview: 'Month overview',
+    overviewEyebrow: 'Monthly workspace',
+    overviewTitle: '{m} overview',
+    overviewSubtitle: 'Track what matters, adjust your pace, and keep momentum each day.',
+    overviewMetricWeek: 'Weekly progress',
+    overviewMetricGoals: 'Goals completed',
+    overviewMetricHabits: 'Habits today',
+    overviewMetricStreak: 'Current streak',
+    overviewMetricWeekMeta: 'Week {n}',
+    overviewMetricGoalsMeta: '{done}/{total} goals',
+    overviewMetricHabitsMeta: '{done}/{total} habits',
+    overviewMetricStreakMeta: 'best active run in days',
+    overviewFocusTitle: 'Next priority',
+    overviewFocusEmpty: 'Choose one important goal to get started.',
+    overviewOpenWeek: 'Open weekly plan',
+    overviewHabitGridAria: 'Monthly habit tracking table',
     viewYear: 'Year plan',
     viewWeek: 'Week plan',
     brandSub: '{m} {y}',
@@ -1351,7 +1381,7 @@ const I18N = {
     widgetShow: 'Show this widget',
     'widgetLabel_date-card': 'Date card',
     'widgetLabel_weekly-chart': 'Weekly progress',
-    'widgetLabel_scene-card': 'Scene',
+    'widgetLabel_scene-card': 'Next priority',
     widgetLabel_goals: 'Monthly goals',
     widgetLabel_habits: 'Habits',
     'widgetLabel_streak-heatmap': 'Streak & Heatmap',
@@ -2682,37 +2712,113 @@ function reflectionHTML(key, prompts) {
 
 /* ---------- Tổng quan tháng ---------- */
 
+function overviewMetricSnapshot() {
+  const ms = monthlyStats();
+  const selectedWeek = state.weeks[state.currentWeek - 1] || state.weeks[0];
+  const now = new Date();
+  const todayIndex = now.getFullYear() === PLAN_YEAR && now.getMonth() === PLAN_MONTH ? now.getDate() - 1 : -1;
+  const habitsDone = todayIndex >= 0
+    ? state.habits.filter(function (habit) { return !!habit.days[todayIndex]; }).length
+    : 0;
+  clearStreakCache();
+  const activeStreak = state.habits.reduce(function (best, habit) {
+    return Math.max(best, habitStreakCached(habit).cur);
+  }, 0);
+  return {
+    ms,
+    weekProgress: selectedWeek ? weekStats(selectedWeek).pct : 0,
+    habitsDone,
+    activeStreak,
+  };
+}
+
+function syncOverviewMetrics() {
+  if (!document.querySelector('.overview-metrics')) return;
+  const snapshot = overviewMetricSnapshot();
+  const values = {
+    'overview-week-value': snapshot.weekProgress + '%',
+    'overview-goals-value': String(snapshot.ms.done),
+    'overview-goals-meta': t('overviewMetricGoalsMeta', { done: snapshot.ms.done, total: snapshot.ms.total }),
+    'overview-habits-value': String(snapshot.habitsDone),
+    'overview-habits-meta': t('overviewMetricHabitsMeta', { done: snapshot.habitsDone, total: state.habits.length }),
+    'overview-streak-value': String(snapshot.activeStreak),
+  };
+  Object.entries(values).forEach(function ([role, value]) {
+    const target = document.querySelector(`[data-role="${role}"]`);
+    if (target) target.textContent = value;
+  });
+}
+
+function syncOverviewFocus() {
+  const target = document.querySelector('[data-role="overview-focus-title"]');
+  if (!target) return;
+  const nextGoal = state.monthlyGoals.find(function (goal) { return !goal.done; });
+  target.textContent = nextGoal ? nextGoal.text : t('overviewFocusEmpty');
+}
+
 function renderOverview() {
   const el = document.getElementById('ov-content');
-  const ms = monthlyStats();
+  const snapshot = overviewMetricSnapshot();
+  const ms = snapshot.ms;
   evaluateMonthBadges();
   const widgets = getVisibleWidgets('overview');
-  // Giữ 3 card đầu trong ov-top grid, các card còn lại bên ngoài
-  const topIds = new Set(['date-card', 'weekly-chart', 'scene-card']);
-  const topWidgets = widgets.filter(function (w) { return topIds.has(w.id); });
-  const restWidgets = widgets.filter(function (w) { return !topIds.has(w.id); });
+  const deferredIds = new Set(['streak-heatmap', 'mood', 'badges']);
+  const wrapWidget = function (widget) {
+    const modifier = `overview-widget--${widget.id}`;
+    return `<section class="overview-widget ${modifier}${deferredIds.has(widget.id) ? ' overview-widget--deferred' : ''}" data-widget-id="${widget.id}" aria-label="${esc(widget.label)}">${widget.html}</section>`;
+  };
   el.innerHTML = `
-    <div class="ov-top">
-      ${topWidgets.map(function (w) { return w.html; }).join('')}
+    <div class="overview-page">
+      <header class="overview-header">
+        <div>
+          <p class="overview-eyebrow">${t('overviewEyebrow')}</p>
+          <h1 class="overview-title">${t('overviewTitle', { m: monthLabel(PLAN_MONTH) })}</h1>
+          <p class="overview-subtitle">${t('overviewSubtitle')}</p>
+        </div>
+        <button type="button" class="button button-secondary widget-settings-btn" data-action="widget-settings" data-view="overview" title="${t('widgetSettings')}">
+          ${window.TaskFlowUI.icon('settings')}<span>${t('widgetSettings').replace(/^⚙️\s*/, '')}</span>
+        </button>
+      </header>
+
+      <section class="overview-metrics" aria-label="${t('viewOverview')}">
+        <article class="metric metric--week">
+          <span class="metric-label">${t('overviewMetricWeek')}</span>
+          <strong class="metric-value" data-role="overview-week-value">${snapshot.weekProgress}%</strong>
+          <span class="metric-meta">${t('overviewMetricWeekMeta', { n: state.currentWeek })}</span>
+        </article>
+        <article class="metric metric--goals">
+          <span class="metric-label">${t('overviewMetricGoals')}</span>
+          <strong class="metric-value" data-role="overview-goals-value">${ms.done}</strong>
+          <span class="metric-meta" data-role="overview-goals-meta">${t('overviewMetricGoalsMeta', { done: ms.done, total: ms.total })}</span>
+        </article>
+        <article class="metric metric--habits">
+          <span class="metric-label">${t('overviewMetricHabits')}</span>
+          <strong class="metric-value" data-role="overview-habits-value">${snapshot.habitsDone}</strong>
+          <span class="metric-meta" data-role="overview-habits-meta">${t('overviewMetricHabitsMeta', { done: snapshot.habitsDone, total: state.habits.length })}</span>
+        </article>
+        <article class="metric metric--streak">
+          <span class="metric-label">${t('overviewMetricStreak')}</span>
+          <strong class="metric-value" data-role="overview-streak-value">${snapshot.activeStreak}</strong>
+          <span class="metric-meta">${t('overviewMetricStreakMeta')}</span>
+        </article>
+      </section>
+
+      <div class="overview-primary-grid">
+        ${widgets.map(function (w) { return wrapWidget(w); }).join('')}
+      </div>
     </div>
-    ${restWidgets.map(function (w) { return w.html; }).join('')}
-    <button type="button" class="pop-btn widget-settings-btn" data-action="widget-settings" data-view="overview" title="${t('widgetSettings')}">⚙️ ${t('widgetSettings')}</button>
   `;
 }
 
 function dateCardHTML() {
   return `<div class="card date-card">
-    <div class="chick-orn orn-l" aria-hidden="true">🐥<span class="mini">🎧</span></div>
-    <div class="chick-orn orn-r" aria-hidden="true">🐥<span class="mini">🎧</span></div>
-    <table class="info-table">
-      <tr><th>${t('monthTh')}</th><td>${PLAN_MONTH + 1}</td></tr>
-      <tr><th>${t('yearTh')}</th><td>${PLAN_YEAR}</td></tr>
-      <tr><th>${t('curWeekTh')}</th><td>
-        <select class="week-select" data-action="weekselect" aria-label="${t('selWeekAria')}">
-          ${state.weeks.map((w) => `<option value="${w.n}" ${w.n === state.currentWeek ? 'selected' : ''}>${t('weekN', { n: w.n })}</option>`).join('')}
-        </select>
-      </td></tr>
-    </table>
+    <p class="section-kicker">${t('curMonthTh')}</p>
+    <div class="date-card-period"><strong>${monthLabel(PLAN_MONTH)}</strong><span>${PLAN_YEAR}</span></div>
+    <label class="date-card-week">${t('curWeekTh')}
+      <select class="week-select" data-action="weekselect" aria-label="${t('selWeekAria')}">
+        ${state.weeks.map((w) => `<option value="${w.n}" ${w.n === state.currentWeek ? 'selected' : ''}>${t('weekN', { n: w.n })}</option>`).join('')}
+      </select>
+    </label>
   </div>`;
 }
 
@@ -2735,6 +2841,18 @@ function weeklyChartHTML() {
           </button>`;
         }).join('')}
       </div>
+    </div>
+  </div>`;
+}
+
+function focusCardHTML() {
+  const nextGoal = state.monthlyGoals.find(function (goal) { return !goal.done; });
+  return `<div class="card focus-card">
+    <p class="section-kicker">${t('overviewFocusTitle')}</p>
+    <h3 class="focus-card-title" data-role="overview-focus-title">${nextGoal ? esc(nextGoal.text) : t('overviewFocusEmpty')}</h3>
+    <div class="focus-card-footer">
+      <span>${t('overviewMetricWeekMeta', { n: state.currentWeek })}</span>
+      <button type="button" class="button button-secondary" data-action="weekbar" data-week="${state.currentWeek}">${t('overviewOpenWeek')}</button>
     </div>
   </div>`;
 }
@@ -2804,7 +2922,6 @@ function goalsPanelHTML(ms) {
   return `<div class="card goals-panel">
     <div class="goals-top">
       <div class="goals-info sub">
-        <div class="peek-chick" aria-hidden="true">🐥<span class="mini">📷</span></div>
         <div class="big-pct" data-role="big-pct">${pct}%</div>
         <h3 class="card-title">${t('goalsTitle')}</h3>
         <table class="stats-table">
@@ -2870,7 +2987,6 @@ function habitPanelHTML() {
   const habitToday = (n.getMonth() === PLAN_MONTH && n.getFullYear() === PLAN_YEAR) ? n.getDate() - 1 : -1;
   return `<div class="card habit-panel">
     <div class="habit-title-row">
-      <div class="bear-wrap" aria-hidden="true"><span class="bear">🐻</span><span class="apple">🍎</span></div>
       <div>
         <h3 class="card-title">${t('habitTitle')}</h3>
       </div>
@@ -2887,8 +3003,8 @@ function habitPanelHTML() {
     </div>
     ${templatesPopHTML()}
     <div class="habit-layout">
-      <div class="habit-table-wrap">
-        <table class="habit-table">
+      <div class="habit-table-wrap" role="region" aria-label="${t('overviewHabitGridAria')}" tabindex="0">
+        <table class="habit-table" aria-label="${t('overviewHabitGridAria')}">
           <thead>
             <tr class="mini-bar-tr">
               <th class="sticky name-col" aria-hidden="true"></th>
@@ -6135,6 +6251,8 @@ function afterGoalToggle(g) {
   if (don) don.innerHTML = donutSVG(ms.pct, 140, 18, '#666854');
   const stats = document.querySelector('[data-role="ov-stats"]');
   if (stats) stats.innerHTML = `<td>${ms.done}</td><td>${ms.inProg}</td><td>${ms.total}</td>`;
+  syncOverviewMetrics();
+  syncOverviewFocus();
   save();
 }
 
@@ -6177,6 +6295,7 @@ function afterHabitToggle() {
     if (m) m.style.height = Math.max(dayAggregate(d), 4) + '%';
   }
   refreshHeatCard();
+  syncOverviewMetrics();
   save();
 }
 

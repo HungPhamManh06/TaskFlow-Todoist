@@ -422,7 +422,7 @@ test('8.1: widget config + helpers', () => {
 
 test('8.2: renderOverview dùng widget config', () => {
   assert.match(APP_JS, /getVisibleWidgets\('overview'\)/);
-  assert.match(APP_JS, /ov-top/);
+  assert.match(APP_JS, /overview-primary-grid/);
   assert.match(APP_JS, /data-action="widget-settings"/);
 });
 

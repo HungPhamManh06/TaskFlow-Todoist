@@ -181,6 +181,86 @@ test('keyboard navigation keeps its tab node when the selected week is unchanged
   );
 });
 
+test('overview renderer exposes a refined productivity dashboard contract', () => {
+  const overview = APP_JS.slice(
+    APP_JS.indexOf('function renderOverview()'),
+    APP_JS.indexOf('function dateCardHTML()')
+  );
+  assert.match(overview, /class="overview-page"/);
+  assert.match(overview, /class="overview-header"/);
+  assert.match(overview, /<h1[^>]*class="overview-title"/);
+  assert.match(overview, /class="overview-metrics"/);
+  assert.equal((overview.match(/class="metric metric--/g) || []).length, 4);
+  assert.match(overview, /class="overview-primary-grid"/);
+  assert.match(overview, /class="overview-widget/);
+  assert.match(overview, /data-widget-id=/);
+  assert.doesNotMatch(overview, /topIds|sceneCardHTML|chick-row|class="scene/);
+});
+
+test('overview keeps the persisted widget order in one ordered grid', () => {
+  const overview = APP_JS.slice(
+    APP_JS.indexOf('function renderOverview()'),
+    APP_JS.indexOf('function dateCardHTML()')
+  );
+  assert.match(overview, /class="overview-primary-grid"[\s\S]{0,240}widgets\.map\(/);
+  assert.doesNotMatch(overview, /primaryWidgets|supportWidgets|deferredWidgets|\.filter\(function \(w\)/);
+});
+
+test('overview metrics synchronize after inline goal and habit mutations', () => {
+  const overview = APP_JS.slice(
+    APP_JS.indexOf('function renderOverview()'),
+    APP_JS.indexOf('function dateCardHTML()')
+  );
+  ['overview-week-value', 'overview-goals-value', 'overview-goals-meta', 'overview-habits-value', 'overview-habits-meta', 'overview-streak-value']
+    .forEach((role) => assert.match(overview, new RegExp(`data-role="${role}"`)));
+  assert.match(APP_JS, /function syncOverviewMetrics\(\)/);
+  const goalToggle = APP_JS.slice(APP_JS.indexOf('function afterGoalToggle'), APP_JS.indexOf('function afterYearGoalToggle'));
+  const habitToggle = APP_JS.slice(APP_JS.indexOf('function afterHabitToggle'), APP_JS.indexOf('function afterWGoalToggle'));
+  assert.match(goalToggle, /syncOverviewMetrics\(\)/);
+  assert.match(habitToggle, /syncOverviewMetrics\(\)/);
+});
+
+test('overview next priority synchronizes after an inline goal mutation', () => {
+  const focusCard = APP_JS.slice(
+    APP_JS.indexOf('function focusCardHTML()'),
+    APP_JS.indexOf('function sceneCardHTML()')
+  );
+  assert.match(focusCard, /data-role="overview-focus-title"/);
+  assert.match(APP_JS, /function syncOverviewFocus\(\)/);
+  const goalToggle = APP_JS.slice(APP_JS.indexOf('function afterGoalToggle'), APP_JS.indexOf('function afterYearGoalToggle'));
+  assert.match(goalToggle, /syncOverviewFocus\(\)/);
+});
+
+test('overview widget registry preserves IDs without rendering the decorative scene', () => {
+  const registry = APP_JS.slice(
+    APP_JS.indexOf('const WIDGET_DEFS_OVERVIEW'),
+    APP_JS.indexOf('const WIDGET_DEFS_YEAR')
+  );
+  ['date-card', 'weekly-chart', 'scene-card', 'goals', 'habits', 'streak-heatmap', 'mood', 'badges']
+    .forEach((id) => assert.match(registry, new RegExp(`id: '${id}'`)));
+  assert.match(registry, /id: 'scene-card'[\s\S]{0,160}focusCardHTML/);
+  assert.doesNotMatch(registry, /sceneCardHTML/);
+});
+
+test('overview styles contain wide data surfaces and stack widgets on mobile', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  assert.match(styles, /\.overview-primary-grid\s*{[^}]*display:\s*grid/s);
+  assert.match(styles, /\.overview-widget--deferred\s*{[^}]*content-visibility:\s*auto[^}]*contain-intrinsic-size:/s);
+  assert.match(styles, /\.habit-table-wrap\s*{[^}]*overflow-x:\s*auto/s);
+  const mobile = styles.slice(styles.indexOf('@media (max-width: 767px)'));
+  assert.match(mobile, /\.overview-metrics[^}]*grid-template-columns:\s*repeat\(2,/s);
+  assert.match(mobile, /\.overview-primary-grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+});
+
+test('overview habit grid has a named scroll region and table', () => {
+  const habits = APP_JS.slice(
+    APP_JS.indexOf('function habitPanelHTML()'),
+    APP_JS.indexOf('/* ---------- Streak')
+  );
+  assert.match(habits, /class="habit-table-wrap"[^>]*role="region"[^>]*aria-label=/);
+  assert.match(habits, /<table class="habit-table"[^>]*aria-label=/);
+});
+
 test('tools drawer supports dismissal and focus restoration', () => {
   assert.match(APP_JS, /function openToolsDrawer\(/);
   assert.match(APP_JS, /function closeToolsDrawer\(/);
@@ -231,7 +311,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v50';/);
+  assert.match(SW, /const CACHE = 'taskflow-v52';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -294,8 +374,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system assets are available in the v50 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v50';/);
+test('design system assets are available in the v52 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v52';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './icons/ui-sprite.svg', './js/ui.js',
