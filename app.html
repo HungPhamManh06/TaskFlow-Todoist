@@ -154,6 +154,24 @@
     <div class="tools-drawer-scroll">
       <section class="tools-group" aria-labelledby="toolsPlanningTitle">
         <h3 id="toolsPlanningTitle">Lập kế hoạch</h3>
+        <nav class="tools-month-nav" aria-label="Chuyển tháng trong năm" data-i18n-aria="navMonths">
+          <button type="button" class="icon-button" id="drawerPrevMonth" data-action="prevmonth"
+            title="Tháng trước" aria-label="Tháng trước" data-i18n-title="prevMonth"
+            data-i18n-aria="prevMonth" data-shell-icon="chevron-left"></button>
+          <select class="month-select" id="drawerMonthSelect" data-action="monthselect"
+            aria-label="Chọn tháng" data-i18n-aria="selectMonth"></select>
+          <button type="button" class="icon-button" id="drawerNextMonth" data-action="nextmonth"
+            title="Tháng sau" aria-label="Tháng sau" data-i18n-title="nextMonth"
+            data-i18n-aria="nextMonth" data-shell-icon="chevron-right"></button>
+        </nav>
+        <div class="tools-action-grid tools-history-actions" aria-label="Lịch sử thay đổi">
+          <button type="button" class="tools-action" id="drawerUndo" data-action="undo"
+            title="Hoàn tác (Ctrl+Z)" aria-label="Hoàn tác" data-i18n-title="undoBtn"
+            data-i18n-aria="undoBtn" data-shell-icon="undo" disabled><span>Hoàn tác</span></button>
+          <button type="button" class="tools-action" id="drawerRedo" data-action="redo"
+            title="Làm lại (Ctrl+Shift+Z)" aria-label="Làm lại" data-i18n-title="redoBtn"
+            data-i18n-aria="redoBtn" data-shell-icon="redo" disabled><span>Làm lại</span></button>
+        </div>
         <div class="tools-action-grid">
           <button type="button" class="tools-action" id="btnNow" data-action="gotoday"
             data-i18n-title="todayTitle" data-shell-icon="calendar"><span data-i18n="todayTxt">Hôm nay</span></button>

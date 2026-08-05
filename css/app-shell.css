@@ -321,6 +321,34 @@ body.tools-drawer-open {
   gap: 8px;
 }
 
+.tools-month-nav {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 8px;
+  margin-block-end: 8px;
+}
+
+.tools-month-nav .icon-button,
+.tools-drawer .tools-month-nav .month-select {
+  width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.tools-drawer .tools-month-nav .month-select {
+  padding-inline: 10px 30px;
+  font: 700 .8125rem/1 var(--font-body);
+}
+
+.tools-history-actions {
+  margin-block-end: 8px;
+}
+
 .tools-action,
 .tools-row {
   display: flex;

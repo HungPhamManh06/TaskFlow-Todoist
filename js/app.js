@@ -124,9 +124,11 @@ function updateBrand() {
 }
 
 function buildMonthNav() {
-  const sel = document.getElementById('monthSelect');
-  if (!sel) return;
-  sel.innerHTML = MONTH_NAMES.map((n, m) => `<option value="${m}" ${m === PLAN_MONTH ? 'selected' : ''}>${t('monthOption', { m: monthLabel(m), n: m + 1, y: PLAN_YEAR })}</option>`).join('');
+  const options = MONTH_NAMES.map((n, m) => `<option value="${m}">${t('monthOption', { m: monthLabel(m), n: m + 1, y: PLAN_YEAR })}</option>`).join('');
+  document.querySelectorAll('[data-action="monthselect"]').forEach((select) => {
+    select.innerHTML = options;
+    select.value = String(PLAN_MONTH);
+  });
 }
 
 /* ============================ Kế hoạch năm ============================ */
@@ -5125,7 +5127,11 @@ function closeToolsDrawer() {
   if (backdrop) backdrop.hidden = true;
   document.body.classList.remove('tools-drawer-open');
   document.querySelectorAll('[data-action="tools-open"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
-  if (toolsDrawerOpener && toolsDrawerOpener.isConnected) toolsDrawerOpener.focus();
+  const focusTarget = toolsDrawerOpener && toolsDrawerOpener.isConnected
+    ? toolsDrawerOpener
+    : Array.from(document.querySelectorAll('[data-action="tools-open"]'))
+      .find((button) => button.getClientRects().length);
+  if (focusTarget) focusTarget.focus();
   toolsDrawerOpener = null;
 }
 
@@ -5166,8 +5172,9 @@ document.addEventListener('keydown', (e) => {
 function setView(view, week) {
   state.view = view;
   if (week) {
+    const weekChanged = state.currentWeek !== week;
     state.currentWeek = week;
-    buildNav();
+    if (weekChanged) buildNav();
   }
   updateNav();
   const ov = document.getElementById('view-overview');
@@ -5311,10 +5318,14 @@ function doRedo() {
   trackEvent('redo');
 }
 function updateUndoButtons() {
-  const u = document.getElementById('btnUndo');
-  const r = document.getElementById('btnRedo');
-  if (u) u.disabled = !(undoStack && undoStack.canUndo());
-  if (r) r.disabled = !(undoStack && undoStack.canRedo());
+  const undoDisabled = !(undoStack && undoStack.canUndo());
+  const redoDisabled = !(undoStack && undoStack.canRedo());
+  document.querySelectorAll('[data-action="undo"]').forEach((button) => {
+    button.disabled = undoDisabled;
+  });
+  document.querySelectorAll('[data-action="redo"]').forEach((button) => {
+    button.disabled = redoDisabled;
+  });
 }
 
 /* ---------- Phím tắt (Phase 5.3) ---------- */

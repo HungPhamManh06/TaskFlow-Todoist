@@ -138,6 +138,34 @@ test('application shell keeps one primary Add Task action and every header capab
   assert.match(APP, /class="[^"]*landing-link[^>]*href="index\.html"/);
 });
 
+test('responsive tools drawer keeps month navigation and history actions reachable', () => {
+  const drawer = APP.slice(APP.indexOf('id="toolsDrawer"'), APP.indexOf('id="mobileNav"'));
+  [
+    ['drawerPrevMonth', 'prevmonth'],
+    ['drawerMonthSelect', 'monthselect'],
+    ['drawerNextMonth', 'nextmonth'],
+    ['drawerUndo', 'undo'],
+    ['drawerRedo', 'redo'],
+  ].forEach(([id, action]) => {
+    assert.match(drawer, new RegExp(`id=["']${id}["'][^>]*data-action=["']${action}["']`));
+    assert.equal((APP.match(new RegExp(`id=["']${id}["']`, 'g')) || []).length, 1, `duplicate id: ${id}`);
+  });
+  assert.match(drawer, /id="drawerPrevMonth"[^>]*data-shell-icon="chevron-left"/);
+  assert.match(drawer, /id="drawerNextMonth"[^>]*data-shell-icon="chevron-right"/);
+  assert.match(drawer, /id="drawerUndo"[^>]*data-shell-icon="undo"[^>]*disabled/);
+  assert.match(drawer, /id="drawerRedo"[^>]*data-shell-icon="redo"[^>]*disabled/);
+
+  const shell = readRequiredAsset('css/app-shell.css');
+  assert.match(shell, /\.tools-month-nav[\s\S]{0,500}min-height:\s*44px/);
+});
+
+test('month and undo state updates synchronize every responsive shell control', () => {
+  assert.match(APP_JS, /querySelectorAll\('\[data-action="monthselect"\]'\)/);
+  assert.match(APP_JS, /querySelectorAll\('\[data-action="undo"\]'\)/);
+  assert.match(APP_JS, /querySelectorAll\('\[data-action="redo"\]'\)/);
+  assert.doesNotMatch(APP_JS, /const sel = document\.getElementById\('monthSelect'\)/);
+});
+
 test('navigation renderer synchronizes every desktop and mobile destination', () => {
   assert.match(APP_JS, /querySelectorAll\('\[data-nav-view\]'\)/);
   assert.match(APP_JS, /setAttribute\('aria-current',\s*active\s*\?\s*'page'\s*:\s*'false'\)/);
@@ -146,10 +174,18 @@ test('navigation renderer synchronizes every desktop and mobile destination', ()
   assert.doesNotMatch(APP_JS, /closest\('#navTabs \.tab'\)/);
 });
 
+test('keyboard navigation keeps its tab node when the selected week is unchanged', () => {
+  assert.match(
+    APP_JS,
+    /const weekChanged = state\.currentWeek !== week;[\s\S]{0,120}state\.currentWeek = week;[\s\S]{0,120}if \(weekChanged\) buildNav\(\);/
+  );
+});
+
 test('tools drawer supports dismissal and focus restoration', () => {
   assert.match(APP_JS, /function openToolsDrawer\(/);
   assert.match(APP_JS, /function closeToolsDrawer\(/);
-  assert.match(APP_JS, /toolsDrawerOpener\.focus\(\)/);
+  assert.match(APP_JS, /focusTarget\.focus\(\)/);
+  assert.match(APP_JS, /toolsDrawerOpener\.isConnected[\s\S]{0,320}getClientRects\(\)\.length/);
   assert.match(APP_JS, /e\.key === 'Escape'[\s\S]{0,240}closeToolsDrawer\(\)/);
   assert.match(APP, /id="toolsDrawerBackdrop"[^>]*data-action="tools-close"/);
 });
@@ -195,7 +231,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v49';/);
+  assert.match(SW, /const CACHE = 'taskflow-v50';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -258,8 +294,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system assets are available in the v49 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v49';/);
+test('design system assets are available in the v50 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v50';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './icons/ui-sprite.svg', './js/ui.js',

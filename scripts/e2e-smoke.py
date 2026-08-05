@@ -42,6 +42,14 @@ def desktop_checks(browser, base, errors, screenshots):
     assert page.locator(".app-primary-action").count() == 1
     assert_no_overflow(page, "desktop")
 
+    overview_tab = page.locator('#desktopSidebar [data-nav-view="overview"]')
+    overview_tab.focus()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_selector("#view-week.active")
+    assert page.evaluate("document.activeElement?.dataset.navView === 'week'")
+    overview_tab.click()
+    page.wait_for_selector("#view-overview.active")
+
     habit = page.locator('[data-action="habit"]').first
     before = habit.get_attribute("aria-checked")
     habit.click()
@@ -104,12 +112,40 @@ def mobile_checks(browser, base, errors, screenshots):
     more.click()
     page.wait_for_selector("#toolsDrawer:not([hidden])")
     assert page.locator("#toolsDrawerBackdrop:not([hidden])").count() == 1
+
+    period_before = page.locator("#appPeriod").inner_text()
+    page.locator("#drawerNextMonth").click()
+    page.wait_for_function(
+        "before => document.querySelector('#appPeriod').textContent.trim() !== before",
+        period_before,
+    )
+    drawer_month = page.locator("#drawerMonthSelect")
+    current_month = int(drawer_month.input_value())
+    selected_month = (current_month + 2) % 12
+    drawer_month.select_option(str(selected_month))
+    assert drawer_month.input_value() == str(selected_month)
+    assert page.locator("#drawerUndo").is_disabled()
+    assert page.locator("#drawerRedo").is_disabled()
+
     page.keyboard.press("Escape")
     assert page.locator("#toolsDrawer[hidden]").count() == 1
     assert page.evaluate("document.activeElement === document.querySelector('#mobileNav [data-action=\"tools-open\"]')")
 
+    page.locator('#mobileNav [data-nav-view="week"]').click()
+    page.wait_for_selector("#view-week.active")
+    task_count = page.locator('[data-role="task-text"]').count()
     page.locator(".app-primary-action").click()
     page.wait_for_selector("#view-week.active")
+    assert page.locator('[data-role="task-text"]').count() == task_count + 1
+
+    more.click()
+    page.wait_for_selector("#toolsDrawer:not([hidden])")
+    assert not page.locator("#drawerUndo").is_disabled()
+    assert page.locator("#drawerRedo").is_disabled()
+    page.locator("#drawerUndo").click()
+    assert not page.locator("#drawerRedo").is_disabled()
+    page.locator('[data-action="tools-close"]').first.click()
+    assert page.locator("#toolsDrawer[hidden]").count() == 1
     assert_no_overflow(page, "mobile after interactions")
     page.screenshot(path=screenshots["mobile"], full_page=True)
     page.close()
