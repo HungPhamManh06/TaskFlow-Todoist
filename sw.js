@@ -3,7 +3,7 @@
    Chiáº¿n lÆ°á»£c: network-first cho Ä‘iá»u hÆ°á»›ng, stale-while-revalidate cho tÄ©nh. */
 'use strict';
 
-const CACHE = 'taskflow-v47';
+const CACHE = 'taskflow-v48';
 const APP_SHELL = [
   './',
   './index.html',
@@ -66,7 +66,7 @@ self.addEventListener('fetch', (e) => {
 
   // TÄ©nh: stale-while-revalidate
   e.respondWith(
-    caches.match(req).then((cached) => {
+    caches.match(req, { ignoreSearch: true }).then((cached) => {
       const fresh = fetch(req)
         .then((res) => {
           if (res && res.ok) {

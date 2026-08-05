@@ -3700,3 +3700,9 @@ body.focus-mode .container { padding: 0; }
 .widget-toggle.on { background: var(--olive-donut); color: #fff; border-color: var(--olive-donut); }
 .widget-toggle.off { background: var(--surface); color: var(--ink-light); }
 .widget-toggle:hover { transform: scale(1.1); }
+
+/* Final cascade guard: legacy view styles must not suppress keyboard focus. */
+:root :is(button, a, input, select, textarea, [contenteditable]):focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}

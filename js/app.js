@@ -1441,6 +1441,10 @@ function systemPrefersDark() {
   return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
+function prefersReducedMotion(matchMedia = window.matchMedia) {
+  return Boolean(matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
 function darkIsOn() { return DARK === null ? systemPrefersDark() : DARK; }
 
 function applyDark() {
@@ -1449,7 +1453,7 @@ function applyDark() {
   const btn = document.getElementById('btnDark');
   if (btn) btn.textContent = on ? '☀️' : '🌙';
   const mc = document.querySelector('meta[name="theme-color"]');
-  if (mc) mc.setAttribute('content', on ? '#221C16' : '#EFE6D5');
+  if (mc) mc.setAttribute('content', on ? '#1b1917' : '#f4f0e9');
 }
 
 function toggleDark() {
@@ -1926,6 +1930,7 @@ document.addEventListener('click', (e) => {
 
 let confettiRun = null;
 function confettiBurst() {
+  if (prefersReducedMotion()) return;
   if (confettiRun) return;
   const canvas = document.createElement('canvas');
   canvas.className = 'confetti-canvas';
@@ -5550,7 +5555,7 @@ document.addEventListener('click', (e) => {
   if (act === 'nav') setView(el.dataset.view, +el.dataset.week || undefined);
   else if (act === 'journey') {
     const target = document.getElementById('ov-content');
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (target) target.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
   } else if (act === 'prevmonth') openMonth(PLAN_MONTH - 1);
   else if (act === 'nextmonth') openMonth(PLAN_MONTH + 1);
   else if (act === 'prevyear') openYear(-1);
