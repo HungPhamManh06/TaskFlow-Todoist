@@ -1,0 +1,10 @@
+/* Stable shell roots. Task 3 will attach navigation and responsive layout markup. */
+.app-layout {
+  min-height: 100dvh;
+  background: var(--color-canvas);
+  color: var(--color-text);
+}
+
+.app-workspace {
+  min-width: 0;
+}

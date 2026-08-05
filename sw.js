@@ -3,12 +3,15 @@
    Chiáº¿n lÆ°á»£c: network-first cho Ä‘iá»u hÆ°á»›ng, stale-while-revalidate cho tÄ©nh. */
 'use strict';
 
-const CACHE = 'taskflow-v46';
+const CACHE = 'taskflow-v47';
 const APP_SHELL = [
   './',
   './index.html',
   './app.html',
   './manifest.json',
+  './css/tokens.css',
+  './css/components.css',
+  './css/app-shell.css',
   './css/styles.css',
   './css/landing.css',
   './js/app.js',
@@ -18,6 +21,7 @@ const APP_SHELL = [
   './js/ui.js',
   './js/plan-math.js',
   './js/plan-stats.js',
+  './icons/ui-sprite.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

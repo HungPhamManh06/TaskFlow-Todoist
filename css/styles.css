@@ -3254,7 +3254,7 @@ sup.remind-dot {
   background: transparent;
   cursor: pointer;
   color: var(--ink-soft, #857062);
-  transition: all .15s ease;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
   white-space: nowrap;
 }
 .chat-chip:hover {
