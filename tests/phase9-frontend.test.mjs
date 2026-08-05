@@ -170,6 +170,8 @@ test('landing actions keep AA contrast and accessible names follow the selected 
   assert.match(LANDING, /data-label-vi=["'][^"']+["']\s+data-label-en=["'][^"']+["']/);
   assert.match(LANDING, /querySelectorAll\('\[data-label-vi\]'\)/);
   assert.match(LANDING, /setAttribute\('aria-label',\s*element\.getAttribute\(labelAttribute\)\)/);
+  assert.match(LANDING_CSS, /\.landing-skip\s*{[^}]*background:\s*var\(--landing-action-bg\)/s);
+  assert.match(LANDING_CSS, /\.landing-cta-final\s+:where\(a,\s*button\):focus-visible\s*{[^}]*outline-color:\s*#fff/s);
 });
 
 test('application shell exposes responsive navigation and working surfaces', () => {
@@ -533,7 +535,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v56';/);
+  assert.match(SW, /const CACHE = 'taskflow-v57';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -574,7 +576,7 @@ test('design system components include accessibility, motion, and numeric contra
     .forEach((selector) => assert.match(components, new RegExp(`${selector}[^,{]*:focus-visible`)));
   assert.match(components, /font-variant-numeric:\s*tabular-nums/);
   assert.match(components, /overscroll-behavior:\s*contain/);
-  assert.match(components, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+  assert.match(components, /@media\s*\(prefers-reduced-motion:\s*reduce\)[^]*transition:\s*none\s*!important/);
   const touchRules = components.slice(components.indexOf('@media (max-width: 720px)'));
   assert.match(touchRules, /min-width:\s*44px/);
   assert.match(touchRules, /min-height:\s*44px/);
@@ -596,8 +598,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system and landing assets are available in the v56 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v56';/);
+test('design system and landing assets are available in the v57 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v57';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -640,6 +642,48 @@ test('hardening: versioned static requests use query-insensitive offline cache m
   assert.equal(await responsePromise, cachedResponse);
   assert.equal(matchCalls.length, 1);
   assert.equal(matchCalls[0].options?.ignoreSearch, true);
+});
+
+test('release: offline app deep links resolve the cached app shell instead of landing', async () => {
+  const handlers = {};
+  const matchCalls = [];
+  const appShell = { source: 'app-shell' };
+  const context = {
+    URL,
+    location: { origin: 'https://taskflow.test' },
+    caches: {
+      match(request, options) {
+        matchCalls.push({ request, options });
+        if (options?.ignoreSearch && String(request.url || request).includes('app.html')) {
+          return Promise.resolve(appShell);
+        }
+        return Promise.resolve(undefined);
+      },
+      open() { return Promise.resolve({ put() {} }); },
+      keys() { return Promise.resolve([]); },
+    },
+    fetch() { return Promise.reject(new Error('offline')); },
+    self: {
+      addEventListener(type, handler) { handlers[type] = handler; },
+      clients: { claim() {} },
+      skipWaiting() {},
+      registration: { showNotification() {} },
+    },
+  };
+  vm.runInNewContext(SW, context);
+
+  let responsePromise;
+  handlers.fetch({
+    request: {
+      method: 'GET', mode: 'navigate',
+      url: 'https://taskflow.test/app.html?view=overview&m=2026-08',
+    },
+    respondWith(promise) { responsePromise = promise; },
+  });
+
+  assert.equal(await responsePromise, appShell);
+  assert.equal(matchCalls[0].options?.ignoreSearch, true);
+  assert.match(String(matchCalls[0].request.url || matchCalls[0].request), /app\.html/);
 });
 
 test('hardening: muted text meets 4.5 contrast against every theme canvas', () => {
@@ -702,4 +746,36 @@ test('hardening: reduced-motion helper suppresses confetti and smooth journey sc
 test('hardening: browser theme metadata follows semantic cream and dark canvases', () => {
   assert.match(APP, /<meta name="theme-color" content="#f4f0e9"/i);
   assert.match(APP_JS, /mc\.setAttribute\('content', on \? '#1b1917' : '#f4f0e9'\)/i);
+});
+
+test('release: inactive views stay hidden and unrelated views are not rendered', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  assert.match(styles, /\.view\s*{\s*display:\s*none/);
+  assert.match(styles, /\.view\.active\s*{\s*display:\s*block/);
+  const setViewSource = APP_JS.slice(APP_JS.indexOf('function setView('), APP_JS.indexOf('function goWeek('));
+  assert.match(setViewSource, /if \(view === 'overview'\)[^]*renderOverview\(\)[^]*else if \(view === 'week'\)[^]*renderWeek\(\)/);
+  assert.match(setViewSource, /else if \(view === 'calendar'\)[^]*renderCalendar\(\)[^]*else[^]*renderYear\(\)/);
+});
+
+test('release: deferred overview content and reduced motion avoid unnecessary work', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  const components = readRequiredAsset('css/components.css');
+  assert.match(styles, /\.overview-widget--deferred\s*{[^}]*content-visibility:\s*auto[^}]*contain-intrinsic-size:/s);
+  assert.match(components, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+  assert.match(LANDING_CSS, /@media\s*\(prefers-reduced-motion:\s*reduce\)[^]*transition:\s*none\s*!important/);
+});
+
+test('release: frontend CSS avoids transition-all and restores suppressed outlines', () => {
+  const sources = ['css/components.css', 'css/app-shell.css', 'css/styles.css', 'css/landing.css']
+    .map(readRequiredAsset);
+  sources.forEach((source) => assert.doesNotMatch(source, /transition:\s*all\b/));
+  const styles = sources[2];
+  assert.ok(styles.lastIndexOf(':root :is(') > styles.lastIndexOf('outline: none'));
+});
+
+test('release: redundant emoji is removed from tool labels backed by local icons', () => {
+  assert.match(APP_JS, /todayTxt:\s*'Hôm nay'/);
+  assert.match(APP_JS, /dataTitle:\s*'Dữ liệu của bạn'/);
+  assert.match(APP_JS, /remindTitle:\s*'Nhắc việc hằng ngày'/);
+  assert.doesNotMatch(APP_JS, /todayTxt:\s*'[📍]|dataTitle:\s*'[💾]|remindTitle:\s*'[🔔]/u);
 });

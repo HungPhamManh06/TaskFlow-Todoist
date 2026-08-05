@@ -3,7 +3,7 @@
    Chiáº¿n lÆ°á»£c: network-first cho Ä‘iá»u hÆ°á»›ng, stale-while-revalidate cho tÄ©nh. */
 'use strict';
 
-const CACHE = 'taskflow-v56';
+const CACHE = 'taskflow-v57';
 const APP_SHELL = [
   './',
   './index.html',
@@ -50,6 +50,7 @@ self.addEventListener('fetch', (e) => {
 
   // Äiá»u hÆ°á»›ng: Æ°u tiÃªn máº¡ng, offline â†’ cache shell (cache theo Ä‘Ãºng URL trang)
   if (req.mode === 'navigate') {
+    const offlineShell = url.pathname.endsWith('/app.html') ? './app.html' : './index.html';
     e.respondWith(
       fetch(req)
         .then((res) => {
@@ -58,7 +59,8 @@ self.addEventListener('fetch', (e) => {
           return res;
         })
         .catch(() =>
-          caches.match(req).then((cached) => cached || caches.match('./index.html'))
+          caches.match(req, { ignoreSearch: true })
+            .then((cached) => cached || caches.match(offlineShell))
         )
     );
     return;

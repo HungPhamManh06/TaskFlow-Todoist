@@ -326,18 +326,74 @@ def landing_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def focus_checks(browser, base, width, height, errors, screenshot):
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"focus {width}px: {error}"))
+    load_app(page, base)
+
+    trigger = page.locator('[data-action="focus"]:visible').first
+    if trigger.count() == 0:
+        page.locator('[data-action="tools-open"]:visible').first.click()
+        page.wait_for_selector("#toolsDrawer:not([hidden])")
+        trigger = page.locator('#toolsDrawer [data-action="focus"]')
+    trigger.click()
+    page.wait_for_selector("#focusOverlay:not([hidden])")
+    assert page.locator("body.focus-mode").count() == 1
+    assert page.locator('#focusOverlay [data-action="focus-close"]').count() == 1
+    assert_no_page_overflow(page, f"focus {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.locator('#focusOverlay [data-action="focus-close"]').click()
+    assert page.locator("#focusOverlay[hidden]").count() == 1
+    page.close()
+
+
+def dark_overview_checks(browser, base, width, height, errors, screenshot):
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
+    page.add_init_script("""
+      localStorage.setItem('planner-onboarded','1');
+      localStorage.setItem('planner-dark','1');
+    """)
+    page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
+    page.wait_for_selector("#view-overview.active .overview-page")
+    assert page.locator("html").get_attribute("data-dark") == "true"
+    assert_no_page_overflow(page, f"dark overview {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def release_layout_checks(browser, base, width, height, errors):
+    landing = browser.new_page(viewport={"width": width, "height": height})
+    landing.on("pageerror", lambda error: errors.append(f"release landing {width}px: {error}"))
+    landing.goto(f"{base}/index.html", wait_until="networkidle")
+    assert_no_page_overflow(landing, f"release landing {width}px")
+    landing.close()
+
+    for view in ("overview", "week", "year", "calendar"):
+        page = browser.new_page(viewport={"width": width, "height": height})
+        page.on("pageerror", lambda error, v=view: errors.append(f"release {v} {width}px: {error}"))
+        page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+        page.goto(f"{base}/app.html?view={view}", wait_until="networkidle")
+        page.wait_for_selector(f"#view-{view}.active")
+        assert page.locator(f"#view-{view} h1").count() == 1
+        assert_no_page_overflow(page, f"release {view} {width}px")
+        page.close()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--view", choices=["overview", "week", "year", "calendar"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
+    parser.add_argument("--all", action="store_true")
+    parser.add_argument("--screenshots", action="store_true")
     args = parser.parse_args()
 
     httpd = socketserver.TCPServer(("127.0.0.1", 0), Handler)
     port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{port}"
-    shot_label = "landing" if args.landing else "dialogs" if args.dialogs else args.view
+    shot_label = "release" if args.all else "landing" if args.landing else "dialogs" if args.dialogs else args.view
     shots = {
         "desktop": os.path.join(tempfile.gettempdir(), f"taskflow-{shot_label}-desktop.png"),
         "mobile": os.path.join(tempfile.gettempdir(), f"taskflow-{shot_label}-mobile.png"),
@@ -347,7 +403,27 @@ def main():
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
-            if args.landing:
+            if args.all:
+                release_layout_checks(browser, base, 360, 800, errors)
+                release_layout_checks(browser, base, 1024, 768, errors)
+                matrix = ((390, 844), (768, 1024), (1440, 900))
+                scenarios = (
+                    ("landing", landing_checks),
+                    ("overview", overview_checks),
+                    ("week", week_checks),
+                    ("year", year_checks),
+                    ("calendar", calendar_checks),
+                    ("dialogs", dialog_checks),
+                    ("focus", focus_checks),
+                    ("dark-overview", dark_overview_checks),
+                )
+                for width, height in matrix:
+                    for scenario, check in scenarios:
+                        screenshot = os.path.join(
+                            tempfile.gettempdir(), f"taskflow-{scenario}-{width}.png"
+                        )
+                        check(browser, base, width, height, errors, screenshot)
+            elif args.landing:
                 landing_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 landing_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.dialogs:
@@ -372,7 +448,7 @@ def main():
     if errors:
         print("PAGE ERRORS:", errors[:8])
         return 1
-    label = "LANDING" if args.landing else "DIALOGS" if args.dialogs else args.view.upper()
+    label = "RELEASE" if args.all else "LANDING" if args.landing else "DIALOGS" if args.dialogs else args.view.upper()
     print(f"E2E {label} OK")
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0
