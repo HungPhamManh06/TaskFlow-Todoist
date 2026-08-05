@@ -12,6 +12,8 @@ const APP = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
 const SYNC_JS = readFileSync(path.join(ROOT, 'js/sync.js'), 'utf8');
 const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+const LANDING = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const LANDING_CSS = readFileSync(path.join(ROOT, 'css/landing.css'), 'utf8');
 
 function readRequiredAsset(relativePath) {
   const absolutePath = path.join(ROOT, relativePath);
@@ -123,6 +125,51 @@ test('checkbox accessibility helper requires and escapes a non-empty label', () 
 test('app exposes skip link and main landmark', () => {
   assert.match(APP, /class="skip-link"[^>]*href="#appMain"/);
   assert.match(APP, /<main[^>]*id="appMain"/);
+});
+
+test('landing exposes the refined marketing structure with one clear conversion path', () => {
+  assert.equal((LANDING.match(/<h1\b/gi) || []).length, 1);
+  [
+    'landingNav', 'landingHero', 'productPreview', 'trustStrip',
+    'featureNarrative', 'landingCtaFinal', 'landingFooter',
+  ].forEach((id) => assert.match(LANDING, new RegExp(`id=["']${id}["']`)));
+  assert.equal(
+    (LANDING.match(/class=["'][^"']*hero-primary-cta[^"']*["'][^>]*href=["']app\.html["']/gi) || []).length,
+    1
+  );
+  assert.doesNotMatch(LANDING, /class=["'][^"']*bricks\b/i);
+});
+
+test('landing product evidence is semantic, responsive, and linked by stable anchors', () => {
+  assert.match(LANDING, /class=["'][^"']*product-preview[^"']*["']/);
+  assert.match(LANDING, /class=["'][^"']*preview-sidebar[^"']*["']/);
+  assert.match(LANDING, /class=["'][^"']*preview-metric-grid[^"']*["']/);
+  ['features', 'workflow', 'product'].forEach((anchor) => {
+    assert.match(LANDING, new RegExp(`id=["']${anchor}["']`));
+  });
+  assert.match(LANDING_CSS, /:where\(#features,\s*#workflow,\s*#product\)\s*{[^}]*scroll-margin-top:/s);
+  assert.match(LANDING_CSS, /@media\s*\(max-width:\s*720px\)/);
+  assert.match(LANDING_CSS, /overflow-wrap:\s*anywhere/);
+});
+
+test('landing preserves language and theme preferences without decorative emoji UI', () => {
+  assert.match(LANDING, /planner-lang/);
+  assert.match(LANDING, /planner-dark/);
+  assert.match(LANDING, /id=["']langBtn["']/);
+  assert.match(LANDING, /id=["']darkBtn["']/);
+  assert.match(LANDING, /aria-pressed/);
+  assert.doesNotMatch(LANDING, /[🎀🐥🪿🌸🌼📔📤📱🎯✅🌱🔥🏆]/u);
+  assert.match(LANDING, /css\/tokens\.css\?v=1/);
+  assert.match(LANDING_CSS, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+});
+
+test('landing actions keep AA contrast and accessible names follow the selected language', () => {
+  const action = LANDING_CSS.match(/--landing-action-bg:\s*(#[\da-f]{6})/i)?.[1];
+  assert.ok(action, 'missing dedicated landing action color');
+  assert.ok(contrastRatio(action, '#ffffff') >= 4.5, 'landing action must contrast with white text');
+  assert.match(LANDING, /data-label-vi=["'][^"']+["']\s+data-label-en=["'][^"']+["']/);
+  assert.match(LANDING, /querySelectorAll\('\[data-label-vi\]'\)/);
+  assert.match(LANDING, /setAttribute\('aria-label',\s*element\.getAttribute\(labelAttribute\)\)/);
 });
 
 test('application shell exposes responsive navigation and working surfaces', () => {
@@ -486,7 +533,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v55';/);
+  assert.match(SW, /const CACHE = 'taskflow-v56';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -549,11 +596,11 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system assets are available in the v55 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v55';/);
+test('design system and landing assets are available in the v56 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v56';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
-    './icons/ui-sprite.svg', './js/ui.js',
+    './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
   ].forEach((asset) => assert.match(SW, new RegExp(`["']${asset.replaceAll('.', '\\.')}["']`)));
 });
 

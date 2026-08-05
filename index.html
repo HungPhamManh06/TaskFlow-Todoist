@@ -1,321 +1,340 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-theme="cream">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- ===== SEO ===== -->
-  <title>TaskFlow-Todoist - Kế hoạch năm, mục tiêu & thói quen miễn phí, offline</title>
+  <title>TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày</title>
   <meta name="description"
-    content="TaskFlow-Todoist, ứng dụng lập kế hoạch tiếng Việt miễn phí: mục tiêu năm/tháng/tuần, bảng theo dõi thói quen 31 ngày với streak 🔥, checklist công việc hàng ngày, nhật ký reflection và xuất CSV/PDF. Giao diện pastel dễ thương, chạy 100% offline, không cần tài khoản." />
+    content="TaskFlow giúp bạn kết nối mục tiêu năm, kế hoạch tuần, công việc và thói quen trong một không gian riêng tư, dùng được offline." />
   <meta name="keywords"
-    content="planner 2026, kế hoạch năm, quản lý mục tiêu, habit tracker, thói quen hàng ngày, điểm danh thói quen, streak, lập kế hoạch, kế hoạch tháng, kế hoạch tuần, checklist, reflection, nhật ký, xuất csv, tiếng việt, offline, pastel, miễn phí" />
+    content="lập kế hoạch, quản lý mục tiêu, kế hoạch tuần, habit tracker, reflection, offline, productivity" />
   <meta name="author" content="Hung Pham" />
   <meta name="robots" content="index, follow" />
-  <meta name="theme-color" content="#EFE6D5" />
+  <meta name="theme-color" content="#f4f0e9" />
   <link rel="canonical" href="https://hungphammanh06.github.io/Todoist/" />
 
-  <!-- ===== Open Graph / Facebook ===== -->
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="vi_VN" />
   <meta property="og:locale:alternate" content="en_US" />
-  <meta property="og:title" content="TaskFlow-Todoist - Kế hoạch năm, mục tiêu & thói quen, 100% miễn phí" />
-  <meta property="og:description"
-    content="Mục tiêu năm/tháng/tuần, habit tracker 31 ngày + streak 🔥, checklist công việc & reflection. Offline 100%, không cần tài khoản, giao diện pastel dễ thương." />
+  <meta property="og:title" content="TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày" />
+  <meta property="og:description" content="Mục tiêu, công việc, thói quen và reflection trong một planner riêng tư, offline-first." />
   <meta property="og:url" content="https://hungphammanh06.github.io/Todoist/" />
-  <meta property="og:site_name" content="TaskFlow-Todoist" />
+  <meta property="og:site_name" content="TaskFlow" />
   <meta property="og:image" content="https://hungphammanh06.github.io/Todoist/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="TaskFlow-Todoist - kế hoạch năm, mục tiêu và thói quen" />
+  <meta property="og:image:alt" content="Giao diện ứng dụng lập kế hoạch TaskFlow" />
 
-  <!-- ===== Twitter ===== -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="TaskFlow-Todoist - Kế hoạch năm, mục tiêu & thói quen" />
-  <meta name="twitter:description"
-    content="Mục tiêu năm/tháng/tuần, habit tracker 31 ngày + streak 🔥, checklist & reflection. Offline 100%, miễn phí." />
+  <meta name="twitter:title" content="TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày" />
+  <meta name="twitter:description" content="Một planner riêng tư cho mục tiêu, công việc, thói quen và reflection." />
   <meta name="twitter:image" content="https://hungphammanh06.github.io/Todoist/og-image.png" />
 
-  <!-- ===== TaskFlow logo ===== -->
   <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap"
-    rel="stylesheet" />
-  <!-- Chống nháy trắng (FOUC): áp chế độ tối trước khi CSS vẽ (đặt TRƯỚC stylesheet) -->
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
   <script>
     (function () {
       try {
-        var d = localStorage.getItem('planner-dark');
-        var on = d === '1' ? true : d === '0' ? false : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.setAttribute('data-dark', on ? 'true' : 'false');
-      } catch (e) { /* ẩn */ }
+        var saved = localStorage.getItem('planner-dark');
+        var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-dark', saved === '1' || (saved === null && systemDark) ? 'true' : 'false');
+      } catch (error) { /* Storage may be unavailable in privacy mode. */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/landing.css?v=7" />
+  <link rel="stylesheet" href="css/tokens.css?v=1" />
+  <link rel="stylesheet" href="css/landing.css?v=8" />
 
-  <!-- ===== Dữ liệu có cấu trúc (SEO) ===== -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    "name": "TaskFlow-Todoist",
+    "name": "TaskFlow",
     "url": "https://hungphammanh06.github.io/Todoist/",
     "applicationCategory": "ProductivityApplication",
     "operatingSystem": "Web",
-    "description": "Ứng dụng lập kế hoạch cá nhân miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày với streak và heatmap, checklist công việc, nhật ký reflection. Offline 100%, dữ liệu lưu trên trình duyệt.",
+    "description": "Ứng dụng lập kế hoạch cá nhân cho mục tiêu, công việc, thói quen và reflection, dùng được offline.",
     "inLanguage": ["vi", "en"],
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-    "featureList": "Mục tiêu năm, mục tiêu tháng, kế hoạch tuần, habit tracker, streak, heatmap, checklist, reflection, xuất CSV, xuất JSON, in PDF, PWA offline, đồng bộ đám mây"
+    "featureList": "Mục tiêu năm, kế hoạch tháng và tuần, habit tracker, focus timer, reflection, báo cáo, xuất dữ liệu, PWA offline"
   }
   </script>
 </head>
 
 <body>
-  <div class="bricks bricks-top" aria-hidden="true"></div>
+  <a class="landing-skip" href="#landingMain" data-t-vi="Đi tới nội dung chính" data-t-en="Skip to main content">Đi tới nội dung chính</a>
 
-  <header class="lp-header">
-    <div class="lp-brand">
-      <img class="lp-brand-mark" src="icons/taskflow-mark.svg" alt="" width="32" height="32" />
-      <span class="lp-brand-name">TaskFlow-Todoist</span>
+  <header class="landing-nav" id="landingNav">
+    <div class="landing-nav-inner">
+      <a class="landing-brand" href="#landingHero" aria-label="TaskFlow — trang chủ"
+        data-label-vi="TaskFlow — trang chủ" data-label-en="TaskFlow — home">
+        <img src="icons/taskflow-mark.svg" alt="" width="34" height="34" />
+        <span>TaskFlow</span>
+      </a>
+      <nav class="landing-links" aria-label="Điều hướng trang giới thiệu"
+        data-label-vi="Điều hướng trang giới thiệu" data-label-en="Marketing page navigation">
+        <a href="#features" data-t-vi="Tính năng" data-t-en="Features">Tính năng</a>
+        <a href="#workflow" data-t-vi="Cách hoạt động" data-t-en="How it works">Cách hoạt động</a>
+        <a href="#product" data-t-vi="Giao diện" data-t-en="Product">Giao diện</a>
+      </nav>
+      <div class="landing-actions">
+        <button class="landing-icon-button" type="button" id="darkBtn" aria-label="Bật chế độ tối" aria-pressed="false" title="Bật chế độ tối">
+          <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#theme"></use></svg>
+        </button>
+        <button class="landing-language" type="button" id="langBtn" aria-label="Đổi ngôn ngữ">EN</button>
+        <a class="button button-primary nav-cta" href="app.html" data-t-vi="Mở ứng dụng" data-t-en="Open app">Mở ứng dụng</a>
+      </div>
     </div>
-    <nav class="lp-nav" aria-label="Điều hướng trang giới thiệu">
-      <a href="#features" data-t-vi="Tính năng" data-t-en="Features">Tính năng</a>
-      <a href="#how" data-t-vi="Cách hoạt động" data-t-en="How it works">Cách hoạt động</a>
-      <a href="#demo" data-t-vi="Giao diện" data-t-en="Screenshots">Giao diện</a>
-      <button type="button" class="lp-dark" id="darkBtn" title="Bật/tắt chế độ tối / Toggle dark mode"
-        aria-label="Bật/tắt chế độ tối">🌙</button>
-      <button type="button" class="lp-lang" id="langBtn" title="Đổi ngôn ngữ / Switch language">EN</button>
-    </nav>
-    <a class="lp-btn-primary" href="app.html" data-t-vi="Mở kế hoạch" data-t-en="Open planner">Mở kế hoạch</a>
   </header>
 
-  <main>
-    <section class="lp-hero">
-      <div class="lp-hero-inner">
-        <p class="lp-badge" data-t-vi="🎀 Miễn phí 100%, không cần tài khoản" data-t-en="🎀 100% free, no account needed">🎀 Miễn phí 100%, không cần tài khoản</p>
-        <h1 class="lp-title">Lên kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương nhất</em></h1>
-        <p class="lp-sub" data-t-vi="Chốt mục tiêu, điểm danh thói quen 31 ngày và ghi nhật ký reflection — ngay trong trình duyệt, miễn phí."
-          data-t-en="Set goals, track 31-day habits and keep a reflection journal — right in your browser, free.">Chốt
-          mục tiêu, điểm danh thói quen 31 ngày và ghi nhật ký reflection — ngay trong trình duyệt, miễn phí.</p>
-        <div class="lp-cta-row">
-          <a class="lp-btn-primary lp-btn-big" href="app.html" data-t-vi="Mở kế hoạch"
-            data-t-en="Open planner">Mở kế hoạch</a>
-          <a class="lp-btn-ghost" href="#features" data-t-vi="Xem tính năng" data-t-en="See features">Xem tính năng</a>
+  <main id="landingMain">
+    <section class="landing-hero" id="landingHero">
+      <div class="hero-copy">
+        <p class="eyebrow" data-t-vi="Planner cá nhân, offline-first" data-t-en="Personal planner, offline-first">Planner cá nhân, offline-first</p>
+        <h1 data-t-vi="Biến mục tiêu dài hạn thành việc có thể làm <span>hôm nay.</span>"
+          data-t-en="Turn long-term goals into work you can do <span>today.</span>">Biến mục tiêu dài hạn thành việc có thể làm <span>hôm nay.</span></h1>
+        <p class="hero-lead"
+          data-t-vi="TaskFlow kết nối mục tiêu năm, kế hoạch tuần, công việc và thói quen trong một không gian tập trung — rõ ràng khi lập kế hoạch, nhẹ đầu khi bắt tay làm."
+          data-t-en="TaskFlow connects yearly goals, weekly plans, tasks, and habits in one focused workspace — clear when you plan, calm when you execute.">TaskFlow kết nối mục tiêu năm, kế hoạch tuần, công việc và thói quen trong một không gian tập trung — rõ ràng khi lập kế hoạch, nhẹ đầu khi bắt tay làm.</p>
+        <div class="hero-actions">
+          <a class="button button-primary button-large hero-primary-cta" href="app.html" data-t-vi="Bắt đầu lập kế hoạch" data-t-en="Start planning">Bắt đầu lập kế hoạch</a>
+          <a class="button button-secondary button-large" href="#product" data-t-vi="Xem giao diện" data-t-en="See the product">Xem giao diện</a>
         </div>
+        <p class="hero-note" data-t-vi="Miễn phí · Không bắt buộc tài khoản · Dữ liệu thuộc về bạn"
+          data-t-en="Free · No account required · Your data stays yours">Miễn phí · Không bắt buộc tài khoản · Dữ liệu thuộc về bạn</p>
       </div>
 
-      <div class="lp-art" aria-hidden="true">
-        <div class="art-scene">
-          <div class="art-sky">
-            <span class="art-sun">☀️</span>
-            <span class="art-cloud c1">☁️</span>
-            <span class="art-cloud c2">☁️</span>
+      <div class="product-preview" id="productPreview" role="img" aria-label="Bản xem trước trang tổng quan TaskFlow"
+        data-label-vi="Bản xem trước trang tổng quan TaskFlow" data-label-en="TaskFlow overview preview">
+        <div class="preview-window-bar" aria-hidden="true">
+          <span></span><span></span><span></span>
+          <b>TaskFlow</b>
+        </div>
+        <div class="preview-app">
+          <aside class="preview-sidebar" aria-hidden="true">
+            <div class="preview-brand-mark"><img src="icons/taskflow-mark.svg" alt="" width="24" height="24" /></div>
+            <span class="is-active"></span><span></span><span></span><span></span>
+            <i></i>
+            <span></span><span></span>
+          </aside>
+          <div class="preview-workspace">
+            <div class="preview-topline">
+              <div><small data-t-vi="THÁNG 8 · 2026" data-t-en="AUGUST · 2026">THÁNG 8 · 2026</small><strong data-t-vi="Chào buổi sáng, Hùng" data-t-en="Good morning, Hung">Chào buổi sáng, Hùng</strong></div>
+              <span class="preview-add" aria-hidden="true">+ <span data-t-vi="Thêm việc" data-t-en="Add task">Thêm việc</span></span>
+            </div>
+            <div class="preview-metric-grid">
+              <article><small data-t-vi="Tiến độ tuần" data-t-en="Weekly progress">Tiến độ tuần</small><b>72%</b><i style="--preview-progress:72%"></i></article>
+              <article><small data-t-vi="Việc đã xong" data-t-en="Completed tasks">Việc đã xong</small><b>18</b><em>+5</em></article>
+              <article><small data-t-vi="Thói quen" data-t-en="Habits">Thói quen</small><b>4/5</b><em>80%</em></article>
+            </div>
+            <div class="preview-main-grid">
+              <article class="preview-priority">
+                <div class="preview-card-heading"><b data-t-vi="Ưu tiên hôm nay" data-t-en="Today's priority">Ưu tiên hôm nay</b><small>3/4</small></div>
+                <p><i class="is-done"></i><span data-t-vi="Hoàn thiện kế hoạch tuần" data-t-en="Finalize weekly plan">Hoàn thiện kế hoạch tuần</span></p>
+                <p><i class="is-done"></i><span data-t-vi="30 phút đọc tài liệu" data-t-en="Read for 30 minutes">30 phút đọc tài liệu</span></p>
+                <p><i></i><span data-t-vi="Chuẩn bị nội dung họp" data-t-en="Prepare meeting notes">Chuẩn bị nội dung họp</span></p>
+              </article>
+              <article class="preview-habits">
+                <div class="preview-card-heading"><b data-t-vi="Nhịp thói quen" data-t-en="Habit rhythm">Nhịp thói quen</b><small>12 <span data-t-vi="ngày" data-t-en="days">ngày</span></small></div>
+                <p><span data-t-vi="Đọc sách" data-t-en="Read">Đọc sách</span><i><b style="width:84%"></b></i></p>
+                <p><span data-t-vi="Tập luyện" data-t-en="Exercise">Tập luyện</span><i><b style="width:68%"></b></i></p>
+                <p><span data-t-vi="Thiền" data-t-en="Meditate">Thiền</span><i><b style="width:76%"></b></i></p>
+              </article>
+            </div>
           </div>
-          <div class="art-card art-note">
-            <div class="art-card-head"><span>🐥</span><b>Ghi chú tuần này</b></div>
-            <p class="art-note-text">Mỗi ngày một bước nhỏ, cuối năm bạn sẽ thấy mình đã đi rất xa. 🌱</p>
-            <div class="art-note-lines" aria-hidden="true"><span></span><span></span><span></span></div>
-            <div class="art-card-foot"><span>🔥 Streak 7 ngày</span><span>🏆 12 ngày</span></div>
-          </div>
-          <div class="art-grass">
-            <span class="art-critter">🐥</span>
-            <span class="art-critter">🦫</span>
-            <span class="art-flower">🌸</span>
-            <span class="art-flower">🌼</span>
-          </div>
         </div>
       </div>
     </section>
 
-    <div class="lp-proof" aria-label="Thông số nổi bật">
-      <div class="lp-stats">
-        <div class="lp-stat"><b>3</b><span data-t-vi="tầng kế hoạch" data-t-en="plan layers">tầng kế hoạch</span></div>
-        <div class="lp-stat"><b>31</b><span data-t-vi="ngày điểm danh" data-t-en="days to track">ngày điểm danh</span></div>
-        <div class="lp-stat"><b>12</b><span data-t-vi="tháng một bản kế hoạch" data-t-en="months per plan">tháng một bản
-            kế hoạch</span></div>
-        <div class="lp-stat"><b>100%</b><span data-t-vi="An toàn" data-t-en="Safe">An toàn</span></div>
+    <section class="trust-strip" id="trustStrip" aria-labelledby="trustHeading">
+      <h2 class="sr-only" id="trustHeading" data-t-vi="Điểm khác biệt của TaskFlow" data-t-en="Why TaskFlow is different">Điểm khác biệt của TaskFlow</h2>
+      <div class="trust-grid">
+        <article><svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#data"></use></svg><div><b data-t-vi="Dữ liệu riêng tư" data-t-en="Private by default">Dữ liệu riêng tư</b><span data-t-vi="Lưu trên thiết bị của bạn" data-t-en="Stored on your device">Lưu trên thiết bị của bạn</span></div></article>
+        <article><svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#sync"></use></svg><div><b data-t-vi="Dùng được offline" data-t-en="Works offline">Dùng được offline</b><span data-t-vi="Không gián đoạn khi mất mạng" data-t-en="Keep going without a connection">Không gián đoạn khi mất mạng</span></div></article>
+        <article><svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#report"></use></svg><div><b data-t-vi="Một luồng xuyên suốt" data-t-en="One connected flow">Một luồng xuyên suốt</b><span data-t-vi="Năm, tháng, tuần và hôm nay" data-t-en="Year, month, week, and today">Năm, tháng, tuần và hôm nay</span></div></article>
+        <article><svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#settings"></use></svg><div><b data-t-vi="Linh hoạt khi cần" data-t-en="Flexible when needed">Linh hoạt khi cần</b><span data-t-vi="Đồng bộ là lựa chọn, không bắt buộc" data-t-en="Sync is optional, never required">Đồng bộ là lựa chọn, không bắt buộc</span></div></article>
       </div>
-    </div>
+    </section>
 
-    <section class="lp-section" id="features">
-      <h2 class="lp-h2" data-t-vi="Mọi thứ bạn cần cho một năm <em>có định hướng</em>"
-        data-t-en="Everything you need for a <em>focused</em> year">Mọi thứ bạn cần cho một năm <em>có định hướng</em>
-      </h2>
-      <div class="lp-features">
-        <article class="lp-feature">
-          <span class="lp-f-icon" aria-hidden="true">🎯</span>
-          <h3 data-t-vi="Mục tiêu 3 tầng" data-t-en="3-layer goals">Mục tiêu 3 tầng</h3>
-          <p data-t-vi="Chốt mục tiêu năm, chia nhỏ thành mục tiêu tháng và kế hoạch từng tuần, với donut % hoàn thành cập nhật liên tục."
-            data-t-en="Set yearly goals, break them into monthly goals and weekly plans, with a donut progress ring that updates as you go.">Chốt
-            mục tiêu năm, chia nhỏ thành mục tiêu tháng và kế hoạch từng tuần, với donut % hoàn thành cập nhật liên tục.
-          </p>
+    <section class="landing-section feature-narrative" id="features">
+      <div class="section-intro">
+        <p class="eyebrow" data-t-vi="Một hệ thống, đủ chiều sâu" data-t-en="One system, enough depth">Một hệ thống, đủ chiều sâu</p>
+        <h2 id="featureNarrative" data-t-vi="Lập kế hoạch để hành động, không chỉ để ghi nhớ."
+          data-t-en="Plan to take action, not just to remember.">Lập kế hoạch để hành động, không chỉ để ghi nhớ.</h2>
+        <p data-t-vi="Mỗi phần trong TaskFlow có một vai trò rõ ràng và cùng trả lời một câu hỏi: tiếp theo bạn nên làm gì?"
+          data-t-en="Every part of TaskFlow has a clear role and answers the same question: what should you do next?">Mỗi phần trong TaskFlow có một vai trò rõ ràng và cùng trả lời một câu hỏi: tiếp theo bạn nên làm gì?</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature-card feature-card-wide">
+          <span class="feature-index">01</span>
+          <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#year"></use></svg>
+          <h3 data-t-vi="Từ định hướng năm đến kế hoạch tuần" data-t-en="From yearly direction to weekly plans">Từ định hướng năm đến kế hoạch tuần</h3>
+          <p data-t-vi="Chia mục tiêu lớn thành các mốc tháng và công việc tuần, luôn thấy bối cảnh thay vì một danh sách rời rạc."
+            data-t-en="Break big goals into monthly milestones and weekly work, keeping context instead of a disconnected list.">Chia mục tiêu lớn thành các mốc tháng và công việc tuần, luôn thấy bối cảnh thay vì một danh sách rời rạc.</p>
         </article>
-        <article class="lp-feature">
-          <span class="lp-f-icon" aria-hidden="true">🐥</span>
-          <h3 data-t-vi="Habit tracker 31 ngày" data-t-en="31-day habit tracker">Habit tracker 31 ngày</h3>
-          <p data-t-vi="Bảng điểm danh mỗi ngày, tự tính % thực hiện, streak 🔥 hiện tại và chuỗi dài nhất 🏆, kèm heatmap xuyên tháng."
-            data-t-en="A daily check-in grid with auto-computed %, current streak 🔥, best streak 🏆, and a cross-month heatmap.">Bảng
-            điểm danh mỗi ngày, tự tính % thực hiện, streak 🔥 hiện tại và chuỗi dài nhất 🏆, kèm heatmap xuyên tháng.</p>
+        <article class="feature-card">
+          <span class="feature-index">02</span>
+          <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#calendar"></use></svg>
+          <h3 data-t-vi="Theo dõi thói quen theo nhịp thực tế" data-t-en="Track habits at a realistic pace">Theo dõi thói quen theo nhịp thực tế</h3>
+          <p data-t-vi="Lưới 31 ngày, tỷ lệ hoàn thành và chuỗi liên tục giúp bạn nhận ra tiến bộ mà không tạo thêm áp lực."
+            data-t-en="A 31-day grid, completion rate, and streaks reveal progress without adding pressure.">Lưới 31 ngày, tỷ lệ hoàn thành và chuỗi liên tục giúp bạn nhận ra tiến bộ mà không tạo thêm áp lực.</p>
         </article>
-        <article class="lp-feature">
-          <span class="lp-f-icon" aria-hidden="true">✅</span>
-          <h3 data-t-vi="Checklist công việc hằng ngày" data-t-en="Daily task checklist">Checklist công việc hằng ngày
-          </h3>
-          <p data-t-vi="Mỗi ngày trong tuần có danh sách việc ưu tiên (priority) và việc phụ (regular), tích ✓ là xong, kèm ghi chú nhanh."
-            data-t-en="Every day of the week has a priority &amp; regular task list; tick ✓ to complete, with a quick note area.">Mỗi
-            ngày trong tuần có danh sách việc ưu tiên (priority) và việc phụ (regular), tích ✓ là xong, kèm ghi chú
-            nhanh.</p>
+        <article class="feature-card">
+          <span class="feature-index">03</span>
+          <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#focus"></use></svg>
+          <h3 data-t-vi="Tập trung vào một việc quan trọng" data-t-en="Focus on one important thing">Tập trung vào một việc quan trọng</h3>
+          <p data-t-vi="Chế độ tập trung và Pomodoro giữ công việc ưu tiên trước mắt, tạm ẩn phần còn lại khi bạn cần làm sâu."
+            data-t-en="Focus mode and Pomodoro keep the priority in view and quiet everything else when it is time for deep work.">Chế độ tập trung và Pomodoro giữ công việc ưu tiên trước mắt, tạm ẩn phần còn lại khi bạn cần làm sâu.</p>
         </article>
-        <article class="lp-feature">
-          <span class="lp-f-icon" aria-hidden="true">📔</span>
-          <h3 data-t-vi="Nhật ký reflection" data-t-en="Reflection journal">Nhật ký reflection</h3>
-          <p data-t-vi="Câu hỏi gợi nhớ cuối mỗi tuần, tháng và năm, dừng lại nhìn lại, điều chỉnh và tiến lên thay vì chạy mãi."
-            data-t-en="Guided prompts at the end of each week, month and year; pause, reflect, adjust, and move forward.">Câu
-            hỏi gợi nhớ cuối mỗi tuần, tháng và năm, dừng lại nhìn lại, điều chỉnh và tiến lên thay vì chạy mãi.</p>
+        <article class="feature-card">
+          <span class="feature-index">04</span>
+          <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#report"></use></svg>
+          <h3 data-t-vi="Nhìn lại bằng dữ liệu và reflection" data-t-en="Reflect with data and prompts">Nhìn lại bằng dữ liệu và reflection</h3>
+          <p data-t-vi="Báo cáo tuần, tháng, năm và câu hỏi gợi mở giúp bạn điều chỉnh kế hoạch dựa trên điều đã thật sự xảy ra."
+            data-t-en="Weekly, monthly, and yearly reports pair with reflection prompts so you can adjust based on what actually happened.">Báo cáo tuần, tháng, năm và câu hỏi gợi mở giúp bạn điều chỉnh kế hoạch dựa trên điều đã thật sự xảy ra.</p>
         </article>
-        <article class="lp-feature">
-          <span class="lp-f-icon" aria-hidden="true">📤</span>
-          <h3 data-t-vi="Xuất CSV / JSON / In PDF" data-t-en="Export CSV / JSON / Print PDF">Xuất CSV / JSON / In PDF
-          </h3>
-          <p data-t-vi="Sao lưu dữ liệu một chạm, xuất bảng CSV 7 section dán thẳng vào Google Sheets, hoặc in/Lưu PDF bản kế hoạch."
-            data-t-en="One-click backup, export a 7-section CSV straight into Google Sheets, or print/save your plan as PDF.">Sao
-            lưu dữ liệu một chạm, xuất bảng CSV 7 section dán thẳng vào Google Sheets, hoặc in/Lưu PDF bản kế hoạch.</p>
-        </article>
-        <article class="lp-feature feat-dark">
-          <span class="lp-f-icon" aria-hidden="true">📱</span>
-          <h3 data-t-vi="Offline + PWA + Đồng bộ đám mây" data-t-en="Offline + PWA + Cloud sync">Offline + PWA + Đồng bộ
-            đám mây</h3>
-          <p data-t-vi="Cài đặt như app thật, dùng được khi không mạng; mở tùy chọn đồng bộ đám mây để thấy dữ liệu trên mọi thiết bị."
-            data-t-en="Install it like a real app and use it without internet; optionally enable cloud sync to see your data on every device.">Cài
-            đặt như app thật, dùng được khi không mạng; mở tùy chọn đồng bộ đám mây để thấy dữ liệu trên mọi thiết bị.
-          </p>
+        <article class="feature-card feature-card-accent">
+          <span class="feature-index">05</span>
+          <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#data"></use></svg>
+          <h3 data-t-vi="Sở hữu và mang dữ liệu theo bạn" data-t-en="Own and take your data with you">Sở hữu và mang dữ liệu theo bạn</h3>
+          <p data-t-vi="Sao lưu JSON, xuất CSV, in PDF hoặc bật đồng bộ tùy chọn. TaskFlow không khóa dữ liệu của bạn trong một nền tảng."
+            data-t-en="Back up JSON, export CSV, print PDF, or enable optional sync. TaskFlow never locks your data into one platform.">Sao lưu JSON, xuất CSV, in PDF hoặc bật đồng bộ tùy chọn. TaskFlow không khóa dữ liệu của bạn trong một nền tảng.</p>
         </article>
       </div>
     </section>
 
-    <section class="lp-section lp-alt" id="how">
-      <h2 class="lp-h2" data-t-vi="Bắt đầu trong 3 phút" data-t-en="Start in 3 minutes">Bắt đầu trong 3 phút</h2>
-      <div class="lp-how">
-        <div class="lp-how-step">
-          <span class="lp-how-emoji" aria-hidden="true">🎯</span>
-          <h3 data-t-vi="Đặt mục tiêu năm + 2 thói quen" data-t-en="Set your yearly goal + 2 habits">Đặt mục tiêu năm + 2
-            thói quen</h3>
-          <p data-t-vi="Mở app lần đầu sẽ có 3 bước hướng dẫn: chọn mục tiêu quan trọng nhất, khai 2 thói quen và chọn chủ đề màu."
-            data-t-en="On first open, a 3-step guide walks you through: pick your top goal, add 2 habits, and choose a theme.">Mở
-            app lần đầu sẽ có 3 bước hướng dẫn: chọn mục tiêu quan trọng nhất, khai 2 thói quen và chọn chủ đề màu.</p>
-        </div>
-        <div class="lp-how-step">
-          <span class="lp-how-emoji" aria-hidden="true">✅</span>
-          <h3 data-t-vi="Điểm danh mỗi ngày" data-t-en="Check in daily">Điểm danh mỗi ngày</h3>
-          <p data-t-vi="Mỗi ngày tích ✓ vài ô thói quen, chốt checklist công việc, % và streak tự cập nhật, động lực tăng dần."
-            data-t-en="Tick a few habit cells and finish your task checklist each day, and progress % and streaks update automatically.">Mỗi
-            ngày tích ✓ vài ô thói quen, chốt checklist công việc, % và streak tự cập nhật, động lực tăng dần.</p>
-        </div>
-        <div class="lp-how-step">
-          <span class="lp-how-emoji" aria-hidden="true">🌱</span>
-          <h3 data-t-vi="Nhìn lại & tiến lên" data-t-en="Reflect &amp; level up">Nhìn lại &amp; tiến lên</h3>
-          <p data-t-vi="Cuối tuần/tháng/năm, trả lời vài câu hỏi reflection, điều chỉnh kế hoạch và lặp lại, như một nhật ký phát triển cá nhân."
-            data-t-en="At the end of each week/month/year, answer a few reflection prompts, adjust your plan and repeat, like a personal growth journal.">Cuối
-            tuần/tháng/năm, trả lời vài câu hỏi reflection, điều chỉnh kế hoạch và lặp lại, như một nhật ký phát triển
-            cá nhân.</p>
-        </div>
+    <section class="landing-section workflow-section" id="workflow">
+      <div class="section-intro section-intro-left">
+        <p class="eyebrow" data-t-vi="Nhẹ để bắt đầu" data-t-en="Easy to start">Nhẹ để bắt đầu</p>
+        <h2 data-t-vi="Một nhịp làm việc lặp lại được mỗi ngày."
+          data-t-en="A workflow you can repeat every day.">Một nhịp làm việc lặp lại được mỗi ngày.</h2>
+      </div>
+      <ol class="workflow-list">
+        <li><span>1</span><div><h3 data-t-vi="Đặt hướng" data-t-en="Set direction">Đặt hướng</h3><p data-t-vi="Chọn mục tiêu năm và ưu tiên tháng hiện tại." data-t-en="Choose yearly goals and this month's priorities.">Chọn mục tiêu năm và ưu tiên tháng hiện tại.</p></div></li>
+        <li><span>2</span><div><h3 data-t-vi="Chia nhỏ" data-t-en="Break it down">Chia nhỏ</h3><p data-t-vi="Đưa việc quan trọng vào từng tuần và ngày." data-t-en="Move important work into each week and day.">Đưa việc quan trọng vào từng tuần và ngày.</p></div></li>
+        <li><span>3</span><div><h3 data-t-vi="Làm và nhìn lại" data-t-en="Do and reflect">Làm và nhìn lại</h3><p data-t-vi="Hoàn thành, theo dõi nhịp và điều chỉnh bằng báo cáo." data-t-en="Complete, track your rhythm, and adjust with reports.">Hoàn thành, theo dõi nhịp và điều chỉnh bằng báo cáo.</p></div></li>
+      </ol>
+    </section>
+
+    <section class="landing-section product-evidence" id="product">
+      <div class="section-intro">
+        <p class="eyebrow" data-t-vi="Thiết kế cho công việc thật" data-t-en="Designed for real work">Thiết kế cho công việc thật</p>
+        <h2 data-t-vi="Đủ tổng quan để định hướng. Đủ chi tiết để hành động."
+          data-t-en="Wide enough for direction. Detailed enough for action.">Đủ tổng quan để định hướng. Đủ chi tiết để hành động.</h2>
+      </div>
+      <div class="product-proof-grid">
+        <article class="product-proof product-proof-week">
+          <div class="product-proof-copy"><span>WEEK</span><h3 data-t-vi="Kế hoạch tuần trong một màn hình" data-t-en="Your week on one screen">Kế hoạch tuần trong một màn hình</h3><p data-t-vi="Bảy ngày, mục tiêu tuần và reflection cùng một ngữ cảnh." data-t-en="Seven days, weekly goals, and reflection in one context.">Bảy ngày, mục tiêu tuần và reflection cùng một ngữ cảnh.</p></div>
+          <div class="week-mock" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </article>
+        <article class="product-proof product-proof-calendar">
+          <div class="product-proof-copy"><span>CALENDAR</span><h3 data-t-vi="Lịch cho những gì đã lên kế hoạch" data-t-en="A calendar for planned work">Lịch cho những gì đã lên kế hoạch</h3><p data-t-vi="Lọc theo nhãn, xem tháng trên desktop và agenda rõ ràng trên mobile." data-t-en="Filter by tag, use the month grid on desktop, and a clear agenda on mobile.">Lọc theo nhãn, xem tháng trên desktop và agenda rõ ràng trên mobile.</p></div>
+          <div class="calendar-mock" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></div>
+        </article>
       </div>
     </section>
 
-    <section class="lp-section" id="demo">
-      <h2 class="lp-h2" data-t-vi="Giao diện <em>pastel dễ thương</em>" data-t-en="A <em>cute pastel</em> interface">
-        Giao diện <em>pastel dễ thương</em></h2>
-      <figure class="lp-shot">
-        <img src="app-screenshot.png" alt="TaskFlow-Todoist - tổng quan tháng với mục tiêu, bảng thói quen 31 ngày và biểu đồ tiến độ"
-          width="1280" height="880" loading="lazy" />
-        <figcaption data-t-vi="Bản kế hoạch tháng: mục tiêu, thói quen 31 ngày, streak 🔥 và biểu đồ tuần."
-          data-t-en="Monthly plan: goals, a 31-day habit grid, streaks 🔥 and weekly charts.">Bản kế hoạch tháng: mục
-          tiêu, thói quen 31 ngày, streak 🔥 và biểu đồ tuần.</figcaption>
-      </figure>
-    </section>
-
-    <section class="lp-cta-final">
-      <h2 class="lp-h2" data-t-vi="Sẵn sàng cho một năm <em>tốt hơn?</em>" data-t-en="Ready for a <em>better</em> year?">
-        Sẵn sàng cho một năm <em>tốt hơn?</em></h2>
-      <p data-t-vi="Miễn phí, không tài khoản, không cần cài đặt, mở trình duyệt là chạy ngay."
-        data-t-en="Free, no account, no install. Open the browser and go.">Miễn phí, không tài khoản, không cần cài
-        đặt, mở trình duyệt là chạy ngay.</p>
-      <a class="lp-btn-primary lp-btn-big" href="app.html" data-t-vi="Mở kế hoạch"
-        data-t-en="Open planner">Mở kế hoạch</a>
+    <section class="landing-cta-final" id="landingCtaFinal">
+      <div>
+        <p class="eyebrow" data-t-vi="Bắt đầu ngay trong trình duyệt" data-t-en="Start right in your browser">Bắt đầu ngay trong trình duyệt</p>
+        <h2 data-t-vi="Một kế hoạch rõ ràng hơn bắt đầu từ hôm nay."
+          data-t-en="A clearer plan starts today.">Một kế hoạch rõ ràng hơn bắt đầu từ hôm nay.</h2>
+        <p data-t-vi="Không cần thiết lập phức tạp. Mở TaskFlow, chọn ưu tiên đầu tiên và bắt đầu."
+          data-t-en="No complicated setup. Open TaskFlow, choose your first priority, and begin.">Không cần thiết lập phức tạp. Mở TaskFlow, chọn ưu tiên đầu tiên và bắt đầu.</p>
+      </div>
+      <a class="button button-primary button-large" href="app.html" data-t-vi="Mở TaskFlow" data-t-en="Open TaskFlow">Mở TaskFlow</a>
     </section>
   </main>
 
-  <footer class="lp-footer">
-    <span class="lp-footer-brand">
-      <img class="lp-brand-mark" src="icons/taskflow-mark.svg" alt="" width="28" height="28" />
-      <span class="lp-brand-name">TaskFlow-Todoist</span>
-    </span>
-    <nav aria-label="Liên kết chân trang">
-      <a href="app.html" data-t-vi="Mở app" data-t-en="Open app">Mở app</a>
-      <a href="https://github.com/HungPhamManh06/Todoist" rel="noopener" data-t-vi="GitHub (mã nguồn)"
-        data-t-en="GitHub (source)">GitHub (mã nguồn)</a>
-    </nav>
-    <p data-t-vi="© 2026 TaskFlow-Todoist. Dữ liệu của bạn nằm trong trình duyệt, quyền riêng tư là mặc định."
-      data-t-en="© 2026 TaskFlow-Todoist. Your data stays in your browser; privacy by default.">© 2026 TaskFlow-Todoist.
-      Dữ liệu của bạn nằm trong trình duyệt, quyền riêng tư là mặc định.</p>
+  <footer class="landing-footer" id="landingFooter">
+    <div class="landing-footer-inner">
+      <a class="landing-brand" href="#landingHero" aria-label="TaskFlow — về đầu trang"
+        data-label-vi="TaskFlow — về đầu trang" data-label-en="TaskFlow — back to top">
+        <img src="icons/taskflow-mark.svg" alt="" width="30" height="30" /><span>TaskFlow</span>
+      </a>
+      <p data-t-vi="Lập kế hoạch riêng tư, nhẹ nhàng và có thể mang theo."
+        data-t-en="Private, calm planning you can take with you.">Lập kế hoạch riêng tư, nhẹ nhàng và có thể mang theo.</p>
+      <nav aria-label="Liên kết chân trang" data-label-vi="Liên kết chân trang" data-label-en="Footer links">
+        <a href="app.html" data-t-vi="Ứng dụng" data-t-en="App">Ứng dụng</a>
+        <a href="#features" data-t-vi="Tính năng" data-t-en="Features">Tính năng</a>
+        <a href="https://github.com/HungPhamManh06/Todoist" rel="noopener noreferrer">GitHub</a>
+      </nav>
+    </div>
   </footer>
-
-  <div class="bricks bricks-bottom" aria-hidden="true"></div>
 
   <script>
     (function () {
       var LANG_KEY = 'planner-lang';
+      var DARK_KEY = 'planner-dark';
       var lang = 'vi';
-      try { lang = localStorage.getItem(LANG_KEY) || 'vi'; } catch (e) { }
+      try { lang = localStorage.getItem(LANG_KEY) || 'vi'; } catch (error) { /* Use default. */ }
       if (lang !== 'vi' && lang !== 'en') lang = 'vi';
 
-      function apply() {
+      function applyLanguage() {
         document.documentElement.lang = lang;
-        var store = lang === 'vi' ? 'data-t-vi' : 'data-t-en';
-        document.querySelectorAll('[data-t-vi]').forEach(function (el) {
-          el.innerHTML = el.getAttribute(store);
+        var attribute = lang === 'vi' ? 'data-t-vi' : 'data-t-en';
+        document.querySelectorAll('[data-t-vi]').forEach(function (element) {
+          element.innerHTML = element.getAttribute(attribute);
         });
-        var btn = document.getElementById('langBtn');
-        if (btn) btn.textContent = lang === 'vi' ? 'EN' : 'VI';
+        var labelAttribute = lang === 'vi' ? 'data-label-vi' : 'data-label-en';
+        document.querySelectorAll('[data-label-vi]').forEach(function (element) {
+          element.setAttribute('aria-label', element.getAttribute(labelAttribute));
+        });
+        var button = document.getElementById('langBtn');
+        if (button) {
+          button.textContent = lang === 'vi' ? 'EN' : 'VI';
+          button.setAttribute('aria-label', lang === 'vi' ? 'Switch to English' : 'Chuyển sang tiếng Việt');
+        }
       }
-      apply();
 
-      var btn = document.getElementById('langBtn');
-      if (btn) btn.addEventListener('click', function () {
-        lang = lang === 'vi' ? 'en' : 'vi';
-        try { localStorage.setItem(LANG_KEY, lang); } catch (e) { }
-        apply();
-      });
+      function systemDark() {
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
 
-      /* Chế độ tối: nút 🌙/☀️ trên landing */
-      var DARK_KEY = 'planner-dark';
-      function sysDark() { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; }
       function darkIsOn() {
-        var d = null;
-        try { d = localStorage.getItem(DARK_KEY); } catch (e) { }
-        return d === '1' ? true : d === '0' ? false : sysDark();
+        var saved = null;
+        try { saved = localStorage.getItem(DARK_KEY); } catch (error) { /* Use system setting. */ }
+        return saved === '1' ? true : saved === '0' ? false : systemDark();
       }
-      function applyDarkUI() {
+
+      function applyDarkMode() {
         var on = darkIsOn();
         document.documentElement.setAttribute('data-dark', on ? 'true' : 'false');
-        var b = document.getElementById('darkBtn');
-        if (b) b.textContent = on ? '☀️' : '🌙';
-        var mc = document.querySelector('meta[name="theme-color"]');
-        if (mc) mc.setAttribute('content', on ? '#221C16' : '#EFE6D5');
+        var button = document.getElementById('darkBtn');
+        var label = on
+          ? (lang === 'vi' ? 'Bật chế độ sáng' : 'Use light mode')
+          : (lang === 'vi' ? 'Bật chế độ tối' : 'Use dark mode');
+        if (button) {
+          button.setAttribute('aria-pressed', on ? 'true' : 'false');
+          button.setAttribute('aria-label', label);
+          button.setAttribute('title', label);
+        }
+        var theme = document.querySelector('meta[name="theme-color"]');
+        if (theme) theme.setAttribute('content', on ? '#1b1917' : '#f4f0e9');
       }
-      var darkBtn = document.getElementById('darkBtn');
-      if (darkBtn) darkBtn.addEventListener('click', function () {
-        var on = darkIsOn();
-        try { localStorage.setItem(DARK_KEY, on ? '0' : '1'); } catch (e) { }
-        applyDarkUI();
+
+      applyLanguage();
+      applyDarkMode();
+
+      document.getElementById('langBtn').addEventListener('click', function () {
+        lang = lang === 'vi' ? 'en' : 'vi';
+        try { localStorage.setItem(LANG_KEY, lang); } catch (error) { /* Continue without persistence. */ }
+        applyLanguage();
+        applyDarkMode();
       });
-      applyDarkUI();
-      if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyDarkUI);
+
+      document.getElementById('darkBtn').addEventListener('click', function () {
+        var on = darkIsOn();
+        try { localStorage.setItem(DARK_KEY, on ? '0' : '1'); } catch (error) { /* Continue without persistence. */ }
+        applyDarkMode();
+      });
+
+      if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyDarkMode);
+      }
     })();
   </script>
 </body>

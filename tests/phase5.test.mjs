@@ -203,7 +203,7 @@ test('5.4: ring buffer backup + modal khôi phục', () => {
 });
 
 test('5.4: i18n backup keys đủ vi+en', () => {
-  assert.ok(APP_JS.includes("backupRestore: '🕑 Khôi phục bản sao lưu tự động'") && APP_JS.includes("backupRestore: '🕑 Restore auto backup'"), 'thiếu backupRestore');
+  assert.ok(APP_JS.includes("backupRestore: 'Khôi phục bản sao lưu tự động'") && APP_JS.includes("backupRestore: 'Restore auto backup'"), 'thiếu backupRestore');
   assert.ok(APP_JS.includes("backupEmpty: 'Chưa có bản sao lưu nào") && APP_JS.includes("backupEmpty: 'No backups yet"), 'thiếu backupEmpty');
 });
 
@@ -439,7 +439,7 @@ test('8.4: widget settings modal trong HTML', () => {
 });
 
 test('8.5: i18n widget keys đủ vi+en', () => {
-  assert.ok(APP_JS.includes("widgetSettings: '⚙️ Tuỳ chỉnh Widget'") && APP_JS.includes("widgetSettings: '⚙️ Customize Widgets'"), 'thiếu widgetSettings');
+  assert.ok(APP_JS.includes("widgetSettings: 'Tuỳ chỉnh Widget'") && APP_JS.includes("widgetSettings: 'Customize Widgets'"), 'thiếu widgetSettings');
   assert.ok(APP_JS.includes("widgetSave: 'Lưu'") && APP_JS.includes("widgetSave: 'Save'"), 'thiếu widgetSave');
   assert.ok(APP_JS.includes("widgetHide: 'Ẩn widget này'") && APP_JS.includes("widgetHide: 'Hide this widget'"), 'thiếu widgetHide');
   assert.ok(APP_JS.includes("widgetShow: 'Hiện widget này'") && APP_JS.includes("widgetShow: 'Show this widget'"), 'thiếu widgetShow');

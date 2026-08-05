@@ -286,17 +286,58 @@ def dialog_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def landing_checks(browser, base, width, height, errors, screenshot):
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"landing {width}px: {error}"))
+    page.add_init_script("""
+      localStorage.setItem('planner-lang', 'en');
+      localStorage.setItem('planner-dark', '1');
+    """)
+    page.goto(f"{base}/index.html", wait_until="networkidle")
+
+    assert page.locator("main h1").count() == 1
+    assert page.locator("#productPreview").is_visible()
+    assert page.locator("#trustStrip article").count() == 4
+    assert page.locator("#features .feature-card").count() == 5
+    assert page.locator(".hero-primary-cta").get_attribute("href") == "app.html"
+    assert page.locator("html").get_attribute("lang") == "en"
+    assert page.locator("html").get_attribute("data-dark") == "true"
+    assert page.locator("#darkBtn").get_attribute("aria-pressed") == "true"
+    assert_no_page_overflow(page, f"landing {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+
+    page.locator("#langBtn").click()
+    page.locator("#darkBtn").click()
+    page.reload(wait_until="networkidle")
+    assert page.locator("html").get_attribute("lang") == "vi"
+    assert page.locator("html").get_attribute("data-dark") == "false"
+    assert page.locator("#darkBtn").get_attribute("aria-pressed") == "false"
+
+    page.locator('.hero-actions a[href="#product"]').click()
+    assert page.evaluate("location.hash") == "#product"
+    assert page.locator("#product").evaluate(
+        "el => Math.abs(el.getBoundingClientRect().top) < 110"
+    )
+    assert_no_page_overflow(page, f"landing anchor {width}px")
+
+    page.locator(".hero-primary-cta").click()
+    page.wait_for_url("**/app.html")
+    assert page.locator("#appMain").count() == 1
+    page.close()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--view", choices=["overview", "week", "year", "calendar"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
+    parser.add_argument("--landing", action="store_true")
     args = parser.parse_args()
 
     httpd = socketserver.TCPServer(("127.0.0.1", 0), Handler)
     port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{port}"
-    shot_label = "dialogs" if args.dialogs else args.view
+    shot_label = "landing" if args.landing else "dialogs" if args.dialogs else args.view
     shots = {
         "desktop": os.path.join(tempfile.gettempdir(), f"taskflow-{shot_label}-desktop.png"),
         "mobile": os.path.join(tempfile.gettempdir(), f"taskflow-{shot_label}-mobile.png"),
@@ -306,7 +347,10 @@ def main():
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
-            if args.dialogs:
+            if args.landing:
+                landing_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                landing_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.dialogs:
                 dialog_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 dialog_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "overview":
@@ -328,7 +372,7 @@ def main():
     if errors:
         print("PAGE ERRORS:", errors[:8])
         return 1
-    label = "DIALOGS" if args.dialogs else args.view.upper()
+    label = "LANDING" if args.landing else "DIALOGS" if args.dialogs else args.view.upper()
     print(f"E2E {label} OK")
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0
