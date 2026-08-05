@@ -4141,3 +4141,640 @@ body.focus-mode .container { padding: 0; }
     flex-direction: column;
   }
 }
+
+/* ============================ Refined week workspace ============================ */
+
+.week-page {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.week-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.week-page-heading {
+  min-width: 0;
+  max-width: 720px;
+}
+
+.week-page-eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-accent);
+  font: 750 .76rem/1.3 var(--font-body);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.week-page-title {
+  margin: 0;
+  color: var(--color-text);
+  font: 760 clamp(1.8rem, 3vw, 2.6rem)/1.08 var(--font-brand);
+  letter-spacing: -.04em;
+}
+
+.week-page-subtitle {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font: 560 .94rem/1.55 var(--font-body);
+}
+
+.week-page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.week-page-actions .btn-nav,
+.week-page-actions .week-report-btn {
+  min-height: 42px;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: none;
+}
+
+.week-page-actions .week-report-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.week-page .tag-filter-bar {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+
+.week-goals-summary {
+  display: grid;
+  grid-template-columns: minmax(230px, .7fr) minmax(0, 1.8fr);
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.week-page .card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.week-progress-card,
+.week-goals-card,
+.week-habits-card {
+  min-width: 0;
+  padding: var(--space-5);
+}
+
+.week-progress-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  background: var(--color-surface-muted) !important;
+}
+
+.week-progress-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font: 650 .82rem/1.3 var(--font-body);
+}
+
+.week-progress-heading strong {
+  color: var(--color-text);
+  font: 760 1.75rem/1 var(--font-brand);
+  font-variant-numeric: tabular-nums;
+}
+
+.week-page .w-top-bar {
+  position: relative;
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+}
+
+.week-page .w-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+
+.week-page .stats-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.week-page .stats-table th,
+.week-page .stats-table td {
+  border: 0;
+  border-inline-end: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.week-page .stats-table th:last-child,
+.week-page .stats-table td:last-child { border-inline-end: 0; }
+
+.week-page .stats-table th {
+  color: var(--color-text-muted);
+  font-size: .7rem;
+}
+
+.week-section-title {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text);
+  font: 740 1.05rem/1.3 var(--font-brand);
+  letter-spacing: -.015em;
+}
+
+.week-goals-card .legend-groups {
+  gap: var(--space-5);
+}
+
+.week-page .legend-col,
+.week-page .task-group {
+  gap: var(--space-3);
+}
+
+.week-page .v-strip {
+  width: 4px;
+  min-width: 4px;
+  border-radius: var(--radius-pill);
+  color: transparent;
+  font-size: 0;
+}
+
+.week-page .v-strip.pink { background: var(--color-accent); }
+.week-page .v-strip.blue { background: var(--color-info); }
+
+.week-page .legend-goal {
+  min-width: 0;
+  min-height: 30px;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-size: .82rem;
+}
+
+.week-page .legend-goal .g-text {
+  overflow-wrap: anywhere;
+}
+
+.week-support-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.week-support-grid > * {
+  min-width: 0;
+}
+
+.week-habit-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.week-habit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.week-habit-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.week-habit-copy strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font: 680 .82rem/1.35 var(--font-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-habit-copy span,
+.week-empty-state {
+  color: var(--color-text-muted);
+  font: 560 .72rem/1.4 var(--font-body);
+}
+
+.week-habit-progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+}
+
+.week-habit-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-positive);
+}
+
+.week-habit-row > b {
+  color: var(--color-text-muted);
+  font: 680 .72rem/1 var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.week-page .pomo-widget {
+  justify-content: center;
+  padding: var(--space-5);
+  background: var(--color-surface) !important;
+}
+
+.week-page .pomo-widget-title {
+  color: var(--color-text);
+  font-family: var(--font-brand);
+}
+
+.week-page .pomo-widget-time {
+  color: var(--color-text);
+  font-family: var(--font-brand);
+}
+
+.week-reflection-card {
+  background: var(--color-surface-muted) !important;
+}
+
+.week-reflection-card .ref-title {
+  border-block-end: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  font-family: var(--font-brand);
+}
+
+.week-day-selector {
+  display: none;
+}
+
+.week-days-section {
+  min-width: 0;
+}
+
+.week-days-title {
+  margin-block-end: var(--space-4);
+}
+
+.week-day-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.week-day-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.week-day-panel.today {
+  border-color: var(--color-accent);
+  box-shadow: inset 3px 0 0 var(--color-accent), var(--shadow-panel);
+}
+
+.week-day-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  background: var(--color-surface-muted);
+}
+
+.week-day-date {
+  margin: 0 0 2px;
+  color: var(--color-text-muted);
+  font: 650 .7rem/1.2 var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.week-day-name {
+  margin: 0;
+  color: var(--color-text);
+  font: 735 1.05rem/1.2 var(--font-brand);
+}
+
+.week-day-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.week-day-status strong {
+  color: var(--color-text);
+  font: 720 .86rem/1 var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.week-page .today-badge {
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: .68rem;
+}
+
+.week-day-progress {
+  height: 4px;
+  overflow: hidden;
+  background: var(--color-border);
+}
+
+.week-day-progress span {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+}
+
+.week-day-panel .sticky-note-box {
+  min-height: 0;
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-warning-soft, var(--color-surface-muted));
+  color: var(--color-text);
+  transform: none;
+}
+
+.week-page .mood-row {
+  justify-content: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.week-page .mood-btn {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font-size: .9rem;
+  opacity: .55;
+}
+
+.week-page .mood-btn:hover,
+.week-page .mood-btn.on {
+  border-color: var(--color-control-border);
+  background: var(--color-surface-muted);
+  opacity: 1;
+  transform: none;
+}
+
+.week-page .day-tasks {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.week-page .task-row {
+  min-width: 0;
+  min-height: 28px;
+  gap: var(--space-1) var(--space-2);
+  color: var(--color-text);
+  font-size: .79rem;
+}
+
+.week-page .task-row .task-text {
+  overflow-wrap: anywhere;
+}
+
+.week-page .task-row .btn-tag,
+.week-page .task-row .btn-del {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+  opacity: .72;
+}
+
+.week-page .day-note {
+  margin: 0;
+  border-block-start: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.week-page .note-banner {
+  padding: var(--space-3) var(--space-4) 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: 680 .72rem/1.3 var(--font-body);
+  text-align: start;
+}
+
+.week-page .note-area {
+  min-height: 70px;
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  color: var(--color-text);
+}
+
+@media (max-width: 1100px) {
+  .week-goals-summary {
+    grid-template-columns: minmax(210px, .75fr) minmax(0, 1.5fr);
+  }
+
+  .week-support-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .week-reflection-card {
+    grid-column: 1 / -1;
+  }
+
+  .week-day-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .week-page {
+    gap: var(--space-4);
+  }
+
+  .week-page-header {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .week-page-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .week-page-actions .week-report-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .week-goals-summary,
+  .week-support-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .week-reflection-card {
+    grid-column: auto;
+  }
+
+  .week-goals-card .legend-groups {
+    flex-direction: column;
+  }
+
+  .week-day-selector {
+    position: sticky;
+    z-index: 6;
+    top: 64px;
+    display: flex;
+    gap: var(--space-2);
+    max-width: 100%;
+    overflow-x: auto;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-canvas) 92%, transparent);
+    box-shadow: var(--shadow-panel);
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .week-day-selector-button {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    min-width: 66px;
+    min-height: 48px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-control-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: 680 .76rem/1.2 var(--font-body);
+  }
+
+  .week-day-selector-button small {
+    color: var(--color-text-muted);
+    font-size: .66rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .week-day-selector-button.today {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+  }
+
+  .week-day-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .week-day-panel {
+    scroll-margin-top: 132px;
+  }
+
+  .week-progress-card,
+  .week-goals-card,
+  .week-habits-card,
+  .week-page .pomo-widget {
+    padding: var(--space-4);
+  }
+
+  .week-habit-row {
+    grid-template-columns: minmax(0, 1fr) 64px auto;
+  }
+}
+
+@media print {
+  .week-page .tag-filter-bar,
+  .week-day-selector,
+  .week-page-actions,
+  .week-habits-card,
+  .week-page .pomo-widget {
+    display: none !important;
+  }
+
+  .week-page-header {
+    display: block;
+    margin-block-end: 6mm;
+  }
+
+  .week-support-grid {
+    display: block;
+    margin-block-start: 6mm;
+  }
+
+  .week-reflection-card {
+    display: block;
+    break-inside: avoid;
+  }
+
+  .week-goals-summary {
+    grid-template-columns: minmax(0, .65fr) minmax(0, 1.35fr);
+    gap: 6mm;
+  }
+
+  .week-days-section {
+    break-before: page;
+  }
+
+  .week-day-list {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2mm;
+    overflow: visible !important;
+  }
+
+  .week-day-panel {
+    min-width: 0;
+    overflow: visible;
+    break-inside: avoid;
+    box-shadow: none;
+  }
+
+  .week-day-panel-header,
+  .week-page .day-tasks,
+  .week-page .mood-row,
+  .week-page .note-area {
+    padding: 2mm;
+  }
+
+  .week-page .task-row {
+    font-size: 7pt;
+  }
+
+  .week-page .task-row .btn-tag,
+  .week-page .task-row .btn-del,
+  .week-page .mood-row,
+  .week-page .btn-add {
+    display: none !important;
+  }
+}

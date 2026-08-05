@@ -178,9 +178,9 @@ test('6.13: cột habit tách icon khỏi tên (flex column, icon hàng riêng f
 });
 
 test('6.14: Pomodoro gộp cột phải cùng Phản ánh (week-side, không còn 1 mình 1 hàng)', () => {
-  assert.match(APP_JS, /week-side/);
-  assert.match(APP_JS, /<div class="week-side">/);
-  assert.match(CSS, /\.week-side \{ display: flex; flex-direction: column/);
+  const week = APP_JS.slice(APP_JS.indexOf('function renderWeek()'), APP_JS.indexOf('function weeklyGoalsHTML'));
+  assert.match(week, /class="week-support-grid"/);
+  assert.match(CSS, /\.week-support-grid\s*\{[^}]*display:\s*grid/s);
   assert.match(APP_JS, /class="card pomo-widget"/);
-  assert.match(APP_JS, /class="card reflection sub"/);
+  assert.match(APP_JS, /class="card reflection sub week-reflection-card"/);
 });

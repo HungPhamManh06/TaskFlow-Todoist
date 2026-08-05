@@ -530,6 +530,19 @@ const I18N = {
     overviewHabitGridAria: 'Bảng theo dõi thói quen trong tháng',
     viewYear: 'Kế hoạch năm',
     viewWeek: 'Kế hoạch tuần',
+    weekWorkspaceEyebrow: 'Không gian làm việc tuần',
+    weekPageTitle: 'Kế hoạch Tuần {n}',
+    weekPageSubtitle: 'Chọn việc quan trọng, phân bổ theo ngày và giữ nhịp tập trung.',
+    weekGoalsSummaryAria: 'Tổng quan mục tiêu tuần',
+    weekProgressLabel: 'Tiến độ tuần',
+    weekGoalsHeading: 'Mục tiêu tuần',
+    weekHabitsHeading: 'Thói quen tuần',
+    weekHabitsMeta: '{done}/{total} lượt hoàn thành',
+    weekHabitsEmpty: 'Chưa có thói quen trong tháng này.',
+    weekDaySelectorAria: 'Chuyển nhanh đến ngày trong tuần',
+    weekJumpDay: 'Đi đến {day}',
+    weekDaysHeading: 'Kế hoạch theo ngày',
+    weekSupportAria: 'Công cụ và phản ánh tuần',
     brandSub: 'Kế hoạch tháng {n} · {y}',
     monthOption: 'Tháng {n} {y}',
     selWeekAria: 'Chọn tuần hiện tại',
@@ -981,6 +994,19 @@ const I18N = {
     overviewHabitGridAria: 'Monthly habit tracking table',
     viewYear: 'Year plan',
     viewWeek: 'Week plan',
+    weekWorkspaceEyebrow: 'Weekly workspace',
+    weekPageTitle: 'Week {n} plan',
+    weekPageSubtitle: 'Choose what matters, distribute the work, and protect your focus.',
+    weekGoalsSummaryAria: 'Weekly goals overview',
+    weekProgressLabel: 'Weekly progress',
+    weekGoalsHeading: 'Weekly goals',
+    weekHabitsHeading: 'Weekly habits',
+    weekHabitsMeta: '{done}/{total} completions',
+    weekHabitsEmpty: 'No habits in this month yet.',
+    weekDaySelectorAria: 'Jump to a day in this week',
+    weekJumpDay: 'Go to {day}',
+    weekDaysHeading: 'Daily plan',
+    weekSupportAria: 'Weekly tools and reflection',
     brandSub: '{m} {y}',
     monthOption: '{m} {y}',
     selWeekAria: 'Select current week',
@@ -2647,7 +2673,8 @@ function habitPct(h) {
   return window.PlanMath ? window.PlanMath.habitPctFrom(days, habitDaysElapsed(), h.target) : 0;
 }
 function dayPct(day) {
-  return Math.round((day.tasks.filter((t) => t.done).length / day.tasks.length) * 100);
+  const tasks = Array.isArray(day.tasks) ? day.tasks : [];
+  return tasks.length ? Math.round((tasks.filter((task) => task.done).length / tasks.length) * 100) : 0;
 }
 function monthlyStats() {
   const total = state.monthlyGoals.length;
@@ -4386,38 +4413,42 @@ function renderWeek() {
   const st = weekStats(w);
   const ti = nowInfo();
   el.innerHTML = `
-    <div class="week-banner">
-      <h2>${t('weekBanner')}</h2>
-      <button type="button" class="pop-btn share-btn week-report-btn" data-action="week-report" title="${t('weekReportTitle')}">📊 ${t('weekReportTitle')}</button>
-      ${ti.inRange ? '' : `<p class="week-range-note">${t('weekRange', { a: fmtDate(ti.now), b: fmtDate(PLAN_START), c: fmtDate(PLAN_END) })}</p>`}
-    </div>
-    ${weekTagFilterBar()}
-    <div class="week-head">
-      <div class="card week-title-card">
-        <div class="w-top-bar">
-          <div class="w-bar-fill" data-role="w-bar-fill" style="width:${st.pct}%"></div>
-          <span class="w-chick-on-bar" aria-hidden="true">🐥<span class="gun">⭐</span></span>
-          <span class="week-pct-text" data-role="w-badge">${st.pct}%</span>
+    <div class="week-page">
+      <header class="week-page-header">
+        <div class="week-page-heading">
+          <p class="week-page-eyebrow">${t('weekWorkspaceEyebrow')}</p>
+          <h1 class="week-page-title">${t('weekPageTitle', { n: w.n })}</h1>
+          <p class="week-page-subtitle">${t('weekPageSubtitle')}</p>
+          ${ti.inRange ? '' : `<p class="week-range-note">${t('weekRange', { a: fmtDate(ti.now), b: fmtDate(PLAN_START), c: fmtDate(PLAN_END) })}</p>`}
         </div>
-        <h2 class="card-title">${t('weekN', { n: w.n })}</h2>
-        <table class="stats-table">
-          <tr><th>${t('statsDone')}</th><th>${t('statsInProg')}</th><th>${t('statsTotal')}</th></tr>
-          <tr data-role="w-stats"><td>${st.done}</td><td>${st.inProg}</td><td>${st.total}</td></tr>
-        </table>
-        <div class="week-nav">
+        <div class="week-page-actions">
           <button type="button" class="btn-nav" data-action="prev" ${state.currentWeek === 1 ? 'disabled' : ''}>${t('prevWeek')}</button>
           <button type="button" class="btn-nav" data-action="next" ${state.currentWeek === NUM_WEEKS ? 'disabled' : ''}>${t('nextWeek')}</button>
+          <button type="button" class="pop-btn share-btn week-report-btn" data-action="week-report" title="${t('weekReportTitle')}">${window.TaskFlowUI.icon('report')}<span>${t('weekReportTitle')}</span></button>
         </div>
-      </div>
-      <div class="card donut-card">
-        <div class="donut-wrap">
-          <div class="donut" data-role="w-donut">${donutSVG(st.pct, 140, 18, '#F39A82')}</div>
-          <div class="donut-center"><span data-role="w-badge">${st.pct}%</span></div>
-        </div>
-      </div>
-      <div class="card legend-card">${weeklyGoalsHTML(w)}</div>
-      <div class="week-side">
-        <div class="card reflection sub">${reflectionHTML('w' + w.n, REFLECT_PROMPTS_WEEK())}</div>
+      </header>
+      ${weekTagFilterBar()}
+      <section class="week-goals-summary" aria-label="${t('weekGoalsSummaryAria')}">
+        <article class="card week-progress-card">
+          <div class="week-progress-heading">
+            <span>${t('weekProgressLabel')}</span>
+            <strong data-role="w-badge">${st.pct}%</strong>
+          </div>
+          <div class="w-top-bar" data-role="w-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${st.pct}" aria-label="${t('weekProgressLabel')}">
+            <div class="w-bar-fill" data-role="w-bar-fill" style="width:${st.pct}%"></div>
+          </div>
+          <table class="stats-table">
+            <tr><th>${t('statsDone')}</th><th>${t('statsInProg')}</th><th>${t('statsTotal')}</th></tr>
+            <tr data-role="w-stats"><td>${st.done}</td><td>${st.inProg}</td><td>${st.total}</td></tr>
+          </table>
+        </article>
+        <section class="card week-goals-card">
+          <h2 class="week-section-title">${t('weekGoalsHeading')}</h2>
+          ${weeklyGoalsHTML(w)}
+        </section>
+      </section>
+      <section class="week-support-grid" aria-label="${t('weekSupportAria')}">
+        ${weekHabitsHTML(w)}
         <div class="card pomo-widget" data-role="pomo-widget">
           <div class="pomo-widget-head">
             <span class="pomo-widget-title">${t('pomoWidgetTitle')}</span>
@@ -4433,13 +4464,43 @@ function renderWeek() {
           <div class="pomo-widget-stats" id="pomoWidgetStats"></div>
           <div class="pomo-tomato-wrap" id="pomoWidgetTomato"></div>
         </div>
-      </div>
-    </div>
-    <div class="days-grid">
-      ${w.days.map((d, di) => dayColumnHTML(w, di, isDayToday(d))).join('')}
+        <div class="card reflection sub week-reflection-card">${reflectionHTML('w' + w.n, REFLECT_PROMPTS_WEEK())}</div>
+      </section>
+      <nav class="week-day-selector" aria-label="${t('weekDaySelectorAria')}">
+        ${w.days.map((d, di) => `<button type="button" class="week-day-selector-button${isDayToday(d) ? ' today' : ''}" data-action="day-jump" data-day-target="week-day-${w.n}-${di}" aria-label="${t('weekJumpDay', { day: dayLabel(di) })}"><span>${dayLabel(di)}</span><small>${d.date}</small></button>`).join('')}
+      </nav>
+      <section class="week-days-section" aria-labelledby="week-days-title">
+        <h2 class="week-section-title week-days-title" id="week-days-title">${t('weekDaysHeading')}</h2>
+        <div class="week-day-list">
+          ${w.days.map((d, di) => dayColumnHTML(w, di, isDayToday(d))).join('')}
+        </div>
+      </section>
     </div>`;
   renderPomo();
   renderPomoWidgetStats();
+}
+
+function weekHabitsHTML(w) {
+  const dayIndexes = w.days.map((d) => {
+    const parts = String(d.date).split('/').map(Number);
+    return parts[1] === PLAN_MONTH + 1 ? parts[0] - 1 : null;
+  }).filter(Number.isInteger);
+  const habits = Array.isArray(state.habits) ? state.habits : [];
+  const rows = habits.map((habit) => {
+    const available = dayIndexes.filter((day) => !Array.isArray(habit.skipDays) || !habit.skipDays.includes(day));
+    const done = available.filter((day) => Array.isArray(habit.days) && habit.days[day]).length;
+    const total = available.length;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    return `<div class="week-habit-row">
+      <div class="week-habit-copy"><strong>${esc(habit.name)}</strong><span>${t('weekHabitsMeta', { done, total })}</span></div>
+      <div class="week-habit-progress" role="progressbar" aria-label="${esc(habit.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
+      <b>${pct}%</b>
+    </div>`;
+  }).join('');
+  return `<section class="card week-habits-card">
+    <h2 class="week-section-title">${t('weekHabitsHeading')}</h2>
+    <div class="week-habit-list">${rows || `<p class="week-empty-state">${t('weekHabitsEmpty')}</p>`}</div>
+  </section>`;
 }
 
 function weeklyGoalsHTML(w) {
@@ -4478,23 +4539,21 @@ function dayColumnHTML(w, di, isToday) {
   const p = dayPct(d);
   const pri = d.tasks.map((t, ti) => ({ t, ti })).filter((x) => x.t.kind === 'priority');
   const reg = d.tasks.map((t, ti) => ({ t, ti })).filter((x) => x.t.kind === 'regular');
-  return `<div class="day-col day-col-${di}${isToday ? ' today' : ''}">
-    <div class="day-head">
-      <span class="fruit" aria-hidden="true">${DAYS[di].icon}</span>
-      <span class="day-name">${dayLabel(di)}</span>
-      <span class="day-date">${d.date}/${d.yy}</span>
-      ${isToday ? `<span class="today-badge">${t('todayBadge')}</span>` : ''}
-    </div>
+  return `<section class="week-day-panel day-col day-col-${di}${isToday ? ' today' : ''}" id="week-day-${w.n}-${di}" aria-labelledby="week-day-title-${w.n}-${di}" tabindex="-1">
+    <header class="week-day-panel-header">
+      <div>
+        <p class="week-day-date">${d.date}/${d.yy}</p>
+        <h2 class="week-day-name" id="week-day-title-${w.n}-${di}">${dayLabel(di)}</h2>
+      </div>
+      <div class="week-day-status">
+        ${isToday ? `<span class="today-badge">${t('todayBadge')}</span>` : ''}
+        <strong data-role="day-pct" data-day="${di}">${p}%</strong>
+      </div>
+    </header>
+    <div class="week-day-progress" data-role="day-progress" data-day="${di}" role="progressbar" aria-label="${dayLabel(di)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}"><span data-role="day-progress-fill" style="width:${p}%"></span></div>
+    ${d.sticky ? `<div class="sticky-note-box"><span>${esc(d.sticky)}</span></div>` : ''}
     <div class="mood-row" role="group" aria-label="${t('moodTitle')}" data-i18n-aria="moodTitle">
       ${MOODS.map((m, i) => `<button type="button" class="mood-btn${moodMap[moodDateKey(d.date)] === i ? ' on' : ''}" data-action="mood" data-day-key="${moodDateKey(d.date)}" data-mood="${i}" title="${t(m.labelKey)}" aria-label="${t(m.labelKey)}">${m.icon}</button>`).join('')}
-    </div>
-    <div class="day-visual-block">
-      ${d.sticky ? `<div class="sticky-note-box"><span>${esc(d.sticky)}</span></div>` : `
-        <div class="day-vert-bar-wrap">
-          <div class="day-vert-bar" style="height:${Math.max(p, 4)}%"></div>
-        </div>
-      `}
-      <div class="day-pct-label" data-role="day-pct" data-day="${di}">${p}%</div>
     </div>
     <div class="day-tasks">
       <div class="task-group">
@@ -4518,7 +4577,7 @@ function dayColumnHTML(w, di, isToday) {
       <div class="note-banner">${t('noteBanner')}</div>
       <div class="note-area" contenteditable="true" spellcheck="false" data-note="${w.n}-${di}" data-placeholder="..." aria-label="${t('noteAria', { name: dayLabel(di) })}">${esc(d.note).replace(/\n/g, '<br>')}</div>
     </div>
-  </div>`;
+  </section>`;
 }
 
 function taskRowHTML(wn, di, ti, mod, task, pos) {
@@ -5814,6 +5873,13 @@ document.addEventListener('click', (e) => {
   else if (act === 'prev') goWeek(state.currentWeek - 1);
   else if (act === 'next') goWeek(state.currentWeek + 1);
   else if (act === 'weekbar') goWeek(+el.dataset.week);
+  else if (act === 'day-jump') {
+    const target = document.getElementById(el.dataset.dayTarget);
+    if (target) {
+      target.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+      target.focus({ preventScroll: true });
+    }
+  }
   else if (act === 'goal') {
     const g = state.monthlyGoals.find((x) => x.id === el.dataset.id);
     if (g) { g.done = !g.done; afterGoalToggle(g); if (g.done && monthlyStats().pct === 100) confettiBurst(); }
@@ -6304,6 +6370,8 @@ function afterWGoalToggle(w) {
   document.querySelectorAll('[data-role="w-badge"]').forEach((b) => { b.textContent = st.pct + '%'; });
   const fill = document.querySelector('[data-role="w-bar-fill"]');
   if (fill) fill.style.width = st.pct + '%';
+  const wProgress = document.querySelector('[data-role="w-progress"]');
+  if (wProgress) wProgress.setAttribute('aria-valuenow', String(st.pct));
   const don = document.querySelector('[data-role="w-donut"]');
   if (don) don.innerHTML = donutSVG(st.pct, 140, 18, '#F39A82');
   const stats = document.querySelector('[data-role="w-stats"]');
@@ -6325,8 +6393,10 @@ function refreshTaskUI(w, di) {
   });
   const pctEl = document.querySelector(`.day-col-${di} [data-role="day-pct"]`);
   if (pctEl) pctEl.textContent = p + '%';
-  const vertBar = document.querySelector(`.day-col-${di} .day-vert-bar`);
-  if (vertBar) vertBar.style.height = Math.max(p, 4) + '%';
+  const dayProgress = document.querySelector(`.day-col-${di} [data-role="day-progress"]`);
+  if (dayProgress) dayProgress.setAttribute('aria-valuenow', String(p));
+  const dayProgressFill = dayProgress && dayProgress.querySelector('[data-role="day-progress-fill"]');
+  if (dayProgressFill) dayProgressFill.style.width = p + '%';
   // View Lịch: cập nhật % ngày trong ô calendar
   const calPct = document.querySelector(`[data-role="cal-pct"][data-week="${w.n}"][data-day="${di}"]`);
   if (calPct) calPct.textContent = p + '%';

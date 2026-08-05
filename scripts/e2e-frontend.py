@@ -34,6 +34,14 @@ def load_app(page, base):
     page.wait_for_selector("#view-overview.active .overview-page")
 
 
+def load_week(page, base):
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.goto(f"{base}/app.html?view=week&w=1", wait_until="networkidle")
+    if page.locator("#onboardModal:not([hidden])").count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector("#view-week.active .week-page")
+
+
 def overview_checks(browser, base, width, height, errors, screenshot):
     page = browser.new_page(viewport={"width": width, "height": height})
     page.on("pageerror", lambda error: errors.append(f"{width}px: {error}"))
@@ -106,9 +114,69 @@ def overview_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def week_checks(browser, base, width, height, errors, screenshot):
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"week {width}px: {error}"))
+    load_week(page, base)
+
+    assert page.locator("#view-week h1").count() == 1
+    assert page.locator(".week-day-panel").count() == 7
+    assert page.locator(".week-goals-summary").count() == 1
+    assert page.locator(".week-support-grid").count() == 1
+    assert_no_page_overflow(page, f"week {width}px")
+
+    selector = page.locator(".week-day-selector")
+    if width <= 390:
+        assert selector.is_visible()
+        jump = selector.locator('[data-action="day-jump"]').nth(3)
+        target_id = jump.get_attribute("data-day-target")
+        jump.click()
+        assert page.evaluate("document.activeElement && document.activeElement.id") == target_id
+    else:
+        assert not selector.is_visible()
+
+    task_count = page.locator(".week-day-panel").first.locator(".task-row").count()
+    page.locator('.week-day-panel [data-action="addtask"]').first.click()
+    assert page.locator(".week-day-panel").first.locator(".task-row").count() == task_count + 1
+    assert page.evaluate("document.activeElement && document.activeElement.dataset.role") == "task-text"
+
+    day_progress = page.locator('.week-day-panel').first.locator('[data-role="day-progress"]')
+    day_before = day_progress.get_attribute("aria-valuenow")
+    page.locator('.week-day-panel').first.locator('[data-action="task"]').first.click()
+    assert day_progress.get_attribute("aria-valuenow") != day_before
+    assert day_progress.locator('[data-role="day-progress-fill"]').get_attribute("style")
+
+    week_progress = page.locator('[data-role="w-progress"]')
+    week_before = week_progress.get_attribute("aria-valuenow")
+    page.locator('[data-action="wgoal"]').first.click()
+    assert week_progress.get_attribute("aria-valuenow") != week_before
+
+    mood = page.locator('.week-day-panel [data-action="mood"]').first
+    mood.click()
+    assert "on" in (mood.get_attribute("class") or "")
+
+    remind = page.locator('.week-day-panel [data-action="remind-task"]').first
+    remind.click()
+    assert remind.locator("xpath=ancestor::*[contains(@class,'task-row')][1]").locator(".remind-edit-input").count() == 1
+
+    page.locator('[data-action="week-report"]').click()
+    assert page.locator("#weekReportModal:not([hidden])").count() == 1
+    page.locator('#weekReportModal [data-action="close-week-report"]').click()
+
+    start = page.locator('#view-week [data-action="pomo-start"]')
+    start.click()
+    assert page.locator("#pomoWidgetTime").inner_text() != ""
+    start.click()
+    page.locator('#view-week [data-action="pomo-reset"]').click()
+    assert page.locator("#pomoWidgetTime").inner_text() == "25:00"
+
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--view", choices=["overview"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week"], default="overview")
     args = parser.parse_args()
 
     httpd = socketserver.TCPServer(("127.0.0.1", 0), Handler)
@@ -116,8 +184,8 @@ def main():
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{port}"
     shots = {
-        "desktop": os.path.join(tempfile.gettempdir(), "taskflow-overview-desktop.png"),
-        "mobile": os.path.join(tempfile.gettempdir(), "taskflow-overview-mobile.png"),
+        "desktop": os.path.join(tempfile.gettempdir(), f"taskflow-{args.view}-desktop.png"),
+        "mobile": os.path.join(tempfile.gettempdir(), f"taskflow-{args.view}-mobile.png"),
     }
     errors = []
 
@@ -127,6 +195,9 @@ def main():
             if args.view == "overview":
                 overview_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 overview_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "week":
+                week_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                week_checks(browser, base, 390, 844, errors, shots["mobile"])
             browser.close()
     finally:
         httpd.shutdown()
@@ -134,7 +205,7 @@ def main():
     if errors:
         print("PAGE ERRORS:", errors[:8])
         return 1
-    print("E2E OVERVIEW OK")
+    print(f"E2E {args.view.upper()} OK")
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0
 

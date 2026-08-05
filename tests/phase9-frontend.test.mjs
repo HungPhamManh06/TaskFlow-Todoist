@@ -261,6 +261,82 @@ test('overview habit grid has a named scroll region and table', () => {
   assert.match(habits, /<table class="habit-table"[^>]*aria-label=/);
 });
 
+test('week renderer exposes a refined planning workspace contract', () => {
+  const week = APP_JS.slice(
+    APP_JS.indexOf('function renderWeek()'),
+    APP_JS.indexOf('function weeklyGoalsHTML')
+  );
+  assert.match(week, /class="week-page"/);
+  assert.match(week, /class="week-page-header"/);
+  assert.match(week, /<h1[^>]*class="week-page-title"/);
+  assert.match(week, /class="week-goals-summary"/);
+  assert.match(week, /class="week-support-grid"/);
+  assert.match(week, /class="week-day-selector"/);
+  assert.match(week, /class="week-day-list"/);
+  assert.match(week, /weekHabitsHTML\(w\)/);
+  assert.match(week, /data-action="week-report"/);
+  assert.match(week, /data-role="pomo-widget"/);
+  assert.match(week, /reflectionHTML\(/);
+  assert.doesNotMatch(week, /week-banner|w-chick-on-bar/);
+});
+
+test('week day renderer emits seven labeled, addressable panels', () => {
+  const dayPanel = APP_JS.slice(
+    APP_JS.indexOf('function dayColumnHTML'),
+    APP_JS.indexOf('function taskRowHTML')
+  );
+  assert.match(dayPanel, /<section[^>]*class="week-day-panel/);
+  assert.match(dayPanel, /id="week-day-\$\{w\.n\}-\$\{di\}"/);
+  assert.match(dayPanel, /aria-labelledby="week-day-title-\$\{w\.n\}-\$\{di\}"/);
+  assert.match(dayPanel, /<h2[^>]*id="week-day-title-/);
+  assert.match(APP_JS, /w\.days\.map\(\(d, di\) => dayColumnHTML\(w, di, isDayToday\(d\)\)\)/);
+});
+
+test('mobile week selector scrolls and focuses the chosen day panel', () => {
+  assert.match(APP_JS, /data-action="day-jump"[^>]*data-day-target=/);
+  assert.match(APP_JS, /act === 'day-jump'[\s\S]{0,300}scrollIntoView\(\{ behavior: prefersReducedMotion\(\) \? 'auto' : 'smooth'/);
+  assert.match(APP_JS, /target\.focus\(\{ preventScroll: true \}\)/);
+});
+
+test('week workspace uses responsive panels without page-level horizontal scrolling', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  assert.match(styles, /\.week-day-list\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(3,/s);
+  assert.match(styles, /\.week-day-panel\s*{[^}]*min-width:\s*0/s);
+  assert.match(styles, /\.week-day-selector\s*{[^}]*display:\s*none/s);
+  const mobile = styles.slice(styles.lastIndexOf('@media (max-width: 767px)'));
+  assert.match(mobile, /\.week-day-selector\s*{[^}]*display:\s*flex/s);
+  assert.match(mobile, /\.week-day-list\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+});
+
+test('week progress bars stay synchronized after inline task and goal changes', () => {
+  assert.match(APP_JS, /data-role="w-progress"/);
+  assert.match(APP_JS, /data-role="day-progress"[^>]*data-day="\$\{di\}"/);
+  const goalSync = APP_JS.slice(APP_JS.indexOf('function afterWGoalToggle'), APP_JS.indexOf('function refreshTaskUI'));
+  assert.match(goalSync, /wProgress\.setAttribute\('aria-valuenow', String\(st\.pct\)\)/);
+  const taskSync = APP_JS.slice(APP_JS.indexOf('function refreshTaskUI'), APP_JS.indexOf('Đồng bộ thời gian thực'));
+  assert.match(taskSync, /dayProgress\.setAttribute\('aria-valuenow', String\(p\)\)/);
+  assert.match(taskSync, /dayProgressFill\.style\.width = p \+ '%'/);
+});
+
+test('empty week days report zero progress instead of NaN', () => {
+  const source = APP_JS.match(/function dayPct\(day\)\s*\{[^}]*}/)?.[0];
+  assert.ok(source, 'missing dayPct helper');
+  const dayPct = new Function(`${source}; return dayPct;`)();
+  assert.equal(dayPct({ tasks: [] }), 0);
+});
+
+test('print layout targets the refined seven-day week grid', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  const print = styles.slice(styles.lastIndexOf('@media print'));
+  assert.match(print, /\.week-day-list[^}]*grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(print, /\.week-day-panel[^}]*break-inside:\s*avoid/s);
+  assert.match(print, /\.week-day-list[^}]*overflow:\s*visible\s*!important/s);
+  assert.doesNotMatch(print, /\.week-page-header[^}]*display:\s*none/s);
+  assert.match(print, /\.week-page-actions[^}]*display:\s*none\s*!important/s);
+  assert.match(print, /\.week-support-grid\s*{[^}]*display:\s*block/s);
+  assert.match(print, /\.week-reflection-card\s*{[^}]*display:\s*block/s);
+});
+
 test('tools drawer supports dismissal and focus restoration', () => {
   assert.match(APP_JS, /function openToolsDrawer\(/);
   assert.match(APP_JS, /function closeToolsDrawer\(/);
@@ -311,7 +387,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v52';/);
+  assert.match(SW, /const CACHE = 'taskflow-v53';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -374,8 +450,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system assets are available in the v52 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v52';/);
+test('design system assets are available in the v53 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v53';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './icons/ui-sprite.svg', './js/ui.js',
