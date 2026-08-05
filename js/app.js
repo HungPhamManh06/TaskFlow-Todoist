@@ -2579,14 +2579,16 @@ function bootYearState() { return loadYearState() || (hasAccount() ? emptyYearSt
 // Nạp lại state từ localStorage sau khi đổi tài khoản (login/signup/Google OAuth).
 // QUAN TRỌNG: phải gọi sau khi Sync đã xoá local + pull remote — nếu không UI vẫn
 // hiển thị (và vô tình lưu) dữ liệu của tài khoản trước đó.
-function rebootState() {
+function rebootState(render = true) {
   state = bootState();
   yearState = bootYearState();
   invalidateYearCache();
   // Phase 5: đổi tài khoản/sync-pull → xoá undo cũ (snapshot của tài khoản cũ không còn hợp lệ)
   if (typeof undoStack !== 'undefined' && undoStack) { undoStack.clear(); lastSnapshotJson = null; }
-  setView(state.view, state.currentWeek);
-  updateNav();
+  if (render) {
+    setView(state.view, state.currentWeek);
+    updateNav();
+  }
 }
 
 let state = bootState();
@@ -2637,8 +2639,8 @@ function donutSVG(pct, size = 140, stroke = 18, color = '#F39A82') {
 
 function checkboxHTML(mod, checked, attrs = '', label) {
   const cls = mod ? ` cb-${mod}` : '';
-  const aria = label ? ` aria-label="${esc(label)}"` : '';
-  return `<button type="button" class="checkbox${cls}" role="checkbox" aria-checked="${checked}"${aria} ${attrs}></button>`;
+  const a11y = window.TaskFlowUI.checkboxA11y(checked, label);
+  return `<button type="button" class="checkbox${cls}" ${a11y} ${attrs}></button>`;
 }
 
 /* ============================ Trình bày ============================ */
@@ -6479,7 +6481,12 @@ lastDayKey = ti0.now.toDateString();
 // (setView() dưới đây gọi save() → sẽ ghi default state, làm "có dữ liệu")
 maybeStartOnboarding();
 
-/* ---------- Deep link từ manifest shortcuts (?view=, ?m=YYYY-M) ---------- */
+// Consume and remove the OAuth credential before setView() can replace the URL.
+// Reload without rendering so stale data from the previous account is never saved back.
+const googleSwitched = window.Sync ? window.Sync.consumeRedirectToken() : false;
+if (googleSwitched) rebootState(false);
+
+/* ---------- Deep link từ manifest shortcuts (?view=, ?m=YYYY-M, ?w=N) ---------- */
 if (window.DeepLink) {
   const dl = window.DeepLink.parse(location.href);
   if (dl.year !== null && dl.month !== null) {
@@ -6491,6 +6498,7 @@ if (window.DeepLink) {
     updateNowBtn();
   }
   if (dl.view) state.view = dl.view;
+  if (dl.view === 'week' && dl.week !== null && dl.week <= NUM_WEEKS) state.currentWeek = dl.week;
 }
 
 setTheme(THEME);
@@ -6508,17 +6516,7 @@ setTimeout(updateDigestCache, 2000);
 
 /* ---------- Khởi động đồng bộ đám mây (backend Render) ---------- */
 if (window.Sync) {
-  // Google OAuth: sau callback, backend quay về app.html?token=... — lưu token trước khi init
-  const googleSwitched = window.Sync.consumeRedirectToken();
-  if (googleSwitched) {
-    // Vừa đăng nhập/chuyển tài khoản qua Google: local đã được xoá trong sync.js,
-    // boot lại state để UI không còn hiển thị dữ liệu của tài khoản trước đó.
-    // LƯU Ý THỨ TỰ: init() (bên dưới) phải chạy SAU rebootState() — vì rebootState()
-    // gọi setView() → save() → Sync.push(), mà lúc này authed còn false nên push()
-    // không ghi meta.savedAt; nếu init() chạy trước, pullAll() của tài khoản cũ
-    // sẽ từ chối ghi đè state trống vừa lưu và migrateLocal() có thể đè dữ liệu thật.
-    rebootState();
-  }
+  // OAuth state was consumed and reloaded before the first render above.
   window.Sync.onStatus(updateSyncStatus);
   window.Sync.onRemoteChange(handleSyncChange);
   const f = document.getElementById('syncForm');

@@ -330,7 +330,9 @@
     // Google OAuth = đăng nhập / chuyển tài khoản: xoá dữ liệu local của tài khoản cũ
     // để KHÔNG migrate dữ liệu cũ lên tài khoản mới (giống signup/login)
     clearLocalData();
-    var clean = window.location.origin + window.location.pathname;
+    var clean = window.DeepLink
+      ? window.DeepLink.withoutParam(window.location.href, 'token')
+      : window.location.origin + window.location.pathname;
     try { window.history.replaceState({}, '', clean); } catch (e) { /* ẩn */ }
     return true;
   }

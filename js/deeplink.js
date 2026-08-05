@@ -3,35 +3,63 @@
 (function () {
   'use strict';
 
+  function emptyResult() {
+    return { view: null, year: null, month: null, week: null };
+  }
+
+  function numWeeksOf(year, month) {
+    var first = new Date(year, month, 1);
+    var mondayOffset = (first.getDay() + 6) % 7;
+    var days = new Date(year, month + 1, 0).getDate();
+    return Math.ceil((mondayOffset + days) / 7);
+  }
+
   function parse(urlStr) {
-    if (!urlStr) return { view: null, year: null, month: null };
-    var qIdx = urlStr.indexOf('?');
-    if (qIdx < 0) return { view: null, year: null, month: null };
-    var out = { view: null, year: null, month: null };
-    var parts = urlStr.slice(qIdx + 1).split('&');
-    for (var i = 0; i < parts.length; i++) {
-      var pair = parts[i].split('=');
-      if (pair.length !== 2 || !pair[0] || !pair[1]) continue;
-      var k = decodeURIComponent(pair[0]).trim();
-      var v = decodeURIComponent(pair[1]).trim();
-      if (k === 'view' && (v === 'overview' || v === 'year' || v === 'week' || v === 'calendar')) {
-        out.view = v;
-      } else if (k === 'm') {
-        var m = /^(\d{4})-(\d{1,2})$/.exec(v);
-        if (m) {
-          var y = parseInt(m[1], 10);
-          var mo = parseInt(m[2], 10);
-          if (y >= 2020 && y <= 2099 && mo >= 1 && mo <= 12) {
-            out.year = y;
-            out.month = mo - 1;
-          }
-        }
+    var out = emptyResult();
+    if (!urlStr) return out;
+    var url;
+    try {
+      url = new URL(urlStr, 'https://taskflow.local/app.html');
+    } catch (e) {
+      return out;
+    }
+
+    var view = String(url.searchParams.get('view') || '').trim();
+    if (view === 'overview' || view === 'year' || view === 'week' || view === 'calendar') {
+      out.view = view;
+    }
+
+    var m = /^(\d{4})-(\d{1,2})$/.exec(String(url.searchParams.get('m') || '').trim());
+    if (m) {
+      var y = parseInt(m[1], 10);
+      var mo = parseInt(m[2], 10);
+      if (y >= 2020 && y <= 2099 && mo >= 1 && mo <= 12) {
+        out.year = y;
+        out.month = mo - 1;
       }
+    }
+
+    var weekRaw = String(url.searchParams.get('w') || '').trim();
+    if (out.view === 'week' && /^\d+$/.test(weekRaw)) {
+      var week = parseInt(weekRaw, 10);
+      var maxWeeks = out.year !== null && out.month !== null ? numWeeksOf(out.year, out.month) : 6;
+      if (week >= 1 && week <= maxWeeks) out.week = week;
     }
     return out;
   }
 
-  var api = { parse: parse };
+  function withoutParam(urlStr, paramName) {
+    if (!urlStr || !paramName) return urlStr;
+    try {
+      var url = new URL(urlStr);
+      url.searchParams.delete(paramName);
+      return url.toString();
+    } catch (e) {
+      return urlStr;
+    }
+  }
+
+  var api = { parse: parse, withoutParam: withoutParam };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.DeepLink = api;
 })();

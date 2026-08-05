@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import DeepLink from '../js/deeplink.js';
 
 test('parse: không tham số', () => {
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html'), { view: null, year: null, month: null });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html'), { view: null, year: null, month: null, week: null });
 });
 
 test('parse: view hợp lệ', () => {
@@ -27,9 +27,9 @@ test('parse: m=YYYY-M hợp lệ', () => {
 });
 
 test('parse: m ngoài phạm vi → null', () => {
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-0'), { view: null, year: null, month: null });
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-13'), { view: null, year: null, month: null });
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=1800-5'), { view: null, year: null, month: null });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-0'), { view: null, year: null, month: null, week: null });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-13'), { view: null, year: null, month: null, week: null });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=1800-5'), { view: null, year: null, month: null, week: null });
 });
 
 test('parse: kết hợp view + m', () => {
@@ -40,12 +40,12 @@ test('parse: kết hợp view + m', () => {
 });
 
 test('parse: token OAuth bị bỏ qua', () => {
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?token=abc123'), { view: null, year: null, month: null });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?token=abc123'), { view: null, year: null, month: null, week: null });
 });
 
 test('parse: chuỗi rỗng/null', () => {
-  assert.deepEqual(DeepLink.parse(''), { view: null, year: null, month: null });
-  assert.deepEqual(DeepLink.parse(null), { view: null, year: null, month: null });
+  assert.deepEqual(DeepLink.parse(''), { view: null, year: null, month: null, week: null });
+  assert.deepEqual(DeepLink.parse(null), { view: null, year: null, month: null, week: null });
 });
 
 import { readFileSync } from 'node:fs';
@@ -62,7 +62,7 @@ test('sw.js: cache version bump lên >= v20', () => {
 });
 
 test('sw.js: APP_SHELL đủ js bắt buộc', () => {
-  for (const f of ['./js/app.js', './js/sync.js', './js/api-config.js', './js/deeplink.js']) {
+  for (const f of ['./js/app.js', './js/sync.js', './js/api-config.js', './js/deeplink.js', './js/ui.js']) {
     assert.ok(SW.includes(f), `thiếu ${f} trong APP_SHELL`);
   }
 });
