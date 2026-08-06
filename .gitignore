@@ -24,3 +24,6 @@ skills-lock.json
 
 # Git worktrees do Codex tạo để triển khai cô lập
 .worktrees/
+
+# Brainstorm artifacts nội bộ
+.superpowers/
