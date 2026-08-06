@@ -11,7 +11,7 @@
   --color-text-muted: #70685f;
   --color-border: #e4ddd4;
   --color-control-border: #81756b;
-  --color-accent: #b65337;
+  --color-accent: #9e4428;
   --color-accent-soft: #f3e1d9;
   --color-focus: #963c25;
   --color-positive: #47705a;
@@ -20,7 +20,7 @@
   --color-info: #3f6f82;
 
   --font-brand: "Nunito", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "Nunito", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -50,7 +50,7 @@
   --color-text-muted: #5f6b64;
   --color-border: #d7e2da;
   --color-control-border: #748078;
-  --color-accent: #b65337;
+  --color-accent: #9e4428;
   --color-accent-soft: #f3e1d9;
   --color-focus: #963c25;
   --color-positive: #3f7156;
@@ -68,7 +68,7 @@
   --color-text-muted: #706a78;
   --color-border: #dfdae5;
   --color-control-border: #7b7483;
-  --color-accent: #b65337;
+  --color-accent: #9e4428;
   --color-accent-soft: #f3e1d9;
   --color-focus: #963c25;
   --color-positive: #4a705b;
@@ -86,7 +86,7 @@
   --color-text-muted: #786a63;
   --color-border: #ead9cf;
   --color-control-border: #88736a;
-  --color-accent: #b65337;
+  --color-accent: #9e4428;
   --color-accent-soft: #f3e1d9;
   --color-focus: #963c25;
   --color-positive: #4b7059;
@@ -107,7 +107,7 @@
   --color-border: #49413a;
   --color-control-border: #776b61;
   --color-accent: #e08362;
-  --color-accent-soft: #472f27;
+  --color-accent-soft: #3d2820;
   --color-focus: #f09a78;
   --color-positive: #82b795;
   --color-warning: #d7ad58;

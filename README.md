@@ -286,7 +286,7 @@ TaskFlow-Todoist/
 | **Vanilla JavaScript** | Toàn bộ logic, không framework, không thư viện ngoài |
 | **localStorage** | Lưu trữ dữ liệu mục tiêu/thói quen/reflection theo từng tháng (key `planner-{y}-{m}`) |
 | **SVG** | Donut chart, line chart, bar chart vẽ tay |
-| **Google Fonts** | Baloo 2, Fredoka, Nunito, Quicksand, Playfair Display |
+| **Google Fonts** | Nunito |
 
 ---
 

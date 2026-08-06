@@ -290,8 +290,11 @@ def landing_checks(browser, base, width, height, errors, screenshot):
     page = browser.new_page(viewport={"width": width, "height": height})
     page.on("pageerror", lambda error: errors.append(f"landing {width}px: {error}"))
     page.add_init_script("""
-      localStorage.setItem('planner-lang', 'en');
-      localStorage.setItem('planner-dark', '1');
+      // Set defaults only on first load so clicks that change the
+      // preference survive the reload below (init scripts re-run on
+      // every navigation, including reloads).
+      if (localStorage.getItem('planner-lang') === null) localStorage.setItem('planner-lang', 'en');
+      if (localStorage.getItem('planner-dark') === null) localStorage.setItem('planner-dark', '1');
     """)
     page.goto(f"{base}/index.html", wait_until="networkidle")
 
@@ -315,8 +318,11 @@ def landing_checks(browser, base, width, height, errors, screenshot):
 
     page.locator('.hero-actions a[href="#product"]').click()
     assert page.evaluate("location.hash") == "#product"
-    assert page.locator("#product").evaluate(
-        "el => Math.abs(el.getBoundingClientRect().top) < 110"
+    # Landing anchors scroll smoothly; wait for the target to settle
+    # before asserting the offset instead of racing the animation.
+    page.wait_for_function(
+        "Math.abs(document.getElementById('product').getBoundingClientRect().top) < 110",
+        timeout=8000,
     )
     assert_no_page_overflow(page, f"landing anchor {width}px")
 

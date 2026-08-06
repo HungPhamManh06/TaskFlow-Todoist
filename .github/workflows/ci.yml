@@ -50,3 +50,6 @@ jobs:
 
       - name: E2E smoke (load → toggle habit → switch view → export)
         run: python scripts/e2e-smoke.py
+
+      - name: E2E frontend suite (landing/overview/week/year/calendar/dialogs/focus × desktop/tablet/mobile)
+        run: python scripts/e2e-frontend.py --all

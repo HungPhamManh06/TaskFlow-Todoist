@@ -509,8 +509,8 @@ const I18N = {
     todayTitle: 'Về hôm nay & tuần hiện tại',
     todayTxt: 'Hôm nay',
     nowAria: 'Ngày giờ hiện tại',
-    tabOverview: '📅 Tổng quan tháng',
-    tabYear: '🗓️ Năm {y}',
+    tabOverview: 'Tổng quan tháng',
+    tabYear: 'Năm {y}',
     weekN: 'Tuần {n}',
     viewOverview: 'Tổng quan tháng',
     overviewEyebrow: 'Không gian làm việc tháng',
@@ -801,7 +801,7 @@ const I18N = {
     tagAll: 'Tất cả',
     tagNoTags: 'Chưa có tag nào',
     tagAria: 'Thêm tag cho task',
-    tabCalendar: '📅 Lịch',
+    tabCalendar: 'Lịch',
     viewCalendar: 'Lịch tháng',
     calendarWorkspaceEyebrow: 'Lịch công việc',
     calendarPageTitle: 'Lịch {m} {y}',
@@ -987,8 +987,8 @@ const I18N = {
     todayTitle: 'Go to today & current week',
     todayTxt: 'Today',
     nowAria: 'Current date & time',
-    tabOverview: '📅 Overview',
-    tabYear: '🗓️ Year {y}',
+    tabOverview: 'Overview',
+    tabYear: 'Year {y}',
     weekN: 'Week {n}',
     viewOverview: 'Month overview',
     overviewEyebrow: 'Monthly workspace',
@@ -1279,7 +1279,7 @@ const I18N = {
     tagAll: 'All',
     tagNoTags: 'No tags yet',
     tagAria: 'Add tag to task',
-    tabCalendar: '📅 Calendar',
+    tabCalendar: 'Calendar',
     viewCalendar: 'Month calendar',
     calendarWorkspaceEyebrow: 'Work calendar',
     calendarPageTitle: '{m} {y} calendar',
@@ -2311,23 +2311,23 @@ function yearReportCardBlob(r) {
       canvasCircle(g, 40, H - 150, 230);
       g.textAlign = 'center';
       g.fillStyle = '#4A403A';
-      g.font = "700 36px 'Baloo 2','Fredoka','Nunito',sans-serif";
+      g.font = "700 36px 'Nunito',sans-serif";
       g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
       g.fillStyle = '#8A7A6B';
-      g.font = "700 42px 'Baloo 2','Nunito',sans-serif";
+      g.font = "700 42px 'Nunito',sans-serif";
       g.fillText(t('yearReportCardTitle', { y: r.y }), W / 2, 158);
       g.fillStyle = '#C24E28';
-      g.font = "800 120px 'Baloo 2','Fredoka',sans-serif";
+      g.font = "800 120px 'Nunito',sans-serif";
       g.fillText(r.pct + '%', W / 2, 300);
       g.fillStyle = '#4A403A';
-      g.font = "700 40px 'Baloo 2','Nunito',sans-serif";
+      g.font = "700 40px 'Nunito',sans-serif";
       g.fillText(t('yearReportGoalPct') + ' · ' + r.done + '/' + r.total, W / 2, 352);
       const rows = [
         [t('yearReportTopMonth'), shortMonth(r.topMonth) + ' · ' + r.months[r.topMonth] + '%'],
         [t('yearReportBestHabit'), r.topHabit && r.topHabit.name ? r.topHabit.name : '—'],
         [t('yearReportProdDay'), r.prodDay ? r.prodDay.label + ' · ' + r.prodDay.n : '—'],
       ];
-      g.font = "700 34px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 34px 'Nunito',sans-serif";
       rows.forEach((row, i) => {
         const y = 430 + i * 74;
         const pw = g.measureText(row[0] + '  ' + row[1]).width + 56, ph = 58;
@@ -2347,7 +2347,7 @@ function yearReportCardBlob(r) {
       // Bar chart 12 tháng
       const bx = W / 2 - 300, bw = 600, bh = 180, by = 800;
       g.fillStyle = '#8A7A6B';
-      g.font = "700 28px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 28px 'Nunito',sans-serif";
       g.fillText(t('yearReportTitle') + ' · ' + r.y, W / 2, by - 24);
       const maxP = Math.max(1, ...r.months);
       r.months.forEach((p, i) => {
@@ -2359,7 +2359,7 @@ function yearReportCardBlob(r) {
         g.fill();
       });
       g.fillStyle = '#8A7A6B';
-      g.font = "700 30px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 30px 'Nunito',sans-serif";
       g.fillText(t('shareFooter'), W / 2, H - 60);
       c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
     } catch (e) { reject(e); }
@@ -3413,22 +3413,22 @@ function streakCardBlob(name, habitName, cur, best) {
       g.textAlign = 'center';
 
       g.fillStyle = '#4A403A';
-      g.font = "700 36px 'Baloo 2','Fredoka','Nunito',sans-serif";
+      g.font = "700 36px 'Nunito',sans-serif";
       g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
 
       g.fillStyle = '#8A7A6B';
-      g.font = "700 42px 'Baloo 2','Nunito',sans-serif";
+      g.font = "700 42px 'Nunito',sans-serif";
       g.fillText(name, W / 2, 158);
 
       g.fillStyle = '#C24E28';
-      g.font = "800 260px 'Baloo 2','Fredoka',sans-serif";
+      g.font = "800 260px 'Nunito',sans-serif";
       g.fillText(String(cur), W / 2, 400);
 
       g.fillStyle = '#4A403A';
-      g.font = "700 46px 'Baloo 2','Nunito',sans-serif";
+      g.font = "700 46px 'Nunito',sans-serif";
       g.fillText(t('hmHeroDays'), W / 2, 468);
 
-      g.font = "700 34px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 34px 'Nunito',sans-serif";
       const tw = g.measureText('🔥 ' + habitName).width;
       const pw = tw + 48, ph = 62;
       g.fillStyle = 'rgba(255,253,248,.85)';
@@ -3440,7 +3440,7 @@ function streakCardBlob(name, habitName, cur, best) {
       g.fillText('🔥 ' + habitName, W / 2, 548);
 
       g.fillStyle = '#B98A1F';
-      g.font = "800 38px 'Baloo 2','Nunito',sans-serif";
+      g.font = "800 38px 'Nunito',sans-serif";
       g.fillText('🏆 ' + best + ' · ' + t('hmHeroRecLbl'), W / 2, 636);
 
       // Heatmap: 16 tuần × 7 ngày
@@ -3477,7 +3477,7 @@ function streakCardBlob(name, habitName, cur, best) {
       }
 
       g.fillStyle = '#8A7A6B';
-      g.font = "700 30px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 30px 'Nunito',sans-serif";
       g.fillText(t('shareFooter'), W / 2, H - 70);
 
       c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
@@ -3602,17 +3602,17 @@ function reportCardBlob(r) {
 
       g.textAlign = 'center';
       g.fillStyle = '#4A403A';
-      g.font = "700 36px 'Baloo 2','Fredoka','Nunito',sans-serif";
+      g.font = "700 36px 'Nunito',sans-serif";
       g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
       g.fillStyle = '#8A7A6B';
-      g.font = "700 42px 'Baloo 2','Nunito',sans-serif";
+      g.font = "700 42px 'Nunito',sans-serif";
       g.fillText(t('reportCardTitle', { m: monthLabel(r.m), y: r.y }), W / 2, 158);
 
       g.fillStyle = '#C24E28';
-      g.font = "800 120px 'Baloo 2','Fredoka',sans-serif";
+      g.font = "800 120px 'Nunito',sans-serif";
       g.fillText(r.goalPct + '%', W / 2, 300);
       g.fillStyle = '#4A403A';
-      g.font = "700 40px 'Baloo 2','Nunito',sans-serif";
+      g.font = "700 40px 'Nunito',sans-serif";
       g.fillText(t('reportGoalPct') + ' · ' + r.goalDone + '/' + r.goalTotal, W / 2, 352);
 
       const rows = [
@@ -3621,7 +3621,7 @@ function reportCardBlob(r) {
         [t('reportRecord'), r.rec ? '🏆 ' + r.rec.s.best + ' · ' + r.rec.h.name : '—'],
         [t('reportActive'), r.activeDays + '/' + r.numDays],
       ];
-      g.font = "700 34px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 34px 'Nunito',sans-serif";
       rows.forEach((row, i) => {
         const y = 430 + i * 74;
         const pw = g.measureText(row[0] + '  ' + row[1]).width + 56, ph = 58;
@@ -3640,7 +3640,7 @@ function reportCardBlob(r) {
       });
 
       g.fillStyle = '#8A7A6B';
-      g.font = "700 30px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 30px 'Nunito',sans-serif";
       g.fillText(t('shareFooter'), W / 2, H - 70);
 
       c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
@@ -3763,16 +3763,16 @@ function weekReportCardBlob(r) {
       canvasCircle(g, 40, H - 150, 230);
       g.textAlign = 'center';
       g.fillStyle = '#4A403A';
-      g.font = "700 36px 'Baloo 2','Fredoka','Nunito',sans-serif";
+      g.font = "700 36px 'Nunito',sans-serif";
       g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
       g.fillStyle = '#8A7A6B';
-      g.font = "700 42px 'Baloo 2','Nunito',sans-serif";
+      g.font = "700 42px 'Nunito',sans-serif";
       g.fillText(t('weekReportCardTitle', { n: r.n }), W / 2, 158);
       g.fillStyle = '#C24E28';
-      g.font = "800 120px 'Baloo 2','Fredoka',sans-serif";
+      g.font = "800 120px 'Nunito',sans-serif";
       g.fillText(r.pct + '%', W / 2, 300);
       g.fillStyle = '#4A403A';
-      g.font = "700 40px 'Baloo 2','Nunito',sans-serif";
+      g.font = "700 40px 'Nunito',sans-serif";
       g.fillText(t('weekReportGoalPct') + ' · ' + r.done + '/' + r.total, W / 2, 352);
       const rows = [
         [t('weekReportDone'), r.done],
@@ -3780,7 +3780,7 @@ function weekReportCardBlob(r) {
         [t('weekReportTopHabit'), r.top ? '🔥 ' + r.topN + ' · ' + r.top.name : '—'],
         [t('weekReportBestDay'), t('weekReportDayT', { d: r.bestDay + 1 }) + ' · ' + r.habitByDay[r.bestDay] + '%'],
       ];
-      g.font = "700 34px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 34px 'Nunito',sans-serif";
       rows.forEach((row, i) => {
         const y = 430 + i * 74;
         const pw = g.measureText(row[0] + '  ' + row[1]).width + 56, ph = 58;
@@ -3801,7 +3801,7 @@ function weekReportCardBlob(r) {
       const bx = W / 2 - 300, bw = 600, bh = 180, by = 800;
       const w = state.weeks[r.n - 1];
       g.fillStyle = '#8A7A6B';
-      g.font = "700 28px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 28px 'Nunito',sans-serif";
       g.fillText(t('weekReportBestDay') + ' · ' + (w ? w.days.map((d) => d.date).join(' – ') : '1–7'), W / 2, by - 24);
       const maxP = Math.max(1, ...r.habitByDay);
       r.habitByDay.forEach((p, i) => {
@@ -3813,7 +3813,7 @@ function weekReportCardBlob(r) {
         g.fill();
       });
       g.fillStyle = '#8A7A6B';
-      g.font = "700 30px 'Nunito','Quicksand',sans-serif";
+      g.font = "700 30px 'Nunito',sans-serif";
       g.fillText(t('shareFooter'), W / 2, H - 60);
       c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
     } catch (e) { reject(e); }

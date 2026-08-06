@@ -159,7 +159,7 @@ test('landing preserves language and theme preferences without decorative emoji 
   assert.match(LANDING, /id=["']darkBtn["']/);
   assert.match(LANDING, /aria-pressed/);
   assert.doesNotMatch(LANDING, /[🎀🐥🪿🌸🌼📔📤📱🎯✅🌱🔥🏆]/u);
-  assert.match(LANDING, /css\/tokens\.css\?v=1/);
+  assert.match(LANDING, /css\/tokens\.css\?v=5/);
   assert.match(LANDING_CSS, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
 });
 
@@ -553,7 +553,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v59';/);
+  assert.match(SW, /const CACHE = 'taskflow-v64';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -616,8 +616,8 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system and landing assets are available in the v59 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v59';/);
+test('design system and landing assets are available in the v64 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v64';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -653,7 +653,7 @@ test('hardening: versioned static requests use query-insensitive offline cache m
 
   let responsePromise;
   handlers.fetch({
-    request: { method: 'GET', mode: 'cors', url: 'https://taskflow.test/css/tokens.css?v=1' },
+    request: { method: 'GET', mode: 'cors', url: 'https://taskflow.test/css/tokens.css?v=5' },
     respondWith(promise) { responsePromise = promise; },
   });
 

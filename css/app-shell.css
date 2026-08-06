@@ -606,3 +606,37 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     display: block;
   }
 }
+
+/* ============================================================
+   Dark mode contrast corrections (WCAG AA ≥ 4.5:1)
+   - Primary buttons: darker accent surface so white text passes
+   - Mobile nav active: guard against .tab.active from styles.css
+   ============================================================ */
+:root[data-dark="true"] .app-primary-action.button-primary,
+:root[data-dark="true"] .button[data-variant="primary"],
+:root[data-dark="true"] .skip-link {
+  border-color: #b3482a;
+  background: #b3482a;
+  color: #fffdf9;
+}
+
+:root[data-dark="true"] .app-primary-action.button-primary:hover,
+:root[data-dark="true"] .button[data-variant="primary"]:hover {
+  border-color: #9c3d24;
+  background: #9c3d24;
+}
+
+:root[data-dark="true"] body .app-mobile-nav-item.active {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Guard active mobile nav against legacy .tab.active (styles.css) in all modes */
+body .app-mobile-nav-item.active {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-color: transparent;
+  box-shadow: none;
+}

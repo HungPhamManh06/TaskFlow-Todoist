@@ -51,11 +51,15 @@
 
 * { box-sizing: border-box; }
 
+/* Form controls do not inherit font by default in Chromium (they fall back to
+   Arial). Reset so the whole app renders with --font-body (Nunito). */
+button, input, select, textarea { font: inherit; }
+
 html { scroll-behavior: smooth; }
 
 body {
   margin: 0;
-  font-family: 'Nunito', 'Quicksand', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
   color: var(--ink);
   background-color: var(--bg-main);
   background-image:
@@ -112,7 +116,7 @@ body {
   animation: bob 3s ease-in-out infinite;
 }
 .brand-text h1 {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: var(--font-brand);
   font-size: 19px;
   margin: 0;
   line-height: 1;
@@ -131,7 +135,7 @@ body {
 }
 .tab {
   font: inherit;
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-weight: 700;
   font-size: 12.5px;
   padding: 5px 12px;
@@ -176,7 +180,7 @@ body {
 .month-nav { display: flex; align-items: center; gap: 5px; }
 .btn-month {
   font: inherit;
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-weight: 800;
   font-size: 14px;
   min-width: 28px;
@@ -241,7 +245,7 @@ input:focus-visible {
   box-shadow: 0 4px 0 rgba(var(--ink-rgb), .12);
 }
 .card-title {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: var(--font-brand);
   font-size: 22px;
   margin: 0 0 8px;
   line-height: 1.1;
@@ -510,7 +514,7 @@ input:focus-visible {
   animation: bob 3s ease-in-out infinite;
 }
 .big-pct {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: var(--font-brand);
   font-size: 46px;
   font-weight: 800;
   line-height: 1;
@@ -541,7 +545,7 @@ input:focus-visible {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 1px; pointer-events: none;
 }
-.donut-center span { font-family: 'Baloo 2', 'Fredoka', cursive; font-size: 26px; font-weight: 800; }
+.donut-center span { font-family: var(--font-brand); font-size: 26px; font-weight: 800; }
 .donut-center small { font-size: 10px; font-weight: 700; color: var(--ink-soft); }
 
 /* Thẻ Nhãn Dọc (Vertical Strip) cho Priority & Regular */
@@ -574,7 +578,7 @@ input:focus-visible {
 .ref-title {
   background: var(--yellow-ref);
   text-align: center;
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: var(--font-brand);
   font-size: 16px;
   font-weight: 800;
   margin: 0;
@@ -666,7 +670,7 @@ input:focus-visible {
 /* ---------- Trang Tuần (Weekly View) ---------- */
 .week-banner { text-align: center; margin-bottom: 12px; }
 .week-banner h2 {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: var(--font-brand);
   font-size: 26px;
   margin: 0;
   color: var(--ink);
@@ -749,7 +753,7 @@ input:focus-visible {
   gap: 5px;
   padding: 6px 8px;
   border-bottom: 2px solid rgba(var(--ink-rgb), .2);
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: var(--font-brand);
 }
 .day-col-0 .day-head { background: var(--day-mon); }
 .day-col-1 .day-head { background: var(--day-tue); }
@@ -999,7 +1003,7 @@ input:focus-visible {
 .quarters-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .quarter-card { display: flex; flex-direction: column; align-items: center; gap: 8px; transition: transform .15s ease, box-shadow .15s ease; }
 .quarter-card:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(var(--ink-rgb), .14); }
-.q-head { display: flex; align-items: center; justify-content: space-between; width: 100%; font-family: 'Baloo 2', 'Fredoka', cursive; font-size: 18px; font-weight: 800; background: var(--ink-solid); color: #fff; border-radius: 8px; padding: 4px 12px; }
+.q-head { display: flex; align-items: center; justify-content: space-between; width: 100%; font-family: var(--font-brand); font-size: 18px; font-weight: 800; background: var(--ink-solid); color: #fff; border-radius: 8px; padding: 4px 12px; }
 .q-pct { font-size: 14px; }
 .q-donut { margin-top: 2px; }
 .quarter-card .stats-table { margin: 2px auto; }
@@ -1024,7 +1028,7 @@ input:focus-visible {
 .ym-name { font: inherit; font-weight: 800; font-size: 12.5px; color: var(--ink); background: none; border: none; cursor: pointer; padding: 0; text-align: left; flex: 1; }
 .ym-name small { font-size: 9px; color: var(--ink-soft); }
 .ym-name:hover { text-decoration: underline; }
-.ym-pct { font-family: 'Baloo 2', 'Fredoka', cursive; font-size: 15px; font-weight: 800; }
+.ym-pct { font-family: var(--font-brand); font-size: 15px; font-weight: 800; }
 .ym-bar-wrap { height: 74px; margin: 8px 8px 0; border-radius: 6px; background: rgba(var(--ink-rgb), .1); border: 1px solid rgba(var(--ink-rgb), .18); display: flex; align-items: flex-end; overflow: hidden; }
 .ym-bar { width: 100%; background: linear-gradient(var(--terracotta), #B5725D); transition: height .3s ease; }
 .ym-lists { display: flex; flex-direction: column; gap: 8px; padding: 8px 6px; }
@@ -1177,7 +1181,7 @@ input:focus-visible {
   color: #fff;
   border: none;
   border-radius: 999px;
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: var(--font-brand);
   font-size: 12px;
   font-weight: 700;
   padding: 5px 12px;
@@ -1245,7 +1249,7 @@ input:focus-visible {
 .hm-hero-flame { font-size: 44px; line-height: 1; filter: drop-shadow(0 3px 4px rgba(194,78,40,.35)); animation: hmFlame 2.4s ease-in-out infinite; }
 .hm-hero-main { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 6px; }
 .hm-hero-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.hm-hero-num { font-family: 'Baloo 2', 'Nunito', sans-serif; font-size: 40px; line-height: 1; color: #C24E28; }
+.hm-hero-num { font-family: var(--font-brand); font-size: 40px; line-height: 1; color: #C24E28; }
 .hm-hero-unit { font-size: 13px; font-weight: 800; color: var(--ink-soft); }
 .hm-hero-name { font-size: 13px; font-weight: 800; color: var(--ink); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hm-hero-track { height: 10px; border-radius: 999px; background: rgba(var(--ink-rgb),.12); overflow: hidden; }
@@ -1253,7 +1257,7 @@ input:focus-visible {
 .hm-hero-note { font-size: 12px; font-weight: 800; color: var(--ink-soft); }
 .hm-hero-rec { display: flex; align-items: center; gap: 6px; background: var(--surface); border: 2px solid rgba(194,78,40,.25); border-radius: 12px; padding: 8px 14px; }
 .hm-rec-ico { font-size: 22px; }
-.hm-hero-rec b { font-family: 'Baloo 2', sans-serif; font-size: 26px; color: #B98A1F; }
+.hm-hero-rec b { font-family: var(--font-brand); font-size: 26px; color: #B98A1F; }
 .hm-hero-rec span { font-size: 11px; font-weight: 800; color: var(--ink-soft); }
 @keyframes hmFlame {
   0%, 100% { transform: translateY(0) rotate(-3deg); }
@@ -1517,7 +1521,7 @@ input:focus-visible {
 
 .lang-btn {
   font: inherit;
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-weight: 800;
   font-size: 12px;
   padding: 5px 11px;
@@ -1564,10 +1568,10 @@ input:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-family: 'Nunito', 'Quicksand', sans-serif;
+  font-family: var(--font-body);
   color: var(--ink);
 }
-.header-pop strong { font-family: 'Baloo 2', 'Fredoka', cursive; font-size: 15px; }
+.header-pop strong { font-family: var(--font-brand); font-size: 15px; }
 .header-pop[hidden] { display: none; }
 
 .pop-field {
@@ -1589,7 +1593,7 @@ input:focus-visible {
 
 .pop-btn {
   font: inherit;
-  font-family: 'Nunito', 'Quicksand', sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 13px;
   text-align: left;
@@ -1658,7 +1662,7 @@ input:focus-visible {
   gap: 8px;
   margin: 0 0 16px;
   padding: 5px 14px 5px 8px;
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-weight: 800;
   font-size: 15px;
   letter-spacing: .4px;
@@ -1678,7 +1682,7 @@ input:focus-visible {
 
 .landing-title {
   margin: 0;
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-weight: 800;
   font-size: clamp(30px, 4.6vw, 50px);
   line-height: 1.15;
@@ -1695,7 +1699,7 @@ input:focus-visible {
 .landing-sub {
   margin: 16px auto 0;
   max-width: 620px;
-  font-family: 'Nunito', 'Quicksand', sans-serif;
+  font-family: var(--font-body);
   font-size: 15.5px;
   line-height: 1.7;
   color: var(--ink-soft);
@@ -1708,7 +1712,7 @@ input:focus-visible {
   margin-top: 26px;
   padding: 13px 30px;
   font: inherit;
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-weight: 800;
   font-size: 16px;
   color: #fff;
@@ -2102,7 +2106,7 @@ input:focus-visible {
 
 .sync-modal-title {
   margin: 0 0 6px;
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-weight: 800;
   font-size: 19px;
   color: var(--ink, #4a403a);
@@ -2407,7 +2411,7 @@ sup.remind-dot {
   font-size: 13px;
 }
 .pomo-widget-title {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: var(--font-brand);
   font-weight: 700;
   color: #C24E28;
 }
@@ -2447,7 +2451,7 @@ sup.remind-dot {
   border-radius: 12px;
   background: var(--surface, #fffdf8);
 }
-.templates-title { font-family: 'Baloo 2', 'Fredoka', cursive; font-size: 14px; }
+.templates-title { font-family: var(--font-brand); font-size: 14px; }
 .templates-hint { margin: 2px 0 8px; font-size: 12px; color: var(--ink-soft); }
 .templates-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .template-chip {
@@ -2560,7 +2564,7 @@ sup.remind-dot {
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
-.year-banner-title { margin: 0; font-family: 'Baloo 2', 'Fredoka', cursive; }
+.year-banner-title { margin: 0; font-family: var(--font-brand); }
 
 /* ============================================================
    Chế độ tối (dark mode) — palette tối ấm, giữ brand terracotta
@@ -2853,7 +2857,7 @@ sup.remind-dot {
   text-align: center;
 }
 .search-group-h {
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-weight: 700;
   font-size: 13px;
   color: var(--ink-soft);
@@ -2973,7 +2977,7 @@ sup.remind-dot {
   margin-bottom: 12px;
 }
 .cal-toolbar h2 {
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-size: 20px;
   margin: 0;
   color: var(--ink);
@@ -2989,7 +2993,7 @@ sup.remind-dot {
 }
 .cal-dow {
   text-align: center;
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-size: 12.5px;
   font-weight: 700;
   color: var(--ink-soft);
@@ -3015,7 +3019,7 @@ sup.remind-dot {
   gap: 4px;
 }
 .cal-date {
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-size: 13px;
   font-weight: 800;
   color: var(--ink);
@@ -3164,7 +3168,7 @@ sup.remind-dot {
   text-align: center;
 }
 .pomo-time {
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-size: 34px;
   font-weight: 800;
   color: var(--ink);
@@ -3338,7 +3342,7 @@ sup.remind-dot {
 .profile-section { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
 .profile-h {
   margin: 0;
-  font-family: 'Baloo 2', 'Nunito', sans-serif;
+  font-family: var(--font-brand);
   font-size: 14px;
   font-weight: 800;
   color: var(--ink);
@@ -3401,7 +3405,7 @@ body.focus-mode .container { padding: 0; }
   animation: syncPop .22s ease-out;
 }
 .focus-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.focus-title { font-family: 'Baloo 2', 'Nunito', sans-serif; font-size: 18px; margin: 0; }
+.focus-title { font-family: var(--font-brand); font-size: 18px; margin: 0; }
 .focus-date { font-size: 13px; font-weight: 800; color: var(--ink-soft); margin: 0 0 12px; }
 .focus-sec-title { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-soft); margin: 16px 0 8px; }
 .focus-tasks { display: flex; flex-direction: column; gap: 6px; }
