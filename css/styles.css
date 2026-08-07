@@ -846,7 +846,8 @@ input:focus-visible {
   line-height: 18px;
   padding: 4px 6px;
   outline: none;
-  background-image: repeating-linear-gradient(transparent, transparent 17px, rgba(var(--ink-rgb), .2) 17px, rgba(var(--ink-rgb), .2) 18px);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(1lh - 1px), rgba(var(--ink-rgb), .2) calc(1lh - 1px), rgba(var(--ink-rgb), .2) 1lh);
+  background-origin: content-box;
 }
 
 /* ---------- Checkbox ---------- */
@@ -1037,7 +1038,7 @@ input:focus-visible {
 .ym-items .goal-item { font-size: 10.5px; gap: 5px; }
 .ym-items .g-text { display: block; overflow: hidden; text-overflow: ellipsis; }
 .ym-note { border-top: 2px solid rgba(var(--ink-rgb), .18); margin-top: auto; }
-.ym-note-area { min-height: 52px; font-size: 10.5px; line-height: 16px; padding: 3px 6px; background-image: repeating-linear-gradient(transparent, transparent 15px, rgba(var(--ink-rgb), .2) 15px, rgba(var(--ink-rgb), .2) 16px); }
+.ym-note-area { min-height: 52px; font-size: 10.5px; line-height: 16px; padding: 3px 6px; background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(1lh - 1px), rgba(var(--ink-rgb), .2) calc(1lh - 1px), rgba(var(--ink-rgb), .2) 1lh); background-origin: content-box; }
 
 /* ---------- Chỉnh sửa nội dung (editable) ---------- */
 .editable {
@@ -2788,10 +2789,7 @@ sup.remind-dot {
 :root[data-dark="true"] .day-col.today { box-shadow: 0 4px 0 rgba(0, 0, 0, .4), 0 0 0 3px rgba(243, 232, 213, .2); }
 :root[data-dark="true"] .note-area,
 :root[data-dark="true"] .ym-note-area {
-  background-image: repeating-linear-gradient(transparent, transparent 17px, rgba(243, 232, 213, .14) 17px, rgba(243, 232, 213, .14) 18px);
-}
-:root[data-dark="true"] .ym-note-area {
-  background-image: repeating-linear-gradient(transparent, transparent 15px, rgba(243, 232, 213, .14) 15px, rgba(243, 232, 213, .14) 16px);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(1lh - 1px), rgba(243, 232, 213, .14) calc(1lh - 1px), rgba(243, 232, 213, .14) 1lh);
 }
 :root[data-dark="true"] .ref-question:empty::before,
 :root[data-dark="true"] .ref-line:empty::before,
@@ -2946,6 +2944,24 @@ sup.remind-dot {
   cursor: default;
 }
 .task-row.filtered-out { display: none; }
+
+/* Tag dài không tràn khung: thu hẹp chuỗi flex và cắt chip bằng dấu “…” */
+.task-group,
+.task-rows {
+  min-width: 0;
+}
+
+.task-tags {
+  max-width: 100%;
+}
+
+.task-tags .tag-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tag-filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -3593,7 +3609,7 @@ body.focus-mode .container { padding: 0; }
   :root[data-dark="true"] .sync-form input { background: #fffdf8; }
   :root[data-dark="true"] .btn-habit-add:hover { background: #e08a6e; }
   :root[data-dark="true"] .note-area,
-  :root[data-dark="true"] .ym-note-area { background-image: repeating-linear-gradient(transparent, transparent 15px, rgba(74, 64, 58, .2) 15px, rgba(74, 64, 58, .2) 16px); }
+  :root[data-dark="true"] .ym-note-area { background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(1lh - 1px), rgba(74, 64, 58, .2) calc(1lh - 1px), rgba(74, 64, 58, .2) 1lh); }
   :root[data-dark="true"] .ref-question:empty::before,
   :root[data-dark="true"] .ref-line:empty::before,
   :root[data-dark="true"] .editable:empty::before { color: rgba(74, 64, 58, .35); }
@@ -4959,6 +4975,27 @@ body.focus-mode .container { padding: 0; }
 
 .year-goal-grid > .sub:last-child {
   border-inline-end: 0;
+}
+
+/* Mục tiêu dài (URL, câu dài) wrap trong khung thay vì tràn ra ngoài card (Năm + Tổng quan + Quý) */
+.year-page .goal-list,
+.overview-page .goal-list,
+.year-page .goal-block,
+.overview-page .goal-block,
+.year-page .goal-items,
+.overview-page .goal-items,
+.year-page .goal-item,
+.overview-page .goal-item,
+.year-page .q-lists,
+.year-page .q-items {
+  min-width: 0;
+}
+
+.year-page .goal-item .g-text,
+.overview-page .goal-item .g-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .year-page .v-strip {

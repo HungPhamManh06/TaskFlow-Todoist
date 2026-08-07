@@ -26,6 +26,7 @@
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
   --space-12: 48px;
@@ -35,6 +36,7 @@
   --radius-pill: 999px;
 
   --shadow-floating: 0 18px 48px rgb(52 47 43 / .14);
+  --shadow-panel: 0 1px 2px rgb(52 47 43 / .05), 0 10px 26px rgb(52 47 43 / .08);
   --focus-ring: 0 0 0 3px var(--color-focus);
   --motion-fast: 140ms;
   --motion-standard: 220ms;
@@ -114,6 +116,7 @@
   --color-danger: #e58b86;
   --color-info: #83b4c8;
   --shadow-floating: 0 20px 52px rgb(0 0 0 / .42);
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / .4), 0 12px 30px rgb(0 0 0 / .35);
   --focus-ring: 0 0 0 3px var(--color-focus);
 }
 
