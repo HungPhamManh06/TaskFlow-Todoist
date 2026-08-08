@@ -630,7 +630,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v95';/);
+  assert.match(SW, /const CACHE = 'taskflow-v96';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -708,7 +708,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v95';/);
+  assert.match(SW, /const CACHE = 'taskflow-v96';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',

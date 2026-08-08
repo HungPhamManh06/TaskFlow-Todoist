@@ -116,10 +116,10 @@ function monthKey() {
 
 function updateBrand() {
   const el = document.getElementById('brandTitle');
-  if (el) el.textContent = 'TaskFlow-Todoist';
+  if (el) el.textContent = 'TaskFlow';
   const s = document.getElementById('brandSub');
   if (s) s.hidden = true;
-  document.title = 'TaskFlow-Todoist';
+  document.title = 'TaskFlow';
   buildMonthNav();
 }
 
@@ -732,7 +732,7 @@ const I18N = {
     remindDenied: 'Trình duyệt đang chặn thông báo. Hãy cho phép thông báo để nhận nhắc việc.',
     remindBody: 'Hôm nay bạn đã hoàn thành những mục tiêu nào? Vào điểm danh thói quen nhé! 🐥',
     importConfirm: 'Nhập file sẽ GHI ĐÈ dữ liệu hiện tại. Bạn chắc chắn muốn tiếp tục?',
-    importError: 'File không hợp lệ: không phải file sao lưu TaskFlow-Todoist.',
+    importError: 'File không hợp lệ: không phải file sao lưu TaskFlow.',
     importOk: 'Đã nhập dữ liệu thành công! Trang sẽ tải lại.',
     rm0: 'Điều gì tôi đã làm tốt và muốn tiếp tục phát huy?',
     rm1: 'Bài học quan trọng nhất tôi rút ra được là gì?',
@@ -951,7 +951,7 @@ const I18N = {
     chatPh: 'Nhập câu hỏi của bạn...',
     chatSend: 'Gửi',
     helpTitle: 'Hướng dẫn sử dụng',
-    helpContent: '<h3>📋 Các chức năng của TaskFlow-Todoist</h3><ul><li><b>📅 Tổng quan tháng:</b> Xem mục tiêu, thói quen và tiến độ tháng.</li><li><b>🗓️ Kế hoạch năm:</b> Mục tiêu năm, biểu đồ 12 tháng, phản ánh quý/năm.</li><li><b>📋 Kế hoạch tuần:</b> Mục tiêu & task theo ngày, thói quen, phản ánh, Pomodoro.</li><li><b>🎯 Mục tiêu:</b> Thêm/sửa/xoá mục tiêu ưu tiên và thường. Tick ✓ để đánh dấu hoàn thành.</li><li><b>🔥 Thói quen:</b> Theo dõi thói quen 31 ngày, tính % hoàn thành, streak và heatmap.</li><li><b>🍅 Pomodoro:</b> Timer tập trung 25 phút. Sau 4 lần tập trung sẽ được nghỉ dài 25 phút.</li><li><b>📝 Phản ánh:</b> Viết nhật ký reflection theo tuần, tháng, quý, năm.</li><li><b>🏷️ Tag:</b> Gắn tag cho task để lọc và tìm kiếm.</li><li><b>🔍 Tìm kiếm:</b> Tìm kiếm xuyên tháng (Ctrl+K).</li><li><b>📊 Dashboard:</b> Thống kê tổng quan năm.</li><li><b>🌙 Chế độ tối:</b> Bật/tắt giao diện tối.</li><li><b>🌐 Ngôn ngữ:</b> Chuyển đổi VI/EN.</li><li><b>🎯 Chế độ Tập trung:</b> Xem task & thói quen hôm nay trong giao diện tối giản.</li><li><b>↩️ Hoàn tác/Làm lại:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Dữ liệu:</b> Xuất/nhập JSON, CSV, sao lưu tự động, khôi phục.</li><li><b>☁️ Đồng bộ:</b> Đăng nhập để đồng bộ dữ liệu giữa các thiết bị.</li><li><b>📅 Lịch:</b> Xem task theo lịch tháng.</li><li><b>📋 Templates:</b> Sao chép cấu trúc tháng.</li><li><b>🎨 Chủ đề:</b> 4 chủ đề màu kem/bạc hà/oải hương/đào.</li><li><b>🤖 Trợ lý học tập:</b> Chatbot hỗ trợ lên kế hoạch học tập và trả lời câu hỏi.</li></ul><p>💡 <b>Mẹo:</b> Dùng phím số 1-5 để chuyển nhanh giữa các view.</p>',
+    helpContent: '<h3>📋 Các chức năng của TaskFlow</h3><ul><li><b>📅 Tổng quan tháng:</b> Xem mục tiêu, thói quen và tiến độ tháng.</li><li><b>🗓️ Kế hoạch năm:</b> Mục tiêu năm, biểu đồ 12 tháng, phản ánh quý/năm.</li><li><b>📋 Kế hoạch tuần:</b> Mục tiêu & task theo ngày, thói quen, phản ánh, Pomodoro.</li><li><b>🎯 Mục tiêu:</b> Thêm/sửa/xoá mục tiêu ưu tiên và thường. Tick ✓ để đánh dấu hoàn thành.</li><li><b>🔥 Thói quen:</b> Theo dõi thói quen 31 ngày, tính % hoàn thành, streak và heatmap.</li><li><b>🍅 Pomodoro:</b> Timer tập trung 25 phút. Sau 4 lần tập trung sẽ được nghỉ dài 25 phút.</li><li><b>📝 Phản ánh:</b> Viết nhật ký reflection theo tuần, tháng, quý, năm.</li><li><b>🏷️ Tag:</b> Gắn tag cho task để lọc và tìm kiếm.</li><li><b>🔍 Tìm kiếm:</b> Tìm kiếm xuyên tháng (Ctrl+K).</li><li><b>📊 Dashboard:</b> Thống kê tổng quan năm.</li><li><b>🌙 Chế độ tối:</b> Bật/tắt giao diện tối.</li><li><b>🌐 Ngôn ngữ:</b> Chuyển đổi VI/EN.</li><li><b>🎯 Chế độ Tập trung:</b> Xem task & thói quen hôm nay trong giao diện tối giản.</li><li><b>↩️ Hoàn tác/Làm lại:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Dữ liệu:</b> Xuất/nhập JSON, CSV, sao lưu tự động, khôi phục.</li><li><b>☁️ Đồng bộ:</b> Đăng nhập để đồng bộ dữ liệu giữa các thiết bị.</li><li><b>📅 Lịch:</b> Xem task theo lịch tháng.</li><li><b>📋 Templates:</b> Sao chép cấu trúc tháng.</li><li><b>🎨 Chủ đề:</b> 4 chủ đề màu kem/bạc hà/oải hương/đào.</li><li><b>🤖 Trợ lý học tập:</b> Chatbot hỗ trợ lên kế hoạch học tập và trả lời câu hỏi.</li></ul><p>💡 <b>Mẹo:</b> Dùng phím số 1-5 để chuyển nhanh giữa các view.</p>',
     profileTitle: 'Tài khoản',
     profileUser: 'Tên người dùng: {u}',
     pwTitle: 'Đổi mật khẩu',
@@ -1060,7 +1060,7 @@ const I18N = {
     importCsv: '📥 Nhập CSV (khôi phục)',
     importCsvConfirm: 'Nhập CSV sẽ GỘP dữ liệu (không ghi đè mục trùng tên). Bạn chắc chắn muốn tiếp tục?',
     importCsvDone: 'Đã nhập CSV!',
-    importCsvError: 'Không đọc được CSV. Đảm bảo file là bản xuất từ TaskFlow-Todoist.',
+    importCsvError: 'Không đọc được CSV. Đảm bảo file là bản xuất từ TaskFlow.',
     digestNone: 'Hôm qua bạn điểm danh đủ thói quen! 🎉',
     /* ===== Phase 8: Widget Dashboard ===== */
     widgetSettings: 'Tuỳ chỉnh Widget',
@@ -1322,7 +1322,7 @@ const I18N = {
     remindDenied: 'Your browser blocks notifications. Allow them to get reminders.',
     remindBody: 'What goals did you complete today? Time to check in on your habits! 🐥',
     importConfirm: 'Importing will OVERWRITE your current data. Continue?',
-    importError: 'Invalid file: not a TaskFlow-Todoist backup.',
+    importError: 'Invalid file: not a TaskFlow backup.',
     importOk: 'Data imported successfully! The page will reload.',
     rm0: 'What did I do well that I want to keep doing?',
     rm1: 'What is the most important lesson I learned?',
@@ -1508,7 +1508,7 @@ const I18N = {
     chatPh: 'Type your question...',
     chatSend: 'Send',
     helpTitle: 'User Guide',
-    helpContent: '<h3>📋 TaskFlow-Todoist Features</h3><ul><li><b>📅 Month Overview:</b> View monthly goals, habits and progress.</li><li><b>🗓️ Year Plan:</b> Year goals, 12-month chart, quarter/year reflections.</li><li><b>📋 Week Plan:</b> Daily goals & tasks, habits, reflections, Pomodoro.</li><li><b>🎯 Goals:</b> Add/edit/delete priority & regular goals. Tick ✓ to mark done.</li><li><b>🔥 Habits:</b> Track 31-day habits, calculate %, streak and heatmap.</li><li><b>🍅 Pomodoro:</b> 25-min focus timer. After 4 focus sessions, take a 25-min long break.</li><li><b>📝 Reflection:</b> Write reflection journals by week, month, quarter, year.</li><li><b>🏷️ Tags:</b> Tag tasks for filtering and searching.</li><li><b>🔍 Search:</b> Search across months (Ctrl+K).</li><li><b>📊 Dashboard:</b> Year overview statistics.</li><li><b>🌙 Dark Mode:</b> Toggle dark interface.</li><li><b>🌐 Language:</b> Switch VI/EN.</li><li><b>🎯 Focus Mode:</b> View today tasks & habits in a minimalist interface.</li><li><b>↩️ Undo/Redo:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Data:</b> Export/import JSON, CSV, auto backup, restore.</li><li><b>☁️ Sync:</b> Sign in to sync data across devices.</li><li><b>📅 Calendar:</b> View tasks in monthly calendar.</li><li><b>📋 Templates:</b> Copy month structure.</li><li><b>🎨 Themes:</b> 4 color themes: cream/mint/lavender/peach.</li><li><b>🤖 Study Assistant:</b> Chatbot for study planning and answering questions.</li></ul><p>💡 <b>Tip:</b> Use number keys 1-5 to quickly switch between views.</p>',
+    helpContent: '<h3>📋 TaskFlow Features</h3><ul><li><b>📅 Month Overview:</b> View monthly goals, habits and progress.</li><li><b>🗓️ Year Plan:</b> Year goals, 12-month chart, quarter/year reflections.</li><li><b>📋 Week Plan:</b> Daily goals & tasks, habits, reflections, Pomodoro.</li><li><b>🎯 Goals:</b> Add/edit/delete priority & regular goals. Tick ✓ to mark done.</li><li><b>🔥 Habits:</b> Track 31-day habits, calculate %, streak and heatmap.</li><li><b>🍅 Pomodoro:</b> 25-min focus timer. After 4 focus sessions, take a 25-min long break.</li><li><b>📝 Reflection:</b> Write reflection journals by week, month, quarter, year.</li><li><b>🏷️ Tags:</b> Tag tasks for filtering and searching.</li><li><b>🔍 Search:</b> Search across months (Ctrl+K).</li><li><b>📊 Dashboard:</b> Year overview statistics.</li><li><b>🌙 Dark Mode:</b> Toggle dark interface.</li><li><b>🌐 Language:</b> Switch VI/EN.</li><li><b>🎯 Focus Mode:</b> View today tasks & habits in a minimalist interface.</li><li><b>↩️ Undo/Redo:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Data:</b> Export/import JSON, CSV, auto backup, restore.</li><li><b>☁️ Sync:</b> Sign in to sync data across devices.</li><li><b>📅 Calendar:</b> View tasks in monthly calendar.</li><li><b>📋 Templates:</b> Copy month structure.</li><li><b>🎨 Themes:</b> 4 color themes: cream/mint/lavender/peach.</li><li><b>🤖 Study Assistant:</b> Chatbot for study planning and answering questions.</li></ul><p>💡 <b>Tip:</b> Use number keys 1-5 to quickly switch between views.</p>',
     /* Phase 4 — habit/task reminders */
     remindHabitAria: 'Set reminder for habit',
     remindTaskAria: 'Set reminder for task',
@@ -1650,7 +1650,7 @@ const I18N = {
     importCsv: '📥 Import CSV (restore)',
     importCsvConfirm: 'Importing CSV will MERGE data (duplicates by name will not overwrite). Continue?',
     importCsvDone: 'CSV imported!',
-    importCsvError: 'Could not read CSV. Make sure it is a TaskFlow-Todoist export.',
+    importCsvError: 'Could not read CSV. Make sure it is a TaskFlow export.',
     digestNone: 'All habits ticked yesterday! 🎉',
     /* ===== Phase 8: Widget Dashboard ===== */
     widgetSettings: 'Customize Widgets',
@@ -1929,7 +1929,7 @@ function checkDailyReminder() {
     localStorage.setItem('planner-remind-shown', dayKey);
   } catch (e) { /* ẩn */ }
   lastRemindDay = dayKey;
-  new Notification('TaskFlow-Todoist 🐥', {
+  new Notification('TaskFlow 🐥', {
     body: t('remindBody'),
     icon: './icons/icon-192.png',
     tag: 'daily-reminder',
@@ -1949,7 +1949,7 @@ function scheduleItemReminder(it, from) {
   if (delay > 2147483647) return; // setTimeout max ~24.8 ngày — mọi mốc nhắc trong ngày đều < 24h
   const timer = setTimeout(() => {
     try {
-      new Notification('TaskFlow-Todoist 🐥', {
+      new Notification('TaskFlow 🐥', {
         body: t('remindItemBody', { kind: t(it.kind === 'habit' ? 'remindKindHabit' : 'remindKindTask'), name: it.name }),
         icon: './icons/icon-192.png',
         tag: 'item-reminder',
@@ -2216,7 +2216,7 @@ function legacyCSVRows() {
   const rows = [];
   const push = (row) => rows.push(csvRow(row));
 
-  push(['TaskFlow-Todoist Export', new Date().toISOString(), t('csvNote')]);
+  push(['TaskFlow Export', new Date().toISOString(), t('csvNote')]);
 
   push([]);
   push(['MonthlyGoals', 'Month', 'Kind', 'Text', 'Done']);
@@ -2631,7 +2631,7 @@ function yearReportCardBlob(r) {
       g.textAlign = 'center';
       g.fillStyle = '#4A403A';
       g.font = "700 36px 'Nunito',sans-serif";
-      g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
+      g.fillText('🐥 TaskFlow', W / 2, 96);
       g.fillStyle = '#8A7A6B';
       g.font = "700 42px 'Nunito',sans-serif";
       g.fillText(t('yearReportCardTitle', { y: r.y }), W / 2, 158);
@@ -2699,7 +2699,7 @@ async function doShareYearReport() {
       try {
         await navigator.share({
           files: [file],
-          title: 'TaskFlow-Todoist 🐥',
+          title: 'TaskFlow 🐥',
           text: '📊 ' + t('yearReportCardTitle', { y: r.y }) + ' · ' + r.pct + '%',
         });
         trackEvent('share_year_report', { pct: r.pct, via: 'native' });
@@ -2745,7 +2745,7 @@ function computeDigest() {
   const names = missed.slice(0, 4).map((h) => h.name).join(', ') + (missed.length > 4 ? '…' : '');
   return {
     date: now.toDateString(),
-    title: 'TaskFlow-Todoist 🐥',
+    title: 'TaskFlow 🐥',
     body: missed.length === 0 ? t('digestNone') : t('digestBody', { names }),
   };
 }
@@ -3810,7 +3810,7 @@ function streakCardBlob(name, habitName, cur, best) {
 
       g.fillStyle = '#4A403A';
       g.font = "700 36px 'Nunito',sans-serif";
-      g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
+      g.fillText('🐥 TaskFlow', W / 2, 96);
 
       g.fillStyle = '#8A7A6B';
       g.font = "700 42px 'Nunito',sans-serif";
@@ -3896,7 +3896,7 @@ async function doShareStreak() {
       try {
         await navigator.share({
           files: [file],
-          title: 'TaskFlow-Todoist 🐥',
+          title: 'TaskFlow 🐥',
           text: '🔥 ' + top.s.cur + ' ' + t('hmHeroDays') + ' · ' + top.h.name,
         });
         trackEvent('share_streak', { days: top.s.cur, via: 'native' });
@@ -4010,7 +4010,7 @@ function reportCardBlob(r) {
       g.textAlign = 'center';
       g.fillStyle = '#4A403A';
       g.font = "700 36px 'Nunito',sans-serif";
-      g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
+      g.fillText('🐥 TaskFlow', W / 2, 96);
       g.fillStyle = '#8A7A6B';
       g.font = "700 42px 'Nunito',sans-serif";
       g.fillText(t('reportCardTitle', { m: monthLabel(r.m), y: r.y }), W / 2, 158);
@@ -4069,7 +4069,7 @@ async function doShareReport() {
       try {
         await navigator.share({
           files: [file],
-          title: 'TaskFlow-Todoist 🐥',
+          title: 'TaskFlow 🐥',
           text: '📊 ' + t('reportCardTitle', { m: monthLabel(r.m), y: r.y }) + ' · ' + r.goalPct + '%',
         });
         trackEvent('share_report', { goalPct: r.goalPct, via: 'native' });
@@ -4194,7 +4194,7 @@ function weekReportCardBlob(r) {
       g.textAlign = 'center';
       g.fillStyle = '#4A403A';
       g.font = "700 36px 'Nunito',sans-serif";
-      g.fillText('🐥 TaskFlow-Todoist', W / 2, 96);
+      g.fillText('🐥 TaskFlow', W / 2, 96);
       g.fillStyle = '#8A7A6B';
       g.font = "700 42px 'Nunito',sans-serif";
       g.fillText(t('weekReportCardTitle', { n: r.n }), W / 2, 158);
@@ -4266,7 +4266,7 @@ async function doShareWeekReport() {
       try {
         await navigator.share({
           files: [file],
-          title: 'TaskFlow-Todoist 🐥',
+          title: 'TaskFlow 🐥',
           text: '📊 ' + t('weekReportShareTxt', { n: r.n, p: r.pct }),
         });
         trackEvent('share_week_report', { pct: r.pct, via: 'native' });

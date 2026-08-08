@@ -3,7 +3,7 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v95';
+const CACHE = 'taskflow-v96';
 const APP_SHELL = [
   './',
   './index.html',
@@ -116,7 +116,7 @@ self.addEventListener('notificationclick', (e) => {
 
 function showReminder() {
   const fallback = {
-    title: 'TaskFlow-Todoist 🐥',
+    title: 'TaskFlow 🐥',
     body: 'Hôm nay bạn đã hoàn thành những mục tiêu nào? Vào điểm danh thói quen nhé!',
   };
   const opts = (d) => ({

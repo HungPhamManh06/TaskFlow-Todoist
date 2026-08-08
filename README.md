@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐥 TaskFlow-Todoist
+# 🐥 TaskFlow
 
 **Ứng dụng lập kế hoạch cá nhân miễn phí — Quản lý mục tiêu năm · tháng · tuần, theo dõi thói quen, streak & heatmap, nhật ký reflection**
 
@@ -21,7 +21,7 @@ Giao diện pastel kawaii · Hoạt động **100% offline** · Dữ liệu lưu
 
 ## 📖 Giới thiệu
 
-**TaskFlow-Todoist** là trang web lập kế hoạch cá nhân dành cho năm 2026, được thiết kế theo phong cách *"kawaii spreadsheet"* với tông màu pastel ấm áp. Ứng dụng giúp bạn:
+**TaskFlow** là trang web lập kế hoạch cá nhân dành cho năm 2026, được thiết kế theo phong cách *"kawaii spreadsheet"* với tông màu pastel ấm áp. Ứng dụng giúp bạn:
 
 - 🗓️ **Điều hướng 12 tháng trong năm** — mỗi tháng có bộ mục tiêu, thói quen, reflection và kế hoạch tuần riêng
 - 🎯 **Đặt và theo dõi mục tiêu** cho cả năm, từng tháng và từng tuần — thêm/sửa/xoá tự do
@@ -245,7 +245,7 @@ vercel --prod     # deploy production
 ## 📂 Cấu trúc dự án
 
 ```
-TaskFlow-Todoist/
+TaskFlow/
 ├── index.html          # Trang giới thiệu (landing, SEO tĩnh, OG image, JSON-LD, EN/VI)
 ├── app.html            # Trang ứng dụng chính (app shell, onboarding 3 bước, modal sync)
 ├── og-preview.html     # Nguồn tạo og-image.png (1200×630) — mở + chụp màn hình

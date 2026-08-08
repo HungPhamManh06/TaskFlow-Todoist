@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-labelledby="title desc">
-  <title id="title">TaskFlow-Todoist logo</title>
-  <desc id="desc">TaskFlow-Todoist wordmark with a warm checklist logo mark.</desc>
+  <title id="title">TaskFlow logo</title>
+  <desc id="desc">TaskFlow wordmark with a warm checklist logo mark.</desc>
   <defs>
     <linearGradient id="tile" x1="10" y1="6" x2="84" y2="90" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#F6B18F"/>

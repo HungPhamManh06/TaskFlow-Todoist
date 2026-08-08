@@ -39,7 +39,7 @@
     const rows = [];
     const push = (r) => rows.push(csvRow(r));
 
-    push(['TaskFlow-Todoist Export', new Date().toISOString(), csvNote || '']);
+    push(['TaskFlow Export', new Date().toISOString(), csvNote || '']);
 
     push([]);
     push(['MonthlyGoals', 'Month', 'Kind', 'Text', 'Done']);
@@ -145,7 +145,8 @@
     return out;
   }
 
-  const CSV_SECTIONS = ['MonthlyGoals', 'Habits', 'Tasks', 'MonthReflections', 'YearGoals', 'YearReflections', 'YearNotes', 'TaskFlow-Todoist Export'];
+  // Nhận cả tag cũ 'TaskFlow-Todoist Export' để file CSV xuất trước đây vẫn import được.
+  const CSV_SECTIONS = ['MonthlyGoals', 'Habits', 'Tasks', 'MonthReflections', 'YearGoals', 'YearReflections', 'YearNotes', 'TaskFlow Export', 'TaskFlow-Todoist Export'];
   // Cột 1 của dòng HEADER mỗi section — dòng dữ liệu luôn lặp lại tag nên phải phân biệt.
   const CSV_HEADER_COL1 = { MonthlyGoals: 'Month', Habits: 'Month', Tasks: 'Month', MonthReflections: 'Month', YearGoals: 'Kind', YearReflections: 'Scope', YearNotes: 'Month' };
 
@@ -162,7 +163,7 @@
       const tag = (cells[0] || '').trim();
       if (CSV_SECTIONS.indexOf(tag) >= 0) {
         // Dòng header (cột 1 trùng tên cột chuẩn) mới chuyển section; dòng dữ liệu lặp lại tag → xử lý tiếp.
-        if (tag === 'TaskFlow-Todoist Export' || (cells[1] || '').trim() === CSV_HEADER_COL1[tag]) { section = tag; return; }
+        if (tag === 'TaskFlow Export' || tag === 'TaskFlow-Todoist Export' || (cells[1] || '').trim() === CSV_HEADER_COL1[tag]) { section = tag; return; }
       }
       if (!section) return;
       if (section === 'MonthlyGoals') {
