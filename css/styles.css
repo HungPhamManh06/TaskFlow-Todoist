@@ -2019,7 +2019,7 @@ input:focus-visible {
 
 /* ============================ Giai đoạn 5 — Feedback FAB + Share streak ============================ */
 
-.fb-fab-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 95; }
+.fb-fab-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 95; transition: transform .3s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
 
 .fb-fab {
   width: 56px;
@@ -3281,6 +3281,20 @@ sup.remind-dot {
   flex-direction: column;
   align-items: flex-start;
   gap: 10px;
+  transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+  will-change: transform;
+}
+/* Auto-tuck: FAB thu về mép màn hình khi rảnh, chỉ chừa 1 tab nhỏ ~14px —
+   không che nội dung (vd ô Lịch). JS đặt --tuck-x/--tuck-y theo mép gần nhất. */
+.pomo-fab-wrap.fab-tucked,
+.fb-fab-wrap.fab-tucked {
+  transform: translate(var(--tuck-x, 0), var(--tuck-y, 0));
+}
+@media (prefers-reduced-motion: reduce) {
+  .pomo-fab-wrap,
+  .fb-fab-wrap {
+    transition: none;
+  }
 }
 @media (max-width: 1180px) {
   .pomo-fab-wrap { left: calc(200px + 18px); }

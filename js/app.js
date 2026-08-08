@@ -8913,13 +8913,125 @@ function initFabDrags() {
   const pomoWrap = document.querySelector('.pomo-fab-wrap');
   if (pomoWrap) {
     const fab = pomoWrap.querySelector('.pomo-fab');
+    // initFabTuck TRƯỚC initFabDrag: pointerdown untuck phải chạy trước khi drag đọc rect
+    initFabTuck(pomoWrap, fab, FAB_POS_KEYS.pomo);
     if (fab) initFabDrag(pomoWrap, fab, FAB_POS_KEYS.pomo);
   }
   const chatWrap = document.getElementById('chatFabWrap');
   if (chatWrap) {
     const fab = chatWrap.querySelector('.fb-fab');
+    initFabTuck(chatWrap, fab, FAB_POS_KEYS.chat);
     if (fab) initFabDrag(chatWrap, fab, FAB_POS_KEYS.chat);
   }
+}
+
+// ---------- Auto-tuck: FAB tự thu về mép màn hình khi rảnh ----------
+// Sau ~2.2s không tương tác (và panel đóng), FAB trượt về mép gần nhất,
+// chỉ chừa 1 tab nhỏ ~14px — không che nội dung (vd ô Lịch). Hover/focus
+// hoặc kéo sẽ kéo FAB trở ra đầy đủ. Vị trí kéo-thả vẫn được tôn trọng.
+const FAB_TUCK_MS = 2200;
+const FAB_TUCK_SLIVER = 14;
+
+function fabTuckAllowed(wrap) {
+  // Không thu FAB khi panel/chat đang mở — cần nhìn thấy timer/nội dung
+  const panel = wrap.querySelector('.pomo-panel, .chat-pop');
+  if (panel && !panel.hidden) return false;
+  return true;
+}
+
+function nearestTuckEdge(wrap) {
+  const r = wrap.getBoundingClientRect();
+  const mobile = window.innerWidth <= 767;
+  const d = {
+    left: r.left,
+    right: window.innerWidth - r.right,
+    top: r.top,
+    // Mobile: tránh tuck xuống mép dưới (bị bottom-nav che mất tab) → chỉ trái/phải/trên
+    bottom: mobile ? Infinity : Math.max(0, window.innerHeight - r.bottom - FAB_MARGIN),
+  };
+  return Object.keys(d).reduce((a, b) => (d[b] < d[a] ? b : a));
+}
+
+function tuckOffset(wrap, edge) {
+  // Tính translate (px) đưa FAB sát mép, chỉ chừa 1 tab ~FAB_TUCK_SLIVER hiển thị:
+  //   bottom → trượt xuống, chừa s px ĐỈNH FAB ở mép dưới màn hình
+  //   top    → trượt lên, chừa s px ĐÁY FAB ở mép trên
+  //   right  → trượt phải, chừa s px TRÁI FAB ở mép phải
+  //   left   → trượt trái, chừa s px PHẢI FAB ở mép trái
+  const r = wrap.getBoundingClientRect();
+  const s = FAB_TUCK_SLIVER;
+  if (edge === 'bottom') return { x: 0, y: (window.innerHeight - s) - r.top };
+  if (edge === 'top') return { x: 0, y: (s - r.height) - r.top };
+  if (edge === 'right') return { x: (window.innerWidth - s) - r.left, y: 0 };
+  return { x: (s - r.width) - r.left, y: 0 }; // left
+}
+
+function initFabTuck(wrap, fab, key) {
+  if (!wrap || !fab) return;
+  let timer = null;
+  // Chỉ auto-tuck khi FAB đang ở vị trí MẶC ĐỊNH (chưa từng kéo đi nơi khác).
+  // User đã kéo để đặt chỗ riêng → tôn trọng vị trí tuỳ chỉnh, không tuck nữa.
+  const hasCustomPos = () => !!loadFabPos(key);
+  const untuck = (instant) => {
+    clearTimeout(timer);
+    if (instant) {
+      // Bỏ transition ngay để drag đọc đúng vị trí mới (không bị rect giữa chừng)
+      wrap.style.transition = 'none';
+      wrap.classList.remove('fab-tucked');
+      requestAnimationFrame(() => requestAnimationFrame(() => { wrap.style.transition = ''; }));
+    } else {
+      wrap.classList.remove('fab-tucked');
+    }
+  };
+  const applyTuck = () => {
+    if (!fabTuckAllowed(wrap)) return;
+    if (hasCustomPos()) { wrap.classList.remove('fab-tucked'); return; }
+    // Quan trọng: nếu đang tuck (vd sau resize), phải bỏ transform TRƯỚC khi đo
+    // rect — nếu không getBoundingClientRect trả về vị trí đã dịch, offset mới sai.
+    const wasTucked = wrap.classList.contains('fab-tucked');
+    if (wasTucked) wrap.style.transition = 'none';
+    wrap.classList.remove('fab-tucked');
+    const edge = nearestTuckEdge(wrap);
+    const o = tuckOffset(wrap, edge);
+    wrap.style.setProperty('--tuck-x', o.x + 'px');
+    wrap.style.setProperty('--tuck-y', o.y + 'px');
+    wrap.setAttribute('data-tuck-edge', edge);
+    wrap.classList.add('fab-tucked');
+    if (wasTucked) requestAnimationFrame(() => requestAnimationFrame(() => { wrap.style.transition = ''; }));
+  };
+  const schedule = () => {
+    clearTimeout(timer);
+    if (!fabTuckAllowed(wrap)) { wrap.classList.remove('fab-tucked'); return; }
+    timer = setTimeout(applyTuck, FAB_TUCK_MS);
+  };
+  // pointerdown phải đăng ký TRƯỚC initFabDrag để untuck chạy trước khi drag đọc rect
+  fab.addEventListener('pointerdown', () => untuck(true));
+  wrap.addEventListener('pointerleave', (e) => {
+    if (!fab.classList.contains('fab-dragging')) schedule();
+  });
+  // Sau khi tuck, nếu user hover trở lại → kéo FAB ra đầy đủ
+  wrap.addEventListener('pointerenter', () => untuck(false));
+  fab.addEventListener('focus', () => untuck(false));
+  fab.addEventListener('blur', () => schedule());
+  fab.addEventListener('pointerup', () => schedule());
+  // Viewport đổi kích thước khi đang tuck → tính lại offset cho viewport mới,
+  // tránh FAB trôi khỏi màn hình (mất hẳn tab 14px).
+  window.addEventListener('resize', () => {
+    if (wrap.classList.contains('fab-tucked')) applyTuck();
+  });
+  // Panel đóng qua đường khác (view switch / Escape / ✕) → đăng ký lại tuck.
+  // MutationObserver bắt mọi đường đóng panel, không chỉ click.
+  const panel = wrap.querySelector('.pomo-panel, .chat-pop');
+  if (panel) {
+    new MutationObserver(() => {
+      if (panel.hidden) schedule();
+      else untuck(false);
+    }).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+  }
+  // Tuck ban đầu: nếu không ai động tới trong FAB_TUCK_MS thì thu về mép
+  // (kể cả lúc vừa mở trang — FAB không nằm chình ình che nội dung).
+  // Chỉ áp dụng khi FAB chưa được kéo tuỳ chỉnh.
+  schedule();
 }
 
 /* ---------- Khởi động phụ trợ (PWA, Analytics, Nhắc việc, Import) ---------- */
