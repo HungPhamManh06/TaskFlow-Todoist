@@ -1108,12 +1108,31 @@ input:focus-visible {
 
 /* Task trong ngày — ngắn = 1 dòng, dài = wrap giữ nguyên cột (không tràn) */
 .task-row .task-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; white-space: normal; }
-.task-row .dotted-line { flex: 0 1 24px; }
-.task-row .btn-tag { font-size: 12px; padding: 1px; }
-.task-row .btn-del { width: 14px; font-size: 10px; }
+/* Nhóm icon action gom lại 1 khối căn phải — không bị văng rời rạc khi wrap */
+.task-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  margin-left: auto;
+  min-width: 0;
+}
+.task-row-actions .dotted-line { flex: 0 1 22px; }
+.task-row-actions .btn-tag,
+.task-row-actions .btn-del {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.task-row .btn-tag { font-size: 12px; }
+.task-row .btn-del { font-size: 10px; }
 .task-rows .btn-add { align-self: flex-start; margin-top: 2px; }
 @media (max-width: 1200px) {
-  .task-row .dotted-line { display: none; }
+  .task-row-actions .dotted-line { display: none; }
 }
 
 /* Mục tiêu tháng — thanh nhập inline (Tổng quan) */

@@ -4624,11 +4624,13 @@ function taskRowHTML(wn, di, ti, mod, task, pos) {
     ${checkboxHTML(mod, task.done, `data-action="task" data-week="${wn}" data-day="${di}" data-task="${ti}"`, window.TaskFlowUI.checkboxLabel('task', task.text, `${t('weekN', { n: wn })}, ${dayLabel(di)}`))}
     <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${wn}" data-day="${di}" data-task="${ti}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: ti + 1 })}">${esc(task.text ?? '')}</span>
     ${tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : ''}
-    <span class="dotted-line" aria-hidden="true"></span>
-    <button type="button" class="btn-tag" data-action="remind-task" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('remindTaskAria')}" aria-label="${t('remindTaskAria')}">🔔${task.remind && task.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
-    <button type="button" class="btn-tag" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('tagAdd')}" aria-label="${t('tagAria')}">🏷️</button>
-    <button type="button" class="btn-tag" data-action="repeat-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('repeatTitle')}" aria-label="${t('repeatTitle')}">🔁${task.repeat && task.repeat.freq ? '<sup class="remind-dot"></sup>' : ''}</button>
-    <button type="button" class="btn-del" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}" aria-label="${t('delTaskAria', { n: ti + 1 })}" title="${t('delTaskAria', { n: ti + 1 })}">✕</button>
+    <span class="task-row-actions">
+      <span class="dotted-line" aria-hidden="true"></span>
+      <button type="button" class="btn-tag" data-action="remind-task" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('remindTaskAria')}" aria-label="${t('remindTaskAria')}">🔔${task.remind && task.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
+      <button type="button" class="btn-tag" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('tagAdd')}" aria-label="${t('tagAria')}">🏷️</button>
+      <button type="button" class="btn-tag" data-action="repeat-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('repeatTitle')}" aria-label="${t('repeatTitle')}">🔁${task.repeat && task.repeat.freq ? '<sup class="remind-dot"></sup>' : ''}</button>
+      <button type="button" class="btn-del" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}" aria-label="${t('delTaskAria', { n: ti + 1 })}" title="${t('delTaskAria', { n: ti + 1 })}">✕</button>
+    </span>
   </div>`;
 }
 
@@ -5510,6 +5512,7 @@ function setView(view, week) {
   } else if (view === 'week') {
     wk.setAttribute('aria-labelledby', 'tab-week-' + state.currentWeek);
     renderWeek();
+    scrollWeekToToday();
   } else if (view === 'calendar') {
     if (cal) cal.setAttribute('aria-labelledby', 'tab-calendar');
     renderCalendar();
@@ -6595,6 +6598,23 @@ const fmtDate = (d) => d.toLocaleDateString(dateLocale(), { day: '2-digit', mont
 function isDayToday(d) {
   const now = new Date();
   return d.date === `${now.getDate()}/${now.getMonth() + 1}` && d.yy === now.getFullYear() % 100;
+}
+
+// Khi mở view Tuần, tự cuộn xuống ngày hôm nay (nếu nằm trong tuần đang xem)
+// để người dùng không phải kéo tay. Chỉ cuộn khi panel chưa nằm trong viewport
+// (desktop 3 cột thường đã thấy hôm nay → không jump; sync re-render cũng
+// không bị cuộn đi nếu panel vẫn đang hiển thị).
+function scrollWeekToToday() {
+  const panel = document.querySelector('#view-week .week-day-panel.today');
+  if (!panel) return; // hôm nay không thuộc tuần đang xem → giữ nguyên vị trí
+  // Trì hoãn để layout ổn định sau renderWeek, rồi mới kiểm tra vị trí thật
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const r = panel.getBoundingClientRect();
+      if (r.top >= 0 && r.bottom <= window.innerHeight) return; // đã thấy hôm nay
+      panel.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+    });
+  });
 }
 
 function nowInfo() {
