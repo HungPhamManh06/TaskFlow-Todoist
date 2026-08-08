@@ -248,6 +248,14 @@ test('sidebar groups navigation into MAIN/PLAN/TRACK with tooltips', () => {
   // secondary keeps tools + profile + landing (focus/report moved to TRACK)
   assert.match(APP, /data-action=\"profile-open\"/);
   assert.doesNotMatch(APP, /data-action=\"focus\"[^>]*\/?>\s*<span>Chế độ tập trung<\/span>[\s\S]{0,80}data-action=\"report\"/);
+  // Phase 6: PLAN = Tổng quan → Tuần → Năm; TRACK = Thói quen → Focus → Lịch → Báo cáo
+  assert.match(APP_JS, /byView\.overview, byView\.week, byView\.year/);
+  assert.match(APP_JS, /actionBtn\('habits', 'habit', shellNavLabel\(t\('habitTitle'\)\)\)/);
+  assert.match(APP_JS, /actionBtn\('focus', 'focus'/);
+  assert.match(APP_JS, /byView\.calendar,/);
+  assert.match(APP_JS, /actionBtn\('report', 'report'/);
+  assert.match(APP_JS, /act === 'habits'/);
+  assert.match(APP_JS, /scrollIntoView\(\{ behavior: 'smooth'/);
 });
 
 test('sidebar collapse persists state and swaps button label', () => {
@@ -630,7 +638,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v107';/);
+  assert.match(SW, /const CACHE = 'taskflow-v108';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -708,7 +716,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v107';/);
+  assert.match(SW, /const CACHE = 'taskflow-v108';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',

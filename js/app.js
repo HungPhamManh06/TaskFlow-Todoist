@@ -6807,11 +6807,12 @@ function buildNav() {
         byView.today, byView.inbox, byView.upcoming,
       ] },
       { label: t('navGroupPlan'), items: [
-        byView.week, byView.overview, byView.year,
+        byView.overview, byView.week, byView.year,
       ] },
       { label: t('navGroupTrack'), items: [
-        byView.calendar,
+        actionBtn('habits', 'habit', shellNavLabel(t('habitTitle'))),
         actionBtn('focus', 'focus', shellNavLabel(t('focusOpen'))),
+        byView.calendar,
         actionBtn('report', 'report', shellNavLabel(t('reportTitle'))),
       ] },
     ];
@@ -8029,6 +8030,15 @@ document.addEventListener('click', (e) => {
   else if (act === 'shell-add-task') { openQuickAdd(); return; }
   else if (act === 'undo') { doUndo(); return; }
   else if (act === 'redo') { doRedo(); return; }
+  else if (act === 'habits') {
+    // Phase 6: mục TRACK "Thói quen" → mở overview rồi scroll tới widget habits
+    setView('overview');
+    setTimeout(() => {
+      const hw = document.querySelector('[data-widget-id="habits"]');
+      if (hw) hw.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 120);
+    return;
+  }
   else if (act === 'focus') { openFocusMode(); return; }
   else if (act === 'focus-close') { closeFocusMode(); return; }
   else if (act === 'backup-restore') { openBackupModal(); return; }
