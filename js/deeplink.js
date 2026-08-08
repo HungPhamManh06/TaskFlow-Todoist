@@ -4,7 +4,7 @@
   'use strict';
 
   function emptyResult() {
-    return { view: null, year: null, month: null, week: null };
+    return { view: null, year: null, month: null, week: null, quick: false };
   }
 
   function numWeeksOf(year, month) {
@@ -28,6 +28,8 @@
     if (view === 'today' || view === 'overview' || view === 'year' || view === 'week' || view === 'calendar' || view === 'day' || view === 'upcoming' || view === 'inbox') {
       out.view = view;
     }
+    // quick=1 → mở Quick Add ngay sau khi boot (dùng cho manifest shortcut "Thêm công việc")
+    out.quick = url.searchParams.get('quick') === '1';
 
     var m = /^(\d{4})-(\d{1,2})$/.exec(String(url.searchParams.get('m') || '').trim());
     if (m) {

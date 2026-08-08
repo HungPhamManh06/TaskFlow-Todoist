@@ -3,7 +3,7 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v112';
+const CACHE = 'taskflow-v114';
 const APP_SHELL = [
   './',
   './index.html',
@@ -113,12 +113,16 @@ self.addEventListener('periodicsync', (e) => {
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
+  // Deep-link vào app (không đưa về landing). Dùng ?view=today để mở màn hình chính.
+  const APP_URL = './app.html?view=today';
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const c of list) {
-        if ('focus' in c) return c.navigate('./') && c.focus();
+        if ('focus' in c && c.url.indexOf('/app.html') !== -1) {
+          return c.focus().then(() => c.navigate(APP_URL));
+        }
       }
-      return self.clients.openWindow('./');
+      return self.clients.openWindow(APP_URL);
     })
   );
 });

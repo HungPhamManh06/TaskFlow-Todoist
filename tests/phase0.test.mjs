@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import DeepLink from '../js/deeplink.js';
 
 test('parse: không tham số', () => {
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html'), { view: null, year: null, month: null, week: null });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html'), { view: null, year: null, month: null, week: null, quick: false });
 });
 
 test('parse: view hợp lệ', () => {
@@ -43,9 +43,9 @@ test('parse: m=YYYY-M hợp lệ', () => {
 });
 
 test('parse: m ngoài phạm vi → null', () => {
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-0'), { view: null, year: null, month: null, week: null });
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-13'), { view: null, year: null, month: null, week: null });
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=1800-5'), { view: null, year: null, month: null, week: null });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-0'), { view: null, year: null, month: null, week: null, quick: false });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-13'), { view: null, year: null, month: null, week: null, quick: false });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=1800-5'), { view: null, year: null, month: null, week: null, quick: false });
 });
 
 test('parse: kết hợp view + m', () => {
@@ -56,12 +56,12 @@ test('parse: kết hợp view + m', () => {
 });
 
 test('parse: token OAuth bị bỏ qua', () => {
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?token=abc123'), { view: null, year: null, month: null, week: null });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?token=abc123'), { view: null, year: null, month: null, week: null, quick: false });
 });
 
 test('parse: chuỗi rỗng/null', () => {
-  assert.deepEqual(DeepLink.parse(''), { view: null, year: null, month: null, week: null });
-  assert.deepEqual(DeepLink.parse(null), { view: null, year: null, month: null, week: null });
+  assert.deepEqual(DeepLink.parse(''), { view: null, year: null, month: null, week: null, quick: false });
+  assert.deepEqual(DeepLink.parse(null), { view: null, year: null, month: null, week: null, quick: false });
 });
 
 import { readFileSync } from 'node:fs';

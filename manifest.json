@@ -11,6 +11,15 @@
   "background_color": "#EFE6D5",
   "theme_color": "#EFE6D5",
   "categories": ["productivity", "lifestyle", "education"],
+  "screenshots": [
+    {
+      "src": "app-screenshot.png",
+      "sizes": "1200x900",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày"
+    }
+  ],
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -33,14 +42,37 @@
   ],
   "shortcuts": [
     {
+      "name": "Hôm nay",
+      "short_name": "Hôm nay",
+      "description": "Mở màn hình Hôm nay",
+      "url": "./app.html?view=today",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Thêm công việc",
+      "short_name": "Thêm việc",
+      "description": "Thêm task nhanh từ mọi nơi",
+      "url": "./app.html?view=today&quick=1",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Tuần này",
+      "short_name": "Tuần",
+      "description": "Mở kế hoạch tuần hiện tại",
+      "url": "./app.html?view=week",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
       "name": "Tổng quan tháng",
       "short_name": "Tháng",
-      "url": "./app.html?view=overview"
+      "url": "./app.html?view=overview",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Kế hoạch năm",
       "short_name": "Năm",
-      "url": "./app.html?view=year"
+      "url": "./app.html?view=year",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

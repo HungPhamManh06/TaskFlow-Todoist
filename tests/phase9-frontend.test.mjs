@@ -14,6 +14,7 @@ const SYNC_JS = readFileSync(path.join(ROOT, 'js/sync.js'), 'utf8');
 const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 const LANDING = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const LANDING_CSS = readFileSync(path.join(ROOT, 'css/landing.css'), 'utf8');
+const DEEPLINK_JS = readFileSync(path.join(ROOT, 'js/deeplink.js'), 'utf8');
 
 function readRequiredAsset(relativePath) {
   const absolutePath = path.join(ROOT, relativePath);
@@ -71,7 +72,7 @@ test('buildViewUrl keeps month and selected view', () => {
 test('week URL round-trips through build and parse helpers', () => {
   const query = UI.buildViewUrl({ view: 'week', year: 2026, month: 7, week: 6 });
   assert.deepEqual(DeepLink.parse(`https://x.app/app.html${query}`), {
-    view: 'week', year: 2026, month: 7, week: 6,
+    view: 'week', year: 2026, month: 7, week: 6, quick: false,
   });
 });
 
@@ -730,7 +731,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v112';/);
+  assert.match(SW, /const CACHE = 'taskflow-v114';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -808,7 +809,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v112';/);
+  assert.match(SW, /const CACHE = 'taskflow-v114';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -1388,4 +1389,32 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
   const qaStyles = readRequiredAsset('css/styles.css');
   assert.match(qaStyles, /\.quickadd-card\s*{/);
   assert.match(qaStyles, /\.quickadd-fields\s*{/);
+});
+
+test('Phase 9: PWA manifest shortcuts, screenshots, and notification deep-link', () => {
+  const manifest = JSON.parse(readRequiredAsset('manifest.json'));
+  assert.equal(manifest.name, 'TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày');
+  assert.equal(manifest.short_name, 'TaskFlow');
+  assert.equal(manifest.start_url, './app.html');
+  assert.equal(manifest.display, 'standalone');
+  // 3 shortcuts theo spec: Hôm nay / Thêm công việc / Tuần này (+ giữ Tháng/Năm)
+  const urls = manifest.shortcuts.map((s) => s.url);
+  assert.ok(urls.includes('./app.html?view=today'), 'Hôm nay shortcut');
+  assert.ok(urls.includes('./app.html?view=today&quick=1'), 'Thêm việc shortcut opens Quick Add');
+  assert.ok(urls.includes('./app.html?view=week'), 'Tuần này shortcut');
+  assert.ok(manifest.shortcuts.every((s) => s.name && s.url), 'all shortcuts have name+url');
+  // screenshots present for install UX
+  assert.ok(Array.isArray(manifest.screenshots) && manifest.screenshots.length >= 1);
+  assert.match(manifest.screenshots[0].src, /\.png$/);
+  // icons intact
+  assert.ok(manifest.icons.some((i) => i.purpose === 'maskable'));
+  // notificationclick deep-links into app, NOT landing
+  assert.match(SW, /notificationclick/);
+  assert.match(SW, /APP_URL = '\.\/app\.html\?view=today'/);
+  assert.doesNotMatch(SW, /openWindow\(''\)/);
+  assert.match(SW, /c\.url\.indexOf\('\/app\.html'\) !== -1/);
+  // quick=1 deeplink → openQuickAdd after boot
+  assert.match(DEEPLINK_JS || '', /quick=1/);
+  assert.match(APP_JS, /window\.__quickAddOnBoot = true/);
+  assert.match(APP_JS, /if \(window\.__quickAddOnBoot\)/);
 });

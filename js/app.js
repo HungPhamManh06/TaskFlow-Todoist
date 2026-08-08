@@ -9523,6 +9523,7 @@ if (window.DeepLink) {
   }
   if (dl.view) state.view = dl.view;
   if (dl.view === 'week' && dl.week !== null && dl.week <= NUM_WEEKS) state.currentWeek = dl.week;
+  if (dl.quick) window.__quickAddOnBoot = true;
   if (dl.view === 'day' && dl.week !== null && dl.week >= 1 && dl.week <= NUM_WEEKS) {
     state.dayWeek = dl.week;
     if (dl.day !== undefined && dl.day !== null && dl.day >= 0 && dl.day <= 6) state.dayDay = dl.day;
@@ -9545,6 +9546,11 @@ carryOverRepeatTasks();
 renderXP();
 setView(state.view, state.currentWeek);
 setTimeout(updateDigestCache, 2000);
+// Manifest shortcut "Thêm công việc" (?quick=1) → mở Quick Add ngay sau khi view đầu render
+if (window.__quickAddOnBoot) {
+  setTimeout(() => { openQuickAdd(); }, 350);
+  delete window.__quickAddOnBoot;
+}
 
 
 /* ---------- Khởi động đồng bộ đám mây (backend Render) ---------- */
