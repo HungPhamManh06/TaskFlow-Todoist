@@ -566,6 +566,55 @@ test('Phase 7: unified empty states with CTA actions and dedup toasts', () => {
   assert.match(comp, /\.toast-action\s*\{/);
 });
 
+test('Phase 8: privacy and terms pages exist with code-accurate claims', () => {
+  const privacy = readRequiredAsset('privacy.html');
+  const terms = readRequiredAsset('terms.html');
+  const legalCss = readRequiredAsset('css/legal.css');
+  // Pages exist with canonical + SEO
+  assert.match(privacy, /<title>Chính sách bảo mật — TaskFlow<\/title>/);
+  assert.match(privacy, /rel=\"canonical\" href=\"https:\/\/taskflow-todoist\.vercel\.app\/privacy\"/);
+  assert.match(terms, /<title>Điều khoản sử dụng — TaskFlow<\/title>/);
+  assert.match(terms, /rel=\"canonical\" href=\"https:\/\/taskflow-todoist\.vercel\.app\/terms\"/);
+  // Claims must match the actual code (server/auth.js + schema.sql)
+  assert.match(privacy, /bcrypt.*10 vòng/s);
+  assert.match(privacy, /JWT.*30 ngày/s);
+  assert.match(privacy, /10 lần mỗi 15 phút/);
+  assert.match(privacy, /on delete cascade/);
+  assert.match(privacy, /anonymize_ip/);
+  assert.match(privacy, /POST \/api\/sync/);
+  assert.match(privacy, /planner_state/);
+  // GA4 placeholder -> honestly says disabled
+  assert.match(privacy, /đang <strong>tắt<\/strong>/);
+  // localStorage offline-first claim
+  assert.match(privacy, /localStorage của chính trình duyệt/);
+  // export paths match app.js (collectAllData / CSV / ICS)
+  assert.match(privacy, /Xuất JSON \(sao lưu\)/);
+  assert.match(privacy, /Xuất CSV/);
+  assert.match(privacy, /Xuất ICS/);
+  // terms basics
+  assert.match(terms, /miễn phí/);
+  assert.match(terms, /as-is/);
+  assert.match(terms, /data loss|mất dữ liệu/);
+  // Landing footer links to both pages
+  assert.match(LANDING, /href=\"privacy\.html\"/);
+  assert.match(LANDING, /href=\"terms\.html\"/);
+  // Legal pages link back to landing and app
+  assert.match(privacy, /href=\"app\.html\"/);
+  assert.match(privacy, /href=\"index\.html\"/);
+  assert.match(terms, /href=\"privacy\.html\"/);
+  // Legal CSS used by both
+  assert.match(privacy, /css\/legal\.css\?v=\d+/);
+  assert.match(terms, /css\/legal\.css\?v=\d+/);
+  assert.match(legalCss, /\.legal-page/);
+  assert.match(legalCss, /\.legal-section h2/);
+  assert.match(legalCss, /\.legal-list/);
+  // i18n + dark mode pattern present on both
+  assert.match(privacy, /data-t-vi/);
+  assert.match(privacy, /planner-dark/);
+  assert.match(terms, /data-t-en/);
+  assert.match(terms, /planner-dark/);
+});
+
 test('onboarding Escape follows the persisted skip action', () => {
   const html = readRequiredAsset('app.html');
   const ui = readRequiredAsset('js/ui.js');
@@ -681,7 +730,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v110';/);
+  assert.match(SW, /const CACHE = 'taskflow-v112';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -759,7 +808,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v110';/);
+  assert.match(SW, /const CACHE = 'taskflow-v112';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',

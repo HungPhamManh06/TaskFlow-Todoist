@@ -3,17 +3,20 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v110';
+const CACHE = 'taskflow-v112';
 const APP_SHELL = [
   './',
   './index.html',
   './app.html',
+  './privacy.html',
+  './terms.html',
   './manifest.json',
   './css/tokens.css',
   './css/components.css',
   './css/app-shell.css',
   './css/styles.css',
   './css/landing.css',
+  './css/legal.css',
   './js/app.js',
   './js/sync.js',
   './js/api-config.js',
@@ -61,6 +64,12 @@ self.addEventListener('fetch', (e) => {
         })
         .catch(() =>
           caches.match(req, { ignoreSearch: true })
+            .then((cached) => {
+              // Offline: thử URL chính xác → URL + '.html' (cleanUrls /privacy → privacy.html)
+              if (cached) return cached;
+              const htmlPath = url.pathname.endsWith('.html') ? null : url.pathname + '.html';
+              return htmlPath ? caches.match(htmlPath) : null;
+            })
             .then((cached) => cached || caches.match(offlineShell))
         )
     );
