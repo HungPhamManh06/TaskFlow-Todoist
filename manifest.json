@@ -4,7 +4,7 @@
   "description": "Ứng dụng lập kế hoạch cá nhân miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, streak & heatmap, nhật ký reflection. Offline 100%, dữ liệu lưu trên trình duyệt.",
   "lang": "vi",
   "dir": "ltr",
-  "start_url": "./app.html",
+  "start_url": "./app",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
@@ -45,33 +45,33 @@
       "name": "Hôm nay",
       "short_name": "Hôm nay",
       "description": "Mở màn hình Hôm nay",
-      "url": "./app.html?view=today",
+      "url": "./app?view=today",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Thêm công việc",
       "short_name": "Thêm việc",
       "description": "Thêm task nhanh từ mọi nơi",
-      "url": "./app.html?view=today&quick=1",
+      "url": "./app?view=today&quick=1",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Tuần này",
       "short_name": "Tuần",
       "description": "Mở kế hoạch tuần hiện tại",
-      "url": "./app.html?view=week",
+      "url": "./app?view=week",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Tổng quan tháng",
       "short_name": "Tháng",
-      "url": "./app.html?view=overview",
+      "url": "./app?view=overview",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Kế hoạch năm",
       "short_name": "Năm",
-      "url": "./app.html?view=year",
+      "url": "./app?view=year",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ]

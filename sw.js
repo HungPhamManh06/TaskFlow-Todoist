@@ -1,15 +1,16 @@
-/* TaskFlow-Todoist Service Worker
+/* TaskFlow Service Worker
    Cache app shell → hoạt động offline như app thật.
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v119';;;;;;
+const CACHE = 'taskflow-v121';;;;;;
 const APP_SHELL = [
   './',
   './index.html',
   './app.html',
   './privacy.html',
   './terms.html',
+  './data-and-security.html',
   './manifest.json',
   './css/tokens.css',
   './css/components.css',
@@ -54,7 +55,10 @@ self.addEventListener('fetch', (e) => {
 
   // Điều hướng: ưu tiên mạng, offline → cache shell (cache theo đúng URL trang)
   if (req.mode === 'navigate') {
-    const offlineShell = url.pathname.endsWith('/app.html') ? './app.html' : './index.html';
+    // Clean URL (Vercel cleanUrls): /app lẫn /app.html đều là app shell
+    const offlineShell = (url.pathname.endsWith('/app') || url.pathname.endsWith('/app.html'))
+      ? './app.html'
+      : './index.html';
     e.respondWith(
       fetch(req)
         .then((res) => {
@@ -114,12 +118,16 @@ self.addEventListener('periodicsync', (e) => {
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   // Deep-link vào app (không đưa về landing). Dùng ?view=today để mở màn hình chính.
-  const APP_URL = './app.html?view=today';
+  // Clean URL (Vercel cleanUrls): /app (không /app.html) là đường dẫn thật của app.
+  const APP_URL = './app?view=today';
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const c of list) {
-        if ('focus' in c && c.url.indexOf('/app.html') !== -1) {
-          return c.focus().then(() => c.navigate(APP_URL));
+        if ('focus' in c) {
+          const p = new URL(c.url).pathname;
+          if (p === '/app' || p === '/app.html') {
+            return c.focus().then(() => c.navigate(APP_URL));
+          }
         }
       }
       return self.clients.openWindow(APP_URL);

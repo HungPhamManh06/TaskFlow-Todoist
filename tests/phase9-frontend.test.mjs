@@ -136,7 +136,7 @@ test('landing exposes the refined marketing structure with one clear conversion 
     'featureNarrative', 'landingCtaFinal', 'landingFooter',
   ].forEach((id) => assert.match(LANDING, new RegExp(`id=["']${id}["']`)));
   assert.equal(
-    (LANDING.match(/class=["'][^"']*hero-primary-cta[^"']*["'][^>]*href=["']app\.html["']/gi) || []).length,
+    (LANDING.match(/class=["'][^"']*hero-primary-cta[^"']*["'][^>]*href=["']app["']/gi) || []).length,
     1
   );
   assert.doesNotMatch(LANDING, /class=["'][^"']*bricks\b/i);
@@ -190,10 +190,14 @@ test('application shell keeps one primary Add Task action and every header capab
   assert.equal((APP.match(/class="[^"]*app-primary-action\b/g) || []).length, 1);
   assert.match(APP, /class="[^"]*app-primary-action\b[^>]*data-action="shell-add-task"/);
   [
-    'prevyear', 'prevmonth', 'monthselect', 'nextmonth', 'nextyear', 'gotoday', 'reset',
-    'remind-toggle', 'data-toggle', 'undo', 'redo', 'focus', 'search-toggle', 'template',
-    'print', 'sync-toggle', 'theme', 'install-app', 'help-toggle', 'dark', 'lang', 'report',
+    'prevyear', 'prevmonth', 'monthselect', 'nextmonth', 'nextyear', 'reset',
+    'remind-toggle', 'data-toggle', 'undo', 'redo', 'search-toggle', 'template',
+    'print', 'sync-toggle', 'theme', 'install-app', 'help-toggle', 'dark', 'lang',
   ].forEach((action) => assert.match(APP, new RegExp(`data-action=["']${action}["']`), `missing shell action: ${action}`));
+  // P4: Hôm nay/Inbox/Focus/Báo cáo đã bỏ khỏi tools drawer — vẫn reachable qua sidebar
+  assert.match(APP_JS, /byView\.today, byView\.inbox, byView\.upcoming/);
+  assert.match(APP_JS, /actionBtn\('focus', 'focus'/);
+  assert.match(APP_JS, /actionBtn\('report', 'report'/);
   assert.match(APP, /class="[^"]*landing-link[^>]*href="index\.html"/);
 });
 
@@ -250,8 +254,8 @@ test('sidebar groups navigation into MAIN/PLAN/TRACK with tooltips', () => {
   // secondary keeps tools + profile + landing (focus/report moved to TRACK)
   assert.match(APP, /data-action=\"profile-open\"/);
   assert.doesNotMatch(APP, /data-action=\"focus\"[^>]*\/?>\s*<span>Chế độ tập trung<\/span>[\s\S]{0,80}data-action=\"report\"/);
-  // Phase 6: PLAN = Tổng quan → Tuần → Năm; TRACK = Thói quen → Focus → Lịch → Báo cáo
-  assert.match(APP_JS, /byView\.overview, byView\.week, byView\.year/);
+  // P3: PLAN = Tổng quan → Tuần → Năm → Lịch; TRACK = Thói quen → Focus → Báo cáo
+  assert.match(APP_JS, /byView\.overview, byView\.week, byView\.year, byView\.calendar/);
   assert.match(APP_JS, /actionBtn\('habits', 'habit', shellNavLabel\(t\('habitTitle'\)\)\)/);
   assert.match(APP_JS, /actionBtn\('focus', 'focus'/);
   assert.match(APP_JS, /byView\.calendar,/);
@@ -600,8 +604,8 @@ test('Phase 8: privacy and terms pages exist with code-accurate claims', () => {
   // Landing footer links to both pages
   assert.match(LANDING, /href=\"privacy\.html\"/);
   assert.match(LANDING, /href=\"terms\.html\"/);
-  // Legal pages link back to landing and app
-  assert.match(privacy, /href=\"app\.html\"/);
+  // Legal pages link back to landing and app (clean URL)
+  assert.match(privacy, /href=\"app\"/);
   assert.match(privacy, /href=\"index\.html\"/);
   assert.match(terms, /href=\"privacy\.html\"/);
   // Legal CSS used by both
@@ -632,7 +636,7 @@ test('tools drawer supports dismissal and focus restoration', () => {
   assert.match(APP_JS, /function closeToolsDrawer\(/);
   assert.match(APP_JS, /TaskFlowUI\.openDrawer\('toolsDrawer', opener\)/);
   assert.match(APP_JS, /TaskFlowUI\.closeDrawer\('toolsDrawer'\)/);
-  assert.match(APP_JS, /toolsDrawerReturnFocusSelector[^]*#mobileNav \[data-action="tools-open"\]/);
+  assert.match(APP_JS, /toolsDrawerReturnFocusSelector[^]*#moreSheet \[data-action="tools-open"\]/);
   assert.match(APP_JS, /returnTarget\.getClientRects\(\)\.length[^]*returnTarget\.focus\(\)/);
   assert.match(ui, /opener\.isConnected[^]*opener\.getClientRects\(\)\.length[^]*opener\.focus\(\)/);
   assert.match(ui, /event\.key === 'Escape'[^]*requestLayerClose\(id\)/);
@@ -732,7 +736,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v119';/);
+  assert.match(SW, /const CACHE = 'taskflow-v121';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -810,7 +814,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v119';/);
+  assert.match(SW, /const CACHE = 'taskflow-v121';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -1037,9 +1041,10 @@ test('Phase 3: Today Dashboard is the default view with greeting, tasks, habits 
   // deeplink accepts today
   const deeplink = readRequiredAsset('js/deeplink.js');
   assert.match(deeplink, /view === 'today'/);
-  // mobile nav keeps a 6-column grid with the Today tab
+  // mobile nav (P2): 5-item grid with the Today tab; More sheet chứa view còn lại
   const shell = readRequiredAsset('css/app-shell.css');
-  assert.match(shell, /grid-template-columns:\s*repeat\(6,/);
+  assert.match(shell, /\.app-mobile-nav\s*{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(shell, /\.app-mobile-nav-add/);;
 });
 
 test('Phase 3: Today view toggles tasks and habits through shared actions', () => {
@@ -1314,11 +1319,12 @@ test('Phase 3: Inbox — nav item, view section, capture flow and schedule keepi
   assert.match(APP_JS, /view: 'inbox', icon: 'inbox'/);
   assert.match(APP_JS, /inbox: 'data-nav-view=\"inbox\" data-view=\"inbox\"'/);
   assert.match(APP_JS, /byView\.today, byView\.inbox, byView\.upcoming/);
-  assert.match(APP_JS, /items\.filter\(\(item\) => item\.view !== 'inbox'\)/);
-  // 2. View section trong app.html + nút Inbox trong tools drawer (mobile)
+  // P2: inbox nằm trong More sheet (bottom nav mobile tối đa 5 mục Today/Week/+/Habits/More)
+  assert.match(APP_JS, /\[byView\.inbox, byView\.upcoming, byView\.overview, byView\.year, byView\.calendar\]/);
+  // 2. View section trong app.html + Inbox reachable qua sidebar (JS) và More sheet mobile (P2/P4)
   assert.match(APP, /id="view-inbox"/);
   assert.match(APP, /data-i18n-aria=\"viewInbox\"/);
-  assert.match(APP, /data-action=\"inbox-open\"/);
+  assert.match(APP_JS, /\[byView\.inbox, byView\.upcoming, byView\.overview, byView\.year, byView\.calendar\]/);
   // 3. setView dispatch có nhánh inbox + deeplink chấp nhận
   assert.match(APP_JS, /view === 'inbox'/);
   assert.match(APP_JS, /renderInbox\(\)/);
@@ -1396,13 +1402,13 @@ test('Phase 9: PWA manifest shortcuts, screenshots, and notification deep-link',
   const manifest = JSON.parse(readRequiredAsset('manifest.json'));
   assert.equal(manifest.name, 'TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày');
   assert.equal(manifest.short_name, 'TaskFlow');
-  assert.equal(manifest.start_url, './app.html');
+  assert.equal(manifest.start_url, './app');
   assert.equal(manifest.display, 'standalone');
   // 3 shortcuts theo spec: Hôm nay / Thêm công việc / Tuần này (+ giữ Tháng/Năm)
   const urls = manifest.shortcuts.map((s) => s.url);
-  assert.ok(urls.includes('./app.html?view=today'), 'Hôm nay shortcut');
-  assert.ok(urls.includes('./app.html?view=today&quick=1'), 'Thêm việc shortcut opens Quick Add');
-  assert.ok(urls.includes('./app.html?view=week'), 'Tuần này shortcut');
+  assert.ok(urls.includes('./app?view=today'), 'Hôm nay shortcut');
+  assert.ok(urls.includes('./app?view=today&quick=1'), 'Thêm việc shortcut opens Quick Add');
+  assert.ok(urls.includes('./app?view=week'), 'Tuần này shortcut');
   assert.ok(manifest.shortcuts.every((s) => s.name && s.url), 'all shortcuts have name+url');
   // screenshots present for install UX
   assert.ok(Array.isArray(manifest.screenshots) && manifest.screenshots.length >= 1);
@@ -1411,9 +1417,9 @@ test('Phase 9: PWA manifest shortcuts, screenshots, and notification deep-link',
   assert.ok(manifest.icons.some((i) => i.purpose === 'maskable'));
   // notificationclick deep-links into app, NOT landing
   assert.match(SW, /notificationclick/);
-  assert.match(SW, /APP_URL = '\.\/app\.html\?view=today'/);
+  assert.match(SW, /APP_URL = '\.\/app\?view=today'/);
   assert.doesNotMatch(SW, /openWindow\(''\)/);
-  assert.match(SW, /c\.url\.indexOf\('\/app\.html'\) !== -1/);
+  assert.match(SW, /p === '\/app' \|\| p === '\/app\.html'/);
   // quick=1 deeplink → openQuickAdd after boot
   assert.match(DEEPLINK_JS || '', /quick=1/);
   assert.match(APP_JS, /window\.__quickAddOnBoot = true/);
@@ -1545,4 +1551,24 @@ test('Phase 19: e2e stability — stable data-testid hooks, no .active in script
   // Remind test dùng data-testid thay XPath contains(@class,'task-row')
   assert.doesNotMatch(FRONT, /contains\(@class,'task-row'\)/);
   assert.match(FRONT, /ancestor::div\[@data-testid='task-row'\]/);
+});
+
+test('Phase 20: sidebar collapsed — chặn horizontal overflow, tooltip portal + aria-label', () => {
+  const SHELL = readRequiredAsset('css/app-shell.css');
+  // 1. Scroll container giữ vertical scrolling, chặn scroll ngang
+  assert.match(SHELL, /\.app-sidebar\s*{[^}]*overflow-y:\s*auto[^}]*overflow-x:\s*hidden/s);
+  // 2. ::after tooltip tắt hẳn khi collapsed — không còn pseudo-element vượt mép phải sidebar
+  assert.match(SHELL, /\.app-layout\.sidebar-collapsed\s+\[data-tooltip\]::after\s*{[^}]*display:\s*none/s);
+  // 3. Tooltip portal: layer position:fixed ngoài scroll container, không bị cắt bởi overflow
+  assert.match(SHELL, /\.app-tooltip-layer\s*{[^}]*position:\s*fixed[^}]*pointer-events:\s*none/s);
+  assert.match(SHELL, /\.app-tooltip-layer\.visible\s*{[^}]*opacity:\s*1/s);
+  // 4. JS portal: layer + getBoundingClientRect + delegation pointerover/focusin (a11y keyboard)
+  assert.match(APP_JS, /function sidebarTooltipLayer\(/);
+  assert.match(APP_JS, /function showSidebarTooltip\(/);
+  assert.match(APP_JS, /getBoundingClientRect\(\)/);
+  assert.match(APP_JS, /addEventListener\('pointerover'/);
+  assert.match(APP_JS, /addEventListener\('focusin'/);
+  // 5. A11y: nav items có aria-label — tên truy cập không phụ thuộc tooltip CSS khi collapsed
+  assert.match(APP_JS, /data-tooltip="\$\{esc\(item\.label\)\}" aria-label="\$\{esc\(item\.label\)\}"/);
+  assert.match(APP_JS, /data-tooltip="\$\{esc\(label\)\}" aria-label="\$\{esc\(label\)\}"/);
 });

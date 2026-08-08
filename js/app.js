@@ -513,6 +513,10 @@ const I18N = {
     navGroupTrack: 'Theo dõi',
     collapseSidebar: 'Thu gọn',
     expandSidebar: 'Mở rộng',
+    moreNav: 'Thêm',
+    moreAdd: 'Thêm việc',
+    moreSheetTitle: 'Điều hướng',
+    moreSettings: 'Cài đặt',
     todayGreetingMorning: 'Chào buổi sáng 👋',
     todayGreetingAfternoon: 'Chào buổi chiều ☀️',
     todayGreetingEvening: 'Chào buổi tối 🌙',
@@ -1160,6 +1164,10 @@ const I18N = {
     navGroupTrack: 'Track',
     collapseSidebar: 'Collapse',
     expandSidebar: 'Expand',
+    moreNav: 'More',
+    moreAdd: 'Add',
+    moreSheetTitle: 'More',
+    moreSettings: 'Settings',
     todayGreetingMorning: 'Good morning 👋',
     todayGreetingAfternoon: 'Good afternoon ☀️',
     todayGreetingEvening: 'Good evening 🌙',
@@ -6900,6 +6908,61 @@ function toggleSidebarCollapse() {
   trackEvent('sidebar_collapse');
 }
 
+/* ============================ Tooltip sidebar collapsed (portal) ============================ */
+// ::after tooltip của sidebar collapsed nằm ngoài chiều rộng sidebar → tạo horizontal scrollbar
+// trong scroll container (.app-sidebar). Thay bằng layer position:fixed ngoài scroll container,
+// định vị bằng getBoundingClientRect() — không bị cắt bởi overflow-x:hidden, không tạo overflow.
+function sidebarTooltipLayer() {
+  let layer = document.getElementById('appSidebarTooltip');
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'appSidebarTooltip';
+    layer.className = 'app-tooltip-layer';
+    layer.setAttribute('role', 'tooltip');
+    document.body.appendChild(layer);
+  }
+  return layer;
+}
+
+function sidebarTooltipHost(target) {
+  const layout = target && target.closest('.app-layout');
+  if (!layout || !layout.classList.contains('sidebar-collapsed')) return null;
+  const host = target.closest('.app-sidebar [data-tooltip]');
+  return (host && host.dataset.tooltip) ? host : null;
+}
+
+function showSidebarTooltip(host) {
+  const layer = sidebarTooltipLayer();
+  layer.textContent = host.dataset.tooltip;
+  const rect = host.getBoundingClientRect();
+  layer.style.left = Math.round(rect.right + 12) + 'px';
+  layer.style.top = Math.round(rect.top + rect.height / 2) + 'px';
+  layer.classList.add('visible');
+}
+
+function hideSidebarTooltip() {
+  const layer = document.getElementById('appSidebarTooltip');
+  if (layer) layer.classList.remove('visible');
+}
+
+// Pointer + focus delegation: chỉ kích hoạt khi sidebar đang collapsed.
+document.addEventListener('pointerover', (e) => {
+  const host = sidebarTooltipHost(e.target);
+  if (host) { showSidebarTooltip(host); return; }
+  const layer = document.getElementById('appSidebarTooltip');
+  if (layer && layer.classList.contains('visible') && !e.target.closest('.app-tooltip-layer')) hideSidebarTooltip();
+});
+document.addEventListener('focusin', (e) => {
+  const host = sidebarTooltipHost(e.target);
+  if (host) showSidebarTooltip(host);
+});
+document.addEventListener('focusout', () => hideSidebarTooltip());
+// Rời hẳn cửa sổ/trang → ẩn tooltip (không có pointerover tiếp theo để dọn)
+document.addEventListener('pointerout', (e) => { if (!e.relatedTarget) hideSidebarTooltip(); });
+document.addEventListener('click', () => hideSidebarTooltip());
+window.addEventListener('scroll', hideSidebarTooltip, { capture: true });
+window.addEventListener('resize', hideSidebarTooltip);
+
 function shellNavLabel(value) {
   return String(value || '').replace(/^[\p{Extended_Pictographic}\uFE0F]+\s*/u, '');
 }
@@ -6927,25 +6990,25 @@ function buildNav() {
   };
   const itemBtn = (item) => `<button type="button" class="app-nav-item tab" role="tab"
     id="${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
-    ${item.week ? `data-week="${item.week}"` : ''} data-tooltip="${esc(item.label)}">
+    ${item.week ? `data-week="${item.week}"` : ''} data-tooltip="${esc(item.label)}" aria-label="${esc(item.label)}">
     ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
   const actionBtn = (action, icon, label) => `<button type="button" class="app-nav-item"
-    data-action="${action}" data-tooltip="${esc(label)}">
+    data-action="${action}" data-tooltip="${esc(label)}" aria-label="${esc(label)}">
     ${window.TaskFlowUI.icon(icon)}<span>${esc(label)}</span></button>`;
+  const byView = {};
+  items.forEach((it) => { byView[it.view] = it; });
   if (desktop) {
-    const byView = {};
-    items.forEach((it) => { byView[it.view] = it; });
     const groups = [
       { label: t('navGroupMain'), items: [
         byView.today, byView.inbox, byView.upcoming,
       ] },
+      // P3: PLAN = Tổng quan → Tuần → Năm → Lịch; TRACK = Thói quen → Focus → Báo cáo
       { label: t('navGroupPlan'), items: [
-        byView.overview, byView.week, byView.year,
+        byView.overview, byView.week, byView.year, byView.calendar,
       ] },
       { label: t('navGroupTrack'), items: [
         actionBtn('habits', 'habit', shellNavLabel(t('habitTitle'))),
         actionBtn('focus', 'focus', shellNavLabel(t('focusOpen'))),
-        byView.calendar,
         actionBtn('report', 'report', shellNavLabel(t('reportTitle'))),
       ] },
     ];
@@ -6955,13 +7018,34 @@ function buildNav() {
     </div>`).join('');
   }
   if (mobile) {
-    // Bottom-nav mobile: Inbox nằm trong tools drawer (Thêm) — không nhồi thêm nút vào thanh đã kín.
-    mobile.innerHTML = items.filter((item) => item.view !== 'inbox').map((item) => `<button type="button" class="app-mobile-nav-item tab" role="tab"
+    // Bottom-nav mobile (P2): tối đa 5 mục — Today / Week / + / Habits / More.
+    // More mở bottom sheet chứa các view còn lại (Inbox, Upcoming, Overview, Year, Calendar)
+    // + tiện ích (Reports, Focus, Settings→tools drawer).
+    const mobileItem = (item) => `<button type="button" class="app-mobile-nav-item tab" role="tab"
       id="mobile-${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
       ${item.week ? `data-week="${item.week}"` : ''}>
-      ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`).join('') +
-      `<button type="button" class="app-mobile-nav-item" data-action="tools-open" aria-controls="toolsDrawer"
-        aria-expanded="false">${window.TaskFlowUI.icon('more')}<span>Thêm</span></button>`;
+      ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
+    mobile.innerHTML =
+      mobileItem(byView.today) +
+      mobileItem(byView.week) +
+      `<button type="button" class="app-mobile-nav-item app-mobile-nav-add" data-action="shell-add-task"
+        aria-label="${esc(t('quickAddTitle'))}">${window.TaskFlowUI.icon('plus')}<span>${esc(t('moreAdd'))}</span></button>` +
+      `<button type="button" class="app-mobile-nav-item" data-action="habits"
+        aria-label="${esc(shellNavLabel(t('habitTitle')))}">${window.TaskFlowUI.icon('habit')}<span>${esc(shellNavLabel(t('habitTitle')))}</span></button>` +
+      `<button type="button" class="app-mobile-nav-item" data-action="more" aria-controls="moreSheet"
+        aria-expanded="false" aria-haspopup="dialog">${window.TaskFlowUI.icon('more')}<span>${esc(t('moreNav'))}</span></button>`;
+    const moreSheetNav = document.getElementById('moreSheetNav');
+    if (moreSheetNav) {
+      const sheetItem = (item) => `<button type="button" class="app-nav-item" data-action="nav" ${navAttributes[item.view]}
+        ${item.week ? `data-week="${item.week}"` : ''}>
+        ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
+      moreSheetNav.innerHTML =
+        [byView.inbox, byView.upcoming, byView.overview, byView.year, byView.calendar]
+          .map((item) => sheetItem(item)).join('') +
+        actionBtn('report', 'report', shellNavLabel(t('reportTitle'))) +
+        actionBtn('focus', 'focus', shellNavLabel(t('focusOpen'))) +
+        actionBtn('tools-open', 'settings', t('moreSettings'));
+    }
   }
   renderShellIcons();
 }
@@ -6973,8 +7057,12 @@ function updateNav() {
     const active = b.dataset.view === viewKey && (!b.dataset.week || +b.dataset.week === weekKey);
     b.classList.toggle('active', active);
     b.setAttribute('aria-current', active ? 'page' : 'false');
-    b.setAttribute('aria-selected', String(active));
-    b.tabIndex = active ? 0 : -1;
+    // aria-selected + roving tabindex chỉ hợp lệ trên tab thật (role="tab");
+    // item trong More sheet không phải tab → chỉ nhận active/aria-current.
+    if (b.getAttribute('role') === 'tab') {
+      b.setAttribute('aria-selected', String(active));
+      b.tabIndex = active ? 0 : -1;
+    }
   });
   updateShellContext();
 }
@@ -7008,13 +7096,37 @@ function updateShellContext() {
 }
 
 let toolsDrawerReturnFocusSelector = null;
+let toolsDrawerOpenedFromSheet = false;
+
+function openMoreSheet(opener) {
+  const sheet = document.getElementById('moreSheet');
+  const backdrop = document.getElementById('moreSheetBackdrop');
+  if (!sheet || !backdrop) return;
+  backdrop.hidden = false;
+  document.body.classList.add('more-sheet-open');
+  TaskFlowUI.openDrawer('moreSheet', opener);
+  const btn = document.querySelector('#mobileNav [data-action="more"]');
+  if (btn) btn.setAttribute('aria-expanded', 'true');
+}
+
+function closeMoreSheet() {
+  const sheet = document.getElementById('moreSheet');
+  const backdrop = document.getElementById('moreSheetBackdrop');
+  if (!sheet || sheet.hidden) return;
+  if (backdrop) backdrop.hidden = true;
+  document.body.classList.remove('more-sheet-open');
+  TaskFlowUI.closeDrawer('moreSheet');
+  const btn = document.querySelector('#mobileNav [data-action="more"]');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
 
 function openToolsDrawer(opener) {
   const drawer = document.getElementById('toolsDrawer');
   const backdrop = document.getElementById('toolsDrawerBackdrop');
   if (!drawer || !backdrop) return;
-  toolsDrawerReturnFocusSelector = opener && opener.closest('#mobileNav')
-    ? '#mobileNav [data-action="tools-open"]'
+  toolsDrawerOpenedFromSheet = !!(opener && opener.closest('#moreSheet'));
+  toolsDrawerReturnFocusSelector = toolsDrawerOpenedFromSheet
+    ? '#moreSheet [data-action="tools-open"]'
     : opener && opener.closest('#desktopSidebar')
       ? '#desktopSidebar [data-action="tools-open"]'
       : '#appTopbar [data-action="tools-open"]';
@@ -7032,11 +7144,18 @@ function closeToolsDrawer() {
   document.body.classList.remove('tools-drawer-open');
   document.querySelectorAll('[data-action="tools-open"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
   TaskFlowUI.closeDrawer('toolsDrawer');
+  const wasSheetTrigger = toolsDrawerOpenedFromSheet;
   const returnTarget = toolsDrawerReturnFocusSelector
     ? document.querySelector(toolsDrawerReturnFocusSelector)
     : null;
   toolsDrawerReturnFocusSelector = null;
+  toolsDrawerOpenedFromSheet = false;
   if (returnTarget && returnTarget.getClientRects().length) returnTarget.focus();
+  else if (wasSheetTrigger) {
+    // Sheet đã đóng trước khi mở drawer → trả focus về nút More trong bottom nav.
+    const moreBtn = document.querySelector('#mobileNav [data-action="more"]');
+    if (moreBtn) moreBtn.focus();
+  }
 }
 
 /* ============================ Upcoming — Công việc sắp tới ============================ */
@@ -7503,7 +7622,6 @@ function openMonth(m) {
   // Tháng mới → carry task lặp bị lỡ vào hôm nay ngay khi mở (nếu hôm nay thuộc tháng này)
   carryOverRepeatTasks();
   updateBrand();
-  updateNowBtn();
   buildNav();
   setView('overview', state.currentWeek);
   syncReminderTimers();
@@ -7517,13 +7635,8 @@ function openYear(dy) {
   yearState = bootYearState();
   state.view = 'overview';
   updateBrand();
-  updateNowBtn();
   buildNav();
   setView('overview', state.currentWeek);
-}
-function updateNowBtn() {
-  const b = document.getElementById('btnNow');
-  if (b) b.hidden = false;
 }
 
 /* ============================ Phase 5: Undo/Redo, Phím tắt, Kéo-thả, Sao lưu, Focus Mode ============================ */
@@ -8164,7 +8277,13 @@ document.addEventListener('click', (e) => {
   if (UNDOABLE_ACTS.has(act)) pushUndo();
 
   if (act === 'sidebar-collapse') { toggleSidebarCollapse(); return; }
-  else if (act === 'tools-open') { openToolsDrawer(el); return; }
+  else if (act === 'more') { openMoreSheet(el); return; }
+  else if (act === 'more-close') { closeMoreSheet(); return; }
+  else if (act === 'tools-open') {
+    if (el.closest('#moreSheet')) closeMoreSheet();
+    openToolsDrawer(el);
+    return;
+  }
   else if (act === 'tools-close') { closeToolsDrawer(); return; }
   else if (act === 'shell-add-task') { openQuickAdd(); return; }
   else if (act === 'undo') { doUndo(); return; }
@@ -8229,7 +8348,16 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  if (act === 'nav') setView(el.dataset.view, +el.dataset.week || undefined);
+  if (act === 'nav') {
+    if (el.closest('#moreSheet')) closeMoreSheet();
+    // Hành vi "Hôm nay" (kế thừa từ nút Hôm nay trong tools drawer cũ):
+    // đang xem tháng khác → quay về tháng hiện tại trước khi mở Today.
+    if (el.dataset.view === 'today') {
+      const now = new Date();
+      if (PLAN_MONTH !== now.getMonth() || PLAN_YEAR !== now.getFullYear()) openMonth(now.getMonth());
+    }
+    setView(el.dataset.view, +el.dataset.week || undefined);
+  }
   else if (act === 'journey') {
     const target = document.getElementById('ov-content');
     if (target) target.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
@@ -8261,18 +8389,10 @@ document.addEventListener('click', (e) => {
     openMonth(+el.dataset.month);
   } else if (act === 'upcoming-range') {
     setUpcomingRange(+el.dataset.days);
-  } else if (act === 'gotoday') {
-    // Về Today Dashboard — nếu đang xem tháng khác thì quay về tháng hiện tại trước
-    const now = new Date();
-    if (PLAN_MONTH !== now.getMonth() || PLAN_YEAR !== now.getFullYear()) openMonth(now.getMonth());
-    setView('today');
   } else if (act === 'quickadd-close') {
     closeQuickAdd();
   } else if (act === 'quickadd-do') {
     submitQuickAdd();
-  } else if (act === 'inbox-open') {
-    closeToolsDrawer();
-    setView('inbox');
   } else if (act === 'inbox-add') {
     addInboxTask();
   } else if (act === 'inbox-del') {
@@ -9020,6 +9140,11 @@ document.addEventListener('keydown', (e) => {
     if (firstHit) { e.preventDefault(); firstHit.click(); return; }
   }
   if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+  // P2: More sheet đang mở → chặn phím tắt chuyển view/quick-add (sheet đang chiếm màn hình)
+  const sheetEl = document.getElementById('moreSheet');
+  if (sheetEl && !sheetEl.hidden && !inField) {
+    if ((e.key >= '1' && e.key <= '5') || e.key === '/' || k === 'q') return;
+  }
   // role="button" + data-action (vd dòng task Upcoming) — Enter/Space kích hoạt được từ bàn phím.
   // KHÔNG chặn khi đang gõ trong contenteditable (Enter/Space phải là ký tự, không phải click).
   const rb = e.target.closest('[data-action][role="button"]');
@@ -9304,7 +9429,6 @@ function refreshToday() {
       initPlan(now);
       state = bootState();
       updateBrand();
-      updateNowBtn();
       buildNav();
       setView(state.view, state.currentWeek);
     }
@@ -9318,7 +9442,6 @@ function refreshToday() {
   if (monthKey() !== prevKey) {
     state = bootState();
     updateBrand();
-    updateNowBtn();
     buildNav();
     setView(state.view, state.currentWeek);
   } else {
@@ -9682,7 +9805,6 @@ if (window.DeepLink) {
     const nowD = new Date();
     viewedMonth = (dl.year === nowD.getFullYear() && dl.month === nowD.getMonth()) ? null : dl.month;
     updateBrand();
-    updateNowBtn();
   }
   if (dl.view) state.view = dl.view;
   if (dl.view === 'week' && dl.week !== null && dl.week <= NUM_WEEKS) state.currentWeek = dl.week;
@@ -9699,7 +9821,6 @@ applyDark();
 applyStaticI18N();
 applySidebarCollapse();
 updateBrand();
-updateNowBtn();
 renderClock();
 buildNav();
 updateUndoButtons();

@@ -40,8 +40,8 @@ def desktop_checks(browser, base, errors, screenshots):
     assert page.locator("#desktopSidebar:visible").count() == 1
     assert page.locator("#appTopbar:visible").count() == 1
     # Phase 1-3 + Phase 3: 7 nav view (today/inbox/upcoming/overview/week/year/calendar)
-    # desktop sidebar 7 + mobile nav 6 (inbox chỉ trong tools drawer mobile) = 13
-    assert page.locator("[data-nav-view]").count() == 13
+    # desktop sidebar 7 + mobile nav 2 (today/week) + more sheet 5 (inbox/upcoming/overview/year/calendar) = 14
+    assert page.locator("[data-nav-view]").count() == 14
     assert page.locator(".landing-hero").count() == 0
     assert page.locator(".app-primary-action").count() == 1
     assert_no_overflow(page, "desktop")
@@ -70,7 +70,12 @@ def desktop_checks(browser, base, errors, screenshots):
         page.locator(f'#desktopSidebar [data-nav-view="{view}"]').click()
         page.wait_for_selector(f'[data-testid="{view}-view"]', state="visible")
         assert page.locator(f'#desktopSidebar [data-nav-view="{view}"][aria-current="page"]').count() == 1
-        assert page.locator(f'#mobileNav [data-nav-view="{view}"][aria-current="page"]').count() == 1
+        # week nằm ở bottom nav mobile; calendar/year nằm trong More sheet (cả hai luôn
+        # render để sync active state qua updateNav)
+        if view == "week":
+            assert page.locator(f'#mobileNav [data-nav-view="{view}"][aria-current="page"]').count() == 1
+        else:
+            assert page.locator(f'#moreSheet [data-nav-view="{view}"][aria-current="page"]').count() == 1
 
     goals_card_box = page.locator(".week-goals-card").bounding_box()
     for strip in page.locator(".week-goals-card .v-strip").all():
@@ -135,8 +140,18 @@ def mobile_checks(browser, base, errors, screenshots):
     page.wait_for_selector('[data-testid="week-view"]', state="visible")
     assert page.locator('#mobileNav [data-nav-view="week"][aria-current="page"]').count() == 1
 
-    more = page.locator('#mobileNav [data-action="tools-open"]')
+    # More sheet: điều hướng view bên trong sheet → sheet tự đóng
+    more = page.locator('#mobileNav [data-action="more"]')
     more.click()
+    page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+    page.locator('#moreSheet [data-nav-view="calendar"]').click()
+    page.wait_for_selector('[data-testid="calendar-view"]', state="visible")
+    assert page.locator('[data-testid="more-sheet"]:visible').count() == 0
+
+    # More → Settings → tools drawer (drawer mở thay sheet)
+    more.click()
+    page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+    page.locator('#moreSheet [data-action="tools-open"]').click()
     page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
     assert page.locator("#toolsDrawerBackdrop:not([hidden])").count() == 1
 
@@ -156,7 +171,8 @@ def mobile_checks(browser, base, errors, screenshots):
 
     page.keyboard.press("Escape")
     assert page.locator('[data-testid="tools-drawer"]:visible').count() == 0
-    assert page.evaluate("document.activeElement === document.querySelector('#mobileNav [data-action=\"tools-open\"]')")
+    # Sheet đã đóng trước khi mở drawer → focus quay về nút More trong bottom nav
+    assert page.evaluate("document.activeElement === document.querySelector('#mobileNav [data-action=\"more\"]')")
 
     page.locator('#mobileNav [data-nav-view="week"]').click()
     page.wait_for_selector('[data-testid="week-view"]', state="visible")
@@ -170,6 +186,8 @@ def mobile_checks(browser, base, errors, screenshots):
     assert page.locator('[data-role="task-text"]').count() == task_count + 1
 
     more.click()
+    page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+    page.locator('#moreSheet [data-action="tools-open"]').click()
     page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
     assert not page.locator("#drawerUndo").is_disabled()
     assert page.locator("#drawerRedo").is_disabled()

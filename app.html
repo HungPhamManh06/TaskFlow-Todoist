@@ -10,11 +10,11 @@
   <meta name="description"
     content="TaskFlow, ứng dụng lập kế hoạch tiếng Việt miễn phí: quản lý mục tiêu năm, tháng, tuần, theo dõi thói quen 31 ngày, checklist công việc và nhật ký reflection. Hoạt động offline, dữ liệu lưu trên trình duyệt." />
   <meta name="keywords"
-    content="planner 2026, kế hoạch năm, quản lý mục tiêu, habit tracker, thói quen, todoist, lập kế hoạch, kế hoạch tháng, kế hoạch tuần, reflection, nhật ký, tiếng việt, offline, pastel" />
+    content="planner 2026, kế hoạch năm, quản lý mục tiêu, habit tracker, thói quen, lập kế hoạch, kế hoạch tháng, kế hoạch tuần, reflection, nhật ký, tiếng việt, offline, pastel" />
   <meta name="author" content="Hung Pham" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#f4f0e9" />
-  <link rel="canonical" href="https://taskflow-todoist.vercel.app/app.html" />
+  <link rel="canonical" href="https://taskflow-todoist.vercel.app/app" />
 
   <!-- ===== PWA ===== -->
   <link rel="manifest" href="manifest.json" />
@@ -30,7 +30,7 @@
   <meta property="og:title" content="TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày" />
   <meta property="og:description"
     content="Planner tiếng Việt miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, checklist & reflection. Giao diện pastel dễ thương, offline 100%." />
-  <meta property="og:url" content="https://taskflow-todoist.vercel.app/app.html" />
+  <meta property="og:url" content="https://taskflow-todoist.vercel.app/app" />
   <meta property="og:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -61,19 +61,19 @@
   </script>
   <link rel="stylesheet" href="css/tokens.css?v=7" />
   <link rel="stylesheet" href="css/components.css?v=5" />
-  <link rel="stylesheet" href="css/app-shell.css?v=9" />
-  <link rel="stylesheet" href="css/styles.css?v=93" />
+  <link rel="stylesheet" href="css/app-shell.css?v=11" />
+  <link rel="stylesheet" href="css/styles.css?v=94" />
 </head>
 
 <body>
   <a class="skip-link" href="#appMain">Bỏ qua đến nội dung chính</a>
   <div class="app-layout">
     <aside class="app-sidebar" id="desktopSidebar" aria-label="Điều hướng chính">
-      <a class="app-brand" href="app.html" aria-label="TaskFlow">
+      <a class="app-brand" href="app" aria-label="TaskFlow">
         <img class="app-brand-mark" src="icons/taskflow-mark.svg" alt="" width="32" height="32" />
         <span class="app-brand-copy">
           <span id="brandTitle">TaskFlow</span>
-          <span id="brandSub" hidden>Kế hoạch tháng 1 · 2026</span>
+          <span id="brandSub" hidden></span>
         </span>
       </a>
       <div class="app-xp" id="appXp" hidden>
@@ -103,8 +103,9 @@
     <div class="app-workspace">
       <header class="app-topbar" id="appTopbar">
         <div class="app-topbar-context">
-          <span class="app-view-title" id="appViewTitle">Tổng quan tháng</span>
-          <span class="app-period" id="appPeriod">Tháng 1 · 2026</span>
+          <!-- P5: initial render = Hôm nay (view mặc định) — JS hydrate sẽ set period chính xác -->
+          <span class="app-view-title" id="appViewTitle">Hôm nay</span>
+          <span class="app-period" id="appPeriod"></span>
         </div>
         <nav class="app-month-nav" aria-label="Chuyển tháng trong năm" data-i18n-aria="navMonths">
           <button type="button" class="icon-button btn-month" data-action="prevmonth" title="Tháng trước"
@@ -136,7 +137,14 @@
       </header>
 
       <main class="container" id="appMain" tabindex="-1">
-    <section id="view-today" class="view" role="tabpanel" aria-label="Hôm nay" data-i18n-aria="viewToday" data-testid="today-view"></section>
+    <section id="view-today" class="view active" role="tabpanel" aria-label="Hôm nay" data-i18n-aria="viewToday" data-testid="today-view" aria-labelledby="tab-today">
+      <!-- P5: skeleton tĩnh — hiển thị ngay trước khi JS hydrate, không flash "Tổng quan tháng" -->
+      <div class="today-skeleton" aria-hidden="true">
+        <div class="skeleton" style="width: 38%; height: 2rem"></div>
+        <div class="skeleton" style="width: 100%; height: 7.5rem"></div>
+        <div class="skeleton" style="width: 100%; height: 7.5rem"></div>
+      </div>
+    </section>
     <section id="view-upcoming" class="view" role="tabpanel" aria-label="Sắp tới" data-i18n-aria="viewUpcoming" data-testid="upcoming-view"></section>
     <section id="view-inbox" class="view" role="tabpanel" aria-label="Inbox" data-i18n-aria="viewInbox" data-testid="inbox-view"></section>
     <section id="view-calendar" class="view" role="tabpanel" aria-label="Lịch tháng" data-i18n-aria="viewCalendar" data-testid="calendar-view"></section>
@@ -190,15 +198,9 @@
             title="Làm lại (Ctrl+Shift+Z)" aria-label="Làm lại" data-i18n-title="redoBtn"
             data-i18n-aria="redoBtn" data-shell-icon="redo" disabled><span>Làm lại</span></button>
         </div>
+        <!-- P4: bỏ duplicate nav (Hôm nay/Inbox/Focus/Báo cáo) — đã có ở sidebar + More sheet.
+             Drawer = utilities: Thống kê, Template, điều hướng năm. -->
         <div class="tools-action-grid">
-          <button type="button" class="tools-action" id="btnNow" data-action="gotoday"
-            data-i18n-title="todayTitle" data-shell-icon="calendar"><span data-i18n="todayTxt">Hôm nay</span></button>
-          <button type="button" class="tools-action" data-action="inbox-open" data-shell-icon="inbox">
-            <span data-i18n="tabInbox">Inbox</span></button>
-          <button type="button" class="tools-action" data-action="focus" data-shell-icon="focus">
-            <span data-i18n="focusOpen">Chế độ Tập trung</span></button>
-          <button type="button" class="tools-action" data-action="report" data-shell-icon="report">
-            <span data-i18n="reportTitle">Báo cáo tháng</span></button>
           <button type="button" class="tools-action" data-action="stats" data-shell-icon="stats">
             <span data-i18n="statsTitle">Thống kê</span></button>
           <button type="button" class="tools-action" data-action="template" data-shell-icon="week">
@@ -293,6 +295,19 @@
   </aside>
 
   <nav class="app-mobile-nav" id="mobileNav" role="tablist" aria-label="Điều hướng chính trên di động"></nav>
+
+  <!-- ===== More sheet (P2) — điều hướng còn lại trên mobile ===== -->
+  <div class="drawer-backdrop" id="moreSheetBackdrop" data-action="more-close" hidden></div>
+  <section class="more-sheet" id="moreSheet" role="dialog" aria-modal="true" aria-labelledby="moreSheetTitle"
+    data-testid="more-sheet" hidden>
+    <div class="more-sheet-head">
+      <h2 id="moreSheetTitle" data-i18n="moreSheetTitle">Điều hướng</h2>
+      <button type="button" class="icon-button" data-action="more-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+    </div>
+    <nav class="more-sheet-nav" id="moreSheetNav" aria-label="Điều hướng khác trên di động"
+      data-i18n-aria="moreSheetTitle"></nav>
+  </section>
 
   <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true" data-testid="toast-region"></div>
 
@@ -634,7 +649,7 @@
   <script src="js/plan-carry.js?v=1"></script>
   <script src="js/sync.js?v=3"></script>
   <script src="js/ui.js?v=6"></script>
-  <script src="js/app.js?v=108"></script>
+  <script src="js/app.js?v=109"></script>
 </body>
 
 </html>

@@ -228,7 +228,8 @@ test('5.6: focus overlay + open/close + body.focus-mode', () => {
   assert.match(APP_JS, /function closeFocusMode\(\)/);
   assert.match(APP_JS, /function renderFocusContent\(\)/);
   assert.match(APP_JS, /focus-mode/);
-  assert.match(APP_HTML, /data-action="focus"/);
+  // P4: nút Focus đã bỏ khỏi tools drawer — reachable qua sidebar (buildNav actionBtn)
+  assert.match(APP_JS, /actionBtn\('focus', 'focus'/);
   assert.match(CSS, /\.focus-overlay/);
   assert.match(CSS, /body\.focus-mode/);
 });

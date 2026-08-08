@@ -229,6 +229,10 @@ textarea:focus-visible,
 
 .view { display: none; }
 .view.active { display: block; animation: fadeUp .3s ease; }
+/* P5: skeleton tĩnh trước khi JS hydrate — giống layout Today, không flash view khác */
+.today-skeleton { display: grid; gap: 1.25rem; padding: 1.25rem 0; max-width: 46rem; }
+.today-skeleton .skeleton { width: 100%; border-radius: var(--radius-card); }
+.today-skeleton .skeleton:first-child { border-radius: var(--radius-control); }
 
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(6px); }

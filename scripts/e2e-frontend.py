@@ -18,6 +18,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    # Mô phỏng Vercel cleanUrls: /app → /app.html (P6: internal links dùng clean URL)
+    def translate_path(self, path):
+        translated = super().translate_path(path)
+        if os.path.isfile(translated):
+            return translated
+        if not os.path.splitext(path)[1] and not translated.endswith(os.sep):
+            candidate = translated + ".html"
+            if os.path.isfile(candidate):
+                return candidate
+        return translated
+
 
 def assert_no_page_overflow(page, label):
     overflow = page.evaluate(
@@ -258,7 +269,13 @@ def dialog_checks(browser, base, width, height, errors, screenshot):
     assert page.locator('[data-testid="search-modal"]:visible').count() == 0
     assert opener.evaluate("el => document.activeElement === el")
 
-    tools = page.locator('[data-action="tools-open"]:visible').first
+    if width <= 767:
+        # Mobile: More sheet → Settings mở tools drawer
+        page.locator('#mobileNav [data-action="more"]').click()
+        page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+        tools = page.locator('#moreSheet [data-action="tools-open"]')
+    else:
+        tools = page.locator('[data-action="tools-open"]:visible').first
     tools.click()
     page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
     assert page.locator('[data-testid="tools-drawer"] [data-action="tools-close"]').evaluate(
@@ -266,7 +283,13 @@ def dialog_checks(browser, base, width, height, errors, screenshot):
     )
     page.keyboard.press("Escape")
     assert page.locator('[data-testid="tools-drawer"]:visible').count() == 0
-    assert tools.evaluate("el => document.activeElement === el")
+    if width <= 767:
+        # Sheet đóng trước khi mở drawer → focus quay về nút More
+        assert page.evaluate(
+            "document.activeElement === document.querySelector('#mobileNav [data-action=\"more\"]')"
+        )
+    else:
+        assert tools.evaluate("el => document.activeElement === el")
 
     page.evaluate("TaskFlowUI.openDialog('syncModal')")
     page.locator("#syncForm button[type='submit']").click()
@@ -308,7 +331,7 @@ def landing_checks(browser, base, width, height, errors, screenshot):
     assert page.locator("#productPreview").is_visible()
     assert page.locator("#trustStrip article").count() == 4
     assert page.locator("#features .feature-card").count() == 5
-    assert page.locator(".hero-primary-cta").get_attribute("href") == "app.html"
+    assert page.locator(".hero-primary-cta").get_attribute("href") == "app"
     assert page.locator("html").get_attribute("lang") == "en"
     assert page.locator("html").get_attribute("data-dark") == "true"
     assert page.locator("#darkBtn").get_attribute("aria-pressed") == "true"
@@ -333,7 +356,7 @@ def landing_checks(browser, base, width, height, errors, screenshot):
     assert_no_page_overflow(page, f"landing anchor {width}px")
 
     page.locator(".hero-primary-cta").click()
-    page.wait_for_url("**/app.html")
+    page.wait_for_url("**/app")
     assert page.locator("#appMain").count() == 1
     page.close()
 
@@ -345,9 +368,14 @@ def focus_checks(browser, base, width, height, errors, screenshot):
 
     trigger = page.locator('[data-action="focus"]:visible').first
     if trigger.count() == 0:
-        page.locator('[data-action="tools-open"]:visible').first.click()
-        page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
-        trigger = page.locator('[data-testid="tools-drawer"] [data-action="focus"]')
+        if width <= 767:
+            # P2/P4: More sheet có mục Focus trực tiếp
+            page.locator('#mobileNav [data-action="more"]').click()
+            page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+            trigger = page.locator('#moreSheet [data-action="focus"]')
+        else:
+            # P4: sidebar TRACK có nút Focus luôn visible ở desktop
+            trigger = page.locator('#desktopSidebar [data-action="focus"]')
     trigger.click()
     page.wait_for_selector('[data-testid="focus-overlay"]', state="visible")
     assert page.locator("body.focus-mode").count() == 1
