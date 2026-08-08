@@ -553,7 +553,7 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v72';/);
+  assert.match(SW, /const CACHE = 'taskflow-v73';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -617,31 +617,38 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v72';/);
+  assert.match(SW, /const CACHE = 'taskflow-v73';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
   ].forEach((asset) => assert.match(SW, new RegExp(`["']${asset.replaceAll('.', '\\.')}["']`)));
 });
 
-test('hardening: versioned static requests use query-insensitive offline cache matching', async () => {
+test('hardening: versioned static requests cache-match exact URL, ignoreSearch only as offline fallback', async () => {
   const handlers = {};
   const matchCalls = [];
   const cachedResponse = { source: 'precache' };
+  let offline = false;
   const context = {
     URL,
     location: { origin: 'https://taskflow.test' },
     caches: {
       match(request, options) {
         matchCalls.push({ request, options });
-        return Promise.resolve(cachedResponse);
+        // Online: cache có entry đúng URL → trả về; offline: miss trừ khi
+        // là fallback ignoreSearch (precache không-version) vẫn phục vụ.
+        return Promise.resolve(offline && !options?.ignoreSearch ? undefined : cachedResponse);
       },
       open() {
         return Promise.resolve({ put() {} });
       },
       keys() { return Promise.resolve([]); },
     },
-    fetch() { return Promise.reject(new Error('offline')); },
+    fetch() {
+      return offline
+        ? Promise.reject(new Error('offline'))
+        : Promise.resolve({ ok: true, clone: () => ({}) });
+    },
     self: {
       addEventListener(type, handler) { handlers[type] = handler; },
       clients: { claim() {} },
@@ -652,14 +659,34 @@ test('hardening: versioned static requests use query-insensitive offline cache m
   vm.runInNewContext(SW, context);
 
   let responsePromise;
+  const url = 'https://taskflow.test/css/tokens.css?v=5';
   handlers.fetch({
-    request: { method: 'GET', mode: 'cors', url: 'https://taskflow.test/css/tokens.css?v=5' },
+    request: { method: 'GET', mode: 'cors', url },
     respondWith(promise) { responsePromise = promise; },
   });
 
+  // Online: lần match đầu tiên phải theo đúng URL — KHÔNG ignoreSearch,
+  // để `?v=N` mới không bị phục vụ bằng entry cache cũ (bug cũ gây
+  // SyntaxError duplicate const khi 2 phiên bản script chạy chồng).
+  // Chờ online chain hoàn tất trước khi chuyển offline, nếu không
+  // microtask của fetch online sẽ bị nhìn nhầm thành offline.
   assert.equal(await responsePromise, cachedResponse);
   assert.equal(matchCalls.length, 1);
-  assert.equal(matchCalls[0].options?.ignoreSearch, true);
+  assert.equal(matchCalls[0].options?.ignoreSearch, undefined);
+  assert.equal(matchCalls[0].request.url, url);
+
+  // Offline (fetch thất bại): fallback dùng ignoreSearch để precache
+  // không-version vẫn phục vụ được.
+  offline = true;
+  matchCalls.length = 0;
+  let offlinePromise;
+  handlers.fetch({
+    request: { method: 'GET', mode: 'cors', url },
+    respondWith(promise) { offlinePromise = promise; },
+  });
+  assert.equal(await offlinePromise, cachedResponse);
+  assert.equal(matchCalls.length, 2);
+  assert.equal(matchCalls[1].options?.ignoreSearch, true);
 });
 
 test('release: offline app deep links resolve the cached app shell instead of landing', async () => {

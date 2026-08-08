@@ -1,9 +1,9 @@
-﻿/* TaskFlow-Todoist Service Worker
-   Cache app shell â†’ hoáº¡t Ä‘á»™ng offline nhÆ° app tháº­t.
-   Chiáº¿n lÆ°á»£c: network-first cho Ä‘iá»u hÆ°á»›ng, stale-while-revalidate cho tÄ©nh. */
+/* TaskFlow-Todoist Service Worker
+   Cache app shell → hoạt động offline như app thật.
+   Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v72';
+const CACHE = 'taskflow-v73';
 const APP_SHELL = [
   './',
   './index.html',
@@ -48,7 +48,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
 
-  // Äiá»u hÆ°á»›ng: Æ°u tiÃªn máº¡ng, offline â†’ cache shell (cache theo Ä‘Ãºng URL trang)
+  // Điều hướng: ưu tiên mạng, offline → cache shell (cache theo đúng URL trang)
   if (req.mode === 'navigate') {
     const offlineShell = url.pathname.endsWith('/app.html') ? './app.html' : './index.html';
     e.respondWith(
@@ -66,9 +66,17 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // TÄ©nh: stale-while-revalidate
+  // Tĩnh: stale-while-revalidate + chống phiên bản chồng nhau.
+  // Bước 1: match theo đúng URL (bao gồm ?v=N). Dùng ignoreSearch ở
+  // bước này là bug: request `app.js?v=66` sẽ match nhầm entry cache cũ
+  // không version (từ precache) và trả JS cũ — version bump không hiệu
+  // lực, và HTML mới + JS cũ chạy chồng nhau gây crash
+  // (SyntaxError: Identifier 'DAYS' already declared).
+  // Bước 2: luôn fetch mới từ server khi miss hoặc offline.
+  // Bước 3: chỉ khi offline (fetch thất bại) mới fallback ignoreSearch
+  // để precache không-version (vd `./js/app.js`) vẫn phục vụ được.
   e.respondWith(
-    caches.match(req, { ignoreSearch: true }).then((cached) => {
+    caches.match(req).then((cached) => {
       const fresh = fetch(req)
         .then((res) => {
           if (res && res.ok) {
@@ -77,13 +85,15 @@ self.addEventListener('fetch', (e) => {
           }
           return res;
         })
-        .catch(() => cached);
+        .catch(() =>
+          caches.match(req, { ignoreSearch: true }).then((c2) => c2 || cached)
+        );
       return cached || fresh;
     })
   );
 });
 
-/* ---------- Nháº¯c viá»‡c háº±ng ngÃ y (Periodic Background Sync) ---------- */
+/* ---------- Nhắc việc hằng ngày (Periodic Background Sync) ---------- */
 
 self.addEventListener('periodicsync', (e) => {
   if (e.tag === 'daily-reminder') {

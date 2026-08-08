@@ -782,7 +782,7 @@ const I18N = {
     emptyHabitsH: 'Nhập tên thói quen ở ô bên trên rồi bấm "+ Thêm thói quen".',
     /* ===== Phase 2: Tìm kiếm, Tag, Lịch, Template, Dashboard, Pomodoro ===== */
     searchTitle: 'Tìm kiếm xuyên tháng',
-    searchPh: 'Nhập từ khoá... (mục tiêu, task, thói quen, phản ánh)',
+    searchPh: 'Nhập từ khoá...',
     searchEmpty: 'Gõ ít nhất 2 ký tự để tìm kiếm.',
     searchNoResults: 'Không tìm thấy kết quả nào 🐥',
     searchGoal: 'Mục tiêu',
@@ -1262,7 +1262,7 @@ const I18N = {
     emptyHabitsH: 'Type a habit in the box above, then tap "+ Add habit".',
     /* ===== Phase 2: Search, Tags, Calendar, Template, Dashboard, Pomodoro ===== */
     searchTitle: 'Search across months',
-    searchPh: 'Type to search... (goals, tasks, habits, reflections)',
+    searchPh: 'Type to search...',
     searchEmpty: 'Type at least 2 characters to search.',
     searchNoResults: 'No results found 🐥',
     searchGoal: 'Goal',
@@ -7116,7 +7116,13 @@ function initFabDrag(wrap, fab, key) {
       origY: r.top,
       moved: false,
     };
-    fab.setPointerCapture(e.pointerId);
+    try { fab.setPointerCapture(e.pointerId); }
+    catch (_) {
+      // pointer không active (edge case): không thể theo dõi cử chỉ —
+      // hủy drag để không kẹt class/trạng thái.
+      drag = null;
+      return;
+    }
     fab.classList.add('fab-dragging');
     e.preventDefault();
   });
