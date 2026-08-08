@@ -732,7 +732,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v115';/);
+  assert.match(SW, /const CACHE = 'taskflow-v116';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -810,7 +810,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v115';/);
+  assert.match(SW, /const CACHE = 'taskflow-v116';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -1462,4 +1462,26 @@ test('Phase 13: vercel.json security headers + CSP không chặn font/sync', () 
   assert.match(csp, /font-src 'self' data: https:\/\/fonts\.gstatic\.com/);
   // sync tới backend Render
   assert.match(csp, /connect-src 'self' https:\/\/todoist-m3c7\.onrender\.com/);
+});
+
+test('Phase 16: perf — debounce search + save-on-type + content-visibility upcoming', () => {
+  // 1. Search không chạy runSearch mỗi keystroke — debounce 200ms
+  assert.match(APP_JS, /searchDebounceTimer/);
+  assert.match(APP_JS, /t\.id === 'searchInput'\).*setTimeout\(\(\) => renderSearchResults\(t\.value\), 200\)/s);
+  // 2. Gõ text không serialize toàn bộ state mỗi phím — saveSoon/saveYearSoon/saveInboxSoon/saveTaskDetailStateSoon
+  assert.match(APP_JS, /function saveSoon\(\) \{[\s\S]*?setTimeout\(save, 350\)/);
+  assert.match(APP_JS, /function saveYearSoon\(\) \{[\s\S]*?setTimeout\(saveYear, 350\)/);
+  assert.match(APP_JS, /function saveInboxSoon\(\) \{[\s\S]*?setTimeout\(saveInbox, 350\)/);
+  assert.match(APP_JS, /function saveTaskDetailStateSoon\(\) \{[\s\S]*?setTimeout\(saveTaskDetailState, 350\)/);
+  // text-editing paths dùng bản debounce (không gọi save() trực tiếp)
+  assert.match(APP_JS, /t\.dataset\.role === 'task-text'\).*saveSoon\(\)/s);
+  assert.match(APP_JS, /t\.dataset\.role === 'inbox-text'[\s\S]*?saveInboxSoon\(\)/);
+  assert.match(APP_JS, /t\.dataset\.role === 'td-text'[\s\S]*?saveTaskDetailStateSoon\(\)/);
+  // 3. Flush trước khi đổi tháng + khi rời trang — không mất keystroke cuối
+  assert.match(APP_JS, /function flushPendingSaves\(\) \{/);
+  assert.match(APP_JS, /function openMonth\(m\) \{[\s\S]*?flushPendingSaves\(\)/);
+  assert.match(APP_JS, /addEventListener\('pagehide', flushPendingSaves\)/);
+  // 4. Upcoming với dữ liệu lớn — content-visibility bỏ render ngoài viewport
+  const STYLES16 = readRequiredAsset('css/styles.css');
+  assert.match(STYLES16, /\.up-group \{[\s\S]*?content-visibility: auto;[\s\S]*?contain-intrinsic-size: auto 120px;/);
 });

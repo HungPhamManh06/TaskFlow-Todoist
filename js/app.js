@@ -3270,7 +3270,7 @@ function saveRefQuestion(scope, i, text) {
   if (!store.reflectionQuestions) store.reflectionQuestions = {};
   if (!store.reflectionQuestions[scope]) store.reflectionQuestions[scope] = [];
   store.reflectionQuestions[scope][i] = text;
-  if (store === yearState) saveYear(); else save();
+  if (store === yearState) saveYearSoon(); else saveSoon();
 }
 
 function reflectionHTML(key, prompts) {
@@ -7378,6 +7378,9 @@ function goWeek(v) {
   setView('week', n);
 }
 function openMonth(m) {
+  // Phase 16 (perf): text đang gõ còn trong debounce — flush trước khi đổi tháng để
+  // keystroke cuối không bị mất khi bootState() đọc lại từ localStorage.
+  flushPendingSaves();
   // Wrap qua biên năm: tháng 1 −1 → tháng 12 năm trước; tháng 12 +1 → tháng 1 năm sau.
   const nm = window.PlanMath ? (m < 0 ? window.PlanMath.prevMonth(PLAN_YEAR, 0) : m > 11 ? window.PlanMath.nextMonth(PLAN_YEAR, 11) : null) : null;
   if (nm) { m = nm.m; PLAN_YEAR = nm.y; }
@@ -7496,6 +7499,9 @@ function doRedo() {
   applySnapshot(snap);
   trackEvent('redo');
 }
+// Phase 16 (perf): đóng tab/điều hướng đi → flush mọi save đang debounce
+window.addEventListener('pagehide', flushPendingSaves);
+
 function updateUndoButtons() {
   const undoDisabled = !(undoStack && undoStack.canUndo());
   const redoDisabled = !(undoStack && undoStack.canRedo());
@@ -8527,6 +8533,7 @@ document.addEventListener('click', (e) => {
   } else if (act === 'search-toggle') {
     openSearchModal();
   } else if (act === 'search-close') {
+    if (searchDebounceTimer) { clearTimeout(searchDebounceTimer); searchDebounceTimer = null; }
     closeSearchModal();
   } else if (act === 'search-go') {
     goSearchResult(el);
@@ -8768,15 +8775,48 @@ const taskDetailDblClickListener = (e) => {
 };
 document.addEventListener('dblclick', taskDetailDblClickListener);
 
+// Phase 16 (perf): search quét 12 tháng localStorage mỗi keystroke — debounce 200ms.
+let searchDebounceTimer = null;
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.id === 'searchInput') renderSearchResults(t.value);
+  if (t.id === 'searchInput') {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => renderSearchResults(t.value), 200);
+  }
 });
 
 // Phase 5: bắt đầu phiên sửa text → snapshot trước để undo về đúng trạng thái trước khi gõ
 document.addEventListener('focusin', (e) => {
   if (e.target.closest('[contenteditable="true"]')) pushUndo();
 });
+
+// Phase 16 (perf): gõ text không serialize toàn bộ state mỗi keystroke — debounce 350ms.
+let saveDebounceTimer = null;
+let saveYearDebounceTimer = null;
+function saveSoon() {
+  clearTimeout(saveDebounceTimer);
+  saveDebounceTimer = setTimeout(save, 350);
+}
+function saveYearSoon() {
+  clearTimeout(saveYearDebounceTimer);
+  saveYearDebounceTimer = setTimeout(saveYear, 350);
+}
+let inboxSaveTimer = null;
+function saveInboxSoon() {
+  clearTimeout(inboxSaveTimer);
+  inboxSaveTimer = setTimeout(saveInbox, 350);
+}
+let tdSaveTimer = null;
+function saveTaskDetailStateSoon() {
+  clearTimeout(tdSaveTimer);
+  tdSaveTimer = setTimeout(saveTaskDetailState, 350);
+}
+function flushPendingSaves() {
+  if (saveDebounceTimer) { clearTimeout(saveDebounceTimer); saveDebounceTimer = null; save(); }
+  if (saveYearDebounceTimer) { clearTimeout(saveYearDebounceTimer); saveYearDebounceTimer = null; saveYear(); }
+  if (inboxSaveTimer) { clearTimeout(inboxSaveTimer); inboxSaveTimer = null; saveInbox(); }
+  if (tdSaveTimer) { clearTimeout(tdSaveTimer); tdSaveTimer = null; saveTaskDetailState(); }
+}
 
 document.addEventListener('input', (e) => {
   const t = e.target;
@@ -8787,32 +8827,32 @@ document.addEventListener('input', (e) => {
     const [scope, i] = t.dataset.reflect.split('-');
     if (scope.startsWith('yq')) {
       yearState.reflections['q' + scope[2]][+i] = t.innerText;
-      saveYear();
+      saveYearSoon();
     } else if (scope === 'yr') {
       yearState.reflections.year[+i] = t.innerText;
-      saveYear();
+      saveYearSoon();
     } else {
       if (scope === 'ov') state.reflections.overview[+i] = t.innerText;
       else state.reflections.weeks[+scope.replace('w', '') - 1][+i] = t.innerText;
-      save();
+      saveSoon();
     }
   } else if (t.dataset.ynote) {
     yearState.monthNotes[+t.dataset.ynote] = t.innerText;
-    saveYear();
+    saveYearSoon();
   } else if (t.dataset.note) {
     const [wn, di] = t.dataset.note.split('-');
     state.weeks[+wn - 1].days[+di].note = t.innerText;
-    save();
+    saveSoon();
   } else if (t.dataset.role === 'task-text') {
     state.weeks[+t.dataset.week - 1].days[+t.dataset.day].tasks[+t.dataset.task].text = t.innerText;
-    save();
+    saveSoon();
   } else if (t.dataset.role === 'inbox-text') {
     const tk = inbox[+t.dataset.task];
-    if (tk) { tk.text = t.innerText; saveInbox(); }
+    if (tk) { tk.text = t.innerText; saveInboxSoon(); }
   } else if (t.dataset.role === 'td-text') {
     // Phase 5: text trong Task Detail Drawer — lưu trực tiếp (blur cũng cập nhật row qua bindTaskDetailEvents)
     const g = getTaskDetailTarget();
-    if (g) { g.tk.text = t.innerText; saveTaskDetailState(); }
+    if (g) { g.tk.text = t.innerText; saveTaskDetailStateSoon(); }
   } else if (t.dataset.role === 'w-goal-text') {
     state.weeks[+t.dataset.week - 1].goals[+t.dataset.id].text = t.innerText;
     save();

@@ -7023,6 +7023,9 @@ body.focus-mode .container { padding: 0; }
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  /* Phase 16 (perf): bỏ qua render/paint của nhóm ngày ngoài viewport khi danh sách dài */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
 }
 .up-group-head {
   display: flex;
