@@ -7168,3 +7168,51 @@ body.focus-mode .container { padding: 0; }
 :root[data-dark="true"] .inbox-task-row:hover { border-color: rgba(var(--accent-rgb, 194, 78, 40), .6); }
 :root[data-dark="true"] .td-inbox-schedule input[type="date"] { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .15); color: #F2E8D5; }
 :root[data-dark="true"] .inbox-sched-today { color: #E8A87C; border-color: rgba(232, 168, 124, .4); background: rgba(232, 168, 124, .12); }
+
+/* ===== Quick Add — thêm nhanh ở mọi màn hình (Phase 4) ===== */
+.quickadd-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(60, 48, 38, .5);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+.quickadd-modal[hidden] { display: none; }
+.quickadd-card {
+  width: min(480px, 100%);
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--card-border, #e8dfd0);
+  border-radius: 16px;
+  box-shadow: var(--shadow-panel, 0 18px 50px rgba(0, 0, 0, .18));
+  padding: 20px;
+}
+.quickadd-input { font-size: 1.05rem; width: 100%; }
+.quickadd-note { margin: 6px 0 0; font: 600 .82rem var(--font-body); color: var(--accent, #C24E28); min-height: 1.1em; }
+.quickadd-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-2, 8px);
+  margin: 14px 0;
+}
+.quickadd-fields .pop-field { margin: 0; }
+.quickadd-fields input[type="date"],
+.quickadd-fields input[type="time"],
+.quickadd-fields input[type="number"] {
+  width: 100%;
+  font: 600 .88rem var(--font-body);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border, #e8dfd0);
+  background: var(--card-bg, #fff);
+  color: var(--color-text, #26211b);
+}
+.quickadd-prio { align-self: end; padding-bottom: 2px; }
+.quickadd-prio .td-prio-badge { font: 700 .82rem var(--font-body); }
+:root[data-dark="true"] .quickadd-card { background: #222A24; border-color: rgba(255, 255, 255, .12); }
+:root[data-dark="true"] .quickadd-fields input[type="date"],
+:root[data-dark="true"] .quickadd-fields input[type="time"],
+:root[data-dark="true"] .quickadd-fields input[type="number"] { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .15); color: #F2E8D5; }

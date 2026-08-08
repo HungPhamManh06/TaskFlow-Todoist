@@ -62,7 +62,7 @@
   <link rel="stylesheet" href="css/tokens.css?v=7" />
   <link rel="stylesheet" href="css/components.css?v=4" />
   <link rel="stylesheet" href="css/app-shell.css?v=6" />
-  <link rel="stylesheet" href="css/styles.css?v=83" />
+  <link rel="stylesheet" href="css/styles.css?v=84" />
 </head>
 
 <body>
@@ -307,6 +307,31 @@
       <input type="search" id="searchInput" class="inline-input search-input" placeholder=""
         data-i18n-placeholder="searchPh" aria-label="" data-i18n-aria="searchTitle" autocomplete="off" />
       <div id="searchResults" class="search-results"></div>
+    </div>
+  </div>
+
+  <!-- ===== Thêm nhanh (Phase 4) — dùng được ở mọi màn hình ===== -->
+  <div class="quickadd-modal" id="quickAddModal" hidden>
+    <div class="quickadd-card dialog" role="dialog" aria-modal="true" aria-labelledby="quickAddTitle">
+      <button type="button" class="sync-close" data-action="quickadd-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h2 class="sync-modal-title" id="quickAddTitle"><span data-i18n="quickAddTitle">Thêm công việc nhanh</span></h2>
+      <input type="text" id="quickAddInput" class="inline-input quickadd-input" placeholder=""
+        data-i18n-placeholder="quickAddPh" aria-label="" data-i18n-aria="quickAddTitle" autocomplete="off" maxlength="200" />
+      <p class="quickadd-note" id="quickAddNote" data-i18n="quickAddToday"></p>
+      <div class="quickadd-fields">
+        <label class="pop-field" id="quickAddDateField"><span data-i18n="taskDetailDate">Ngày</span>
+          <input type="date" id="quickAddDate" /></label>
+        <label class="pop-field"><span data-i18n="taskDetailTime">Giờ</span>
+          <input type="time" id="quickAddTime" value="20:00" /></label>
+        <label class="pop-field"><span data-i18n="taskDetailDuration">Thời lượng</span>
+          <input type="number" id="quickAddDur" min="0" step="5" placeholder="—" aria-label="" data-i18n-aria="taskDetailDuration" /></label>
+        <label class="td-toggle td-prio quickadd-prio"><input type="checkbox" id="quickAddPrio"
+          aria-label="" data-i18n-aria="taskDetailPriority" /><span class="td-prio-badge" data-i18n="taskPriorityLabel">Ưu tiên</span></label>
+      </div>
+      <div class="sync-actions">
+        <button type="button" class="pop-btn primary" data-action="quickadd-do" data-i18n="quickAddBtn">＋ Thêm việc</button>
+      </div>
     </div>
   </div>
 
@@ -609,7 +634,7 @@
   <script src="js/plan-carry.js?v=1"></script>
   <script src="js/sync.js?v=3"></script>
   <script src="js/ui.js?v=4"></script>
-  <script src="js/app.js?v=98"></script>
+  <script src="js/app.js?v=99"></script>
 </body>
 
 </html>

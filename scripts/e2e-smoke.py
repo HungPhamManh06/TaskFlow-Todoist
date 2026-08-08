@@ -98,9 +98,19 @@ def desktop_checks(browser, base, errors, screenshots):
     page.locator('#toolsDrawer [data-action="tools-close"]').click()
 
     task_count = page.locator('[data-role="task-text"]').count()
+    # Phase 4: nút Thêm công việc mở Quick Add — KHÔNG chuyển view
     page.locator(".app-primary-action").click()
-    page.wait_for_selector("#view-week.active")
+    page.wait_for_selector("#quickAddModal:not([hidden])")
+    page.locator("#quickAddInput").fill("Việc từ Quick Add")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#quickAddModal", state="hidden")
+    assert page.locator("#view-week.active").count() == 1
     assert page.locator('[data-role="task-text"]').count() == task_count + 1
+    # Escape đóng Quick Add
+    page.locator(".app-primary-action").click()
+    page.wait_for_selector("#quickAddModal:not([hidden])")
+    page.keyboard.press("Escape")
+    page.wait_for_selector("#quickAddModal", state="hidden")
     page.locator("#appViewTitle").click()
     page.keyboard.press("4")
     page.wait_for_selector("#view-calendar.active")
@@ -152,7 +162,11 @@ def mobile_checks(browser, base, errors, screenshots):
     page.wait_for_selector("#view-week.active")
     task_count = page.locator('[data-role="task-text"]').count()
     page.locator(".app-primary-action").click()
-    page.wait_for_selector("#view-week.active")
+    page.wait_for_selector("#quickAddModal:not([hidden])")
+    page.locator("#quickAddInput").fill("Việc từ Quick Add mobile")
+    page.keyboard.press("Enter")
+    page.wait_for_selector("#quickAddModal", state="hidden")
+    assert page.locator("#view-week.active").count() == 1
     assert page.locator('[data-role="task-text"]').count() == task_count + 1
 
     more.click()

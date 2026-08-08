@@ -557,6 +557,14 @@ const I18N = {
     inboxScheduleDateLbl: 'Chọn ngày',
     inboxScheduleToast: 'Đã chuyển vào lịch',
     inboxScheduleError: 'Không thể lên lịch cho ngày này',
+    quickAddTitle: 'Thêm công việc nhanh',
+    quickAddPh: 'Bạn cần làm gì?',
+    quickAddBtn: 'Thêm việc',
+    quickAddToast: 'Đã thêm việc',
+    quickAddToday: 'Sẽ thêm vào hôm nay',
+    quickAddDay: 'Sẽ thêm vào ngày đã chọn',
+    quickAddInbox: 'Sẽ thêm vào Inbox',
+    quickAddEmpty: 'Hãy nhập nội dung công việc',
     inboxDeleteAria: 'Xoá khỏi Inbox',
     inboxScheduleAria: 'Lên lịch cho việc này',
     inboxTodayAria: 'Chuyển sang hôm nay',
@@ -1181,6 +1189,14 @@ const I18N = {
     inboxScheduleDateLbl: 'Pick a date',
     inboxScheduleToast: 'Moved to the calendar',
     inboxScheduleError: 'Cannot schedule for this date',
+    quickAddTitle: 'Quick Add',
+    quickAddPh: 'What do you need to do?',
+    quickAddBtn: 'Add task',
+    quickAddToast: 'Task added',
+    quickAddToday: 'Will be added to today',
+    quickAddDay: 'Will be added to the chosen date',
+    quickAddInbox: 'Will be added to Inbox',
+    quickAddEmpty: 'Type a task first',
     inboxDeleteAria: 'Remove from Inbox',
     inboxScheduleAria: 'Schedule this task',
     inboxTodayAria: 'Move to today',
@@ -6510,6 +6526,10 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     doChatSend();
   }
+  if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'quickAddInput') {
+    e.preventDefault();
+    submitQuickAdd();
+  }
 });
 
 /* ============================ Phase 2: Dashboard (year view) ============================ */
@@ -6885,16 +6905,6 @@ function closeToolsDrawer() {
   if (returnTarget && returnTarget.getClientRects().length) returnTarget.focus();
 }
 
-function addTaskFromShell() {
-  const today = nowInfo();
-  const week = today.inRange ? today.week : state.currentWeek;
-  const day = today.inRange && today.week === week ? today.dayInWeek : 0;
-  setView('week', week);
-  const add = document.querySelector(`.day-col-${day} [data-action="addtask"][data-kind="regular"]`)
-    || document.querySelector(`[data-action="addtask"][data-week="${week}"]`);
-  if (add) add.click();
-}
-
 /* ============================ Upcoming — Công việc sắp tới ============================ */
 // Hiển thị task từ hôm nay đến +N ngày (7/14/30), nhóm theo ngày, quá hạn riêng.
 // Task thuộc tháng hiện tại đọc từ `state`; tháng khác đọc qua monthStateRaw (không tạo state mới).
@@ -7125,19 +7135,26 @@ function inboxTargetForDate(dt) {
   return { y, m, week: Math.floor(dayIdx / 7) + 1, day: dayIdx % 7 };
 }
 
-// Chuyển task inbox vào ngày cụ thể — GIỮ uid (carry-over/repeat theo dõi đúng task).
-function scheduleInboxTask(i, dt) {
-  const tk = inbox[i];
-  if (!tk) return false;
+// Đặt 1 task vào ngày dt (lưới tháng đúng — tháng khác tạo qua loadMonthStateOrCreate).
+// Dùng chung cho: lên lịch từ Inbox, Quick Add. Trả về false nếu ngày không hợp lệ.
+function pushTaskToDate(tk, dt) {
   const tgt = inboxTargetForDate(dt);
   if (!tgt) return false;
   const st = (tgt.y === PLAN_YEAR && tgt.m === PLAN_MONTH) ? state : loadMonthStateOrCreate(tgt.y, tgt.m);
   const w = st && st.weeks && st.weeks[tgt.week - 1];
   if (!w || !Array.isArray(w.days) || !w.days[tgt.day] || !Array.isArray(w.days[tgt.day].tasks)) return false;
-  const moved = { ...tk, inbox: false, remind: (tk.remind && tk.remind.enabled) ? tk.remind : { enabled: false, time: '20:00' } };
-  w.days[tgt.day].tasks.push(moved);
-  inbox.splice(i, 1);
+  w.days[tgt.day].tasks.push(tk);
   if (tgt.y === PLAN_YEAR && tgt.m === PLAN_MONTH) save(); else saveMonthState(tgt.y, tgt.m, st);
+  return true;
+}
+
+// Chuyển task inbox vào ngày cụ thể — GIỮ uid (carry-over/repeat theo dõi đúng task).
+function scheduleInboxTask(i, dt) {
+  const tk = inbox[i];
+  if (!tk) return false;
+  const moved = { ...tk, inbox: false, remind: (tk.remind && tk.remind.enabled) ? tk.remind : { enabled: false, time: '20:00' } };
+  if (!pushTaskToDate(moved, dt)) return false;
+  inbox.splice(i, 1);
   saveInbox();
   return true;
 }
@@ -7150,6 +7167,118 @@ function addInboxTask() {
   // Focus ô text mới để gõ ngay
   const fresh = document.querySelector('[data-role="inbox-text"][data-task="' + (inbox.length - 1) + '"]');
   if (fresh) fresh.focus();
+}
+
+/* ============================ Quick Add — thêm nhanh ở mọi màn hình (Phase 4) ============================ */
+// Target mặc định theo ngữ cảnh view: {scope:'inbox'} hoặc {dt: Date}.
+function quickAddDefaultTarget() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (state.view === 'inbox') return { scope: 'inbox' };
+  if (state.view === 'day') {
+    // Ngày đang xem trong lưới tháng hiện tại
+    const dt = new Date(PLAN_START.getTime() + ((state.dayWeek - 1) * 7 + state.dayDay) * 86400000);
+    return { dt };
+  }
+  if (state.view === 'week') {
+    // Ưu tiên hôm nay nếu trong lưới tháng; nếu không thì ngày đầu tuần đang xem
+    const inCur = Math.floor((today - PLAN_START) / 86400000);
+    return inCur >= 0 && inCur < NUM_WEEKS * 7
+      ? { dt: today }
+      : { dt: new Date(PLAN_START.getTime() + (state.currentWeek - 1) * 7 * 86400000) };
+  }
+  return { dt: today };
+}
+
+let quickAddTarget = null;
+
+function openQuickAdd() {
+  const m = document.getElementById('quickAddModal');
+  if (!m || !m.hidden) return;
+  quickAddTarget = quickAddDefaultTarget();
+  const inp = document.getElementById('quickAddInput');
+  const dateField = document.getElementById('quickAddDateField');
+  const dateIn = document.getElementById('quickAddDate');
+  const note = document.getElementById('quickAddNote');
+  if (inp) inp.value = '';
+  if (quickAddTarget.scope === 'inbox') {
+    if (dateField) dateField.hidden = true;
+    if (note) note.textContent = t('quickAddInbox');
+  } else {
+    if (dateField) dateField.hidden = false;
+    if (dateIn) dateIn.value = localISODate(quickAddTarget.dt);
+    if (note) note.textContent = t('quickAddToday');
+    // Đổi ngày → cập nhật note cho trung thực với ngày đã chọn
+    if (dateIn && !dateIn.dataset.qaWired) {
+      dateIn.dataset.qaWired = '1';
+      dateIn.addEventListener('change', () => {
+        const n = document.getElementById('quickAddNote');
+        if (n && quickAddTarget && quickAddTarget.scope !== 'inbox') n.textContent = t('quickAddDay');
+      });
+    }
+  }
+  TaskFlowUI.openDialog('quickAddModal');
+  if (inp) inp.focus();
+  trackEvent('quick_add_open');
+}
+
+function closeQuickAdd() {
+  TaskFlowUI.closeDialog('quickAddModal');
+}
+
+// ISO local (tránh lệch UTC của toISOString)
+function localISODate(dt) {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+function submitQuickAdd() {
+  const inp = document.getElementById('quickAddInput');
+  const text = (inp && inp.value || '').trim();
+  if (!text) {
+    if (inp) inp.focus();
+    TaskFlowUI.toast(t('quickAddEmpty'), 'error');
+    return;
+  }
+  const dateIn = document.getElementById('quickAddDate');
+  const timeIn = document.getElementById('quickAddTime');
+  const durIn = document.getElementById('quickAddDur');
+  const prioIn = document.getElementById('quickAddPrio');
+  const timeVal = timeIn && timeIn.value ? timeIn.value : '20:00';
+  const tk = {
+    uid: newTaskUid(),
+    kind: (prioIn && prioIn.checked) ? 'priority' : 'regular',
+    done: false,
+    text,
+    tags: [],
+    remind: { enabled: false, time: timeVal },
+  };
+  if (durIn && durIn.value !== '') tk.duration = Math.max(0, +durIn.value || 0);
+  let ok = false;
+  if (quickAddTarget && quickAddTarget.scope === 'inbox') {
+    tk.inbox = true;
+    inbox.push(tk);
+    saveInbox();
+    ok = true;
+    trackEvent('create_task', { scope: 'quickadd-inbox' });
+  } else {
+    let dt = quickAddTarget && quickAddTarget.dt;
+    if (dateIn && dateIn.value) {
+      const p = dateIn.value.split('-').map(Number);
+      dt = new Date(p[0], p[1] - 1, p[2]);
+    }
+    // Quick Add vào lưới tháng hiện tại → có thể hoàn tác (undo snapshot state)
+    if (dt) {
+      const tgt = inboxTargetForDate(dt);
+      if (tgt && tgt.y === PLAN_YEAR && tgt.m === PLAN_MONTH) pushUndo();
+    }
+    ok = !!dt && pushTaskToDate(tk, dt);
+    if (ok) trackEvent('create_task', { scope: 'quickadd' });
+  }
+  if (ok) {
+    closeQuickAdd();
+    renderCurrentView();
+    TaskFlowUI.toast(t('quickAddToast'), 'success');
+  }
 }
 
 function setView(view, week) {
@@ -7314,6 +7443,8 @@ function applySnapshot(snap) {
 }
 function renderCurrentView() {
   if (state.view === 'today') renderToday();
+  else if (state.view === 'upcoming') renderUpcoming();
+  else if (state.view === 'inbox') renderInbox();
   else if (state.view === 'overview') renderOverview();
   else if (state.view === 'week') renderWeek();
   else if (state.view === 'day') renderDay();
@@ -7895,7 +8026,7 @@ document.addEventListener('click', (e) => {
   if (act === 'sidebar-collapse') { toggleSidebarCollapse(); return; }
   else if (act === 'tools-open') { openToolsDrawer(el); return; }
   else if (act === 'tools-close') { closeToolsDrawer(); return; }
-  else if (act === 'shell-add-task') { addTaskFromShell(); return; }
+  else if (act === 'shell-add-task') { openQuickAdd(); return; }
   else if (act === 'undo') { doUndo(); return; }
   else if (act === 'redo') { doRedo(); return; }
   else if (act === 'focus') { openFocusMode(); return; }
@@ -7986,6 +8117,10 @@ document.addEventListener('click', (e) => {
     const now = new Date();
     if (PLAN_MONTH !== now.getMonth() || PLAN_YEAR !== now.getFullYear()) openMonth(now.getMonth());
     setView('today');
+  } else if (act === 'quickadd-close') {
+    closeQuickAdd();
+  } else if (act === 'quickadd-do') {
+    submitQuickAdd();
   } else if (act === 'inbox-open') {
     closeToolsDrawer();
     setView('inbox');
@@ -8689,6 +8824,12 @@ document.addEventListener('keydown', (e) => {
       focusTodayTaskAdd();
       return;
     }
+    // Phase 4: phím tắt Quick Add (q) — thêm nhanh không cần đổi view
+    if (k === 'q') {
+      e.preventDefault();
+      openQuickAdd();
+      return;
+    }
   }
   const inp = e.target.closest('[data-role="goal-add-input"]');
   if (inp && e.key === 'Enter') {
@@ -9052,6 +9193,8 @@ document.addEventListener('click', (e) => {
   if (yr && !yr.hidden && e.target === yr) closeYearReportModal();
   const s = document.getElementById('searchModal');
   if (s && !s.hidden && e.target === s) closeSearchModal();
+  const qa = document.getElementById('quickAddModal');
+  if (qa && !qa.hidden && e.target === qa) closeQuickAdd();
   const t = document.getElementById('templateModal');
   if (t && !t.hidden && e.target === t) closeTemplateModal();
   const p = document.getElementById('profileModal');

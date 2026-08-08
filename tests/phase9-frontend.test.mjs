@@ -630,7 +630,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v102';/);
+  assert.match(SW, /const CACHE = 'taskflow-v103';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -708,7 +708,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v102';/);
+  assert.match(SW, /const CACHE = 'taskflow-v103';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -1253,4 +1253,39 @@ test('Phase 3: Inbox — nav item, view section, capture flow and schedule keepi
   assert.match(inStyles, /\.inbox-task-row\s*{/);
   assert.match(inStyles, /\.inbox-sched-today\s*{/);
   assert.match(inStyles, /\.td-inbox-schedule\s*{/);
+});
+
+test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared task creation', () => {
+  // 1. Modal trong app.html (input + fields + nút Thêm)
+  assert.match(APP, /id="quickAddModal"/);
+  assert.match(APP, /id="quickAddInput"/);
+  assert.match(APP, /id="quickAddDate"/);
+  assert.match(APP, /data-action="quickadd-do"/);
+  // 2. Mở/đóng + Enter submit + Escape (dialog layer tự đóng)
+  assert.match(APP_JS, /function openQuickAdd\(\)/);
+  assert.match(APP_JS, /function closeQuickAdd\(\)/);
+  assert.match(APP_JS, /function submitQuickAdd\(\)/);
+  assert.match(APP_JS, /id === 'quickAddInput'/);
+  assert.match(APP_JS, /act === 'quickadd-close'/);
+  // 3. Target theo ngữ cảnh view: inbox/day/week/today
+  assert.match(APP_JS, /function quickAddDefaultTarget\(\)/);
+  assert.match(APP_JS, /state\.view === 'inbox'/);
+  assert.match(APP_JS, /state\.view === 'day'/);
+  assert.match(APP_JS, /state\.view === 'week'/);
+  // 4. Nút Thêm công việc (shell-add-task) mở Quick Add — KHÔNG còn chuyển sang Week
+  assert.match(APP_JS, /act === 'shell-add-task'\).*openQuickAdd\(\)/s);
+  assert.match(APP_JS, /if \(k === 'q'\)\s*\{\s*e\.preventDefault\(\);\s*openQuickAdd\(\)/s);
+  // 5. Dùng chung logic đặt task: pushTaskToDate (không duplicate) + inbox scope
+  assert.match(APP_JS, /function pushTaskToDate\(tk, dt\)/);
+  assert.match(APP_JS, /tk\.inbox = true;/);
+  assert.match(APP_JS, /renderCurrentView\(\);/);
+  // 6. i18n keys đủ vi+en
+  assert.match(APP_JS, /quickAddTitle: 'Thêm công việc nhanh'/);
+  assert.match(APP_JS, /quickAddTitle: 'Quick Add'/);
+  assert.match(APP_JS, /quickAddPh:/);
+  assert.match(APP_JS, /quickAddInbox:/);
+  // 7. CSS
+  const qaStyles = readRequiredAsset('css/styles.css');
+  assert.match(qaStyles, /\.quickadd-card\s*{/);
+  assert.match(qaStyles, /\.quickadd-fields\s*{/);
 });
