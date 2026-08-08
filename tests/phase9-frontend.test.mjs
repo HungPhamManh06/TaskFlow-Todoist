@@ -229,13 +229,38 @@ test('navigation renderer synchronizes every desktop and mobile destination', ()
   assert.match(APP_JS, /setAttribute\('aria-selected',\s*String\(active\)\)/);
   assert.match(APP_JS, /data-nav-view/);
   assert.doesNotMatch(APP_JS, /closest\('#navTabs \.tab'\)/);
-});
-
-test('keyboard navigation keeps its tab node when the selected week is unchanged', () => {
+});test('keyboard navigation keeps its tab node when the selected week is unchanged', () => {
   assert.match(
     APP_JS,
-    /const weekChanged = state\.currentWeek !== week;[\s\S]{0,120}state\.currentWeek = week;[\s\S]{0,120}if \(weekChanged\) buildNav\(\);/
+    /const weekChanged = state\.currentWeek !== week;[\s\S]{0,120}state\.currentWeek = week;[\s\S]{0,120}if \(weekChanged\) buildNav\(\);/ 
   );
+});
+
+test('sidebar groups navigation into MAIN/PLAN/TRACK with tooltips', () => {
+  assert.match(APP_JS, /navGroupMain/);
+  assert.match(APP_JS, /navGroupPlan/);
+  assert.match(APP_JS, /navGroupTrack/);
+  assert.match(APP_JS, /app-nav-group-label/);
+  assert.match(APP_JS, /data-tooltip=\"\$\{esc\(item\.label\)\}\"/);
+  // mobile nav stays flat (unchanged)
+  assert.match(APP_JS, /app-mobile-nav-item/);
+  assert.match(APP_JS, /data-action=\"tools-open\"/);
+  // secondary keeps tools + profile + landing (focus/report moved to TRACK)
+  assert.match(APP, /data-action=\"profile-open\"/);
+  assert.doesNotMatch(APP, /data-action=\"focus\"[^>]*\/?>\s*<span>Chế độ tập trung<\/span>[\s\S]{0,80}data-action=\"report\"/);
+});
+
+test('sidebar collapse persists state and swaps button label', () => {
+  assert.match(APP_JS, /planner-sidebar-collapsed/);
+  assert.match(APP_JS, /function toggleSidebarCollapse/);
+  assert.match(APP_JS, /function applySidebarCollapse/);
+  assert.match(APP_JS, /sidebar-collapsed/);
+  assert.match(APP, /data-action=\"sidebar-collapse\"/);
+  assert.match(APP, /data-shell-icon=\"chevron-left\"/);
+  const shell = readRequiredAsset('css/app-shell.css');
+  assert.match(shell, /\.app-layout\.sidebar-collapsed\s*{[^}]*grid-template-columns:\s*72px/);
+  assert.match(shell, /\.app-nav-group-label/);
+  assert.match(shell, /sidebar-collapsed [\s\S]{0,60}\[data-tooltip\]::after/);
 });
 
 test('overview renderer exposes a refined productivity dashboard contract', () => {
@@ -531,7 +556,7 @@ test('shell hides the skip link until focus and removes decorative nav emoji', (
 test('setView synchronizes the selected view and plan period to the URL', () => {
   assert.match(
     APP_JS,
-    /TaskFlowUI\.syncUrl\(\{\s*view,\s*year:\s*PLAN_YEAR,\s*month:\s*PLAN_MONTH,\s*week:\s*view === 'week' \? state\.currentWeek : undefined,\s*tags:\s*view === 'calendar' \? calendarTagFilters : undefined,?\s*\}\);/
+    /TaskFlowUI\.syncUrl\(\{\s*view,\s*year:\s*PLAN_YEAR,\s*month:\s*PLAN_MONTH,\s*week:\s*view === 'week' \? state\.currentWeek : \(view === 'day' \? state\.dayWeek : undefined\),?\s*day:\s*view === 'day' \? state\.dayDay : undefined,\s*tags:\s*view === 'calendar' \? calendarTagFilters : undefined,?\s*\}\);/
   );
   assert.match(
     APP_JS,
@@ -564,14 +589,19 @@ test('gamification XP, smart repeat carry-over and .ics export are wired end-to-
   assert.match(APP_JS, /localStorage\.getItem\('planner-xp'\)/);
   assert.match(APP, /id="appXp"/);
   assert.match(APP, /id="xpCard"/);
-  // Task lặp thông minh (carry-over) — theo uid cố định, không lệch khi xoá/chèn task
+  // Task lặp thông minh (carry-over) — logic thuần trong module plan-carry.js
+  const carryMod = readRequiredAsset('js/plan-carry.js');
+  assert.match(carryMod, /function carryOverRepeatTasks|planCarry/);
+  assert.match(carryMod, /function syncCarriedDone/);
+  assert.match(carryMod, /function newTaskUid/);
+  assert.match(carryMod, /function ensureTaskUid/);
+  assert.match(carryMod, /function findTaskByUid/);
+  assert.match(carryMod, /carriedFrom: \{ uid/); // bản dồn mới lưu uid nguồn + ngày
+  assert.match(carryMod, /module\.exports/); // chạy được trong Node để unit test
+  // app.js ủy quyền sang module (wrapper) + mọi task mới được gán uid lúc tạo
   assert.match(APP_JS, /function carryOverRepeatTasks/);
   assert.match(APP_JS, /function syncCarriedDone/);
-  assert.match(APP_JS, /function newTaskUid/);
-  assert.match(APP_JS, /function ensureTaskUid/);
-  assert.match(APP_JS, /function findTaskByUid/);
-  assert.match(APP_JS, /carriedFrom: \{ uid/); // bản dồn mới lưu uid nguồn + ngày
-  assert.match(APP_JS, /uid: newTaskUid\(\), kind/); // task mới được gán uid lúc tạo
+  assert.match(APP_JS, /uid: newTaskUid\(\), kind/);
   // Export .ics
   assert.match(APP_JS, /function exportICS/);
   assert.match(APP_JS, /BEGIN:VCALENDAR/);
@@ -579,8 +609,28 @@ test('gamification XP, smart repeat carry-over and .ics export are wired end-to-
   assert.match(APP, /data-action="export-ics"/);
 });
 
+test('day view: section + renderDay + open/close/prev/next wired', () => {
+  assert.match(APP, /id="view-day"/);
+  assert.match(APP, /data-i18n-aria="viewDay"/);
+  assert.match(APP_JS, /function renderDay/);
+  assert.match(APP_JS, /function openDay/);
+  assert.match(APP_JS, /function goDay/);
+  assert.match(APP_JS, /function dayHabitsHTML/);
+  assert.match(APP_JS, /act === 'open-day'/);
+  assert.match(APP_JS, /act === 'close-day'/);
+  assert.match(APP_JS, /act === 'day-prev'/);
+  assert.match(APP_JS, /act === 'day-next'/);
+  assert.match(APP_JS, /data-action="open-day"/); // nút mở từng cột ngày trong tuần
+  assert.match(APP_JS, /dayColumnHTML\(w, di, isToday, true\)/); // tái dùng cột ngày trong day view
+  assert.match(APP_JS, /dayWeek/); // state day view
+  assert.match(APP_JS, /dayDay/);
+  // syncUrl hỗ trợ tham số ngày
+  const UI_JS = readRequiredAsset('js/ui.js');
+  assert.match(UI_JS, /view === 'day' && day !== undefined/);
+});
+
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v76';/);
+  assert.match(SW, /const CACHE = 'taskflow-v94';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -607,15 +657,29 @@ test('design system tokens define every semantic role for light themes and dark 
     assert.match(tokens, new RegExp(`\\[data-theme=["']${theme}["']\\]`));
   });
   assert.match(tokens, /\[data-dark=["']true["']\][^{]*{[^}]*--color-canvas:[^}]*--color-text:/s);
-  assert.match(tokens, /--radius-control:\s*9px/);
-  assert.match(tokens, /--radius-panel:\s*14px/);
+  // Phase 1 radius scale: input 8 / button 10 / card 12 / modal 16
+  assert.match(tokens, /--radius-input:\s*8px/);
+  assert.match(tokens, /--radius-button:\s*10px/);
+  assert.match(tokens, /--radius-card:\s*12px/);
+  assert.match(tokens, /--radius-modal:\s*16px/);
+  assert.match(tokens, /--radius-control:\s*var\(--radius-button\)/);
+  assert.match(tokens, /--radius-panel:\s*var\(--radius-modal\)/);
   assert.match(tokens, /--focus-ring:/);
+  assert.match(tokens, /--text-xs:\s*12px/);
+  assert.match(tokens, /--text-2xl:\s*32px/);
+  assert.match(tokens, /--color-surface-elevated:/);
+  assert.match(tokens, /--color-text-secondary:/);
 });
 
 test('design system components include accessibility, motion, and numeric contracts', () => {
   const components = readRequiredAsset('css/components.css');
   ['ui-icon', 'button', 'icon-button', 'field', 'metric', 'dialog', 'drawer', 'toast-region']
     .forEach((className) => assert.match(components, new RegExp(`\\.${className}\\b`)));
+
+  // Phase 1 contracts: badge, progress, skeleton, menu, tooltip
+  ['badge', 'progress', 'skeleton', 'menu']
+    .forEach((className) => assert.match(components, new RegExp(`\\.${className}\\b`)));
+  assert.match(components, /\[data-tooltip\]/);
 
   ['button', 'a', 'input', 'select', 'textarea', '\\[contenteditable\\]']
     .forEach((selector) => assert.match(components, new RegExp(`${selector}[^,{]*:focus-visible`)));
@@ -636,7 +700,7 @@ test('design system local sprite provides the complete currentColor icon set', (
   const symbols = [
     'overview', 'week', 'year', 'calendar', 'focus', 'report', 'search', 'plus', 'more',
     'settings', 'undo', 'redo', 'bell', 'data', 'sync', 'help', 'theme', 'print', 'close',
-    'chevron-left', 'chevron-right',
+    'chevron-left', 'chevron-right', 'expand',
   ];
   symbols.forEach((symbol) => assert.match(sprite, new RegExp(`<symbol[^>]+id=["']${symbol}["']`)));
   assert.match(sprite, /stroke=["']currentColor["']/);
@@ -644,7 +708,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v76';/);
+  assert.match(SW, /const CACHE = 'taskflow-v94';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -758,13 +822,17 @@ test('release: offline app deep links resolve the cached app shell instead of la
   assert.match(String(matchCalls[0].request.url || matchCalls[0].request), /app\.html/);
 });
 
-test('hardening: muted text meets 4.5 contrast against every theme canvas', () => {
+test('hardening: muted and secondary text meet 4.5 contrast against every theme canvas', () => {
   const tokens = readRequiredAsset('css/tokens.css');
   for (const theme of ['cream', 'mint', 'lavender', 'peach']) {
     for (const dark of [false, true]) {
       const values = effectiveThemeTokens(tokens, theme, dark);
       const ratio = contrastRatio(values['--color-text-muted'], values['--color-canvas']);
       assert.ok(ratio >= 4.5, `${theme} ${dark ? 'dark' : 'light'} muted/canvas contrast is ${ratio.toFixed(3)}`);
+      const secondaryRatio = contrastRatio(values['--color-text-secondary'], values['--color-canvas']);
+      assert.ok(secondaryRatio >= 4.5, `${theme} ${dark ? 'dark' : 'light'} secondary/canvas contrast is ${secondaryRatio.toFixed(3)}`);
+      const elevatedRatio = contrastRatio(values['--color-text-secondary'], values['--color-surface-elevated']);
+      assert.ok(elevatedRatio >= 4.5, `${theme} ${dark ? 'dark' : 'light'} secondary/elevated contrast is ${elevatedRatio.toFixed(3)}`);
     }
   }
 });
@@ -850,4 +918,246 @@ test('release: redundant emoji is removed from tool labels backed by local icons
   assert.match(APP_JS, /dataTitle:\s*'Dữ liệu của bạn'/);
   assert.match(APP_JS, /remindTitle:\s*'Nhắc việc hằng ngày'/);
   assert.doesNotMatch(APP_JS, /todayTxt:\s*'[📍]|dataTitle:\s*'[💾]|remindTitle:\s*'[🔔]/u);
+});
+
+test('Phase 3: Today Dashboard is the default view with greeting, tasks, habits and focus', () => {
+  const html = readRequiredAsset('app.html');
+  assert.match(html, /id="view-today"[^>]*role="tabpanel"/);
+  assert.match(APP_JS, /function renderToday\(\)/);
+  assert.match(APP_JS, /function todayGreeting\(\)/);
+  assert.match(APP_JS, /todayGreetingMorning|todayGreetingAfternoon|todayGreetingEvening/);
+  assert.match(APP_JS, /todayTasksTitle|todayHabitsTitle|todayFocusTitle/);
+  assert.match(APP_JS, /today-addtask/);
+  assert.match(APP_JS, /todayCompleted|todayProgress/);
+  assert.match(APP_JS, /today-page|today-card|today-progress-fill|today-habit-list/);
+  // default state view is today
+  assert.match(APP_JS, /view: 'today'/);
+  // deeplink accepts today
+  const deeplink = readRequiredAsset('js/deeplink.js');
+  assert.match(deeplink, /view === 'today'/);
+  // mobile nav keeps a 6-column grid with the Today tab
+  const shell = readRequiredAsset('css/app-shell.css');
+  assert.match(shell, /grid-template-columns:\s*repeat\(6,/);
+});
+
+test('Phase 3: Today view toggles tasks and habits through shared actions', () => {
+  assert.match(APP_JS, /if \(state\.view === 'today'\) renderToday\(\);/);
+  assert.match(APP_JS, /data-role=\"task-text\"\s+data-week=/);
+  assert.match(APP_JS, /habitStreakCached/);
+  assert.match(APP_JS, /totalFocusMinutesToday/);
+});
+
+test('Phase 4: minimal task card with meta line and hover ⋯ menu', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  // meta line (P1 · giờ · repeat) dưới text
+  assert.match(APP_JS, /task-meta/);
+  assert.match(APP_JS, /taskPriorityLabel/);
+  assert.match(APP_JS, /task-meta-time/);
+  assert.match(APP_JS, /task-meta-repeat/);
+  // actions ẩn mặc định, hiện khi hover/focus
+  assert.match(styles, /\.task-row-actions[^}]*opacity:\s*0/s);
+  assert.match(styles, /\.task-row:hover \.task-row-actions[^}]*opacity:\s*1/s);
+  // menu dropdown ⋯ chứa duplicate/delete, giữ data-action cũ cho handler
+  assert.match(APP_JS, /data-action="task-menu"/);
+  assert.match(APP_JS, /data-action="task-duplicate"/);
+  assert.match(APP_JS, /data-action="remind-task"/);
+  assert.match(APP_JS, /data-action="repeat-edit"/);
+  assert.match(APP_JS, /act === 'task-duplicate'/);
+  // editor inline chèn vào row (không vỡ khi nút nằm trong menu)
+  assert.match(APP_JS, /insertBeforeTaskActions/);
+  // icon repeat trong sprite
+  const sprite = readRequiredAsset('icons/ui-sprite.svg');
+  assert.match(sprite, /id="repeat"/);
+});
+
+test('Phase 5: task detail drawer with fields, subtasks, and handlers', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  const html = readRequiredAsset('app.html');
+  // drawer markup + backdrop trong app.html
+  assert.match(html, /id="taskDrawer"/);
+  assert.match(html, /id="taskDetailBackdrop"/);
+  assert.match(html, /class="drawer task-drawer"/);
+  // renderTaskDetail + open/close + state ref
+  assert.match(APP_JS, /let taskDetailRef = null/);
+  assert.match(APP_JS, /function openTaskDetail\(week, day, task\)/);
+  assert.match(APP_JS, /function closeTaskDetail\(\)/);
+  assert.match(APP_JS, /function renderTaskDetail\(\)/);
+  assert.match(APP_JS, /function getTaskDetailTarget\(\)/);
+  // menu ⋯ có mục mở drawer
+  assert.match(APP_JS, /data-action="task-detail"/);
+  // các field: time/duration/priority/repeat/notes/tags
+  assert.match(APP_JS, /taskDetailDuration/);
+  assert.match(APP_JS, /data-action="td-time"/);
+  assert.match(APP_JS, /data-action="td-duration"/);
+  assert.match(APP_JS, /data-action="td-prio"/);
+  assert.match(APP_JS, /data-action="td-repeat"/);
+  assert.match(APP_JS, /data-action="td-note"/);
+  // subtasks: add/toggle/del
+  assert.match(APP_JS, /data-action="subtask-add"/);
+  assert.match(APP_JS, /data-action="subtask-toggle"/);
+  assert.match(APP_JS, /data-action="subtask-del"/);
+  assert.match(APP_JS, /g\.tk\.subtasks\.push\(/);
+  // delete trong drawer + dblclick mở drawer
+  assert.match(APP_JS, /act === 'td-delete'/);
+  assert.match(APP_JS, /act === 'task-detail-close'/);
+  assert.match(APP_JS, /addEventListener\('dblclick', taskDetailDblClickListener\)/);
+  assert.match(APP_JS, /openTaskDetail\(\+row\.dataset\.week, \+row\.dataset\.day, \+row\.dataset\.task\)/);
+  // bind events riêng cho change/input
+  assert.match(APP_JS, /function bindTaskDetailEvents\(drawer\)/);
+  assert.match(APP_JS, /data-role="td-text"/);
+  // CSS drawer: trượt từ phải + body scroll
+  assert.match(styles, /\.task-drawer\s*{[^}]*inset:\s*0\s+0\s+0\s+auto/s);
+  assert.match(styles, /\.task-drawer-body\s*{[^}]*overflow-y:\s*auto/s);
+  // i18n keys đầy đủ cho drawer
+  assert.match(APP_JS, /taskDetailTitle:/);
+  assert.match(APP_JS, /taskDetailSubtasks:/);
+  assert.match(APP_JS, /taskDetailNotes:/);
+  assert.match(APP_JS, /taskDetailDelete:/);
+});
+
+test('Phase 6: task-specific focus with timer and session log', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  const html = readRequiredAsset('app.html');
+  // focus-task button truyền ref vào openFocusMode
+  assert.match(APP_JS, /openFocusMode\(\{ week: el\.dataset\.week, day: el\.dataset\.day, task: el\.dataset\.task \}\)/);
+  assert.match(APP_JS, /function openFocusMode\(ref\)/);
+  assert.match(APP_JS, /let focusTaskRef = null/);
+  assert.match(APP_JS, /function getFocusedTask\(\)/);
+  // session log helpers trên task
+  assert.match(APP_JS, /function taskFocusLog\(tk\)/);
+  assert.match(APP_JS, /function taskFocusSecs\(tk\)/);
+  assert.match(APP_JS, /function taskFocusToday\(tk\)/);
+  assert.match(APP_JS, /function getTaskByUid\(uid\)/);
+  assert.match(APP_JS, /byUid\.focusLog = byUid\.focusLog \|\| \[\]/);
+  // timer: presets + start/pause/reset/set + endAt accuracy
+  assert.match(APP_JS, /const FOCUS_PRESETS = \[5, 15, 25, 45\]/);
+  assert.match(APP_JS, /let focusTimer = \{ running: false, dur: 25 \* 60/);
+  assert.match(APP_JS, /function focusTimerComplete\(\)/);
+  assert.match(APP_JS, /function focusTimerStart\(\)/);
+  assert.match(APP_JS, /function focusTimerSetDur\(min\)/);
+  assert.match(APP_JS, /focusTimer\.endAt = Date\.now\(\) \+ focusTimer\.left \* 1000/);
+  // actions mới
+  assert.match(APP_JS, /act === 'focus-show-all'/);
+  assert.match(APP_JS, /act === 'focus-timer-start'/);
+  assert.match(APP_JS, /act === 'focus-timer-reset'/);
+  assert.match(APP_JS, /act === 'focus-timer-set'/);
+  assert.match(APP_JS, /data-action="focus-timer-set"/);
+  assert.match(APP_JS, /data-action="focus-show-all"/);
+  // meta badge focus trên row
+  assert.match(APP_JS, /task-meta-focus/);
+  // drawer có focus row + nút Tập trung
+  assert.match(APP_JS, /td-focus-row/);
+  assert.match(APP_JS, /data-action="focus-task"[^]*taskFocusBtn/);
+  // CSS
+  assert.match(styles, /\.focus-taskview\s*{/);
+  assert.match(styles, /\.focus-timer-time\s*{[^}]*font-size:\s*52px/s);
+  assert.match(styles, /\.focus-log-list\s*{/);
+  assert.match(styles, /\.task-meta-focus\s*{/);
+  assert.match(styles, /\.td-focus-row\s*{/);
+  // i18n keys
+  assert.match(APP_JS, /focusShowAll:/);
+  assert.match(APP_JS, /focusLog:/);
+  assert.match(APP_JS, /focusDone:/);
+  assert.match(APP_JS, /focusTimer:/);
+});
+
+test('Phase 7: focus time bar chart in week view and focus stats in reports', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  // helpers stats
+  assert.match(APP_JS, /function pomoDaySecs\(date\)/);
+  assert.match(APP_JS, /function focusWeekMinutes\(week\)/);
+  assert.match(APP_JS, /function focusMonthMinutes\(\)/);
+  assert.match(APP_JS, /function topFocusTasksInWeek\(w, n\)/);
+  assert.match(APP_JS, /function topFocusTasksInMonth\(n\)/);
+  assert.match(APP_JS, /function taskFocusSecsInRange\(tk, startKey, endKey\)/);
+  // card biểu đồ trong week-support-grid (full-width)
+  assert.match(APP_JS, /focusChartCardHTML\(w\)/);
+  assert.match(APP_JS, /class="card focus-chart-card"/);
+  assert.match(APP_JS, /data-role="focus-chart"/);
+  assert.match(APP_JS, /fc-bar/);
+  assert.match(APP_JS, /dayLabelShort\(di\)/);
+  // báo cáo tuần + tháng có focus
+  assert.match(APP_JS, /focusByDay/);
+  assert.match(APP_JS, /focusTotal/);
+  assert.match(APP_JS, /focusByWeek/);
+  assert.match(APP_JS, /reportFocusWeek/);
+  assert.match(APP_JS, /reportFocusMonth/);
+  assert.match(APP_JS, /reportFocusTop/);
+  assert.match(APP_JS, /function focusReportBars\(values, labelFn\)/);
+  assert.match(APP_JS, /report-focus-head/);
+  // CSS
+  assert.match(styles, /\.focus-chart-card\s*{[^}]*grid-column:\s*1\s*\/\s*-1/s);
+  assert.match(styles, /\.focus-chart-bars\s*{[^}]*display:\s*flex/s);
+  assert.match(styles, /\.fc-bar\s*{[^}]*background:\s*linear-gradient/s);
+  assert.match(styles, /\.report-focus-labels\s*{/);
+  // i18n keys
+  assert.match(APP_JS, /focusChartTitle:/);
+  assert.match(APP_JS, /focusChartEmpty:/);
+  assert.match(APP_JS, /focusChartTop:/);
+  assert.match(APP_JS, /reportFocusBestDay:/);
+});
+
+test('Phase 8: year report focus stats, quarterly summary, and calendar focus pills', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  // helpers năm
+  assert.match(APP_JS, /function focusMonthMinutesFor\(y, m\)/);
+  assert.match(APP_JS, /function focusYearByMonth\(\)/);
+  assert.match(APP_JS, /function topFocusTasksInYear\(y, n\)/);
+  // year report data + render
+  assert.match(APP_JS, /focusByMonth, focusTotal, focusByQuarter, topTask/);
+  assert.match(APP_JS, /focusByQuarter\.map/);
+  assert.match(APP_JS, /report-quarters-grid/);
+  assert.match(APP_JS, /yearReportQuarter/);
+  // calendar focus: pill mỗi ngày + header summary
+  assert.match(APP_JS, /cal-focus-summary/);
+  assert.match(APP_JS, /data-role="cal-focus-summary"/);
+  assert.match(APP_JS, /class="cal-focus"/);
+  assert.match(APP_JS, /calFocusMonth/);
+  assert.match(APP_JS, /calFocusAria/);
+  // CSS
+  assert.match(styles, /\.cal-focus-summary\s*{/);
+  assert.match(styles, /\.cal-focus\s*{[^}]*font-size:\s*9\.5px/s);
+  assert.match(styles, /\.report-quarters-grid\s*{/);
+  assert.match(styles, /\.report-quarter\s*strong\s*{[^}]*color:\s*#C24E28/s);
+  // i18n keys đủ vi+en
+  assert.match(APP_JS, /yearReportFocus:/);
+  assert.match(APP_JS, /quarterShort:/);
+  assert.match(APP_JS, /calFocusBestDay:/);
+});
+
+test('Phase 9: focus × task correlation stats modal with range filter', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  const SPRITE = readRequiredAsset('icons/ui-sprite.svg');
+  // nút Thống kê trong tools drawer + modal
+  assert.match(APP, /data-action="stats" data-shell-icon="stats"/);
+  assert.match(APP, /id="statsModal"/);
+  assert.match(APP, /data-action="stats-close"/);
+  assert.match(APP, /id="statsContent"/);
+  // sprite có icon stats riêng
+  assert.match(SPRITE, /<symbol id="stats"/);
+  // helpers + data builder
+  assert.match(APP_JS, /let statsRange = 'month';/);
+  assert.match(APP_JS, /function statsMonthsForRange\(range\)/);
+  assert.match(APP_JS, /function statsData\(range\)/);
+  assert.match(APP_JS, /function statsCorrelation\(xs, ys\)/);
+  assert.match(APP_JS, /function statsScatterSVG\(points\)/);
+  assert.match(APP_JS, /function renderStatsModal\(\)/);
+  assert.match(APP_JS, /function openStatsModal\(\)/);
+  // granularity: tuần cho tháng/quý, tháng cho năm/toàn bộ
+  assert.match(APP_JS, /granularity = \(range === 'year' \|\| range === 'all'\) \? 'month' : 'week'/);
+  assert.match(APP_JS, /monthStateRaw\(y, m\)/);
+  assert.match(APP_JS, /act === 'stats-range'/);
+  assert.match(APP_JS, /statsRange = el\.dataset\.range/);
+  // CSS
+  assert.match(styles, /\.stats-modal-card\s*{[^}]*max-width:\s*560px/s);
+  assert.match(styles, /\.stats-range-btn\.active\s*{/);
+  assert.match(styles, /\.stats-scatter-svg\s*{/);
+  assert.match(styles, /\.stats-row\s*{/);
+  assert.match(styles, /\.stats-dot-core\s*{/);
+  // i18n keys đủ vi+en
+  assert.match(APP_JS, /statsRangeMonth:/);
+  assert.match(APP_JS, /statsRangeAll:/);
+  assert.match(APP_JS, /statsCorr:/);
+  assert.match(APP_JS, /statsNoData:/);
+  assert.match(APP_JS, /statsUnitWeek:/);
 });

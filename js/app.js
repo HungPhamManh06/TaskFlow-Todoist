@@ -508,6 +508,27 @@ const I18N = {
     resetTxt: '↺ Đặt lại',
     todayTitle: 'Về hôm nay & tuần hiện tại',
     todayTxt: 'Hôm nay',
+    navGroupMain: 'Chính',
+    navGroupPlan: 'Kế hoạch',
+    navGroupTrack: 'Theo dõi',
+    collapseSidebar: 'Thu gọn',
+    expandSidebar: 'Mở rộng',
+    todayGreetingMorning: 'Chào buổi sáng 👋',
+    todayGreetingAfternoon: 'Chào buổi chiều ☀️',
+    todayGreetingEvening: 'Chào buổi tối 🌙',
+    todayTasksTitle: 'Việc hôm nay',
+    todayCompleted: '{done}/{total} hoàn thành',
+    todayProgress: 'Tiến độ hôm nay',
+    todayHabitsTitle: 'Thói quen hôm nay',
+    todayHabitsEmpty: 'Chưa có thói quen nào. Tạo thói quen đầu tiên để bắt đầu!',
+    todayFocusTitle: 'Tập trung',
+    todayFocusStart: 'Bắt đầu Focus',
+    todayFocusTip: 'Mở chế độ Focus toàn màn hình để làm việc sâu.',
+    todayAddTask: 'Thêm việc',
+    todayEmpty: 'Không có việc gì hôm nay 🎯',
+    todayEmptySub: 'Một ngày khá nhẹ nhàng. Thêm việc để tận dụng thời gian!',
+    todayPriority: 'Ưu tiên',
+    viewToday: 'Hôm nay',
     nowAria: 'Ngày giờ hiện tại',
     tabOverview: 'Tổng quan tháng',
     tabYear: 'Năm {y}',
@@ -643,6 +664,35 @@ const I18N = {
     taskPh: 'Viết task...',
     taskAria: 'Task {n}',
     delTaskAria: 'Xoá task {n}',
+    taskMenu: 'Thao tác task',
+    taskDetail: 'Chi tiết task',
+    taskDetailOpen: 'Mở chi tiết task',
+    taskDetailTitle: 'Chi tiết task',
+    taskDetailDate: 'Ngày',
+    taskDetailDeadline: 'Hạn chót',
+    taskDetailTime: 'Giờ',
+    taskDetailDuration: 'Độ dài (phút)',
+    taskDetailPriority: 'Ưu tiên',
+    taskDetailRepeat: 'Lặp lại',
+    taskDetailTags: 'Tag',
+    taskDetailNotes: 'Ghi chú',
+    taskDetailSubtasks: 'Việc nhỏ',
+    taskDetailAddSubtask: '＋ Thêm việc nhỏ',
+    taskDetailSubtaskPh: 'Việc nhỏ mới...',
+    taskDetailDelete: 'Xoá task',
+    taskDetailDone: 'Đã lưu',
+    taskDetailClose: 'Đóng chi tiết task',
+    taskDuplicate: 'Nhân bản',
+    taskDuplicateDone: 'Đã nhân bản task',
+    taskFocusBtn: 'Tập trung vào task này',
+    taskMetaTime: '{t}',
+    taskMetaRepeat: 'Lặp lại',
+    taskPriorityLabel: 'Ưu tiên',
+    repeatTitle: 'Lặp lại',
+    repeatOff: 'Không lặp',
+    repeatDaily: 'Hằng ngày',
+    repeatWeekly: 'Hằng tuần',
+    repeatMonthly: 'Hằng tháng',
     addPriTaskAria: 'Thêm task ưu tiên',
     addRegTaskAria: 'Thêm task thường',
     noteAria: 'Ghi chú {name}',
@@ -661,6 +711,15 @@ const I18N = {
     xpNote: 'Hoàn thành task, thói quen và mục tiêu để tích XP và tăng cấp. 🚀',
     levelUp: '🎉 Chúc mừng! Lên cấp {lv}! ⭐',
     carriedFrom: 'Dồn từ ngày {date} — task lặp bị lỡ',
+    dayOpenT: 'Xem ngày này',
+    dayViewEyebrow: 'Xem ngày',
+    dayViewTitle: 'Xem ngày',
+    dayViewSubtitle: 'Chi tiết nhiệm vụ, thói quen, tâm trạng và ghi chú của ngày.',
+    prevDay: 'Ngày trước',
+    nextDay: 'Ngày sau',
+    backToWeek: 'Về tuần',
+    viewDay: 'Xem ngày',
+    habitSkipped: 'Thói quen “{name}” bị bỏ qua hôm nay',
     csvNote: 'Sheet chia nhỏ theo Section để lọc trong Google Sheets',
     printTitle: 'In / Lưu PDF',
     remindTitle: 'Nhắc việc hằng ngày',
@@ -802,6 +861,8 @@ const I18N = {
     searchOpenAria: 'Tìm kiếm xuyên tháng',
     tagLbl: 'Tag',
     tagAdd: '🏷️ Thêm tag',
+    tagDelAria: 'Xoá tag {tag}',
+    tagLimit: 'Tối đa 8 tag cho 1 task',
     tagPh: 'Nhập tag rồi Enter (phân cách bằng dấu phẩy)',
     tagFilter: 'Lọc theo tag',
     tagAll: 'Tất cả',
@@ -927,7 +988,50 @@ const I18N = {
     focusOpen: 'Chế độ Tập trung',
     focusNoTask: 'Hôm nay chưa có task nào 🐥',
     focusHabitDone: 'Đã xong hết thói quen hôm nay! 🎉',
+    focusShowAll: 'Tất cả việc hôm nay',
+    focusFocusing: 'Đang tập trung vào',
+    focusTimer: 'Bộ đếm thời gian',
+    focusReset: 'Đặt lại',
+    focusDone: 'Phiên tập trung hoàn thành 🎉',
+    focusLog: 'Nhật ký phiên',
+    focusLogToday: 'Hôm nay: {n}p · {c} phiên',
+    focusLogTotal: 'Tổng: {n}p',
+    focusNoSessions: 'Chưa có phiên nào',
+    focusChartTitle: 'Thời gian tập trung',
+    focusChartWeekTotal: 'Tuần này: {n}p',
+    focusChartEmpty: 'Chưa có phiên tập trung nào trong tuần này',
+    focusChartTop: 'Tập trung nhiều nhất',
+    focusChartBarAria: 'Ngày {day}: {n} phút',
+    reportFocusWeek: 'Phút tập trung (tuần)',
+    reportFocusMonth: 'Phút tập trung (tháng)',
+    reportFocusTop: 'Task tập trung nhất',
+    reportFocusBestDay: 'Ngày tập trung nhất',
+    yearReportFocus: 'Phút tập trung (năm)',
+    yearReportTopTask: 'Task tập trung nhất',
+    yearReportQuarter: 'Tổng kết theo quý',
+    quarterShort: 'Quý {n}',
+    calFocusMonth: 'Focus tháng: {n}p',
+    calFocusBestDay: 'Ngày tập trung nhất: {d} ({n}p)',
+    calFocusAria: 'Ngày {d}: {n} phút tập trung',
     feedbackBtn: '💬 Góp ý / phản hồi',
+    /* ===== Phase 9 — Thống kê tương quan focus × task ===== */
+    statsTitle: 'Thống kê',
+    statsRangeMonth: 'Tháng này',
+    statsRangeQuarter: 'Quý này',
+    statsRangeYear: 'Năm nay',
+    statsRangeAll: 'Toàn bộ',
+    statsFocusAxis: 'Tập trung (phút)',
+    statsDoneAxis: 'Task hoàn thành',
+    statsTotalFocus: 'Tổng focus',
+    statsTotalDone: 'Task đã làm',
+    statsAvgFocus: 'TB focus/{unit}',
+    statsBest: 'Tốt nhất',
+    statsCorr: 'Tương quan r',
+    statsCorrNote: 'Mỗi chấm là một {unit}: trục ngang = thời gian tập trung, trục dọc = số task hoàn thành. r càng gần 1, càng tập trung càng hoàn thành nhiều việc.',
+    statsNoData: 'Chưa đủ dữ liệu để vẽ biểu đồ (cần ít nhất 2 khoảng thời gian).',
+    statsPointAria: '{label}: {done} task · {focus}p',
+    statsUnitWeek: 'tuần',
+    statsUnitMonth: 'tháng',
     /* ===== Phase 6 — Cá nhân hoá & dữ liệu thông minh ===== */
     templatesTitle: '✨ Thói quen mẫu',
     templatesHint: 'Chọn nhanh một thói quen để thêm vào tháng này:',
@@ -994,6 +1098,27 @@ const I18N = {
     resetTxt: '↺ Reset',
     todayTitle: 'Go to today & current week',
     todayTxt: 'Today',
+    navGroupMain: 'Main',
+    navGroupPlan: 'Plan',
+    navGroupTrack: 'Track',
+    collapseSidebar: 'Collapse',
+    expandSidebar: 'Expand',
+    todayGreetingMorning: 'Good morning 👋',
+    todayGreetingAfternoon: 'Good afternoon ☀️',
+    todayGreetingEvening: 'Good evening 🌙',
+    todayTasksTitle: 'Today\u2019s tasks',
+    todayCompleted: '{done}/{total} completed',
+    todayProgress: 'Daily progress',
+    todayHabitsTitle: 'Habits today',
+    todayHabitsEmpty: 'No habits yet. Create your first habit to get started!',
+    todayFocusTitle: 'Focus',
+    todayFocusStart: 'Start Focus',
+    todayFocusTip: 'Open full-screen Focus mode to do deep work.',
+    todayAddTask: 'Add task',
+    todayEmpty: 'Nothing scheduled today 🎯',
+    todayEmptySub: 'A pretty light day. Add a task to make the most of it!',
+    todayPriority: 'Priority',
+    viewToday: 'Today',
     nowAria: 'Current date & time',
     tabOverview: 'Overview',
     tabYear: 'Year {y}',
@@ -1129,6 +1254,35 @@ const I18N = {
     taskPh: 'Type a task...',
     taskAria: 'Task {n}',
     delTaskAria: 'Delete task {n}',
+    taskMenu: 'Task actions',
+    taskDetail: 'Task details',
+    taskDetailOpen: 'Open task details',
+    taskDetailTitle: 'Task details',
+    taskDetailDate: 'Date',
+    taskDetailDeadline: 'Deadline',
+    taskDetailTime: 'Time',
+    taskDetailDuration: 'Duration (min)',
+    taskDetailPriority: 'Priority',
+    taskDetailRepeat: 'Repeat',
+    taskDetailTags: 'Tags',
+    taskDetailNotes: 'Notes',
+    taskDetailSubtasks: 'Subtasks',
+    taskDetailAddSubtask: '＋ Add subtask',
+    taskDetailSubtaskPh: 'New subtask...',
+    taskDetailDelete: 'Delete task',
+    taskDetailDone: 'Saved',
+    taskDetailClose: 'Close task details',
+    taskDuplicate: 'Duplicate',
+    taskDuplicateDone: 'Task duplicated',
+    taskFocusBtn: 'Focus on this task',
+    taskMetaTime: '{t}',
+    taskMetaRepeat: 'Repeat',
+    taskPriorityLabel: 'Priority',
+    repeatTitle: 'Repeat',
+    repeatOff: 'No repeat',
+    repeatDaily: 'Daily',
+    repeatWeekly: 'Weekly',
+    repeatMonthly: 'Monthly',
     addPriTaskAria: 'Add priority task',
     addRegTaskAria: 'Add regular task',
     noteAria: '{name} note',
@@ -1147,6 +1301,15 @@ const I18N = {
     xpNote: 'Complete tasks, habits and goals to earn XP and level up. 🚀',
     levelUp: '🎉 Congrats! Level {lv}! ⭐',
     carriedFrom: 'Carried over from {date} — missed repeating task',
+    dayOpenT: 'Open this day',
+    dayViewEyebrow: 'Day view',
+    dayViewTitle: 'Day view',
+    dayViewSubtitle: 'Tasks, habits, mood and notes for this day.',
+    prevDay: 'Prev day',
+    nextDay: 'Next day',
+    backToWeek: 'Back to week',
+    viewDay: 'Day view',
+    habitSkipped: 'Habit “{name}” is skipped today',
     csvNote: 'Sheet split into sections, filter in Google Sheets',
     printTitle: 'Print / Save PDF',
     remindTitle: 'Daily reminder',
@@ -1288,6 +1451,8 @@ const I18N = {
     searchOpenAria: 'Search across months',
     tagLbl: 'Tag',
     tagAdd: '🏷️ Add tag',
+    tagDelAria: 'Remove tag {tag}',
+    tagLimit: 'Max 8 tags per task',
     tagPh: 'Type a tag then Enter (comma-separated)',
     tagFilter: 'Filter by tag',
     tagAll: 'All',
@@ -1413,7 +1578,50 @@ const I18N = {
     focusOpen: 'Focus Mode',
     focusNoTask: 'No tasks today 🐥',
     focusHabitDone: 'All habits done today! 🎉',
+    focusShowAll: "All of today's tasks",
+    focusFocusing: 'Focusing on',
+    focusTimer: 'Timer',
+    focusReset: 'Reset',
+    focusDone: 'Focus session complete 🎉',
+    focusLog: 'Session log',
+    focusLogToday: 'Today: {n}m · {c} sessions',
+    focusLogTotal: 'Total: {n}m',
+    focusNoSessions: 'No sessions yet',
+    focusChartTitle: 'Focus time',
+    focusChartWeekTotal: 'This week: {n}m',
+    focusChartEmpty: 'No focus sessions this week',
+    focusChartTop: 'Most focused',
+    focusChartBarAria: '{day}: {n} min',
+    reportFocusWeek: 'Focus minutes (week)',
+    reportFocusMonth: 'Focus minutes (month)',
+    reportFocusTop: 'Top focused task',
+    reportFocusBestDay: 'Best focus day',
+    yearReportFocus: 'Focus minutes (year)',
+    yearReportTopTask: 'Top focused task',
+    yearReportQuarter: 'Quarterly summary',
+    quarterShort: 'Q{n}',
+    calFocusMonth: 'Month focus: {n}m',
+    calFocusBestDay: 'Best focus day: {d} ({n}m)',
+    calFocusAria: '{d}: {n} focus min',
     feedbackBtn: '💬 Feedback',
+    /* ===== Phase 9 — Focus × task correlation stats ===== */
+    statsTitle: 'Statistics',
+    statsRangeMonth: 'This month',
+    statsRangeQuarter: 'This quarter',
+    statsRangeYear: 'This year',
+    statsRangeAll: 'All time',
+    statsFocusAxis: 'Focus (min)',
+    statsDoneAxis: 'Tasks done',
+    statsTotalFocus: 'Total focus',
+    statsTotalDone: 'Tasks done',
+    statsAvgFocus: 'Avg focus/{unit}',
+    statsBest: 'Best',
+    statsCorr: 'Correlation r',
+    statsCorrNote: 'Each dot is a {unit}: X = focus time, Y = tasks completed. The closer r is to 1, the more focus leads to getting things done.',
+    statsNoData: 'Not enough data to chart (need at least 2 periods).',
+    statsPointAria: '{label}: {done} tasks · {focus}m',
+    statsUnitWeek: 'week',
+    statsUnitMonth: 'month',
     /* ===== Phase 6 — Personalization & insights ===== */
     templatesTitle: '✨ Habit ideas',
     templatesHint: 'Pick a habit idea to add to this month:',
@@ -1488,6 +1696,16 @@ function dayLabel(d) {
   const names = t('dayNames');
   return Array.isArray(names) ? names[d] : DAYS[d].name;
 }
+
+// Hạn chót dạng 'YYYY-MM-DD' → nhãn ngắn gọn ('3/8' hoặc '03/08').
+function fmtDeadline(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(iso);
+  const dt = new Date(+m[1], +m[2] - 1, +m[3]);
+  if (Number.isNaN(dt.getTime())) return String(iso);
+  return dt.toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' });
+}
 function dateLocale() { return LANG === 'vi' ? 'vi-VN' : 'en-GB'; }
 
 function applyStaticI18N() {
@@ -1511,11 +1729,14 @@ function setLang(l) {
   try { localStorage.setItem('planner-lang', l); } catch (e) { /* ẩn */ }
   if (window.Sync) window.Sync.push('planner-lang');
   applyStaticI18N();
+  applySidebarCollapse();
   setSyncMode(syncMode);
   updateBrand();
   buildNav();
-  if (state.view === 'overview') renderOverview();
+  if (state.view === 'today') renderToday();
+  else if (state.view === 'overview') renderOverview();
   else if (state.view === 'week') renderWeek();
+  else if (state.view === 'day') renderDay();
   else if (state.view === 'calendar') renderCalendar();
   else renderYear();
   updateNav();
@@ -1777,6 +1998,15 @@ function renderRemindList() {
 }
 
 // Inline picker giờ nhắc (pattern beginTagEdit): nhấn 🔔 → input time + nút lưu ngay cạnh nút.
+// Phase 4: nút 🔔/🏷️/🔁 giờ nằm trong dropdown ⋯ (.task-menu) — editor inline phải chèn vào
+// task-row (trước nhóm actions) thay vì cạnh nút (btn.nextSibling không còn là con của row).
+function insertBeforeTaskActions(btn, node) {
+  const row = btn.closest('.task-row');
+  const anchor = row ? row.querySelector('.task-row-actions') : null;
+  if (anchor) row.insertBefore(node, anchor);
+  else btn.parentElement.insertBefore(node, btn.nextSibling);
+}
+
 function beginRemindEdit(btn) {
   const kind = btn.dataset.action === 'remind-habit' ? 'habit' : 'task';
   const host = kind === 'habit' ? btn.closest('.habit-name-cell') : btn.closest('.task-row');
@@ -1803,7 +2033,7 @@ function beginRemindEdit(btn) {
   wrap.appendChild(save);
   wrap.appendChild(off);
   // Chèn vào đúng cha trực tiếp của nút (item-actions với habit, task-row với task)
-  btn.parentElement.insertBefore(wrap, btn.nextSibling);
+  insertBeforeTaskActions(btn, wrap);
   input.focus();
   const commit = () => {
     const target = kind === 'habit'
@@ -1865,7 +2095,7 @@ function beginRepeatEdit(btn) {
     renderWeek(); save(); trackEvent('repeat_set');
   });
   wrap.appendChild(sel);
-  btn.parentElement.insertBefore(wrap, btn.nextSibling);
+  insertBeforeTaskActions(btn, wrap);
   sel.focus();
 }
 
@@ -2310,6 +2540,11 @@ function yearlyReportData() {
   const pd = bestProductiveDay();
   let topMonth = 0;
   monthly.forEach((x, m) => { if (x.pct > monthly[topMonth].pct) topMonth = m; });
+  // Phase 8: focus cả năm + tổng kết quý
+  const focusByMonth = focusYearByMonth();
+  const focusTotal = focusByMonth.reduce((a, b) => a + b, 0);
+  const focusByQuarter = [0, 1, 2, 3].map((q) => focusByMonth.slice(q * 3, q * 3 + 3).reduce((a, b) => a + b, 0));
+  const topTask = topFocusTasksInYear(PLAN_YEAR, 1)[0] || null;
   return {
     y: PLAN_YEAR,
     pct: gs.pct,
@@ -2320,6 +2555,7 @@ function yearlyReportData() {
     topMonth,
     topHabit: bh,
     prodDay: pd,
+    focusByMonth, focusTotal, focusByQuarter, topTask,
   };
 }
 
@@ -2329,6 +2565,7 @@ function renderYearReportModal() {
   const r = yearlyReportData();
   const topName = r.topHabit && r.topHabit.name ? esc(r.topHabit.name) : '—';
   const prod = r.prodDay ? esc(r.prodDay.label) + ' · ' + r.prodDay.n : '—';
+  const topTaskHtml = r.topTask ? `${t('yearReportTopTask')}: ${esc((r.topTask.tk.text || '…').slice(0, 20))} · ${taskFocusMinLabel(r.topTask.secs)}` : '';
   el.innerHTML = `
     <div class="report-head">
       <div class="donut-wrap"><div class="donut">${donutSVG(r.pct, 96, 12, '#C24E28')}</div>
@@ -2342,8 +2579,24 @@ function renderYearReportModal() {
       <div class="report-cell"><b>📅 ${shortMonth(r.topMonth)}</b><span>${t('yearReportTopMonth')} · ${r.months[r.topMonth]}%</span></div>
       <div class="report-cell"><b>🔥 ${topName}</b><span>${t('yearReportBestHabit')}</span></div>
       <div class="report-cell"><b>⚡ ${prod}</b><span>${t('yearReportProdDay')}</span></div>
+      <div class="report-cell"><b>🎯 ${r.focusTotal}p</b><span>${t('yearReportFocus')}</span></div>
+      <div class="report-cell"><b>⭐ ${r.topTask ? taskFocusMinLabel(r.topTask.secs) : '—'}</b><span>${t('yearReportTopTask')}</span></div>
     </div>
-    <div class="report-weekbars" aria-hidden="true">${r.months.map((p) => `<div class="rw-bar" style="height:${Math.max(p, 4)}%"></div>`).join('')}</div>`;
+    <div class="report-weekbars" aria-hidden="true">${r.months.map((p) => `<div class="rw-bar" style="height:${Math.max(p, 4)}%"></div>`).join('')}</div>
+    <div class="report-focus">
+      <div class="report-focus-head"><b>🎯 ${r.focusTotal}p</b><span>${t('yearReportFocus')}</span>${topTaskHtml ? `<span class="report-focus-top">${topTaskHtml}</span>` : ''}</div>
+      ${focusReportBars(r.focusByMonth, (i) => shortMonth(i))}
+    </div>
+    <div class="report-quarters">
+      <h3 class="report-quarters-title">${t('yearReportQuarter')}</h3>
+      <div class="report-quarters-grid">
+        ${r.focusByQuarter.map((m, q) => `<div class="report-quarter${m ? '' : ' is-zero'}">
+          <b>${t('quarterShort', { n: q + 1 })}</b>
+          <strong>${m}p</strong>
+          <small>${r.focusTotal ? Math.round((m / r.focusTotal) * 100) : 0}%</small>
+        </div>`).join('')}
+      </div>
+    </div>`;
 }
 
 function openYearReportModal() {
@@ -2589,8 +2842,10 @@ function seedTasks(pct) {
 function defaultState() {
   const ti = nowInfo();
   return {
-    view: 'overview',
+    view: 'today',
     currentWeek: ti.inRange ? ti.week : 1,
+    dayWeek: ti.inRange ? ti.week : 1,
+    dayDay: ti.inRange ? ti.dayInWeek : 0,
     goalTab: 'priority',
     monthKey: monthKey(),
     monthlyGoals: GOAL_DEFS.map(([text, kind, done], i) => ({ id: 'g' + i, text, kind, done })),
@@ -2631,7 +2886,11 @@ function loadState() {
     if (!s.reflections || !Array.isArray(s.reflections.weeks) || s.reflections.weeks.length !== NUM_WEEKS) s.reflections = defaultState().reflections;
     if (!s.goalTab) s.goalTab = 'priority';
     if (typeof s.currentWeek !== 'number' || s.currentWeek < 1 || s.currentWeek > NUM_WEEKS) s.currentWeek = 1;
-    if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar') s.view = 'overview';
+    // Migration: vị trí Xem ngày (tuần + ngày trong tuần) — mặc định về hôm nay nếu hợp lệ
+    const tiMig = nowInfo();
+    if (typeof s.dayWeek !== 'number' || s.dayWeek < 1 || s.dayWeek > NUM_WEEKS) s.dayWeek = tiMig.inRange ? tiMig.week : 1;
+    if (typeof s.dayDay !== 'number' || s.dayDay < 0 || s.dayDay > 6) s.dayDay = tiMig.inRange ? tiMig.dayInWeek : 0;
+    if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar' && s.view !== 'today' && s.view !== 'day') s.view = 'today';
     // Migration: task cũ thiếu tags → mảng rỗng; thiếu remind → tắt; thiếu uid → gán uid cố định
     // (uid là nền tảng để carry-over theo dõi task qua việc xoá/chèn task phía trước).
     let tasksDirty = false;
@@ -2691,8 +2950,10 @@ function hasAccount() {
 function emptyState() {
   const ti = nowInfo();
   return {
-    view: 'overview',
+    view: 'today',
     currentWeek: ti.inRange ? ti.week : 1,
+    dayWeek: ti.inRange ? ti.week : 1,
+    dayDay: ti.inRange ? ti.dayInWeek : 0,
     goalTab: 'priority',
     monthKey: monthKey(),
     monthlyGoals: [],
@@ -3671,11 +3932,16 @@ function monthlyReportData() {
   });
   let activeDays = 0;
   for (let d = 0; d < NUM_DAYS; d++) if (dayAggregate(d) > 0) activeDays++;
+  // Phase 7: thống kê focus của tháng (phút/ngày gộp theo tuần + top task)
+  const focusTotal = focusMonthMinutes();
+  const focusByWeek = state.weeks.map((w) => focusWeekMinutes(w.n).reduce((a, b) => a + b, 0));
+  const topTask = topFocusTasksInMonth(1)[0] || null;
   return {
     y: PLAN_YEAR, m: PLAN_MONTH,
     goalPct: ms.pct, goalDone: ms.done, goalTotal: ms.total,
     habitAvg, top, rec, activeDays, numDays: NUM_DAYS,
     weekPcts: state.weeks.map((w) => weekStats(w).pct),
+    focusTotal, focusByWeek, topTask,
   };
 }
 
@@ -3697,8 +3963,14 @@ function renderReportModal() {
       <div class="report-cell"><b>🔥 ${r.top ? r.top.s.cur : 0}</b><span>${t('reportTopHabit')} · ${topName}</span></div>
       <div class="report-cell"><b>🏆 ${r.rec ? r.rec.s.best : 0}</b><span>${t('reportRecord')} · ${recName}</span></div>
       <div class="report-cell"><b>${r.activeDays}/${r.numDays}</b><span>${t('reportActive')}</span></div>
+      <div class="report-cell"><b>🎯 ${r.focusTotal}p</b><span>${t('reportFocusMonth')}</span></div>
+      <div class="report-cell"><b>⭐ ${r.topTask ? taskFocusMinLabel(r.topTask.secs) : '—'}</b><span>${t('reportFocusTop')}</span></div>
     </div>
-    <div class="report-weekbars" aria-hidden="true">${r.weekPcts.map((p) => `<div class="rw-bar" style="height:${Math.max(p, 4)}%"></div>`).join('')}</div>`;
+    <div class="report-weekbars" aria-hidden="true">${r.weekPcts.map((p) => `<div class="rw-bar" style="height:${Math.max(p, 4)}%"></div>`).join('')}</div>
+    <div class="report-focus">
+      <div class="report-focus-head"><b>🎯 ${r.focusTotal}p</b><span>${t('reportFocusMonth')}</span>${r.topTask ? `<span class="report-focus-top">${t('reportFocusTop')}: ${esc((r.topTask.tk.text || '…').slice(0, 20))} · ${taskFocusMinLabel(r.topTask.secs)}</span>` : ''}</div>
+      ${focusReportBars(r.focusByWeek, (i) => String(i + 1))}
+    </div>`;
 }
 
 function openReportModal() {
@@ -3841,7 +4113,24 @@ function weeklyReportData(w) {
   });
   let bestDay = 0;
   habitByDay.forEach((p, i) => { if (p > habitByDay[bestDay]) bestDay = i; });
-  return { n: w.n, pct: st.pct, done: st.done, inProg: st.inProg, total: st.total, habitByDay, top, topN, bestDay };
+  // Phase 7: thống kê focus của tuần
+  const focusByDay = focusWeekMinutes();
+  const focusTotal = focusByDay.reduce((a, b) => a + b, 0);
+  const topTask = topFocusTasksInWeek(w, 1)[0] || null;
+  let bestFocusDay = 0;
+  focusByDay.forEach((m, i) => { if (m > focusByDay[bestFocusDay]) bestFocusDay = i; });
+  return { n: w.n, pct: st.pct, done: st.done, inProg: st.inProg, total: st.total, habitByDay, top, topN, bestDay, focusByDay, focusTotal, topTask, bestFocusDay };
+}
+
+// Dải cột focus cho báo cáo — có nhãn dưới mỗi cột, hiển thị empty state khi chưa có phiên.
+function focusReportBars(values, labelFn) {
+  const max = Math.max(...values, 1);
+  const has = values.some((v) => v > 0);
+  if (!has) return `<p class="report-focus-empty">${t('focusChartEmpty')}</p>`;
+  return `<div class="report-focus-bars">
+    <div class="report-weekbars" aria-hidden="true">${values.map((v) => `<div class="rw-bar${v > 0 ? '' : ' is-zero'}" style="height:${Math.max(v > 0 ? 10 : 3, Math.round((v / max) * 100))}%"></div>`).join('')}</div>
+    <div class="report-focus-labels">${values.map((v, i) => `<span>${labelFn(i)}</span>`).join('')}</div>
+  </div>`;
 }
 
 function renderWeekReportModal() {
@@ -3863,8 +4152,14 @@ function renderWeekReportModal() {
       <div class="report-cell"><b>${r.total}</b><span>${t('weekReportTotal')}</span></div>
       <div class="report-cell"><b>🔥 ${r.topN}</b><span>${t('weekReportTopHabit')} · ${topName}</span></div>
       <div class="report-cell"><b>⭐ ${t('weekReportDayT', { d: r.bestDay + 1 })}</b><span>${t('weekReportBestDay')} · ${r.habitByDay[r.bestDay]}%</span></div>
+      <div class="report-cell"><b>🎯 ${r.focusTotal}p</b><span>${t('reportFocusWeek')}</span></div>
+      <div class="report-cell"><b>⭐ ${esc(dayLabelShort(r.bestFocusDay))}</b><span>${t('reportFocusBestDay')} · ${r.focusByDay[r.bestFocusDay]}p</span></div>
     </div>
-    <div class="report-weekbars" aria-hidden="true">${r.habitByDay.map((p) => `<div class="rw-bar" style="height:${Math.max(p, 4)}%"></div>`).join('')}</div>`;
+    <div class="report-weekbars" aria-hidden="true">${r.habitByDay.map((p) => `<div class="rw-bar" style="height:${Math.max(p, 4)}%"></div>`).join('')}</div>
+    <div class="report-focus">
+      <div class="report-focus-head"><b>🎯 ${r.focusTotal}p</b><span>${t('reportFocusWeek')}</span>${r.topTask ? `<span class="report-focus-top">${t('reportFocusTop')}: ${esc((r.topTask.tk.text || '…').slice(0, 20))} · ${taskFocusMinLabel(r.topTask.secs)}</span>` : ''}</div>
+      ${focusReportBars(r.focusByDay, dayLabelShort)}
+    </div>`;
 }
 
 function openWeekReportModal() {
@@ -4229,7 +4524,7 @@ function beginTagEdit(btn) {
   input.maxLength = 60;
   input.value = (task.tags || []).join(', ');
   input.placeholder = t('tagPh');
-  row.insertBefore(input, btn.nextSibling);
+  insertBeforeTaskActions(btn, input);
   input.focus();
   input.select();
   const commit = () => {
@@ -4633,6 +4928,7 @@ function renderWeek() {
           <div class="pomo-widget-stats" id="pomoWidgetStats"></div>
           <div class="pomo-tomato-wrap" id="pomoWidgetTomato"></div>
         </div>
+        ${focusChartCardHTML(w)}
         <div class="card reflection sub week-reflection-card">${reflectionHTML('w' + w.n, REFLECT_PROMPTS_WEEK())}</div>
       </section>
       <nav class="week-day-selector" aria-label="${t('weekDaySelectorAria')}">
@@ -4703,7 +4999,7 @@ function weeklyGoalsHTML(w) {
     </div>`;
 }
 
-function dayColumnHTML(w, di, isToday) {
+function dayColumnHTML(w, di, isToday, inDayView) {
   const d = w.days[di];
   const p = dayPct(d);
   const pri = d.tasks.map((t, ti) => ({ t, ti })).filter((x) => x.t.kind === 'priority');
@@ -4717,6 +5013,7 @@ function dayColumnHTML(w, di, isToday) {
       <div class="week-day-status">
         ${isToday ? `<span class="today-badge">${t('todayBadge')}</span>` : ''}
         <strong data-role="day-pct" data-day="${di}">${p}%</strong>
+        ${inDayView ? '' : `<button type="button" class="btn-day-open" data-action="open-day" data-week="${w.n}" data-day="${di}" title="${t('dayOpenT')}" aria-label="${t('dayOpenT')}">${window.TaskFlowUI.icon('expand')}</button>`}
       </div>
     </header>
     <div class="week-day-progress" data-role="day-progress" data-day="${di}" role="progressbar" aria-label="${dayLabel(di)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}"><span data-role="day-progress-fill" style="width:${p}%"></span></div>
@@ -4749,21 +5046,438 @@ function dayColumnHTML(w, di, isToday) {
   </section>`;
 }
 
+/* ---------- Xem ngày (Day view full-screen) ---------- */
+
+// Chỉ số 0-based của ngày trong tháng (theo d.date "D/M") — dùng cho habits; -1 nếu ngoài tháng
+function dayOfMonthIndex(d) {
+  const m = /^(\d{1,2})\//.exec(String(d.date || ''));
+  return m ? +m[1] - 1 : -1;
+}
+function dayHabitsHTML(d, di) {
+  const dayIdx = dayOfMonthIndex(d);
+  if (dayIdx < 0 || dayIdx >= NUM_DAYS) return ''; // ngày thuộc tháng khác (lưới tuần) → ẩn habits
+  const habits = Array.isArray(state.habits) ? state.habits : [];
+  if (!habits.length) return `<p class="week-empty-state">${t('weekHabitsEmpty')}</p>`;
+  const rows = habits.map((h) => {
+    const on = Array.isArray(h.days) && h.days[dayIdx] === true;
+    const skipped = Array.isArray(h.skipDays) && h.skipDays.includes(dayIdx);
+    if (skipped) {
+      // Ngày bị bỏ qua (skipDays) → không cho tích, hiển thị mờ — nhất quán với overview/tuần
+      return `<div class="day-habit-row skipped" title="${t('habitSkipped', { name: h.name })}"><span class="day-habit-skip" aria-hidden="true">–</span><span class="day-habit-name">${esc(h.name)}</span></div>`;
+    }
+    return `<div class="day-habit-row${on ? ' done' : ''}">
+      ${checkboxHTML('', on, `data-action="habit" data-id="${esc(h.id)}" data-day="${dayIdx}"`, window.TaskFlowUI.checkboxLabel('habit', h.name, `${dayLabel(di)} ${d.date}/${d.yy}`))}
+      <span class="day-habit-name">${esc(h.name)}</span>
+    </div>`;
+  }).join('');
+  return `<div class="day-habit-list">${rows}</div>`;
+}
+function renderDay() {
+  const el = document.getElementById('view-day');
+  if (!el) return;
+  const w = state.weeks[state.dayWeek - 1];
+  if (!w) { el.innerHTML = ''; return; }
+  const di = Math.max(0, Math.min(6, state.dayDay));
+  const d = w.days[di];
+  const isToday = isDayToday(d);
+  el.innerHTML = `
+    <div class="day-view-page">
+      <header class="day-view-header">
+        <div class="day-view-heading">
+          <p class="day-view-eyebrow">${t('dayViewEyebrow')}</p>
+          <h1 class="day-view-title">${dayLabel(di)} · ${esc(d.date)}/${d.yy}</h1>
+          <p class="day-view-subtitle">${t('dayViewSubtitle')}${isToday ? ` <span class="today-badge">${t('todayBadge')}</span>` : ''}</p>
+        </div>
+        <div class="day-view-actions">
+          <button type="button" class="btn-nav" data-action="day-prev" title="${t('prevDay')}" aria-label="${t('prevDay')}">${t('prevDay')}</button>
+          <button type="button" class="btn-nav" data-action="day-next" title="${t('nextDay')}" aria-label="${t('nextDay')}">${t('nextDay')}</button>
+          <button type="button" class="pop-btn day-view-back" data-action="close-day" title="${t('backToWeek')}" aria-label="${t('backToWeek')}">${window.TaskFlowUI.icon('week')}<span>${t('backToWeek')}</span></button>
+        </div>
+      </header>
+      <section class="day-view-habits" aria-label="${t('weekHabitsHeading')}">
+        <h2 class="week-section-title">${t('weekHabitsHeading')}</h2>
+        ${dayHabitsHTML(d, di)}
+      </section>
+      ${dayColumnHTML(w, di, isToday, true)}
+    </div>`;
+}
+function openDay(week, day) {
+  const wk = Number.isFinite(+week) ? +week : 1;
+  const dd = Number.isFinite(+day) ? +day : 0;
+  state.dayWeek = Math.min(NUM_WEEKS, Math.max(1, wk));
+  state.dayDay = Math.max(0, Math.min(6, dd));
+  // Truyền week vào setView để đồng bộ currentWeek + dựng lại nav (highlight tab tuần đúng)
+  setView('day', state.dayWeek);
+}
+function goDay(offset) {
+  const idx = (state.dayWeek - 1) * 7 + state.dayDay + offset;
+  const total = NUM_WEEKS * 7;
+  const c = Math.max(0, Math.min(total - 1, idx));
+  state.dayWeek = Math.floor(c / 7) + 1;
+  state.dayDay = c % 7;
+  setView('day', state.dayWeek);
+}
+
+/* ============================ Phase 3: Today Dashboard ============================ */
+
+function todayGreeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return t('todayGreetingMorning');
+  if (h >= 12 && h < 18) return t('todayGreetingAfternoon');
+  return t('todayGreetingEvening');
+}
+
+function todayWeekdayLabel() {
+  return new Date().toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function renderToday() {
+  const el = document.getElementById('view-today');
+  if (!el) return;
+  const ti = nowInfo();
+  // Đang xem tháng khác (viewedMonth !== null) → "hôm nay" không thuộc tháng đang xem:
+  // ẩn tasks/habits để không hiển thị nhầm ngày tương ứng trong lịch tháng khác.
+  const inTodayMonth = viewedMonth === null && ti.inRange;
+  const w = inTodayMonth ? state.weeks[ti.week - 1] : null;
+  const d = w && w.days[ti.dayInWeek];
+  const tasks = d && Array.isArray(d.tasks) ? d.tasks : [];
+  const done = tasks.filter((tk) => tk.done).length;
+  const total = tasks.length;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const habits = Array.isArray(state.habits) ? state.habits : [];
+  // Habit.days[] được index theo ngày-trong-tháng (0-based) — nhất quán với overview/week/day view.
+  // KHÔNG dùng ti.dayIdx (số ngày từ PLAN_START neo theo thứ của tuần đầu) — sẽ lệch vài ngày.
+  const habitIdx = viewedMonth === null && ti.inRange ? new Date().getDate() - 1 : -1;
+  const habitsToday = habits.filter((h) => habitIdx >= 0 && !(Array.isArray(h.skipDays) && h.skipDays.includes(habitIdx)));
+  const habitsDone = habitsToday.filter((h) => Array.isArray(h.days) && h.days[habitIdx] === true).length;
+
+  const taskRows = tasks.length
+    ? tasks.map((tk, i) => {
+        const timed = tk.remind && tk.remind.enabled && tk.remind.time;
+        return `<div class="today-task ${tk.done ? 'done' : ''}">
+        ${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}"`, window.TaskFlowUI.checkboxLabel('task', tk.text, todayWeekdayLabel()))}
+        <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: i + 1 })}">${esc(tk.text ?? '')}</span>
+        ${tk.kind === 'priority' ? `<span class="badge badge-accent today-prio">${t('todayPriority')}</span>` : ''}
+        ${timed ? `<span class="today-task-time">${esc(timed)}</span>` : ''}
+        ${tk.done ? '' : `<button type="button" class="btn-del" data-action="deltask" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">✕</button>`}
+      </div>`;
+      }).join('')
+    : `<div class="today-empty"><p class="today-empty-title">${t('todayEmpty')}</p><p class="today-empty-sub">${t('todayEmptySub')}</p></div>`;
+
+  const habitRows = habitsToday.length
+    ? habitsToday.map((h) => {
+        const on = Array.isArray(h.days) && h.days[habitIdx] === true;
+        return `<div class="today-habit${on ? ' done' : ''}">
+        ${checkboxHTML('', on, `data-action="habit" data-id="${esc(h.id)}" data-day="${habitIdx}"`, window.TaskFlowUI.checkboxLabel('habit', h.name, todayWeekdayLabel()))}
+        <span class="today-habit-name">${esc(h.name)}</span>
+        <span class="today-habit-streak" title="${t('overviewMetricStreakMeta')}">🔥<span>${habitStreakCached(h).cur}</span></span>
+      </div>`;
+      }).join('')
+    : `<p class="today-habits-empty">${t('todayHabitsEmpty')}</p>`;
+
+  const focusMinutes = totalFocusMinutesToday();
+  el.innerHTML = `<div class="today-page">
+    <header class="today-header">
+      <p class="today-greeting">${esc(todayGreeting())}</p>
+      <h1 class="today-date">${esc(todayWeekdayLabel())}</h1>
+    </header>
+    <div class="today-grid">
+      <div class="today-main">
+        <section class="today-card today-tasks-card" aria-label="${t('todayTasksTitle')}">
+          <div class="today-card-head">
+            <h2 class="today-card-title">${t('todayTasksTitle')}</h2>
+            <span class="today-count" data-role="today-count">${done}/${total}</span>
+          </div>
+          <div class="today-progress" role="progressbar" aria-label="${t('todayProgress')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+            <span class="today-progress-fill" data-role="today-progress-fill" style="width:${pct}%"></span>
+          </div>
+          <p class="today-progress-label" data-role="today-progress-label">${t('todayCompleted', { done, total })}</p>
+          <div class="today-task-list" data-role="today-task-list">${taskRows}</div>
+          <button type="button" class="btn-add-today" data-action="today-addtask" aria-label="${t('todayAddTask')}">＋ ${t('todayAddTask')}</button>
+        </section>
+      </div>
+      <aside class="today-side">
+        <section class="today-card" aria-label="${t('todayHabitsTitle')}">
+          <div class="today-card-head">
+            <h2 class="today-card-title">${t('todayHabitsTitle')}</h2>
+            <span class="today-count">${habitsDone}/${habitsToday.length}</span>
+          </div>
+          <div class="today-habit-list" data-role="today-habit-list">${habitRows}</div>
+        </section>
+        <section class="today-card today-focus-card" aria-label="${t('todayFocusTitle')}">
+          <div class="today-card-head">
+            <h2 class="today-card-title">${t('todayFocusTitle')}</h2>
+          </div>
+          <div class="today-focus-time">${formatFocusTime(focusMinutes)}</div>
+          <p class="today-focus-tip">${t('todayFocusTip')}</p>
+          <button type="button" class="button button-primary today-focus-btn" data-action="focus">${window.TaskFlowUI.icon('focus')}<span>${t('todayFocusStart')}</span></button>
+        </section>
+      </aside>
+    </div>
+  </div>`;
+}
+
+function totalFocusMinutesToday() {
+  const log = loadPomoLog();
+  const k = pomoDateKey(new Date());
+  const entry = log[k];
+  return entry && typeof entry.secs === 'number' ? Math.round(entry.secs / 60) : 0;
+}
+
+function formatFocusTime(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
+}
+
 function taskRowHTML(wn, di, ti, mod, task, pos) {
   const tags = Array.isArray(task.tags) ? task.tags : [];
+  const timed = task.remind && task.remind.enabled && task.remind.time;
+  const repeated = task.repeat && task.repeat.freq;
+  // Meta line: giờ (remind) · badge P1 · indicator lặp · hạn chót — hiển thị gọn dưới text, chỉ khi có thông tin
+  const metaBits = [];
+  if (task.kind === 'priority') metaBits.push(`<span class="task-prio badge badge-accent">${t('taskPriorityLabel')}</span>`);
+  if (timed) metaBits.push(`<span class="task-meta-time" title="${t('remindTaskAria')}">${window.TaskFlowUI.icon('bell')}<span>${esc(timed)}</span></span>`);
+  if (repeated) metaBits.push(`<span class="task-meta-repeat" title="${t('taskMetaRepeat')}">${window.TaskFlowUI.icon('repeat')}</span>`);
+  if (task.deadline) metaBits.push(`<span class="task-meta-deadline" title="${esc(fmtDeadline(task.deadline))}">${window.TaskFlowUI.icon('calendar')}<span>${esc(fmtDeadline(task.deadline))}</span></span>`);
+  if (taskFocusSecs(task) > 0) metaBits.push(`<span class="task-meta-focus" title="${t('focusLogTotal', { n: Math.round(taskFocusSecs(task) / 60) })}">${window.TaskFlowUI.icon('focus')}<span>${esc(formatFocusTime(Math.round(taskFocusSecs(task) / 60)))}</span></span>`);
+  const meta = metaBits.length ? `<span class="task-meta">${metaBits.join('')}</span>` : '';
   return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}${task.carriedFrom ? ' carried' : ''}" draggable="true" data-drag="task" data-week="${wn}" data-day="${di}" data-task="${ti}" data-kind="${task.kind}" data-pos="${pos ?? 0}" title="${t('dragHint')}" aria-label="${t('dragHint')}">
     ${checkboxHTML(mod, task.done, `data-action="task" data-week="${wn}" data-day="${di}" data-task="${ti}"`, window.TaskFlowUI.checkboxLabel('task', task.text, `${t('weekN', { n: wn })}, ${dayLabel(di)}`))}
     ${task.carriedFrom ? `<span class="carried-badge" title="${t('carriedFrom', { date: carriedDateLabel(task.carriedFrom) })}" aria-label="${t('carriedFrom', { date: carriedDateLabel(task.carriedFrom) })}">↳</span>` : ''}
-    <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${wn}" data-day="${di}" data-task="${ti}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: ti + 1 })}">${esc(task.text ?? '')}</span>
+    <span class="task-main">
+      <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${wn}" data-day="${di}" data-task="${ti}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: ti + 1 })}">${esc(task.text ?? '')}</span>
+      ${meta}
+    </span>
     ${tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : ''}
     <span class="task-row-actions">
-      <span class="dotted-line" aria-hidden="true"></span>
-      <button type="button" class="btn-tag" data-action="remind-task" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('remindTaskAria')}" aria-label="${t('remindTaskAria')}">🔔${task.remind && task.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
-      <button type="button" class="btn-tag" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('tagAdd')}" aria-label="${t('tagAria')}">🏷️</button>
-      <button type="button" class="btn-tag" data-action="repeat-edit" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('repeatTitle')}" aria-label="${t('repeatTitle')}">🔁${task.repeat && task.repeat.freq ? '<sup class="remind-dot"></sup>' : ''}</button>
-      <button type="button" class="btn-del" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}" aria-label="${t('delTaskAria', { n: ti + 1 })}" title="${t('delTaskAria', { n: ti + 1 })}">✕</button>
+      <button type="button" class="task-focus-btn" data-action="focus-task" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('taskFocusBtn')}" aria-label="${t('taskFocusBtn')}">${window.TaskFlowUI.icon('focus')}</button>
+      <button type="button" class="task-menu-open" data-action="task-menu" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('taskMenu')}" aria-label="${t('taskMenu')}" aria-haspopup="menu" aria-expanded="false">${window.TaskFlowUI.icon('more')}</button>
+      <span class="task-menu" role="menu" hidden>
+        <button type="button" role="menuitem" data-action="task-detail" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('data')} <span>${t('taskDetail')}</span></button>
+        <button type="button" role="menuitem" data-action="remind-task" data-week="${wn}" data-day="${di}" data-task="${ti}">🔔 <span>${t('remindTitle')}</span>${task.remind && task.remind.enabled ? ' <span class="task-menu-on" aria-hidden="true">●</span>' : ''}</button>
+        <button type="button" role="menuitem" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">🏷️ <span>${t('tagAdd')}</span></button>
+        <button type="button" role="menuitem" data-action="repeat-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">🔁 <span>${t('repeatTitle')}</span>${repeated ? ' <span class="task-menu-on" aria-hidden="true">●</span>' : ''}</button>
+        <button type="button" role="menuitem" data-action="task-duplicate" data-week="${wn}" data-day="${di}" data-task="${ti}">⧉ <span>${t('taskDuplicate')}</span></button>
+        <button type="button" role="menuitem" class="danger" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}">✕ <span>${t('delTaskAria', { n: ti + 1 })}</span></button>
+      </span>
     </span>
   </div>`;
+}
+
+/* ============================ Phase 5: Task Detail Drawer ============================ */
+
+// Con trỏ tới task đang xem trong drawer: { week, day, task } — index vào state (ổn định với uid).
+let taskDetailRef = null;
+
+function getTaskDetailTarget() {
+  if (!taskDetailRef) return null;
+  const w = state.weeks[taskDetailRef.week - 1];
+  if (!w) return null;
+  const d = w.days[taskDetailRef.day];
+  if (!d) return null;
+  const tk = d.tasks[taskDetailRef.task];
+  return tk ? { w, d, tk } : null;
+}
+
+function openTaskDetail(week, day, task) {
+  const opener = document.querySelector(`[data-action="task-detail"][data-week="${week}"][data-day="${day}"][data-task="${task}"]`);
+  taskDetailRef = { week, day, task };
+  renderTaskDetail();
+  TaskFlowUI.openDrawer('taskDrawer', opener);
+  const b = document.getElementById('taskDetailBackdrop');
+  if (b) b.hidden = false;
+}
+
+function closeTaskDetail() {
+  TaskFlowUI.closeDrawer('taskDrawer');
+  const b = document.getElementById('taskDetailBackdrop');
+  if (b) b.hidden = true;
+  taskDetailRef = null;
+}
+
+// Đồng bộ row task bên dưới sau khi sửa field trong drawer (không đóng drawer).
+function refreshTaskRowAfterEdit() {
+  if (state.view === 'today') renderToday();
+  else if (state.view === 'week') renderWeek();
+  save();
+}
+
+function renderTaskDetail() {
+  const drawer = document.getElementById('taskDrawer');
+  const body = drawer && drawer.querySelector('[data-role="td-body"]');
+  const kicker = document.getElementById('taskDrawerKicker');
+  const tgt = getTaskDetailTarget();
+  if (!drawer) return;
+  if (!tgt) { if (body) body.innerHTML = ''; if (kicker) kicker.textContent = ''; return; }
+  const { w, tk } = tgt;
+  const timed = !!(tk.remind && tk.remind.enabled);
+  const tags = Array.isArray(tk.tags) ? tk.tags : [];
+  const subs = Array.isArray(tk.subtasks) ? tk.subtasks : [];
+  const rep = tk.repeat && tk.repeat.freq ? tk.repeat.freq : '';
+  if (kicker) kicker.textContent = `${t('weekN', { n: w.n })} · ${dayLabel(taskDetailRef.day)}`;
+  const subDone = subs.filter((s) => s.done).length;
+  body.innerHTML = `
+      <div class="td-text-wrap">
+        <span class="td-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="td-text" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: taskDetailRef.task + 1 })}">${esc(tk.text ?? '')}</span>
+      </div>
+      <div class="td-focus-row">
+        <span class="td-focus-stats" title="${t('focusLogTotal', { n: Math.round(taskFocusSecs(tk) / 60) })}">${window.TaskFlowUI.icon('focus')}<span>${taskFocusSecs(tk) > 0 ? esc(formatFocusTime(Math.round(taskFocusSecs(tk) / 60))) : t('focusNoSessions')}</span></span>
+        <button type="button" class="td-focus-btn" data-action="focus-task" data-week="${taskDetailRef.week}" data-day="${taskDetailRef.day}" data-task="${taskDetailRef.task}">${window.TaskFlowUI.icon('focus')}<span>${t('taskFocusBtn')}</span></button>
+      </div>
+      <div class="task-drawer-fields">
+        <label class="td-field">
+          <span class="td-field-label">${t('taskDetailDate')}</span>
+          <select data-action="td-date" aria-label="${t('taskDetailDate')}">
+            ${[0, 1, 2, 3, 4, 5, 6].map((di) => `<option value="${di}" ${di === taskDetailRef.day ? 'selected' : ''}>${dayLabel(di)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="td-field">
+          <span class="td-field-label">${t('taskDetailDeadline')}</span>
+          <input type="date" data-action="td-deadline" value="${esc(tk.deadline ?? '')}" aria-label="${t('taskDetailDeadline')}">
+        </label>
+        <div class="td-field">
+          <span class="td-field-label">${t('taskDetailTime')}</span>
+          <span class="td-time-row">
+            <label class="td-toggle"><input type="checkbox" data-action="td-time-toggle" ${timed ? 'checked' : ''} aria-label="${t('remindTaskAria')}"><span>🔔</span></label>
+            <input type="time" data-action="td-time" value="${esc((tk.remind && tk.remind.time) || '20:00')}" ${timed ? '' : 'disabled'} aria-label="${t('taskDetailTime')}">
+          </span>
+        </div>
+        <div class="td-field">
+          <span class="td-field-label">${t('taskDetailDuration')}</span>
+          <input type="number" min="0" step="5" value="${tk.duration ?? ''}" placeholder="—" data-action="td-duration" aria-label="${t('taskDetailDuration')}">
+        </div>
+        <div class="td-field">
+          <span class="td-field-label">${t('taskDetailPriority')}</span>
+          <label class="td-toggle td-prio"><input type="checkbox" data-action="td-prio" ${tk.kind === 'priority' ? 'checked' : ''} aria-label="${t('taskDetailPriority')}"><span class="td-prio-badge">${t('taskPriorityLabel')}</span></label>
+        </div>
+        <label class="td-field">
+          <span class="td-field-label">${t('taskDetailRepeat')}</span>
+          <select data-action="td-repeat" aria-label="${t('taskDetailRepeat')}">
+            <option value="" ${rep === '' ? 'selected' : ''}>${t('repeatOff')}</option>
+            <option value="daily" ${rep === 'daily' ? 'selected' : ''}>${t('repeatDaily')}</option>
+            <option value="weekly" ${rep === 'weekly' ? 'selected' : ''}>${t('repeatWeekly')}</option>
+            <option value="monthly" ${rep === 'monthly' ? 'selected' : ''}>${t('repeatMonthly')}</option>
+          </select>
+        </label>
+      </div>
+      <div class="td-field">
+        <span class="td-field-label">${t('taskDetailTags')}</span>
+        <div class="td-tags">
+          ${tags.length ? tags.map((tg) => `<span class="tag-chip td-tag">#${esc(tg)}<button type="button" class="td-tag-del" data-action="td-tag-del" data-tag="${esc(tg)}" aria-label="${t('tagDelAria', { tag: tg })}" title="${t('tagDelAria', { tag: tg })}">✕</button></span>`).join('') : `<span class="td-empty">—</span>`}
+        </div>
+        <span class="td-add-row"><input type="text" data-role="td-tag-input" placeholder="${t('tagAdd')}" maxlength="40" aria-label="${t('tagAdd')}"><button type="button" class="td-add-btn" data-action="td-tag-add" aria-label="${t('tagAdd')}">＋</button></span>
+      </div>
+      <div class="td-field">
+        <span class="td-field-label">${t('taskDetailNotes')}</span>
+        <textarea class="td-note" data-action="td-note" rows="3" placeholder="—" aria-label="${t('taskDetailNotes')}">${esc(tk.notes ?? '')}</textarea>
+      </div>
+      <div class="td-field">
+        <span class="td-field-label">${t('taskDetailSubtasks')}${subs.length ? ` <span class="td-sub-count">${subDone}/${subs.length}</span>` : ''}</span>
+        <div class="td-subtasks">
+          ${subs.length ? subs.map((s, i) => `<div class="td-subtask ${s.done ? 'done' : ''}">${checkboxHTML('blue', s.done, `data-action="subtask-toggle" data-sub="${i}"`, window.TaskFlowUI.checkboxLabel('subtask', s.text, `${t('taskDetailSubtasks')} ${i + 1}`))}<span class="td-subtask-text">${esc(s.text)}</span><button type="button" class="td-subtask-del" data-action="subtask-del" data-sub="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">✕</button></div>`).join('') : `<p class="td-empty">${t('taskDetailSubtaskPh')}</p>`}
+        </div>
+        <span class="td-add-row"><input type="text" data-role="td-subtask-input" placeholder="${t('taskDetailSubtaskPh')}" maxlength="120" aria-label="${t('taskDetailAddSubtask')}"><button type="button" class="td-add-btn" data-action="subtask-add" aria-label="${t('taskDetailAddSubtask')}">＋</button></span>
+      </div>
+      <button type="button" class="td-delete danger" data-action="td-delete" data-week="${taskDetailRef.week}" data-day="${taskDetailRef.day}" data-task="${taskDetailRef.task}">${t('taskDetailDelete')}</button>`;
+  bindTaskDetailEvents(drawer);
+}
+
+// Gắn listener riêng cho các control 'change'/'input' (không qua dispatcher click).
+function bindTaskDetailEvents(drawer) {
+  const txt = drawer.querySelector('[data-role="td-text"]');
+  if (txt) {
+    txt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); txt.blur(); }
+    });
+    txt.addEventListener('blur', () => {
+      const g = getTaskDetailTarget();
+      if (!g) return;
+      const v = (txt.innerText || '').replace(/\s+$/g, '');
+      if (g.tk.text !== v) { g.tk.text = v; refreshTaskRowAfterEdit(); trackEvent('edit_task_text'); }
+    });
+  }
+  const timeIn = drawer.querySelector('[data-action="td-time"]');
+  if (timeIn) {
+    timeIn.addEventListener('change', () => {
+      const g = getTaskDetailTarget();
+      if (!g) return;
+      if (!g.tk.remind) g.tk.remind = { enabled: false, time: '20:00' };
+      g.tk.remind.time = timeIn.value || '20:00';
+      refreshTaskRowAfterEdit();
+    });
+  }
+  const durIn = drawer.querySelector('[data-action="td-duration"]');
+  if (durIn) {
+    durIn.addEventListener('change', () => {
+      const g = getTaskDetailTarget();
+      if (!g) return;
+      g.tk.duration = durIn.value === '' ? undefined : Math.max(0, +durIn.value || 0);
+      refreshTaskRowAfterEdit();
+      trackEvent('edit_task_duration');
+    });
+  }
+  const repSel = drawer.querySelector('[data-action="td-repeat"]');
+  if (repSel) {
+    repSel.addEventListener('change', () => {
+      const g = getTaskDetailTarget();
+      if (!g) return;
+      g.tk.repeat = repSel.value ? { freq: repSel.value, every: 1 } : null;
+      refreshTaskRowAfterEdit();
+      trackEvent('repeat_set');
+    });
+  }
+  const dateSel = drawer.querySelector('[data-action="td-date"]');
+  if (dateSel) {
+    dateSel.addEventListener('change', () => {
+      const g = getTaskDetailTarget();
+      const toDay = +dateSel.value;
+      if (!g || !g.w || toDay === taskDetailRef.day || !window.PlanMath) return;
+      const result = window.PlanMath.moveTaskAcrossDays(g.d.tasks, g.w.days[toDay].tasks, taskDetailRef.task, g.tk.kind || 'regular');
+      if (result.tasksFrom === g.d.tasks && result.tasksTo === g.w.days[toDay].tasks) { dateSel.value = String(taskDetailRef.day); return; }
+      pushUndo();
+      g.d.tasks = result.tasksFrom;
+      g.w.days[toDay].tasks = result.tasksTo;
+      taskDetailRef = { week: taskDetailRef.week, day: toDay, task: g.w.days[toDay].tasks.length - 1 };
+      renderTaskDetail();
+      refreshTaskRowAfterEdit();
+      trackEvent('move_task_across_days');
+    });
+  }
+  const dlIn = drawer.querySelector('[data-action="td-deadline"]');
+  if (dlIn) {
+    dlIn.addEventListener('change', () => {
+      const g = getTaskDetailTarget();
+      if (!g) return;
+      g.tk.deadline = dlIn.value || undefined;
+      refreshTaskRowAfterEdit();
+      trackEvent('edit_task_deadline');
+    });
+  }
+  const subInput = drawer.querySelector('[data-role="td-subtask-input"]');
+  if (subInput) {
+    subInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); const b = drawer.querySelector('[data-action="subtask-add"]'); if (b) b.click(); }
+    });
+  }
+  const tagInput = drawer.querySelector('[data-role="td-tag-input"]');
+  if (tagInput) {
+    tagInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); const b = drawer.querySelector('[data-action="td-tag-add"]'); if (b) b.click(); }
+    });
+  }
+  const noteTa = drawer.querySelector('[data-action="td-note"]');
+  if (noteTa) {
+    // Lưu khi blur (change) thay vì từng phím — tránh ghi localStorage mỗi keystroke
+    noteTa.addEventListener('change', () => {
+      const g = getTaskDetailTarget();
+      if (!g) return;
+      g.tk.notes = noteTa.value;
+      save();
+    });
+  }
 }
 
 /* ============================ Phase 2: Tìm kiếm xuyên tháng ============================ */
@@ -4934,6 +5648,18 @@ function renderCalendar() {
   const entries = calendarDayEntries();
   const dowLbl = t('dayNames');
   const agendaEntries = entries.filter((entry) => entry.currentMonth && calendarVisibleTasks(entry).length);
+  // Phase 8: thống kê focus của tháng đang xem — đọc log MỘT lần, tính cho mọi ô + summary
+  const pomoLog = loadPomoLog();
+  const dayFocusSecs = (date) => { const e = pomoLog[pomoDateKey(date)]; return e && typeof e.secs === 'number' ? e.secs : 0; };
+  const focusEntries = entries.filter((entry) => entry.currentMonth);
+  const monthFocusSecs = focusEntries.reduce((a, e) => a + dayFocusSecs(e.date), 0);
+  let best = null, bestM = 0;
+  focusEntries.forEach((e) => { const m = dayFocusSecs(e.date); if (m > bestM) { bestM = m; best = e; } });
+  const calFocusSummary = `
+    <div class="cal-focus-summary" data-role="cal-focus-summary">
+      <span>🎯 ${t('calFocusMonth', { n: Math.round(monthFocusSecs / 60) })}</span>
+      ${best && bestM > 0 ? `<span>⭐ ${t('calFocusBestDay', { d: best.dayNumber + '/' + (PLAN_MONTH + 1), n: Math.round(bestM / 60) })}</span>` : ''}
+    </div>`;
   el.innerHTML = `<div class="calendar-page">
     <header class="calendar-page-header">
       <div>
@@ -4943,13 +5669,18 @@ function renderCalendar() {
       </div>
       <div class="cal-legend"><span class="dot on"></span> ${t('legendDone')} <span class="dot off"></span> ${t('legendNotDone')}</div>
     </header>
+    ${calFocusSummary}
     ${calendarTagFilterBar()}
     <section class="calendar-grid-desktop" aria-label="${t('viewCalendar')}">
       ${dowLbl.map((day) => `<div class="cal-dow">${day}</div>`).join('')}
-      ${entries.map((entry) => `<article class="cal-cell${entry.today ? ' today' : ''}${entry.currentMonth ? '' : ' outside'}" data-week="${entry.week.n}" data-day="${entry.dayIndex}">
-        <div class="cal-cell-head"><span class="cal-date">${entry.dayNumber}</span><span class="cal-pct" data-role="cal-pct" data-week="${entry.week.n}" data-day="${entry.dayIndex}">${calendarDayPct(entry.day)}%</span></div>
+      ${entries.map((entry) => {
+        const fmin = Math.round(dayFocusSecs(entry.date) / 60);
+        const focusPill = fmin > 0 ? `<span class="cal-focus" title="${t('calFocusAria', { d: entry.date.toLocaleDateString(dateLocale(), { day: 'numeric', month: 'numeric' }), n: fmin })}" aria-label="${t('calFocusAria', { d: entry.date.toLocaleDateString(dateLocale(), { day: 'numeric', month: 'numeric' }), n: fmin })}">🎯 ${fmin}p</span>` : '';
+        return `<article class="cal-cell${entry.today ? ' today' : ''}${entry.currentMonth ? '' : ' outside'}" data-week="${entry.week.n}" data-day="${entry.dayIndex}">
+        <div class="cal-cell-head"><span class="cal-date">${entry.dayNumber}</span><span class="cal-pct" data-role="cal-pct" data-week="${entry.week.n}" data-day="${entry.dayIndex}">${calendarDayPct(entry.day)}%</span>${focusPill}</div>
         <div class="cal-tasks">${calendarTasksHTML(entry)}</div>
-      </article>`).join('')}
+      </article>`;
+      }).join('')}
     </section>
     <section class="calendar-agenda-mobile" aria-labelledby="calendar-agenda-title">
       <h2 id="calendar-agenda-title">${t('calendarAgendaTitle')}</h2>
@@ -5197,6 +5928,343 @@ function pomoWeekSecs() {
   }
   return secs;
 }
+/* ---------- Phase 7: Thống kê focus (biểu đồ tuần + báo cáo) ---------- */
+
+// Số giây focus của một ngày cụ thể (từ pomo log — hợp nhất pomo + task-focus).
+function pomoDaySecs(date) {
+  const log = loadPomoLog();
+  const e = log[pomoDateKey(date)];
+  return e && typeof e.secs === 'number' ? e.secs : 0;
+}
+
+// Phút focus 7 ngày của một tuần (Mon → Sun) — mặc định tuần hiện tại, truyền week để tính tuần khác.
+function focusWeekMinutes(week) {
+  const wn = week ?? state.currentWeek;
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(PLAN_START.getTime() + ((wn - 1) * 7 + i) * 86400000);
+    out.push(Math.round(pomoDaySecs(d) / 60));
+  }
+  return out;
+}
+
+// Tổng phút focus của tháng đang xem (chỉ tính các ngày thuộc tháng — bỏ ô tràn grid).
+function focusMonthMinutes() {
+  let secs = 0;
+  for (let i = 0; i < NUM_DAYS; i++) {
+    const d = new Date(PLAN_START.getTime() + i * 86400000);
+    if (d.getFullYear() === PLAN_YEAR && d.getMonth() === PLAN_MONTH) secs += pomoDaySecs(d);
+  }
+  return Math.round(secs / 60);
+}
+
+// Tổng giây focus của task trong khoảng [startKey, endKey] (date key 'YYYY-MM-DD').
+function taskFocusSecsInRange(tk, startKey, endKey) {
+  return taskFocusLog(tk).filter((e) => e.d >= startKey && e.d <= endKey).reduce((s, e) => s + (e.secs || 0), 0);
+}
+
+// Top N task có thời gian focus nhiều nhất trong tuần (từ task.focusLog của chính tuần đó).
+function topFocusTasksInWeek(w, n) {
+  const start = new Date(PLAN_START.getTime() + (w.n - 1) * 7 * 86400000);
+  const end = new Date(start.getTime() + 6 * 86400000);
+  const sk = pomoDateKey(start), ek = pomoDateKey(end);
+  const acc = [];
+  w.days.forEach((d) => (d.tasks || []).forEach((tk) => {
+    const secs = taskFocusSecsInRange(tk, sk, ek);
+    if (secs > 0) acc.push({ tk, secs });
+  }));
+  acc.sort((a, b) => b.secs - a.secs);
+  return acc.slice(0, n);
+}
+
+/* ---------- Phase 8: Thống kê focus năm + lịch ---------- */
+
+// Phút focus của một tháng bất kỳ (theo ngày thật của tháng — không bị ảnh hưởng bởi ô tràn grid).
+function focusMonthMinutesFor(y, m) {
+  const dim = new Date(y, m + 1, 0).getDate();
+  let secs = 0;
+  for (let d = 1; d <= dim; d++) secs += pomoDaySecs(new Date(y, m, d));
+  return Math.round(secs / 60);
+}
+
+// Mảng 12 giá trị phút focus của năm — quét log một lần (tránh parse localStorage từng ngày).
+function focusYearByMonth() {
+  const log = loadPomoLog();
+  const out = new Array(12).fill(0);
+  for (const key in log) {
+    const m = String(key).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m || +m[1] !== PLAN_YEAR) continue;
+    const e = log[key];
+    if (!e || typeof e.secs !== 'number') continue;
+    out[+m[2] - 1] += e.secs;
+  }
+  return out.map((s) => Math.round(s / 60));
+}
+
+// Top N task có focus nhiều nhất trong năm (đọc chéo 12 tháng qua monthStateRaw — không tạo state mới).
+function topFocusTasksInYear(y, n) {
+  const prefix = y + '-';
+  const acc = [];
+  for (let m = 0; m < 12; m++) {
+    const s = monthStateRaw(y, m);
+    if (!s || !Array.isArray(s.weeks)) continue;
+    s.weeks.forEach((w) => (w.days || []).forEach((d) => (d.tasks || []).forEach((tk) => {
+      const secs = taskFocusLog(tk).filter((e) => String(e.d || '').startsWith(prefix)).reduce((a, e) => a + (e.secs || 0), 0);
+      if (secs > 0) acc.push({ tk, secs });
+    })));
+  }
+  acc.sort((a, b) => b.secs - a.secs);
+  return acc.slice(0, n);
+}
+
+/* ---------- Phase 9: Thống kê tương quan focus × task ---------- */
+
+// Phạm vi thời gian đang chọn trong modal Thống kê.
+let statsRange = 'month';
+
+// Ngày Thứ 2 đầu tuần (wi = 0-based) của tháng (y,m) — lặp lại phép tính của initPlan.
+function statsWeekStartOf(y, m, wi) {
+  const first = new Date(y, m, 1);
+  const dow = (first.getDay() + 6) % 7; // Thứ 2 = 0
+  return new Date(first.getTime() - dow * 86400000 + wi * 7 * 86400000);
+}
+
+// Danh sách tháng cần quét theo phạm vi đã chọn: [[y, m], ...].
+function statsMonthsForRange(range) {
+  if (range === 'month') return [[PLAN_YEAR, PLAN_MONTH]];
+  if (range === 'quarter') {
+    const qs = Math.floor(PLAN_MONTH / 3) * 3;
+    const out = [];
+    for (let m = qs; m < qs + 3; m++) out.push([PLAN_YEAR, m]);
+    return out;
+  }
+  if (range === 'year') {
+    const out = [];
+    for (let m = 0; m < 12; m++) out.push([PLAN_YEAR, m]);
+    return out;
+  }
+  // 'all': mọi tháng đã có dữ liệu (localStorage planner-YYYY-M + pomo log).
+  const seen = new Set();
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    const mm = k && String(k).match(/^planner-(\d{4})-(\d{1,2})$/);
+    if (mm) seen.add(mm[1] + '-' + (+mm[2] - 1));
+  }
+  const log = loadPomoLog();
+  for (const key in log) {
+    const mm = String(key).match(/^(\d{4})-(\d{2})-/);
+    if (mm) seen.add(mm[1] + '-' + (+mm[2] - 1));
+  }
+  const out = [];
+  seen.forEach((k) => { const [y, m] = k.split('-').map(Number); out.push([y, m]); });
+  out.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  return out;
+}
+
+function statsWeekLabel(y, m, n) {
+  const base = t('weekN', { n });
+  return statsRange === 'quarter' ? `${base} · ${shortMonth(m)}` : base;
+}
+
+function statsMonthLabel(y, m, range) {
+  let label = shortMonth(m);
+  if (range === 'all' && y !== PLAN_YEAR) label += '/' + (y % 100);
+  return label;
+}
+
+// Dữ liệu biểu đồ: mỗi điểm = 1 tuần (tháng/quý) hoặc 1 tháng (năm/toàn bộ).
+// Chỉ đếm các ngày thuộc đúng tháng (y,m) để không đếm trùng ngày giữa các grid liền kề.
+function statsData(range) {
+  const granularity = (range === 'year' || range === 'all') ? 'month' : 'week';
+  const log = loadPomoLog();
+  const points = [];
+  statsMonthsForRange(range).forEach(([y, m]) => {
+    const s = (y === PLAN_YEAR && m === PLAN_MONTH) ? state : monthStateRaw(y, m);
+    if (!s || !Array.isArray(s.weeks)) {
+      // Tháng chỉ có dữ liệu focus (pomo log, chưa có planner state):
+      // vẫn tạo 1 điểm với done = 0 để không mất phút focus.
+      let secs = 0;
+      const dim = new Date(y, m + 1, 0).getDate();
+      for (let d = 1; d <= dim; d++) {
+        const e = log[pomoDateKey(new Date(y, m, d))];
+        if (e && typeof e.secs === 'number') secs += e.secs;
+      }
+      if (secs > 0) points.push({ label: statsMonthLabel(y, m, range), focus: Math.round(secs / 60), done: 0 });
+      return;
+    }
+    const acc = [];
+    s.weeks.forEach((w, wi) => {
+      const ws = statsWeekStartOf(y, m, wi);
+      let done = 0, secs = 0;
+      (w.days || []).forEach((d, di) => {
+        const dt = new Date(ws.getTime() + di * 86400000);
+        if (dt.getFullYear() !== y || dt.getMonth() !== m) return; // bỏ ô tràn grid
+        (d.tasks || []).forEach((tk) => { if (tk.done) done++; });
+        const e = log[pomoDateKey(dt)];
+        if (e && typeof e.secs === 'number') secs += e.secs;
+      });
+      acc.push({ done, focus: Math.round(secs / 60) });
+    });
+    if (granularity === 'week') {
+      acc.forEach((p, wi) => {
+        const n = s.weeks[wi] && s.weeks[wi].n ? s.weeks[wi].n : wi + 1;
+        points.push({ label: statsWeekLabel(y, m, n), focus: p.focus, done: p.done });
+      });
+    } else {
+      points.push({
+        label: statsMonthLabel(y, m, range),
+        focus: acc.reduce((a, p) => a + p.focus, 0),
+        done: acc.reduce((a, p) => a + p.done, 0),
+      });
+    }
+  });
+  const unit = granularity === 'week' ? t('statsUnitWeek') : t('statsUnitMonth');
+  return { points, granularity, unit };
+}
+
+// Hệ số tương quan Pearson giữa hai dãy số — null nếu không tính được.
+function statsCorrelation(xs, ys) {
+  const n = xs.length;
+  if (n < 2) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let num = 0, dx = 0, dy = 0;
+  for (let i = 0; i < n; i++) {
+    num += (xs[i] - mx) * (ys[i] - my);
+    dx += (xs[i] - mx) ** 2;
+    dy += (ys[i] - my) ** 2;
+  }
+  if (dx === 0 || dy === 0) return null;
+  return num / Math.sqrt(dx * dy);
+}
+
+// SVG scatter: trục ngang = phút focus, trục dọc = task hoàn thành.
+function statsScatterSVG(points) {
+  const W = 400, H = 264, L = 54, R = 14, T = 22, B = 44;
+  const iw = W - L - R, ih = H - T - B;
+  const maxF = Math.max(1, ...points.map((p) => p.focus)) * 1.12;
+  const maxD = Math.max(1, ...points.map((p) => p.done)) * 1.12;
+  const X = (f) => L + (f / maxF) * iw;
+  const Y = (d) => T + ih - (d / maxD) * ih;
+  const ticks = 4;
+  let grid = '', labels = '';
+  for (let i = 0; i <= ticks; i++) {
+    const fx = L + (i / ticks) * iw, dy = T + ih - (i / ticks) * ih;
+    grid += `<line x1="${fx}" y1="${T}" x2="${fx}" y2="${T + ih}" class="stats-grid"/><line x1="${L}" y1="${dy}" x2="${L + iw}" y2="${dy}" class="stats-grid"/>`;
+    labels += `<text x="${fx}" y="${H - 14}" text-anchor="middle" class="stats-axis">${Math.round((maxF * i) / ticks)}</text>`;
+    labels += `<text x="${L - 8}" y="${dy + 4}" text-anchor="end" class="stats-axis">${Math.round((maxD * i) / ticks)}</text>`;
+  }
+  const dots = points.map((p) => {
+    const label = t('statsPointAria', { label: p.label, done: p.done, focus: p.focus });
+    // Chỉ gắn nhãn cho điểm có dữ liệu — tránh 12 nhãn "T1..T12" chồng nhau tại gốc.
+    const hasData = p.focus > 0 || p.done > 0;
+    return `<g class="stats-dot"><title>${esc(label)}</title>` +
+      `<circle class="stats-dot-hit" cx="${X(p.focus)}" cy="${Y(p.done)}" r="15"/>` +
+      `<circle class="stats-dot-core" cx="${X(p.focus)}" cy="${Y(p.done)}" r="6"/>` +
+      (hasData ? `<text x="${X(p.focus)}" y="${Y(p.done) - 12}" text-anchor="middle" class="stats-dot-label">${esc(p.label)}</text>` : '') +
+      '</g>';
+  }).join('');
+  const axisTitles =
+    `<text x="${L + iw / 2}" y="${H - 2}" text-anchor="middle" class="stats-axis-title">${esc(t('statsFocusAxis'))}</text>` +
+    `<text x="16" y="${T + ih / 2}" text-anchor="middle" class="stats-axis-title" transform="rotate(-90 16 ${T + ih / 2})">${esc(t('statsDoneAxis'))}</text>`;
+  return `<svg class="stats-scatter-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('statsTitle'))}">` +
+    grid + labels + dots + axisTitles + '</svg>';
+}
+
+function renderStatsModal() {
+  const el = document.getElementById('statsContent');
+  if (!el) return;
+  const d = statsData(statsRange);
+  const ps = d.points;
+  const focusTotal = ps.reduce((a, p) => a + p.focus, 0);
+  const doneTotal = ps.reduce((a, p) => a + p.done, 0);
+  const maxDone = Math.max(1, ...ps.map((p) => p.done));
+  const best = ps.reduce((m, p, i) => (p.done > (ps[m] ? ps[m].done : -1) ? i : m), 0);
+  const corr = statsCorrelation(ps.map((p) => p.focus), ps.map((p) => p.done));
+  const unit = d.unit;
+  const rng = [['month', t('statsRangeMonth')], ['quarter', t('statsRangeQuarter')],
+    ['year', t('statsRangeYear')], ['all', t('statsRangeAll')]]
+    .map(([r, label]) => `<button type="button" class="stats-range-btn${statsRange === r ? ' active' : ''}" data-action="stats-range" data-range="${r}" aria-pressed="${statsRange === r}">${esc(label)}</button>`).join('');
+  const summary = ps.length ? `<div class="stats-summary">
+      <div class="report-cell"><b>🎯 ${focusTotal}p</b><span>${t('statsTotalFocus')}</span></div>
+      <div class="report-cell"><b>✅ ${doneTotal}</b><span>${t('statsTotalDone')}</span></div>
+      <div class="report-cell"><b>📈 ${ps.length ? Math.round(focusTotal / ps.length) : 0}p</b><span>${t('statsAvgFocus', { unit })}</span></div>
+      <div class="report-cell"><b>🏆 ${esc(ps[best].label)}</b><span>${t('statsBest')} · ${ps[best].done} ${t('statsTotalDone')}</span></div>
+      <div class="report-cell"><b>📊 ${corr == null ? '—' : corr.toFixed(2)}</b><span>${t('statsCorr')}</span></div>
+    </div>` : '';
+  const table = ps.length ? `<div class="stats-table" role="table" aria-label="${esc(t('statsTitle'))}">
+      ${ps.map((p) => `<div class="stats-row" role="row">` +
+        `<span class="stats-row-label" role="cell">${esc(p.label)}</span>` +
+        `<span class="stats-row-focus" role="cell">🎯 ${p.focus}p</span>` +
+        `<span class="stats-row-bar" role="cell" aria-hidden="true"><i style="width:${Math.round((p.done / maxDone) * 100)}%"></i></span>` +
+        `<span class="stats-row-done" role="cell">✅ ${p.done}</span></div>`).join('')}
+    </div>` : '';
+  el.innerHTML = `<div class="stats-range" role="group" aria-label="${esc(t('statsTitle'))}">${rng}</div>` +
+    `<p class="stats-note">${t('statsCorrNote', { unit })}</p>` +
+    (!ps.length ? `<div class="stats-empty">${t('statsNoData')}</div>` :
+      `<div class="stats-scatter-wrap">${statsScatterSVG(ps)}</div>` + summary + table);
+}
+
+function openStatsModal() {
+  const m = document.getElementById('statsModal');
+  if (!m) return;
+  renderStatsModal();
+  TaskFlowUI.openDialog('statsModal');
+}
+
+function closeStatsModal() {
+  TaskFlowUI.closeDialog('statsModal');
+}
+
+// Nhãn ngày ngắn cho biểu đồ cột (VI: T2…T7, CN · EN: Mon, Tue…).
+function dayLabelShort(di) {
+  if (LANG === 'vi') return di === 6 ? 'CN' : 'T' + (di + 2);
+  return dayLabel(di).slice(0, 3);
+}
+
+// Card biểu đồ cột thời gian tập trung theo ngày trong tuần (full-width trong week-support-grid).
+function focusChartCardHTML(w) {
+  const mins = focusWeekMinutes();
+  const total = mins.reduce((a, b) => a + b, 0);
+  const max = Math.max(...mins, 1);
+  const top = topFocusTasksInWeek(w, 3);
+  const empty = total <= 0;
+  const bars = empty ? `<p class="focus-chart-empty">${t('focusChartEmpty')}</p>` : mins.map((m, di) => {
+    const h = Math.max(3, Math.round((m / max) * 100));
+    return `<div class="fc-col" role="img" aria-label="${t('focusChartBarAria', { day: dayLabel(di), n: m })}" title="${t('focusChartBarAria', { day: dayLabel(di), n: m })}">
+      <span class="fc-min">${m > 0 ? m : ''}</span>
+      <div class="fc-bar" style="height:${h}%"></div>
+      <span class="fc-day">${dayLabelShort(di)}</span>
+    </div>`;
+  }).join('');
+  const topHtml = top.length
+    ? `<span class="focus-chart-top-label">${t('focusChartTop')}:</span> ${top.map((x) => `<span class="focus-chart-top-item" title="${esc(x.tk.text || '')}">${esc((x.tk.text || '…').slice(0, 18))} · ${taskFocusMinLabel(x.secs)}</span>`).join(', ')}`
+    : '';
+  return `<div class="card focus-chart-card" data-role="focus-chart">
+    <div class="focus-chart-head">
+      <span class="focus-chart-title">🎯 ${t('focusChartTitle')}</span>
+      <span class="focus-chart-total">${t('focusChartWeekTotal', { n: total })}</span>
+    </div>
+    <div class="focus-chart-bars">${bars}</div>
+    ${topHtml ? `<div class="focus-chart-top">${topHtml}</div>` : ''}
+  </div>`;
+}
+
+// Top N task có focus nhiều nhất trong tháng đang xem.
+function topFocusTasksInMonth(n) {
+  const mKey = PLAN_YEAR + '-' + String(PLAN_MONTH + 1).padStart(2, '0');
+  const sk = mKey + '-01';
+  const last = new Date(PLAN_YEAR, PLAN_MONTH + 1, 0).getDate();
+  const ek = mKey + '-' + String(last).padStart(2, '0');
+  const acc = [];
+  state.weeks.forEach((w) => w.days.forEach((d) => (d.tasks || []).forEach((tk) => {
+    const secs = taskFocusSecsInRange(tk, sk, ek);
+    if (secs > 0) acc.push({ tk, secs });
+  })));
+  acc.sort((a, b) => b.secs - a.secs);
+  return acc.slice(0, n);
+}
+
 function renderPomoWidgetStats() {
   const el = document.getElementById('pomoWidgetStats');
   if (!el) return;
@@ -5510,6 +6578,32 @@ async function doDeleteAccount() {
 
 /* ============================ Điều hướng ============================ */
 
+function isSidebarCollapsed() {
+  try { return localStorage.getItem('planner-sidebar-collapsed') === '1'; } catch (e) { /* ẩn */ }
+  return false;
+}
+function applySidebarCollapse() {
+  const layout = document.querySelector('.app-layout');
+  if (!layout) return;
+  const collapsed = isSidebarCollapsed();
+  layout.classList.toggle('sidebar-collapsed', collapsed);
+  const btn = document.getElementById('sidebarCollapseBtn');
+  if (btn) {
+    const labelKey = collapsed ? 'expandSidebar' : 'collapseSidebar';
+    btn.setAttribute('aria-expanded', String(!collapsed));
+    btn.setAttribute('aria-label', t(labelKey));
+    btn.dataset.tooltip = t(labelKey);
+    const label = btn.querySelector('span[data-i18n]');
+    if (label) label.textContent = t(labelKey);
+  }
+}
+function toggleSidebarCollapse() {
+  const collapsed = !isSidebarCollapsed();
+  try { localStorage.setItem('planner-sidebar-collapsed', collapsed ? '1' : '0'); } catch (e) { /* ẩn */ }
+  applySidebarCollapse();
+  trackEvent('sidebar_collapse');
+}
+
 function shellNavLabel(value) {
   return String(value || '').replace(/^[\p{Extended_Pictographic}\uFE0F]+\s*/u, '');
 }
@@ -5518,22 +6612,46 @@ function buildNav() {
   const desktop = document.getElementById('navTabs');
   const mobile = document.getElementById('mobileNav');
   const items = [
+    { view: 'today', icon: 'calendar', label: shellNavLabel(t('todayTxt')), id: 'tab-today', controls: 'view-today' },
     { view: 'overview', icon: 'overview', label: shellNavLabel(t('tabOverview')), id: 'tab-overview', controls: 'view-overview' },
     { view: 'week', icon: 'week', label: shellNavLabel(t('weekN', { n: state.currentWeek })), id: 'tab-week-' + state.currentWeek, controls: 'view-week', week: state.currentWeek },
     { view: 'year', icon: 'year', label: shellNavLabel(t('tabYear', { y: PLAN_YEAR })), id: 'tab-year', controls: 'view-year' },
     { view: 'calendar', icon: 'calendar', label: shellNavLabel(t('tabCalendar')), id: 'tab-calendar', controls: 'view-calendar' },
   ];
   const navAttributes = {
+    today: 'data-nav-view="today" data-view="today"',
     overview: 'data-nav-view="overview" data-view="overview"',
     week: 'data-nav-view="week" data-view="week"',
     year: 'data-nav-view="year" data-view="year"',
     calendar: 'data-nav-view="calendar" data-view="calendar"',
   };
+  const itemBtn = (item) => `<button type="button" class="app-nav-item tab" role="tab"
+    id="${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
+    ${item.week ? `data-week="${item.week}"` : ''} data-tooltip="${esc(item.label)}">
+    ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
+  const actionBtn = (action, icon, label) => `<button type="button" class="app-nav-item"
+    data-action="${action}" data-tooltip="${esc(label)}">
+    ${window.TaskFlowUI.icon(icon)}<span>${esc(label)}</span></button>`;
   if (desktop) {
-    desktop.innerHTML = items.map((item) => `<button type="button" class="app-nav-item tab" role="tab"
-      id="${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
-      ${item.week ? `data-week="${item.week}"` : ''}>
-      ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`).join('');
+    const byView = {};
+    items.forEach((it) => { byView[it.view] = it; });
+    const groups = [
+      { label: t('navGroupMain'), items: [
+        byView.today,
+      ] },
+      { label: t('navGroupPlan'), items: [
+        byView.week, byView.overview, byView.year,
+      ] },
+      { label: t('navGroupTrack'), items: [
+        byView.calendar,
+        actionBtn('focus', 'focus', shellNavLabel(t('focusOpen'))),
+        actionBtn('report', 'report', shellNavLabel(t('reportTitle'))),
+      ] },
+    ];
+    desktop.innerHTML = groups.map((g) => `<div class="app-nav-group">
+      ${g.label ? `<span class="app-nav-group-label">${esc(g.label)}</span>` : ''}
+      ${g.items.map((it) => it.view ? itemBtn(it) : it).join('')}
+    </div>`).join('');
   }
   if (mobile) {
     mobile.innerHTML = items.map((item) => `<button type="button" class="app-mobile-nav-item tab" role="tab"
@@ -5546,8 +6664,11 @@ function buildNav() {
   renderShellIcons();
 }
 function updateNav() {
+  // Xem ngày là "con" của tuần: highlight tab tuần chứa ngày đang xem
+  const viewKey = state.view === 'day' ? 'week' : state.view;
+  const weekKey = state.view === 'day' ? state.dayWeek : state.currentWeek;
   document.querySelectorAll('[data-nav-view]').forEach((b) => {
-    const active = b.dataset.view === state.view && (!b.dataset.week || +b.dataset.week === state.currentWeek);
+    const active = b.dataset.view === viewKey && (!b.dataset.week || +b.dataset.week === weekKey);
     b.classList.toggle('active', active);
     b.setAttribute('aria-current', active ? 'page' : 'false');
     b.setAttribute('aria-selected', String(active));
@@ -5571,12 +6692,14 @@ function updateShellContext() {
   const title = document.getElementById('appViewTitle');
   const period = document.getElementById('appPeriod');
   const labels = {
+    today: t('todayTxt'),
     overview: t('tabOverview'),
     week: t('weekN', { n: state.currentWeek }),
     year: t('tabYear', { y: PLAN_YEAR }),
     calendar: t('tabCalendar'),
+    day: t('dayViewTitle'),
   };
-  if (title) title.textContent = labels[state.view] || labels.overview;
+  if (title) title.textContent = labels[state.view] || labels.today;
   if (period) period.textContent = `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`;
 }
 
@@ -5623,6 +6746,8 @@ function addTaskFromShell() {
 }
 
 function setView(view, week) {
+  // Phase 5: đổi view/tuần → đóng drawer chi tiết (ref index có thể lệch theo tuần mới)
+  if (taskDetailRef) closeTaskDetail();
   state.view = view;
   if (week) {
     const weekChanged = state.currentWeek !== week;
@@ -5634,17 +6759,27 @@ function setView(view, week) {
   const wk = document.getElementById('view-week');
   const yr = document.getElementById('view-year');
   const cal = document.getElementById('view-calendar');
+  const dy = document.getElementById('view-day');
+  const td = document.getElementById('view-today');
+  if (td) td.classList.toggle('active', view === 'today');
   ov.classList.toggle('active', view === 'overview');
   wk.classList.toggle('active', view === 'week');
   yr.classList.toggle('active', view === 'year');
   if (cal) cal.classList.toggle('active', view === 'calendar');
-  if (view === 'overview') {
+  if (dy) dy.classList.toggle('active', view === 'day');
+  if (view === 'today') {
+    if (td) td.setAttribute('aria-labelledby', 'tab-today');
+    renderToday();
+  } else if (view === 'overview') {
     ov.setAttribute('aria-labelledby', 'tab-overview');
     renderOverview();
   } else if (view === 'week') {
     wk.setAttribute('aria-labelledby', 'tab-week-' + state.currentWeek);
     renderWeek();
     scrollWeekToToday();
+  } else if (view === 'day') {
+    if (dy) dy.setAttribute('aria-labelledby', 'tab-week-' + state.dayWeek);
+    renderDay();
   } else if (view === 'calendar') {
     if (cal) cal.setAttribute('aria-labelledby', 'tab-calendar');
     renderCalendar();
@@ -5656,7 +6791,8 @@ function setView(view, week) {
     view,
     year: PLAN_YEAR,
     month: PLAN_MONTH,
-    week: view === 'week' ? state.currentWeek : undefined,
+    week: view === 'week' ? state.currentWeek : (view === 'day' ? state.dayWeek : undefined),
+    day: view === 'day' ? state.dayDay : undefined,
     tags: view === 'calendar' ? calendarTagFilters : undefined,
   });
   save();
@@ -5748,6 +6884,11 @@ function applySnapshot(snap) {
   }
   invalidateYearCache();
   renderCurrentView();
+  // Phase 5: nếu drawer chi tiết đang mở → đồng bộ lại sau undo/redo (hoặc đóng nếu ref lệch)
+  if (taskDetailRef) {
+    if (getTaskDetailTarget()) renderTaskDetail();
+    else closeTaskDetail();
+  }
   save();
   saveYear();
   saveMood();
@@ -5755,8 +6896,10 @@ function applySnapshot(snap) {
   updateUndoButtons();
 }
 function renderCurrentView() {
-  if (state.view === 'overview') renderOverview();
+  if (state.view === 'today') renderToday();
+  else if (state.view === 'overview') renderOverview();
   else if (state.view === 'week') renderWeek();
+  else if (state.view === 'day') renderDay();
   else if (state.view === 'calendar') renderCalendar();
   else renderYear();
   updateNav();
@@ -6041,7 +7184,23 @@ function doRestoreBackup(idx) {
 
 /* ---------- Focus Mode (Phase 5.6) ---------- */
 
-function openFocusMode() {
+/* ---------- Phase 6: Focus theo task + bộ đếm + nhật ký phiên ---------- */
+
+// Ref tới task đang được focus (null = xem toàn bộ task hôm nay).
+let focusTaskRef = null;
+
+function openFocusMode(ref) {
+  const newRef = ref ? { week: +ref.week, day: +ref.day, task: +ref.task } : null;
+  // Phase 6: chuyển sang task khác / xem tất cả → dừng bộ đếm (phiên thuộc về task đã bắt đầu)
+  const switched = !!focusTaskRef && JSON.stringify(newRef) !== JSON.stringify(focusTaskRef);
+  if (switched && focusTimer.running) {
+    clearInterval(focusTimer.timer);
+    focusTimer.timer = null;
+    focusTimer.running = false;
+    focusTimer.endAt = 0;
+    focusTimer.left = focusTimer.dur;
+  }
+  focusTaskRef = newRef;
   document.body.classList.add('focus-mode');
   renderFocusContent();
   TaskFlowUI.openDialog('focusOverlay');
@@ -6050,13 +7209,159 @@ function openFocusMode() {
 function closeFocusMode() {
   document.body.classList.remove('focus-mode');
   TaskFlowUI.closeDialog('focusOverlay');
+  // Bộ đếm vẫn chạy nền — mở lại focus sẽ thấy tiến trình còn lại
 }
+function getFocusedTask() {
+  if (!focusTaskRef) return null;
+  const w = state.weeks[focusTaskRef.week - 1];
+  if (!w) return null;
+  const d = w.days[focusTaskRef.day];
+  if (!d) return null;
+  const tk = d.tasks[focusTaskRef.task];
+  return tk ? { w, d, tk, week: focusTaskRef.week, day: focusTaskRef.day, task: focusTaskRef.task } : null;
+}
+
+// ---- Nhật ký phiên: mỗi task có focusLog = [{ d: 'YYYY-MM-DD', secs }] ----
+function taskFocusLog(tk) { return Array.isArray(tk.focusLog) ? tk.focusLog : []; }
+function taskFocusSecs(tk) { return taskFocusLog(tk).reduce((s, e) => s + (e.secs || 0), 0); }
+function taskFocusToday(tk) {
+  const k = pomoDateKey(new Date());
+  return taskFocusLog(tk).filter((e) => e.d === k).reduce((s, e) => s + (e.secs || 0), 0);
+}
+function taskFocusSessions(tk) { return taskFocusLog(tk).length; }
+function taskFocusMinLabel(secs) { return t('pomoMinShort', { n: Math.round((secs || 0) / 60) }); }
+
+// ---- Bộ đếm focus (countdown theo preset, chính xác cả khi tab ẩn qua endAt) ----
+const FOCUS_PRESETS = [5, 15, 25, 45];
+let focusTimer = { running: false, dur: 25 * 60, left: 25 * 60, timer: null, endAt: 0, taskUid: null };
+
+function focusTimerRender() {
+  const mm = String(Math.floor(focusTimer.left / 60)).padStart(2, '0');
+  const ss = String(focusTimer.left % 60).padStart(2, '0');
+  const tEl = document.getElementById('focusTimerTime');
+  if (tEl) tEl.textContent = mm + ':' + ss;
+  const bEl = document.getElementById('focusTimerStart');
+  if (bEl) bEl.textContent = focusTimer.running ? t('pomoPause') : t('pomoStart');
+  document.querySelectorAll('#focusContent [data-action="focus-timer-set"]').forEach((btn) => {
+    btn.classList.toggle('active', +btn.dataset.min * 60 === focusTimer.dur);
+  });
+}
+function focusTimerSync() {
+  if (!focusTimer.running) return;
+  const left = Math.max(0, Math.ceil((focusTimer.endAt - Date.now()) / 1000));
+  if (left <= 0) focusTimerComplete();
+  else { focusTimer.left = left; focusTimerRender(); }
+}
+function focusTimerComplete() {
+  clearInterval(focusTimer.timer);
+  focusTimer.timer = null;
+  focusTimer.running = false;
+  const secs = focusTimer.dur;
+  focusTimer.endAt = 0;
+  // Ghi vào nhật ký của đúng task đã focus khi bắt đầu (theo uid — không lệch theo index)
+  const byUid = getTaskByUid(focusTimer.taskUid);
+  if (byUid) {
+    byUid.focusLog = byUid.focusLog || [];
+    byUid.focusLog.push({ d: pomoDateKey(new Date()), secs });
+    // Giới hạn dung lượng localStorage — chỉ giữ 100 phiên gần nhất (UI chỉ hiện 5)
+    if (byUid.focusLog.length > 100) byUid.focusLog = byUid.focusLog.slice(-100);
+    save();
+  }
+  // Đồng thời cộng vào thống kê pomo hôm nay (focus minutes + quả cà chua)
+  pomoAddSession(secs);
+  renderPomoWidgetStats();
+  renderPomoTomatoCounter();
+  focusTimer.left = focusTimer.dur;
+  focusTimerRender();
+  TaskFlowUI.toast(t('focusDone'), 'success');
+  refreshFocusIfOpen();
+  trackEvent('focus_session_complete', { secs });
+}
+function focusTimerStart() {
+  if (focusTimer.running) {
+    clearInterval(focusTimer.timer);
+    focusTimer.timer = null;
+    focusTimer.running = false;
+    focusTimer.endAt = 0;
+    focusTimerRender();
+    return;
+  }
+  const g = getFocusedTask();
+  if (g) focusTimer.taskUid = g.tk.uid;
+  focusTimer.running = true;
+  focusTimer.endAt = Date.now() + focusTimer.left * 1000;
+  focusTimer.timer = setInterval(focusTimerSync, 1000);
+  focusTimerRender();
+  trackEvent('focus_timer_start', { dur: focusTimer.dur });
+}
+function focusTimerReset() {
+  clearInterval(focusTimer.timer);
+  focusTimer.timer = null;
+  focusTimer.running = false;
+  focusTimer.endAt = 0;
+  focusTimer.left = focusTimer.dur;
+  focusTimerRender();
+}
+function focusTimerSetDur(min) {
+  clearInterval(focusTimer.timer);
+  focusTimer.timer = null;
+  focusTimer.running = false;
+  focusTimer.endAt = 0;
+  focusTimer.dur = Math.max(1, min) * 60;
+  focusTimer.left = focusTimer.dur;
+  focusTimerRender();
+}
+
+// Tìm task theo uid (bền vững khi index đổi do xoá/chèn).
+function getTaskByUid(uid) {
+  if (!uid) return null;
+  for (const w of state.weeks) {
+    for (const d of w.days) {
+      const hit = (d.tasks || []).find((tk) => tk.uid === uid);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 function renderFocusContent() {
   const box = document.getElementById('focusContent');
   if (!box) return;
   const now = new Date();
   const ti = nowInfo();
   const today = ti.inRange ? ti.dayInWeek : -1;
+  const focused = getFocusedTask();
+  if (focused) {
+    const { w, tk, week, day, task } = focused;
+    const totSecs = taskFocusSecs(tk);
+    const todaySecs = taskFocusToday(tk);
+    const count = taskFocusSessions(tk);
+    const log = taskFocusLog(tk).slice(-5).reverse();
+    box.innerHTML = `
+      <p class="focus-date">📅 ${fmtDate(now)}</p>
+      <div class="focus-taskview">
+        <p class="focus-focusing">${t('focusFocusing')}</p>
+        <div class="focus-tasktext ${tk.done ? 'done' : ''}">${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${week}" data-day="${day}" data-task="${task}"`, window.TaskFlowUI.checkboxLabel('task', tk.text, fmtDate(now)))}<span class="focus-tasktext-txt">${esc(tk.text) || '…'}</span></div>
+        <div class="focus-timer">
+          <div class="focus-timer-presets" role="group" aria-label="${t('focusTimer')}">
+            ${FOCUS_PRESETS.map((m) => `<button type="button" class="focus-preset" data-action="focus-timer-set" data-min="${m}" ${m * 60 === focusTimer.dur ? 'aria-pressed="true"' : 'aria-pressed="false"'}>${t('pomoMinShort', { n: m })}</button>`).join('')}
+          </div>
+          <div class="focus-timer-time" id="focusTimerTime">00:00</div>
+          <div class="focus-timer-actions">
+            <button type="button" class="pop-btn primary" data-action="focus-timer-start" id="focusTimerStart">${t('pomoStart')}</button>
+            <button type="button" class="pop-btn" data-action="focus-timer-reset">${t('focusReset')}</button>
+          </div>
+        </div>
+        <div class="focus-log">
+          <h3 class="focus-sec-title">${t('focusLog')}</h3>
+          ${count ? `<p class="focus-log-summary">${t('focusLogToday', { n: Math.round(todaySecs / 60), c: taskFocusLog(tk).filter((e) => e.d === pomoDateKey(now)).length })} · ${t('focusLogTotal', { n: Math.round(totSecs / 60) })}</p>` : ''}
+          ${log.length ? `<ul class="focus-log-list">${log.map((e) => `<li class="focus-log-item">${esc(fmtSessionDate(e.d))} · ${taskFocusMinLabel(e.secs)}</li>`).join('')}</ul>` : `<p class="focus-empty">${t('focusNoSessions')}</p>`}
+        </div>
+        <button type="button" class="focus-showall" data-action="focus-show-all">${t('focusShowAll')}</button>
+      </div>`;
+    focusTimerRender();
+    return;
+  }
   let tasks = [];
   if (ti.inRange) {
     const w = state.weeks[ti.week - 1];
@@ -6079,20 +7384,53 @@ function refreshFocusIfOpen() {
   if (document.body.classList.contains('focus-mode')) renderFocusContent();
 }
 
+// 'YYYY-MM-DD' → nhãn phiên ngắn ('2/8' hay 'Thứ 3').
+function fmtSessionDate(d) {
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(d);
+  const dt = new Date(+m[1], +m[2] - 1, +m[3]);
+  if (Number.isNaN(dt.getTime())) return String(d);
+  const now = new Date();
+  if (pomoDateKey(now) === d) return t('todayTxt');
+  return dt.toLocaleDateString(dateLocale(), { day: 'numeric', month: 'numeric' });
+}
+
 /* ============================ Sự kiện ============================ */
 
 document.addEventListener('click', (e) => {
   if (e.target.closest('select')) return;
+  // Phase 4: đóng mọi menu task ⋯ khi click ra ngoài (trừ khi đang thao tác trong menu/điểm mở)
+  if (!e.target.closest('.task-menu') && !e.target.closest('[data-action="task-menu"]')) {
+    document.querySelectorAll('.task-row.menu-open').forEach((r) => {
+      r.classList.remove('menu-open', 'menu-up');
+      const b = r.querySelector('[data-action="task-menu"]');
+      if (b) b.setAttribute('aria-expanded', 'false');
+      const m = r.querySelector('.task-menu');
+      if (m) m.hidden = true;
+    });
+  }
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const act = el.dataset.action;
+  // Phase 4: chọn mục trong menu ⋯ → đóng menu (editor inline sẽ chèn vào row, tránh lẫn với dropdown)
+  if (el.closest('.task-menu')) {
+    const row = el.closest('.task-row');
+    if (row) {
+      row.classList.remove('menu-open', 'menu-up');
+      const b = row.querySelector('[data-action="task-menu"]');
+      if (b) b.setAttribute('aria-expanded', 'false');
+      const m = row.querySelector('.task-menu');
+      if (m) m.hidden = true;
+    }
+  }
 
   // Phase 5: bọc mọi mutation bằng undo snapshot (trước khi đổi state)
   // Lưu ý: 'reset' KHÔNG nằm trong set — pushUndo được gọi trong nhánh đã confirm (tránh phantom entry khi user bấm Hủy)
-  const UNDOABLE_ACTS = new Set(['goal', 'ygoal', 'habit', 'wgoal', 'task', 'addtask', 'deltask', 'addgoal', 'confirm-addgoal', 'delgoal', 'addhabit', 'delhabit', 'remind-off-item', 'mgoal', 'qgoal', 'copyhabits', 'template-do', 'pullyear', 'template-add', 'demo-data', 'mood-set', 'mood-clear', 'theme', 'repeat-edit']);
+  const UNDOABLE_ACTS = new Set(['goal', 'ygoal', 'habit', 'wgoal', 'task', 'addtask', 'deltask', 'addgoal', 'confirm-addgoal', 'delgoal', 'addhabit', 'delhabit', 'remind-off-item', 'mgoal', 'qgoal', 'copyhabits', 'template-do', 'pullyear', 'template-add', 'demo-data', 'mood-set', 'mood-clear', 'theme', 'repeat-edit', 'task-duplicate', 'subtask-add', 'subtask-toggle', 'subtask-del', 'td-tag-add', 'td-tag-del']);
   if (UNDOABLE_ACTS.has(act)) pushUndo();
 
-  if (act === 'tools-open') { openToolsDrawer(el); return; }
+  if (act === 'sidebar-collapse') { toggleSidebarCollapse(); return; }
+  else if (act === 'tools-open') { openToolsDrawer(el); return; }
   else if (act === 'tools-close') { closeToolsDrawer(); return; }
   else if (act === 'shell-add-task') { addTaskFromShell(); return; }
   else if (act === 'undo') { doUndo(); return; }
@@ -6159,6 +7497,10 @@ document.addEventListener('click', (e) => {
   else if (act === 'prev') goWeek(state.currentWeek - 1);
   else if (act === 'next') goWeek(state.currentWeek + 1);
   else if (act === 'weekbar') goWeek(+el.dataset.week);
+  else if (act === 'open-day') openDay(+el.dataset.week, +el.dataset.day);
+  else if (act === 'close-day') setView('week', state.dayWeek);
+  else if (act === 'day-prev') goDay(-1);
+  else if (act === 'day-next') goDay(1);
   else if (act === 'day-jump') {
     const target = document.getElementById(el.dataset.dayTarget);
     if (target) {
@@ -6175,11 +7517,10 @@ document.addEventListener('click', (e) => {
   } else if (act === 'month') {
     openMonth(+el.dataset.month);
   } else if (act === 'gotoday') {
+    // Về Today Dashboard — nếu đang xem tháng khác thì quay về tháng hiện tại trước
     const now = new Date();
     if (PLAN_MONTH !== now.getMonth() || PLAN_YEAR !== now.getFullYear()) openMonth(now.getMonth());
-    const ti = nowInfo();
-    if (ti.inRange) setView('week', ti.week);
-    else setView('overview');
+    setView('today');
   } else if (act === 'pullyear') {
     pullYearGoalsFromMonths();
   } else if (act === 'mgoal') {
@@ -6192,6 +7533,7 @@ document.addEventListener('click', (e) => {
       h.days[+el.dataset.day] = !h.days[+el.dataset.day];
       if (h.days[+el.dataset.day]) addXP(15); else removeXP(15);
       afterHabitToggle(); refreshFocusIfOpen();
+      if (state.view === 'today') renderToday();
     }
   } else if (act === 'wgoal') {
     const w = state.weeks[+el.dataset.week - 1];
@@ -6210,8 +7552,22 @@ document.addEventListener('click', (e) => {
       t.done = !t.done;
       if (t.done) addXP(10); else removeXP(10);
       syncCarriedDone(+el.dataset.week - 1, +el.dataset.day, +el.dataset.task, t);
-      refreshTaskUI(w, +el.dataset.day); save(); refreshFocusIfOpen();
+      if (state.view === 'today') renderToday();
+      else refreshTaskUI(w, +el.dataset.day);
+      save(); refreshFocusIfOpen();
     }
+  } else if (act === 'today-addtask') {
+    const ti = nowInfo();
+    if (!ti.inRange) return;
+    const w = state.weeks[ti.week - 1];
+    const d = w.days[ti.dayInWeek];
+    d.tasks.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
+    renderToday();
+    save();
+    trackEvent('create_task', { scope: 'today' });
+    // Nhảy thẳng vào ô viết task mới để gõ luôn (Enter = xong)
+    const fresh = document.querySelector(`[data-role="task-text"][data-week="${ti.week}"][data-day="${ti.dayInWeek}"][data-task="${d.tasks.length - 1}"]`);
+    if (fresh) fresh.focus();
   } else if (act === 'addtask') {
     const w = state.weeks[+el.dataset.week - 1];
     const d = w.days[+el.dataset.day];
@@ -6225,7 +7581,135 @@ document.addEventListener('click', (e) => {
   } else if (act === 'deltask') {
     const w = state.weeks[+el.dataset.week - 1];
     w.days[+el.dataset.day].tasks.splice(+el.dataset.task, 1);
-    renderWeek();
+    if (state.view === 'today') renderToday();
+    else renderWeek();
+    save();
+  } else if (act === 'task-menu') {
+    // Phase 4: dropdown ⋯ — toggle menu của task row này, đóng các menu khác
+    const row = el.closest('.task-row');
+    if (!row) return;
+    const open = row.classList.toggle('menu-open');
+    el.setAttribute('aria-expanded', String(open));
+    const menuEl = row.querySelector('.task-menu');
+    if (menuEl) menuEl.hidden = !open;
+    document.querySelectorAll('.task-row.menu-open').forEach((r) => {
+      if (r !== row) {
+        r.classList.remove('menu-open');
+        const b = r.querySelector('[data-action="task-menu"]');
+        if (b) b.setAttribute('aria-expanded', 'false');
+        const m = r.querySelector('.task-menu');
+        if (m) m.hidden = true;
+      }
+    });
+    if (open && menuEl) {
+      // Menu dropdown bị panel (overflow:hidden) cắt khi task gần đáy → lật lên trên
+      requestAnimationFrame(() => {
+        const pr = row.closest('.week-day-panel');
+        if (!pr) return;
+        const mr = menuEl.getBoundingClientRect();
+        const prr = pr.getBoundingClientRect();
+        row.classList.toggle('menu-up', mr.bottom > prr.bottom + 1);
+      });
+    } else if (!open) {
+      row.classList.remove('menu-up');
+    }
+  } else if (act === 'task-duplicate') {
+    const w = state.weeks[+el.dataset.week - 1];
+    const d = w.days[+el.dataset.day];
+    const src = d.tasks[+el.dataset.task];
+    if (src) {
+      // Bản nhân bản là task mới — không kế thừa carriedFrom (badge ↳ dồn) hay trạng thái done
+      const copy = { ...src, uid: newTaskUid(), done: false, text: src.text, carriedFrom: undefined };
+      d.tasks.push(copy);
+      if (state.view === 'today') renderToday();
+      else renderWeek();
+      save();
+      trackEvent('duplicate_task');
+      TaskFlowUI.toast(t('taskDuplicateDone'), 'success');
+    }
+  } else if (act === 'focus-task') {
+    // Phase 6: focus vào đúng task này (nếu đang mở drawer thì đóng trước)
+    closeTaskDetail();
+    openFocusMode({ week: el.dataset.week, day: el.dataset.day, task: el.dataset.task });
+  } else if (act === 'focus-show-all') {
+    openFocusMode();
+  } else if (act === 'focus-timer-start') {
+    focusTimerStart();
+  } else if (act === 'focus-timer-reset') {
+    focusTimerReset();
+  } else if (act === 'focus-timer-set') {
+    focusTimerSetDur(+el.dataset.min);
+  } else if (act === 'task-detail') {
+    openTaskDetail(+el.dataset.week, +el.dataset.day, +el.dataset.task);
+  } else if (act === 'task-detail-close') {
+    closeTaskDetail();
+  } else if (act === 'td-time-toggle') {
+    const g = getTaskDetailTarget();
+    if (!g) return;
+    if (!g.tk.remind) g.tk.remind = { enabled: false, time: '20:00' };
+    g.tk.remind.enabled = el.checked;
+    const timeIn = document.querySelector('#taskDrawer [data-action="td-time"]');
+    if (timeIn) timeIn.disabled = !el.checked;
+    refreshTaskRowAfterEdit();
+  } else if (act === 'td-tag-add') {
+    const g = getTaskDetailTarget();
+    const inp = document.querySelector('#taskDrawer [data-role="td-tag-input"]');
+    if (!g || !inp) return;
+    const v = inp.value.trim();
+    if (v) {
+      g.tk.tags = g.tk.tags || [];
+      if (!g.tk.tags.includes(v)) {
+        if (g.tk.tags.length >= 8) { TaskFlowUI.toast(t('tagLimit')); }
+        else { g.tk.tags = g.tk.tags.concat(v.split(',').map((s) => s.trim()).filter(Boolean)).slice(0, 8); }
+      }
+      inp.value = '';
+      renderTaskDetail();
+      refreshTaskRowAfterEdit();
+      const freshTag = document.querySelector('#taskDrawer [data-role="td-tag-input"]');
+      if (freshTag) freshTag.focus();
+      trackEvent('edit_task_tags');
+    }
+  } else if (act === 'td-tag-del') {
+    const g = getTaskDetailTarget();
+    if (!g) return;
+    g.tk.tags = (g.tk.tags || []).filter((tg) => tg !== el.dataset.tag);
+    renderTaskDetail();
+    refreshTaskRowAfterEdit();
+  } else if (act === 'subtask-add') {
+    const g = getTaskDetailTarget();
+    const inp = document.querySelector('#taskDrawer [data-role="td-subtask-input"]');
+    if (!g || !inp) return;
+    const v = inp.value.trim();
+    if (v) {
+      g.tk.subtasks = g.tk.subtasks || [];
+      g.tk.subtasks.push({ id: 's' + Date.now() + Math.random().toString(36).slice(2, 6), text: v, done: false });
+      inp.value = '';
+      renderTaskDetail();
+      refreshTaskRowAfterEdit();
+      const freshSub = document.querySelector('#taskDrawer [data-role="td-subtask-input"]');
+      if (freshSub) freshSub.focus();
+      trackEvent('add_subtask');
+    }
+  } else if (act === 'subtask-toggle') {
+    const g = getTaskDetailTarget();
+    if (!g || !g.tk.subtasks) return;
+    const s = g.tk.subtasks[+el.dataset.sub];
+    if (!s) return;
+    s.done = !s.done;
+    renderTaskDetail();
+    refreshTaskRowAfterEdit();
+  } else if (act === 'subtask-del') {
+    const g = getTaskDetailTarget();
+    if (!g) return;
+    g.tk.subtasks = (g.tk.subtasks || []).filter((_, i) => i !== +el.dataset.sub);
+    renderTaskDetail();
+    refreshTaskRowAfterEdit();
+  } else if (act === 'td-delete') {
+    const w = state.weeks[+el.dataset.week - 1];
+    w.days[+el.dataset.day].tasks.splice(+el.dataset.task, 1);
+    closeTaskDetail();
+    if (state.view === 'today') renderToday();
+    else renderWeek();
     save();
   } else if (act === 'addgoal') {
     const scope = el.dataset.scope;
@@ -6377,6 +7861,18 @@ document.addEventListener('click', (e) => {
     closeYearReportModal();
   } else if (act === 'share-year-report') {
     doShareYearReport();
+  } else if (act === 'stats') {
+    openStatsModal();
+  } else if (act === 'stats-close') {
+    closeStatsModal();
+  } else if (act === 'stats-range') {
+    if (el.dataset.range && statsRange !== el.dataset.range) {
+      statsRange = el.dataset.range;
+      renderStatsModal();
+      // Sau khi re-render, nút vừa bấm bị thay thế — trả focus về nút active.
+      const active = document.querySelector('#statsContent .stats-range-btn.active');
+      if (active) active.focus();
+    }
   } else if (act === 'templates-toggle') {
     const tp = document.getElementById('templatesPop');
     if (tp) tp.hidden = !tp.hidden;
@@ -6515,6 +8011,15 @@ document.addEventListener('change', (e) => {
   else if (act === 'monthselect') openMonth(+e.target.value);
 });
 
+// Phase 5: double-click vào task row (ngoài vùng text đang sửa) mở Task Detail Drawer
+const taskDetailDblClickListener = (e) => {
+  if (e.target.closest('[contenteditable="true"]')) return;
+  const row = e.target.closest('.task-row[data-week]');
+  if (!row) return;
+  openTaskDetail(+row.dataset.week, +row.dataset.day, +row.dataset.task);
+};
+document.addEventListener('dblclick', taskDetailDblClickListener);
+
 document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.id === 'searchInput') renderSearchResults(t.value);
@@ -6553,6 +8058,10 @@ document.addEventListener('input', (e) => {
   } else if (t.dataset.role === 'task-text') {
     state.weeks[+t.dataset.week - 1].days[+t.dataset.day].tasks[+t.dataset.task].text = t.innerText;
     save();
+  } else if (t.dataset.role === 'td-text') {
+    // Phase 5: text trong Task Detail Drawer — lưu trực tiếp (blur cũng cập nhật row qua bindTaskDetailEvents)
+    const g = getTaskDetailTarget();
+    if (g) { g.tk.text = t.innerText; save(); }
   } else if (t.dataset.role === 'w-goal-text') {
     state.weeks[+t.dataset.week - 1].goals[+t.dataset.id].text = t.innerText;
     save();
@@ -6581,6 +8090,20 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     toggleSearchModal();
     return;
+  }
+  if (e.key === 'Escape') {
+    // Phase 4: Escape đóng menu task ⋯ đang mở
+    const openRows = document.querySelectorAll('.task-row.menu-open');
+    if (openRows.length) {
+      openRows.forEach((r) => {
+        r.classList.remove('menu-open', 'menu-up');
+        const b = r.querySelector('[data-action="task-menu"]');
+        if (b) b.setAttribute('aria-expanded', 'false');
+        const m = r.querySelector('.task-menu');
+        if (m) m.hidden = true;
+      });
+      return;
+    }
   }
   if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
   if (!inField) {
@@ -6744,76 +8267,37 @@ function refreshTaskUI(w, di) {
 
 /* ============================ Task lặp thông minh (carry-over) ============================ */
 
-/* ---------- uid cố định cho task — nền tảng để carry-over không lệch chỉ số ---------- */
+// Logic thuần (uid cố định, lên kế hoạch carry, đồng bộ done) nằm ở module
+// js/plan-carry.js (window.PlanCarry) để unit-test trực tiếp — app.js chỉ ủy quyền
+// và áp kết quả vào state + save(). Các wrapper có fallback nội tuyến phòng khi module không tải.
 function newTaskUid() {
-  return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  return window.PlanCarry ? window.PlanCarry.newTaskUid() : 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 function ensureTaskUid(tk) {
+  if (window.PlanCarry) return window.PlanCarry.ensureTaskUid(tk);
   if (tk && typeof tk.uid !== 'string') tk.uid = newTaskUid();
   return tk;
 }
-function findTaskByUid(uid) {
-  if (!uid) return null;
-  for (const w of state.weeks) {
-    for (const d of w.days) {
-      for (const tk of d.tasks) {
-        if (tk.uid === uid) return tk;
-      }
-    }
-  }
-  return null;
-}
 
-// Task lặp (repeat) bị lỡ ngày sẽ được tự động "dồn" vào danh sách hôm nay,
-// để người dùng không phải tự thêm tay. Chạy khi khởi động app và khi đổi ngày.
-function dayDate(wi, di) {
-  return new Date(PLAN_START.getTime() + (wi * 7 + di) * 86400000);
-}
+// Task lặp (repeat) bị lỡ ngày sẽ được tự động "dồn" vào danh sách hôm nay.
+// Chạy khi khởi động app, đổi ngày, đổi tháng, đổi tài khoản.
 function carryOverRepeatTasks() {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  let todayW = -1, todayD = -1;
-  state.weeks.forEach((w, wi) => {
-    w.days.forEach((d, di) => {
-      const dt = dayDate(wi, di);
-      if (dt && dt.getTime() === today.getTime()) { todayW = wi; todayD = di; }
-    });
+  if (!window.PlanCarry || !window.PlanCarry.planCarry) return false;
+  // Safety net: data rất cũ chưa có uid → gán trước để planCarry liên kết bền vững
+  // (thường đã có sẵn từ migration loadState — bước này chỉ phòng hờ, idempotent)
+  state.weeks.forEach((w) => (w.days || []).forEach((d) => (d.tasks || []).forEach((tk) => ensureTaskUid(tk))));
+  // planCarry tự định vị ô hôm nay (todayW/todayD) — dùng ĐÚNG cơ chế đó để push,
+  // tránh lệch giữa hai cách tính khác nhau.
+  const plan = window.PlanCarry.planCarry(state.weeks, PLAN_START, new Date());
+  if (!plan.copies.length) return false;
+  const target = state.weeks[plan.todayW] && state.weeks[plan.todayW].days[plan.todayD];
+  if (!target) return false;
+  plan.copies.forEach((c) => {
+    c.source.carried = true;
+    target.tasks.push(c.copy);
   });
-  if (todayW < 0 || !state.weeks[todayW] || !state.weeks[todayW].days[todayD]) return false;
-  const target = state.weeks[todayW].days[todayD];
-  let changed = false;
-  state.weeks.forEach((w, wi) => {
-    w.days.forEach((d, di) => {
-      const dt = dayDate(wi, di);
-      if (!dt || dt.getTime() >= today.getTime()) return;
-      d.tasks.forEach((tk, ti) => {
-        if (!tk || !tk.repeat || !tk.repeat.freq || tk.done || tk.carried) return;
-        ensureTaskUid(tk); // task cũ (data trước nâng cấp) chưa có uid → gán ngay
-        const uid = tk.uid;
-        // exists theo uid (fallback chỉ số cho bản dồn cũ) — không trùng lặp kể cả khi xoá/chèn task
-        const exists = target.tasks.some((x) => x.carriedFrom && (
-          (x.carriedFrom.uid && x.carriedFrom.uid === uid) ||
-          (!x.carriedFrom.uid && x.carriedFrom.w === wi && x.carriedFrom.d === di && x.carriedFrom.t === ti)
-        ));
-        if (exists) return;
-        const copy = Object.assign({}, tk, {
-          uid: newTaskUid(), // bản sao là task MỚI — uid riêng
-          done: false,
-          carried: false,
-          carriedFrom: { uid, date: d.date + '/' + (d.yy || '') },
-          repeat: null,
-          _recurred: undefined, // không kế thừa flag tạm của bản gốc (applyRecurrence)
-          tags: Array.isArray(tk.tags) ? tk.tags.slice() : [],
-          remind: tk.remind && typeof tk.remind === 'object' ? Object.assign({}, tk.remind) : { enabled: false, time: '20:00' },
-        });
-        target.tasks.push(copy);
-        tk.carried = true;
-        changed = true;
-      });
-    });
-  });
-  if (changed) save();
-  return changed;
+  save();
+  return true;
 }
 function carriedDateLabel(cf) {
   if (!cf) return '';
@@ -6828,31 +8312,8 @@ function carriedDateLabel(cf) {
 // Đồng bộ trạng thái done giữa task gốc (lịch lặp) và bản dồn (carry) sang hôm nay.
 // Tra theo uid nên KHÔNG lệch khi task phía trước bị xoá/chèn; có fallback chỉ số cho bản dồn cũ.
 function syncCarriedDone(wi, di, ti, t) {
-  if (!t) return;
-  if (t.carriedFrom) {
-    let src = t.carriedFrom.uid ? findTaskByUid(t.carriedFrom.uid) : null;
-    if (!src && typeof t.carriedFrom.w === 'number') {
-      try {
-        const w = state.weeks[t.carriedFrom.w];
-        const d = w && w.days[t.carriedFrom.d];
-        src = d && d.tasks[t.carriedFrom.t];
-      } catch (e) { /* ẩn */ }
-    }
-    if (src) src.done = t.done;
-    return;
-  }
-  if (!t.uid) return;
-  for (const w2 of state.weeks) {
-    for (const d2 of w2.days) {
-      for (const tk of d2.tasks) {
-        if (!tk.carriedFrom) continue;
-        const match = tk.carriedFrom.uid
-          ? tk.carriedFrom.uid === t.uid
-          : (tk.carriedFrom.w === wi && tk.carriedFrom.d === di && tk.carriedFrom.t === ti);
-        if (match) tk.done = t.done;
-      }
-    }
-  }
+  if (!window.PlanCarry || !window.PlanCarry.syncCarriedDone) return;
+  window.PlanCarry.syncCarriedDone(state.weeks, wi, di, ti, t);
 }
 
 /* ============================ Đồng bộ thời gian thực ============================ */
@@ -6935,7 +8396,9 @@ function refreshToday() {
   } else {
     if (jump) state.currentWeek = ti.week;
     carryOverRepeatTasks();
-    if (state.view === 'week') renderWeek();
+    if (state.view === 'today') renderToday();
+    else if (state.view === 'week') renderWeek();
+    else if (state.view === 'day') renderDay();
     else if (state.view === 'overview') renderOverview();
     else if (state.view === 'calendar') renderCalendar();
     else renderYear();
@@ -7293,12 +8756,17 @@ if (window.DeepLink) {
   }
   if (dl.view) state.view = dl.view;
   if (dl.view === 'week' && dl.week !== null && dl.week <= NUM_WEEKS) state.currentWeek = dl.week;
+  if (dl.view === 'day' && dl.week !== null && dl.week >= 1 && dl.week <= NUM_WEEKS) {
+    state.dayWeek = dl.week;
+    if (dl.day !== undefined && dl.day !== null && dl.day >= 0 && dl.day <= 6) state.dayDay = dl.day;
+  }
   if (dl.view === 'calendar' && Array.isArray(dl.tags)) calendarTagFilters = dl.tags;
 }
 
 setTheme(THEME);
 applyDark();
 applyStaticI18N();
+applySidebarCollapse();
 updateBrand();
 updateNowBtn();
 renderClock();

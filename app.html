@@ -59,10 +59,10 @@
       } catch (e) { /* ẩn */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/tokens.css?v=6" />
-  <link rel="stylesheet" href="css/components.css?v=3" />
-  <link rel="stylesheet" href="css/app-shell.css?v=5" />
-  <link rel="stylesheet" href="css/styles.css?v=66" />
+  <link rel="stylesheet" href="css/tokens.css?v=7" />
+  <link rel="stylesheet" href="css/components.css?v=4" />
+  <link rel="stylesheet" href="css/app-shell.css?v=6" />
+  <link rel="stylesheet" href="css/styles.css?v=79" />
 </head>
 
 <body>
@@ -87,15 +87,16 @@
       <nav class="app-sidebar-nav" id="navTabs" role="tablist" aria-label="Điều hướng kế hoạch"
         data-i18n-aria="navPlan"></nav>
       <div class="app-sidebar-secondary" aria-label="Công cụ nhanh">
-        <button type="button" class="app-nav-item" data-action="focus" data-shell-icon="focus"
-          aria-label="Chế độ Tập trung" data-i18n-aria="focusOpen"><span>Chế độ tập trung</span></button>
-        <button type="button" class="app-nav-item" data-action="report" data-shell-icon="report"
-          aria-label="Báo cáo tháng"><span>Báo cáo</span></button>
         <button type="button" class="app-nav-item" data-action="tools-open" data-shell-icon="settings"
           aria-controls="toolsDrawer" aria-expanded="false"><span>Công cụ và cài đặt</span></button>
+        <button type="button" class="app-nav-item" data-action="profile-open" data-shell-icon="user"
+          aria-label="Tài khoản" data-i18n-aria="profileTitle"><span data-i18n="profileTitle">Tài khoản</span></button>
         <a class="app-nav-item landing-link" href="index.html" data-shell-icon="overview">
           <span>Trang giới thiệu</span>
         </a>
+        <button type="button" class="app-nav-item app-sidebar-collapse" id="sidebarCollapseBtn"
+          data-action="sidebar-collapse" data-shell-icon="chevron-left" aria-expanded="true"
+          data-tooltip="Thu gọn"><span data-i18n="collapseSidebar">Thu gọn</span></button>
       </div>
     </aside>
 
@@ -135,12 +136,14 @@
       </header>
 
       <main class="container" id="appMain" tabindex="-1">
+    <section id="view-today" class="view" role="tabpanel" aria-label="Hôm nay" data-i18n-aria="viewToday"></section>
     <section id="view-calendar" class="view" role="tabpanel" aria-label="Lịch tháng" data-i18n-aria="viewCalendar"></section>
     <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng" data-i18n-aria="viewOverview">
       <div id="ov-content"></div>
     </section>
     <section id="view-year" class="view" role="tabpanel" aria-label="Kế hoạch năm" data-i18n-aria="viewYear"></section>
     <section id="view-week" class="view" role="tabpanel" aria-label="Kế hoạch tuần" data-i18n-aria="viewWeek"></section>
+    <section id="view-day" class="view" role="tabpanel" aria-label="Xem ngày" data-i18n-aria="viewDay"></section>
       </main>
     </div>
   </div>
@@ -192,6 +195,8 @@
             <span data-i18n="focusOpen">Chế độ Tập trung</span></button>
           <button type="button" class="tools-action" data-action="report" data-shell-icon="report">
             <span data-i18n="reportTitle">Báo cáo tháng</span></button>
+          <button type="button" class="tools-action" data-action="stats" data-shell-icon="stats">
+            <span data-i18n="statsTitle">Thống kê</span></button>
           <button type="button" class="tools-action" data-action="template" data-shell-icon="week">
             <span data-i18n="templateOpenT">Sao chép cấu trúc tháng</span></button>
           <button type="button" class="tools-action" data-action="prevyear" data-shell-icon="chevron-left">
@@ -504,6 +509,16 @@
     </div>
   </div>
 
+  <!-- ===== Thống kê tương quan focus × task (Phase 9) ===== -->
+  <div class="report-modal stats-modal" id="statsModal" hidden>
+    <div class="report-modal-card stats-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="statsDialogTitle">
+      <button type="button" class="sync-close" data-action="stats-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h2 class="sync-modal-title" id="statsDialogTitle"><span data-i18n="statsTitle">Thống kê</span></h2>
+      <div id="statsContent"></div>
+    </div>
+  </div>
+
   <!-- ===== Phase 8: Widget Settings (Dashboard tuỳ chỉnh) ===== -->
   <div class="widget-modal" id="widgetSettingsModal" hidden>
     <div class="widget-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="widgetDialogTitle">
@@ -568,13 +583,29 @@
     </div>
   </div>
 
+  <!-- ===== Phase 5: Task Detail Drawer ===== -->
+  <div class="drawer-backdrop" id="taskDetailBackdrop" data-action="task-detail-close" hidden></div>
+  <aside class="drawer task-drawer" id="taskDrawer" role="dialog" aria-modal="true"
+    aria-labelledby="taskDrawerTitle" hidden>
+    <div class="task-drawer-head">
+      <div>
+        <p class="task-drawer-kicker" id="taskDrawerKicker" data-role="td-kicker"></p>
+        <h2 id="taskDrawerTitle" data-i18n="taskDetailTitle">Chi tiết task</h2>
+      </div>
+      <button type="button" class="task-drawer-close" data-action="task-detail-close" data-dialog-dismiss
+        data-i18n-aria="taskDetailClose" data-i18n-title="taskDetailClose" aria-label="Đóng chi tiết task" title="Đóng chi tiết task">✕</button>
+    </div>
+    <div class="task-drawer-body" data-role="td-body"></div>
+  </aside>
+
   <script src="js/api-config.js?v=1"></script>
-  <script src="js/deeplink.js?v=3"></script>
+  <script src="js/deeplink.js?v=5"></script>
   <script src="js/plan-math.js?v=7"></script>
   <script src="js/plan-stats.js?v=3"></script>
+  <script src="js/plan-carry.js?v=1"></script>
   <script src="js/sync.js?v=3"></script>
-  <script src="js/ui.js?v=3"></script>
-  <script src="js/app.js?v=73"></script>
+  <script src="js/ui.js?v=4"></script>
+  <script src="js/app.js?v=91"></script>
 </body>
 
 </html>

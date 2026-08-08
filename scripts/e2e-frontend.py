@@ -163,6 +163,8 @@ def week_checks(browser, base, width, height, errors, screenshot):
     mood.click()
     assert "on" in (mood.get_attribute("class") or "")
 
+    # Phase 4: nút 🔔 nằm trong dropdown ⋯ — mở menu rồi click menuitem
+    page.locator('.week-day-panel [data-action="task-menu"]').first.click()
     remind = page.locator('.week-day-panel [data-action="remind-task"]').first
     remind.click()
     assert remind.locator("xpath=ancestor::*[contains(@class,'task-row')][1]").locator(".remind-edit-input").count() == 1

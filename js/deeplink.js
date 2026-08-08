@@ -25,7 +25,7 @@
     }
 
     var view = String(url.searchParams.get('view') || '').trim();
-    if (view === 'overview' || view === 'year' || view === 'week' || view === 'calendar') {
+    if (view === 'today' || view === 'overview' || view === 'year' || view === 'week' || view === 'calendar' || view === 'day') {
       out.view = view;
     }
 
@@ -49,6 +49,16 @@
       var tags = url.searchParams.getAll('tag').map(function (tag) { return String(tag).trim(); }).filter(Boolean);
       tags = tags.filter(function (tag, index) { return tags.indexOf(tag) === index; }).slice(0, 8);
       if (tags.length) out.tags = tags;
+    }
+    if (out.view === 'day') {
+      // Tuần chứa ngày (w, 1..max) + ngày trong tuần (d, 0-6)
+      if (/^\d+$/.test(weekRaw)) {
+        var dw = parseInt(weekRaw, 10);
+        var maxWeeks = out.year !== null && out.month !== null ? numWeeksOf(out.year, out.month) : 6;
+        if (dw >= 1 && dw <= maxWeeks) out.week = dw;
+      }
+      var dayRaw = String(url.searchParams.get('d') || '').trim();
+      if (/^[0-6]$/.test(dayRaw)) out.day = parseInt(dayRaw, 10);
     }
     return out;
   }

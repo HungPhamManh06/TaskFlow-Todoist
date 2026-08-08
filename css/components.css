@@ -25,7 +25,7 @@
 .icon-button {
   appearance: none;
   border: 1px solid var(--color-control-border);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-button);
   color: var(--color-text);
   background: var(--color-surface);
   font: 700 .875rem/1 var(--font-body);
@@ -91,7 +91,7 @@
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--color-control-border);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-input);
   padding: var(--space-2) var(--space-3);
   color: var(--color-text);
   background: var(--color-surface);
@@ -138,7 +138,7 @@ time,
   overscroll-behavior: contain;
 }
 
-.dialog { border-radius: var(--radius-panel); }
+.dialog { border-radius: var(--radius-modal); }
 
 .dialog > :is(h1, h2, h3),
 .dialog .sync-modal-title {
@@ -245,4 +245,134 @@ textarea:focus-visible,
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ============================================================
+   Phase 1 — Reusable component contracts (Calm Productivity)
+   ============================================================ */
+
+/* ---- Badge ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 2px 9px;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-muted);
+  font: 750 .6875rem/1.1 var(--font-body);
+  white-space: nowrap;
+}
+.badge-accent { color: var(--color-accent); background: var(--color-accent-soft); border-color: transparent; }
+.badge-positive { color: var(--color-positive); background: color-mix(in srgb, var(--color-positive) 12%, transparent); border-color: transparent; }
+.badge-warning { color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 12%, transparent); border-color: transparent; }
+.badge-danger { color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 12%, transparent); border-color: transparent; }
+
+/* ---- Progress bar ---- */
+.progress {
+  display: block;
+  width: 100%;
+  min-height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+.progress > .progress-fill {
+  display: block;
+  min-height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transition: width var(--motion-standard) var(--ease-standard);
+}
+.progress[data-variant="positive"] > .progress-fill { background: var(--color-positive); }
+
+/* ---- Skeleton loading ---- */
+.skeleton {
+  position: relative;
+  display: block;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(52 47 43 / .1), transparent);
+  animation: skeleton-shimmer 1.4s var(--ease-standard) infinite;
+}
+:root[data-dark="true"] .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / .07), transparent);
+}
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* ---- Menu (dropdown) ---- */
+.menu {
+  display: grid;
+  gap: 2px;
+  min-width: 200px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 6px;
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-floating);
+}
+.menu > button {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: var(--radius-control);
+  padding: 7px 10px;
+  color: var(--color-text);
+  background: transparent;
+  font: 650 var(--text-sm)/1.25 var(--font-body);
+  text-align: start;
+  cursor: pointer;
+}
+.menu > button:hover,
+.menu > button:focus-visible {
+  background: var(--color-surface-muted);
+}
+.menu > button.danger { color: var(--color-danger); }
+
+/* ---- Tooltip (pure CSS, hover/focus) ---- */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 95;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(3px);
+  max-width: 220px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 5px 9px;
+  color: var(--color-text);
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-panel);
+  font: 650 .71875rem/1.3 var(--font-body);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-standard), transform var(--motion-fast) var(--ease-standard);
+}
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+@media (max-width: 720px), (pointer: coarse) {
+  [data-tooltip]::after { display: none; }
 }

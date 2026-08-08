@@ -224,7 +224,7 @@ test('5.5: nút feedback + FB_FORM_URL handler', () => {
 test('5.6: focus overlay + open/close + body.focus-mode', () => {
   assert.match(APP_HTML, /id="focusOverlay"/);
   assert.match(APP_HTML, /data-action="focus-close"/);
-  assert.match(APP_JS, /function openFocusMode\(\)/);
+  assert.match(APP_JS, /function openFocusMode\(ref\)/);
   assert.match(APP_JS, /function closeFocusMode\(\)/);
   assert.match(APP_JS, /function renderFocusContent\(\)/);
   assert.match(APP_JS, /focus-mode/);

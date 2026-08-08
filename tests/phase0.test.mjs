@@ -20,6 +20,22 @@ test('parse: view calendar hợp lệ (Phase 2.3)', () => {
   assert.equal(DeepLink.parse('https://x.app/app.html?view=calendar').view, 'calendar');
 });
 
+test('parse: view day hợp lệ + tuần/ngày (Day view)', () => {
+  assert.equal(DeepLink.parse('https://x.app/app.html?view=day').view, 'day');
+  const r = DeepLink.parse('https://x.app/app.html?view=day&w=3&d=4');
+  assert.equal(r.view, 'day');
+  assert.equal(r.week, 3);
+  assert.equal(r.day, 4);
+  // day không hợp lệ (ngoài 0-6) → bỏ qua
+  assert.equal(DeepLink.parse('https://x.app/app.html?view=day&d=9').day, undefined);
+  assert.equal(DeepLink.parse('https://x.app/app.html?view=day&d=abc').day, undefined);
+  // view=day nhưng không có w/d → view vẫn day, week/day rỗng
+  const bare = DeepLink.parse('https://x.app/app.html?view=day');
+  assert.equal(bare.view, 'day');
+  assert.equal(bare.week, null);
+  assert.equal(bare.day, undefined);
+});
+
 test('parse: m=YYYY-M hợp lệ', () => {
   const r = DeepLink.parse('https://x.app/app.html?m=2027-3');
   assert.equal(r.year, 2027);
