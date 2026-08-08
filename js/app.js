@@ -4650,28 +4650,29 @@ function runSearch(q) {
   const hits = [];
   const y = PLAN_YEAR;
   const now = new Date();
+  // m = -1 đánh dấu kết quả thuộc năm (goSearchResult mở view Năm khi m < 0)
+  const push = (m, type, text, week, day) => {
+    if (text && String(text).toLowerCase().includes(q)) hits.push({ y, m, type, text: String(text), week, day });
+  };
   for (let m = 0; m < 12; m++) {
     const s = (y === now.getFullYear() && m === now.getMonth()) ? state : monthStateRaw(y, m);
     if (!s) continue;
-    const push = (type, text, week, day) => {
-      if (text && String(text).toLowerCase().includes(q)) hits.push({ y, m, type, text: String(text), week, day });
-    };
-    (s.monthlyGoals || []).forEach((g) => push('goal', g.text));
-    (s.habits || []).forEach((h) => push('habit', h.name));
+    (s.monthlyGoals || []).forEach((g) => push(m, 'goal', g.text));
+    (s.habits || []).forEach((h) => push(m, 'habit', h.name));
     (s.weeks || []).forEach((w) => {
       (w.days || []).forEach((d, di) => {
-        (d.tasks || []).forEach((tk) => push('task', tk.text, w.n, di));
-        push('note', d.note, w.n, di);
-        push('note', d.sticky, w.n, di);
+        (d.tasks || []).forEach((tk) => push(m, 'task', tk.text, w.n, di));
+        push(m, 'note', d.note, w.n, di);
+        push(m, 'note', d.sticky, w.n, di);
       });
     });
     if (s.reflections) {
-      (s.reflections.overview || []).forEach((r) => push('reflect', r));
-      (s.reflections.weeks || []).forEach((w) => w.forEach((r) => push('reflect', r)));
+      (s.reflections.overview || []).forEach((r) => push(m, 'reflect', r));
+      (s.reflections.weeks || []).forEach((w) => w.forEach((r) => push(m, 'reflect', r)));
     }
   }
-  (yearState.goals || []).forEach((g) => push('ygoal', g.text));
-  (yearState.monthNotes || []).forEach((n, mi) => push('ynote', n, null, mi));
+  (yearState.goals || []).forEach((g) => push(-1, 'ygoal', g.text));
+  (yearState.monthNotes || []).forEach((n, mi) => push(-1, 'ynote', n, null, mi));
   return hits;
 }
 
