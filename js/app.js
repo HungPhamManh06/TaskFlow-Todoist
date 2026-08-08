@@ -544,6 +544,24 @@ const I18N = {
     upcomingOverdueAria: 'Công việc quá hạn',
     upcomingDayAria: 'Công việc ngày {d}',
     upcomingNoTime: '—',
+    tabInbox: 'Inbox',
+    inboxEyebrow: 'Bắt nhanh',
+    inboxTitle: 'Inbox',
+    inboxSubtitle: 'Ghi lại việc cần làm ngay — sắp xếp lịch sau.',
+    inboxEmpty: 'Inbox trống ✨',
+    inboxEmptySub: 'Mọi việc đã được sắp xếp.',
+    inboxAddTask: 'Thêm việc',
+    inboxScheduleBtn: 'Lên lịch',
+    inboxScheduleToday: 'Hôm nay',
+    inboxScheduleTomorrow: 'Ngày mai',
+    inboxScheduleDateLbl: 'Chọn ngày',
+    inboxScheduleToast: 'Đã chuyển vào lịch',
+    inboxScheduleError: 'Không thể lên lịch cho ngày này',
+    inboxDeleteAria: 'Xoá khỏi Inbox',
+    inboxScheduleAria: 'Lên lịch cho việc này',
+    inboxTodayAria: 'Chuyển sang hôm nay',
+    inboxTomorrowAria: 'Chuyển sang ngày mai',
+    viewInbox: 'Inbox',
     viewToday: 'Hôm nay',
     nowAria: 'Ngày giờ hiện tại',
     tabOverview: 'Tổng quan tháng',
@@ -1150,6 +1168,24 @@ const I18N = {
     upcomingOverdueAria: 'Overdue tasks',
     upcomingDayAria: 'Tasks on {d}',
     upcomingNoTime: '—',
+    tabInbox: 'Inbox',
+    inboxEyebrow: 'Capture',
+    inboxTitle: 'Inbox',
+    inboxSubtitle: 'Jot it down now — schedule it later.',
+    inboxEmpty: 'Inbox is empty ✨',
+    inboxEmptySub: 'Everything is already scheduled.',
+    inboxAddTask: 'Add task',
+    inboxScheduleBtn: 'Schedule',
+    inboxScheduleToday: 'Today',
+    inboxScheduleTomorrow: 'Tomorrow',
+    inboxScheduleDateLbl: 'Pick a date',
+    inboxScheduleToast: 'Moved to the calendar',
+    inboxScheduleError: 'Cannot schedule for this date',
+    inboxDeleteAria: 'Remove from Inbox',
+    inboxScheduleAria: 'Schedule this task',
+    inboxTodayAria: 'Move to today',
+    inboxTomorrowAria: 'Move to tomorrow',
+    viewInbox: 'Inbox',
     viewToday: 'Today',
     nowAria: 'Current date & time',
     tabOverview: 'Overview',
@@ -2922,7 +2958,7 @@ function loadState() {
     const tiMig = nowInfo();
     if (typeof s.dayWeek !== 'number' || s.dayWeek < 1 || s.dayWeek > NUM_WEEKS) s.dayWeek = tiMig.inRange ? tiMig.week : 1;
     if (typeof s.dayDay !== 'number' || s.dayDay < 0 || s.dayDay > 6) s.dayDay = tiMig.inRange ? tiMig.dayInWeek : 0;
-    if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar' && s.view !== 'today' && s.view !== 'day' && s.view !== 'upcoming') s.view = 'today';
+    if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar' && s.view !== 'today' && s.view !== 'day' && s.view !== 'upcoming' && s.view !== 'inbox') s.view = 'today';
     // Migration: task cũ thiếu tags → mảng rỗng; thiếu remind → tắt; thiếu uid → gán uid cố định
     // (uid là nền tảng để carry-over theo dõi task qua việc xoá/chèn task phía trước).
     let tasksDirty = false;
@@ -3054,6 +3090,29 @@ function rebootState(render = true) {
 }
 
 let state = bootState();
+
+/* ============================ Inbox — bắt nhanh việc chưa lên lịch ============================ */
+// Inbox lưu ở key riêng 'planner-inbox' (đồng bộ đám mây như planner-xp) nên KHÔNG phụ thuộc tháng/năm.
+const INBOX_KEY = 'planner-inbox';
+let inbox = [];
+
+function loadInbox() {
+  try {
+    const r = JSON.parse(localStorage.getItem(INBOX_KEY));
+    if (Array.isArray(r)) {
+      // Vệ sinh: task thiếu uid → gán uid cố định (nền tảng carry-over khi lên lịch)
+      r.forEach((tk) => { if (!tk || typeof tk.uid !== 'string') tk.uid = newTaskUid(); if (!Array.isArray(tk.tags)) tk.tags = []; });
+      return r;
+    }
+  } catch (e) { /* ẩn */ }
+  return [];
+}
+function saveInbox() {
+  try { localStorage.setItem(INBOX_KEY, JSON.stringify(inbox)); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push(INBOX_KEY);
+}
+
+inbox = loadInbox();
 
 function save() {
   try { localStorage.setItem(monthKey(), JSON.stringify(state)); } catch (e) { /* ẩn */ }
@@ -5316,12 +5375,17 @@ function taskDetailState() {
 
 function saveTaskDetailState() {
   if (!taskDetailRef) { save(); return; }
+  if (taskDetailRef.scope === 'inbox') { saveInbox(); return; }
   if (taskDetailRef.y === PLAN_YEAR && taskDetailRef.m === PLAN_MONTH) { save(); return; }
   if (taskDetailMonthState) saveMonthState(taskDetailRef.y, taskDetailRef.m, taskDetailMonthState);
 }
 
 function getTaskDetailTarget() {
   if (!taskDetailRef) return null;
+  if (taskDetailRef.scope === 'inbox') {
+    const tk = inbox[taskDetailRef.task];
+    return tk ? { w: null, d: null, tk } : null;
+  }
   const st = taskDetailState();
   if (!st) return null;
   const w = st.weeks && st.weeks[taskDetailRef.week - 1];
@@ -5330,6 +5394,18 @@ function getTaskDetailTarget() {
   if (!d) return null;
   const tk = d.tasks && d.tasks[taskDetailRef.task];
   return tk ? { w, d, tk } : null;
+}
+
+function openInboxTaskDetail(i) {
+  taskDetailRef = { scope: 'inbox', task: i };
+  taskDetailMonthState = null;
+  // Ưu tiên nút ⋯ (focusable) làm điểm trả focus khi đóng drawer
+  const opener = document.querySelector(`[data-action="task-detail"][data-scope="inbox"][data-task="${i}"][type="button"]`)
+    || document.querySelector(`[data-action="task-detail"][data-scope="inbox"][data-task="${i}"]`);
+  renderTaskDetail();
+  TaskFlowUI.openDrawer('taskDrawer', opener);
+  const b = document.getElementById('taskDetailBackdrop');
+  if (b) b.hidden = false;
 }
 
 function openTaskDetail(week, day, task, y, m) {
@@ -5356,6 +5432,7 @@ function refreshTaskRowAfterEdit() {
   if (state.view === 'today') renderToday();
   else if (state.view === 'week') renderWeek();
   else if (state.view === 'upcoming') renderUpcoming();
+  else if (state.view === 'inbox') renderInbox();
   saveTaskDetailState();
 }
 
@@ -5371,23 +5448,35 @@ function renderTaskDetail() {
   const tags = Array.isArray(tk.tags) ? tk.tags : [];
   const subs = Array.isArray(tk.subtasks) ? tk.subtasks : [];
   const rep = tk.repeat && tk.repeat.freq ? tk.repeat.freq : '';
-  if (kicker) kicker.textContent = `${t('weekN', { n: w.n })} · ${dayLabel(taskDetailRef.day)}`;
+  const inInbox = taskDetailRef.scope === 'inbox';
+  if (kicker) kicker.textContent = inInbox ? t('tabInbox') : `${t('weekN', { n: w.n })} · ${dayLabel(taskDetailRef.day)}`;
   const subDone = subs.filter((s) => s.done).length;
+  // Ngày mặc định cho picker lên lịch (local, tránh lệch UTC)
+  const _d = new Date();
+  const todayIso = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
   body.innerHTML = `
       <div class="td-text-wrap">
         <span class="td-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="td-text" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: taskDetailRef.task + 1 })}">${esc(tk.text ?? '')}</span>
       </div>
       <div class="td-focus-row">
         <span class="td-focus-stats" title="${t('focusLogTotal', { n: Math.round(taskFocusSecs(tk) / 60) })}">${window.TaskFlowUI.icon('focus')}<span>${taskFocusSecs(tk) > 0 ? esc(formatFocusTime(Math.round(taskFocusSecs(tk) / 60))) : t('focusNoSessions')}</span></span>
-        <button type="button" class="td-focus-btn" data-action="focus-task" data-week="${taskDetailRef.week}" data-day="${taskDetailRef.day}" data-task="${taskDetailRef.task}">${window.TaskFlowUI.icon('focus')}<span>${t('taskFocusBtn')}</span></button>
+        <button type="button" class="td-focus-btn" data-action="focus-task" ${inInbox ? `data-scope="inbox"` : `data-week="${taskDetailRef.week}" data-day="${taskDetailRef.day}"`} data-task="${taskDetailRef.task}">${window.TaskFlowUI.icon('focus')}<span>${t('taskFocusBtn')}</span></button>
       </div>
       <div class="task-drawer-fields">
-        <label class="td-field">
+        ${inInbox ? `<label class="td-field">
+          <span class="td-field-label">${t('inboxScheduleBtn')}</span>
+          <span class="td-inbox-schedule">
+            <button type="button" class="pop-btn" data-action="inbox-today" data-task="${taskDetailRef.task}">${t('inboxScheduleToday')}</button>
+            <button type="button" class="pop-btn" data-action="inbox-tomorrow" data-task="${taskDetailRef.task}">${t('inboxScheduleTomorrow')}</button>
+            <input type="date" data-role="inbox-date" value="${todayIso}" aria-label="${t('inboxScheduleDateLbl')}">
+            <button type="button" class="pop-btn primary" data-action="inbox-date-schedule" data-task="${taskDetailRef.task}">${t('inboxScheduleBtn')}</button>
+          </span>
+        </label>` : `<label class="td-field">
           <span class="td-field-label">${t('taskDetailDate')}</span>
           <select data-action="td-date" aria-label="${t('taskDetailDate')}">
             ${[0, 1, 2, 3, 4, 5, 6].map((di) => `<option value="${di}" ${di === taskDetailRef.day ? 'selected' : ''}>${dayLabel(di)}</option>`).join('')}
           </select>
-        </label>
+        </label>`}
         <label class="td-field">
           <span class="td-field-label">${t('taskDetailDeadline')}</span>
           <input type="date" data-action="td-deadline" value="${esc(tk.deadline ?? '')}" aria-label="${t('taskDetailDeadline')}">
@@ -5435,7 +5524,7 @@ function renderTaskDetail() {
         </div>
         <span class="td-add-row"><input type="text" data-role="td-subtask-input" placeholder="${t('taskDetailSubtaskPh')}" maxlength="120" aria-label="${t('taskDetailAddSubtask')}"><button type="button" class="td-add-btn" data-action="subtask-add" aria-label="${t('taskDetailAddSubtask')}">＋</button></span>
       </div>
-      <button type="button" class="td-delete danger" data-action="td-delete" data-week="${taskDetailRef.week}" data-day="${taskDetailRef.day}" data-task="${taskDetailRef.task}">${t('taskDetailDelete')}</button>`;
+      <button type="button" class="td-delete danger" data-action="td-delete" ${inInbox ? `data-scope="inbox"` : `data-week="${taskDetailRef.week}" data-day="${taskDetailRef.day}"`} data-task="${taskDetailRef.task}">${t('taskDetailDelete')}</button>`;
   bindTaskDetailEvents(drawer);
 }
 
@@ -6667,6 +6756,7 @@ function buildNav() {
   const mobile = document.getElementById('mobileNav');
   const items = [
     { view: 'today', icon: 'calendar', label: shellNavLabel(t('todayTxt')), id: 'tab-today', controls: 'view-today' },
+    { view: 'inbox', icon: 'inbox', label: shellNavLabel(t('tabInbox')), id: 'tab-inbox', controls: 'view-inbox' },
     { view: 'upcoming', icon: 'upcoming', label: shellNavLabel(t('tabUpcoming')), id: 'tab-upcoming', controls: 'view-upcoming' },
     { view: 'overview', icon: 'overview', label: shellNavLabel(t('tabOverview')), id: 'tab-overview', controls: 'view-overview' },
     { view: 'week', icon: 'week', label: shellNavLabel(t('weekN', { n: state.currentWeek })), id: 'tab-week-' + state.currentWeek, controls: 'view-week', week: state.currentWeek },
@@ -6675,6 +6765,7 @@ function buildNav() {
   ];
   const navAttributes = {
     today: 'data-nav-view="today" data-view="today"',
+    inbox: 'data-nav-view="inbox" data-view="inbox"',
     upcoming: 'data-nav-view="upcoming" data-view="upcoming"',
     overview: 'data-nav-view="overview" data-view="overview"',
     week: 'data-nav-view="week" data-view="week"',
@@ -6693,7 +6784,7 @@ function buildNav() {
     items.forEach((it) => { byView[it.view] = it; });
     const groups = [
       { label: t('navGroupMain'), items: [
-        byView.today, byView.upcoming,
+        byView.today, byView.inbox, byView.upcoming,
       ] },
       { label: t('navGroupPlan'), items: [
         byView.week, byView.overview, byView.year,
@@ -6710,7 +6801,8 @@ function buildNav() {
     </div>`).join('');
   }
   if (mobile) {
-    mobile.innerHTML = items.map((item) => `<button type="button" class="app-mobile-nav-item tab" role="tab"
+    // Bottom-nav mobile: Inbox nằm trong tools drawer (Thêm) — không nhồi thêm nút vào thanh đã kín.
+    mobile.innerHTML = items.filter((item) => item.view !== 'inbox').map((item) => `<button type="button" class="app-mobile-nav-item tab" role="tab"
       id="mobile-${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
       ${item.week ? `data-week="${item.week}"` : ''}>
       ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`).join('') +
@@ -6749,6 +6841,8 @@ function updateShellContext() {
   const period = document.getElementById('appPeriod');
   const labels = {
     today: t('todayTxt'),
+    inbox: t('tabInbox'),
+    upcoming: t('tabUpcoming'),
     overview: t('tabOverview'),
     week: t('weekN', { n: state.currentWeek }),
     year: t('tabYear', { y: PLAN_YEAR }),
@@ -6956,6 +7050,108 @@ function renderUpcoming() {
   </div>`;
 }
 
+/* ============================ Inbox — bắt nhanh ============================ */
+// Row Inbox: checkbox + text (sửa trực tiếp) + meta + hành động (lên lịch hôm nay / xoá).
+function inboxMeta(tk) {
+  const bits = [];
+  if (tk.kind === 'priority') bits.push(t('taskPriorityLabel'));
+  if (tk.duration) bits.push(t('pomoMinShort', { n: tk.duration }));
+  if (tk.deadline) bits.push(fmtDeadline(tk.deadline));
+  const tags = Array.isArray(tk.tags) ? tk.tags : [];
+  return { bits, tags };
+}
+
+function inboxTaskRowHTML(tk, i) {
+  const data = `data-scope="inbox" data-task="${i}"`;
+  const { bits, tags } = inboxMeta(tk);
+  const check = checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" ${data}`, window.TaskFlowUI.checkboxLabel('task', tk.text, t('tabInbox')));
+  const meta = bits.length ? `<span class="up-meta">${bits.map((b) => `<span>${esc(b)}</span>`).join('<span class="up-dot">·</span>')}</span>` : '';
+  const tagsHTML = tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : '';
+  return `<div class="inbox-task-row${tk.done ? ' done' : ''}${tk.kind === 'priority' ? ' prio' : ''}">
+    ${check}
+    <span class="inbox-main" data-action="task-detail" ${data}
+      aria-label="${t('taskDetail')}: ${esc(tk.text || '')}">
+      <span class="inbox-text editable" contenteditable="true" spellcheck="false" data-singleline="1"
+        data-role="inbox-text" ${data} data-placeholder="${t('taskPh')}"
+        aria-label="${t('taskAria', { n: i + 1 })}">${esc(tk.text ?? '')}</span>
+      ${meta}
+      ${tagsHTML}
+    </span>
+    <span class="inbox-actions">
+      <button type="button" class="inbox-more" data-action="task-detail" ${data}
+        title="${t('taskDetail')}" aria-label="${t('taskDetail')}">⋯</button>
+      <button type="button" class="inbox-sched-today" data-action="inbox-today" data-task="${i}"
+        title="${t('inboxTodayAria')}" aria-label="${t('inboxTodayAria')}">${t('inboxScheduleToday')}</button>
+      <button type="button" class="btn-del" data-action="inbox-del" data-task="${i}"
+        title="${t('inboxDeleteAria')}" aria-label="${t('inboxDeleteAria')}">✕</button>
+    </span>
+  </div>`;
+}
+
+function renderInbox() {
+  const el = document.getElementById('view-inbox');
+  if (!el) return;
+  const list = inbox.map((tk, i) => inboxTaskRowHTML(tk, i)).join('');
+  const empty = inbox.length ? '' : `<div class="up-empty">
+    <p class="up-empty-title">${t('inboxEmpty')}</p>
+    <p class="up-empty-sub">${t('inboxEmptySub')}</p>
+  </div>`;
+  el.innerHTML = `<div class="upcoming-page">
+    <header class="upcoming-header">
+      <div>
+        <p class="upcoming-eyebrow">${t('inboxEyebrow')}</p>
+        <h1 class="upcoming-title">${t('inboxTitle')}</h1>
+        <p class="upcoming-subtitle">${t('inboxSubtitle')}</p>
+      </div>
+    </header>
+    ${inbox.length ? `<div class="inbox-list" role="list">${list}</div>` : ''}
+    ${empty}
+    <button type="button" class="btn-add-today" data-action="inbox-add" aria-label="${t('inboxAddTask')}">＋ ${t('inboxAddTask')}</button>
+  </div>`;
+}
+
+// Ngày dt → (y, m, week, day) trong lưới tháng — khớp cách view Lịch hiển thị (Thứ 2 = 0).
+function inboxTargetForDate(dt) {
+  const inCur = Math.floor((dt - PLAN_START) / 86400000);
+  if (inCur >= 0 && inCur < NUM_WEEKS * 7) {
+    return { y: PLAN_YEAR, m: PLAN_MONTH, week: Math.floor(inCur / 7) + 1, day: inCur % 7 };
+  }
+  const y = dt.getFullYear(), m = dt.getMonth();
+  const first = new Date(y, m, 1);
+  const dow = (first.getDay() + 6) % 7; // Thứ 2 = 0
+  const start = new Date(first.getTime() - dow * 86400000);
+  const dayIdx = Math.floor((dt - start) / 86400000);
+  if (dayIdx < 0) return null;
+  return { y, m, week: Math.floor(dayIdx / 7) + 1, day: dayIdx % 7 };
+}
+
+// Chuyển task inbox vào ngày cụ thể — GIỮ uid (carry-over/repeat theo dõi đúng task).
+function scheduleInboxTask(i, dt) {
+  const tk = inbox[i];
+  if (!tk) return false;
+  const tgt = inboxTargetForDate(dt);
+  if (!tgt) return false;
+  const st = (tgt.y === PLAN_YEAR && tgt.m === PLAN_MONTH) ? state : loadMonthStateOrCreate(tgt.y, tgt.m);
+  const w = st && st.weeks && st.weeks[tgt.week - 1];
+  if (!w || !Array.isArray(w.days) || !w.days[tgt.day] || !Array.isArray(w.days[tgt.day].tasks)) return false;
+  const moved = { ...tk, inbox: false, remind: (tk.remind && tk.remind.enabled) ? tk.remind : { enabled: false, time: '20:00' } };
+  w.days[tgt.day].tasks.push(moved);
+  inbox.splice(i, 1);
+  if (tgt.y === PLAN_YEAR && tgt.m === PLAN_MONTH) save(); else saveMonthState(tgt.y, tgt.m, st);
+  saveInbox();
+  return true;
+}
+
+function addInboxTask() {
+  inbox.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' }, inbox: true });
+  saveInbox();
+  renderInbox();
+  trackEvent('create_task', { scope: 'inbox' });
+  // Focus ô text mới để gõ ngay
+  const fresh = document.querySelector('[data-role="inbox-text"][data-task="' + (inbox.length - 1) + '"]');
+  if (fresh) fresh.focus();
+}
+
 function setView(view, week) {
   // Phase 5: đổi view/tuần → đóng drawer chi tiết (ref index có thể lệch theo tuần mới)
   if (taskDetailRef) closeTaskDetail();
@@ -6973,8 +7169,10 @@ function setView(view, week) {
   const dy = document.getElementById('view-day');
   const td = document.getElementById('view-today');
   const upc = document.getElementById('view-upcoming');
+  const ibx = document.getElementById('view-inbox');
   if (td) td.classList.toggle('active', view === 'today');
   if (upc) upc.classList.toggle('active', view === 'upcoming');
+  if (ibx) ibx.classList.toggle('active', view === 'inbox');
   ov.classList.toggle('active', view === 'overview');
   wk.classList.toggle('active', view === 'week');
   yr.classList.toggle('active', view === 'year');
@@ -6986,6 +7184,9 @@ function setView(view, week) {
   } else if (view === 'upcoming') {
     if (upc) upc.setAttribute('aria-labelledby', 'tab-upcoming');
     renderUpcoming();
+  } else if (view === 'inbox') {
+    if (ibx) ibx.setAttribute('aria-labelledby', 'tab-inbox');
+    renderInbox();
   } else if (view === 'overview') {
     ov.setAttribute('aria-labelledby', 'tab-overview');
     renderOverview();
@@ -7406,12 +7607,14 @@ function doRestoreBackup(idx) {
 let focusTaskRef = null;
 
 function openFocusMode(ref) {
-  // ref có thể kèm y/m (từ Upcoming cho task tháng khác) — mặc định tháng hiện tại
-  const newRef = ref ? {
-    y: ref.y === undefined ? PLAN_YEAR : +ref.y,
-    m: ref.m === undefined ? PLAN_MONTH : +ref.m,
-    week: +ref.week, day: +ref.day, task: +ref.task,
-  } : null;
+  // ref có thể kèm y/m (từ Upcoming cho task tháng khác) hoặc scope=inbox — mặc định tháng hiện tại
+  const newRef = ref ? (ref.scope === 'inbox'
+    ? { scope: 'inbox', task: +ref.task }
+    : {
+      y: ref.y === undefined ? PLAN_YEAR : +ref.y,
+      m: ref.m === undefined ? PLAN_MONTH : +ref.m,
+      week: +ref.week, day: +ref.day, task: +ref.task,
+    }) : null;
   focusMonthState = null;
   // Phase 6: chuyển sang task khác / xem tất cả → dừng bộ đếm (phiên thuộc về task đã bắt đầu)
   const switched = !!focusTaskRef && JSON.stringify(newRef) !== JSON.stringify(focusTaskRef);
@@ -7438,6 +7641,7 @@ let focusMonthState = null;
 
 function focusState() {
   if (!focusTaskRef) return null;
+  if (focusTaskRef.scope === 'inbox') return state;
   if (focusTaskRef.y === PLAN_YEAR && focusTaskRef.m === PLAN_MONTH) return state;
   if (!focusMonthState) focusMonthState = monthStateRaw(focusTaskRef.y, focusTaskRef.m);
   return focusMonthState;
@@ -7445,12 +7649,17 @@ function focusState() {
 
 function saveFocusState() {
   if (!focusTaskRef) { save(); return; }
+  if (focusTaskRef.scope === 'inbox') { saveInbox(); return; }
   if (focusTaskRef.y === PLAN_YEAR && focusTaskRef.m === PLAN_MONTH) { save(); return; }
   if (focusMonthState) saveMonthState(focusTaskRef.y, focusTaskRef.m, focusMonthState);
 }
 
 function getFocusedTask() {
   if (!focusTaskRef) return null;
+  if (focusTaskRef.scope === 'inbox') {
+    const tk = inbox[focusTaskRef.task];
+    return tk ? { w: null, d: null, tk, week: -1, day: -1, task: focusTaskRef.task } : null;
+  }
   const st = focusState();
   if (!st) return null;
   const w = st.weeks && st.weeks[focusTaskRef.week - 1];
@@ -7556,7 +7765,10 @@ function focusTimerSetDur(min) {
 // Tìm task theo uid (bền vững khi index đổi do xoá/chèn).
 function getTaskByUid(uid) {
   if (!uid) return null;
-  // Tìm trong state tháng hiện tại trước; nếu focus trỏ task tháng khác thì tìm thêm trong focusMonthState.
+  // Tìm trong inbox trước (task chưa lên lịch), rồi state tháng hiện tại; nếu focus trỏ
+  // task tháng khác thì tìm thêm trong focusMonthState.
+  const hitInbox = inbox.find((tk) => tk && tk.uid === uid);
+  if (hitInbox) return hitInbox;
   const sts = [state, focusMonthState].filter(Boolean);
   for (const st of sts) {
     if (!st || !Array.isArray(st.weeks)) continue;
@@ -7589,7 +7801,7 @@ function renderFocusContent() {
       <p class="focus-date">📅 ${fmtDate(now)}</p>
       <div class="focus-taskview">
         <p class="focus-focusing">${t('focusFocusing')}</p>
-        <div class="focus-tasktext ${tk.done ? 'done' : ''}">${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${week}" data-day="${day}" data-task="${task}" data-y="${focusTaskRef.y}" data-m="${focusTaskRef.m}"`, window.TaskFlowUI.checkboxLabel('task', tk.text, fmtDate(now)))}<span class="focus-tasktext-txt">${esc(tk.text) || '…'}</span></div>
+        <div class="focus-tasktext ${tk.done ? 'done' : ''}">${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, focusTaskRef.scope === 'inbox' ? `data-action="task" data-scope="inbox" data-task="${task}"` : `data-action="task" data-week="${week}" data-day="${day}" data-task="${task}" data-y="${focusTaskRef.y}" data-m="${focusTaskRef.m}"`, window.TaskFlowUI.checkboxLabel('task', tk.text, fmtDate(now)))}<span class="focus-tasktext-txt">${esc(tk.text) || '…'}</span></div>
         <div class="focus-timer">
           <div class="focus-timer-presets" role="group" aria-label="${t('focusTimer')}">
             ${FOCUS_PRESETS.map((m) => `<button type="button" class="focus-preset" data-action="focus-timer-set" data-min="${m}" ${m * 60 === focusTimer.dur ? 'aria-pressed="true"' : 'aria-pressed="false"'}>${t('pomoMinShort', { n: m })}</button>`).join('')}
@@ -7659,6 +7871,9 @@ document.addEventListener('click', (e) => {
   }
   const el = e.target.closest('[data-action]');
   if (!el) return;
+  // Click trong ô contenteditable (vd text task Inbox) là để GÕ, không phải để mở action
+  // (text editable nằm trong thẻ cha data-action="task-detail" → phải chặn trước khi dispatch).
+  if (e.target.closest('[contenteditable="true"]')) return;
   const act = el.dataset.action;
   // Phase 4: chọn mục trong menu ⋯ → đóng menu (editor inline sẽ chèn vào row, tránh lẫn với dropdown)
   if (el.closest('.task-menu')) {
@@ -7771,6 +7986,53 @@ document.addEventListener('click', (e) => {
     const now = new Date();
     if (PLAN_MONTH !== now.getMonth() || PLAN_YEAR !== now.getFullYear()) openMonth(now.getMonth());
     setView('today');
+  } else if (act === 'inbox-open') {
+    closeToolsDrawer();
+    setView('inbox');
+  } else if (act === 'inbox-add') {
+    addInboxTask();
+  } else if (act === 'inbox-del') {
+    const i = +el.dataset.task;
+    if (inbox[i]) {
+      inbox.splice(i, 1);
+      saveInbox();
+      renderInbox();
+      trackEvent('delete_task', { scope: 'inbox' });
+    }
+  } else if (act === 'inbox-today') {
+    const i = +el.dataset.task;
+    const d = new Date();
+    const ok = scheduleInboxTask(i, new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+    if (ok) {
+      closeTaskDetail();
+      renderInbox();
+      TaskFlowUI.toast(t('inboxScheduleToast'), 'success');
+      trackEvent('schedule_task', { scope: 'inbox', target: 'today' });
+    } else TaskFlowUI.toast(t('inboxScheduleError'), 'error');
+  } else if (act === 'inbox-tomorrow') {
+    const i = +el.dataset.task;
+    const d = new Date();
+    const tom = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    const ok = scheduleInboxTask(i, tom);
+    if (ok) {
+      closeTaskDetail();
+      renderInbox();
+      TaskFlowUI.toast(t('inboxScheduleToast'), 'success');
+      trackEvent('schedule_task', { scope: 'inbox', target: 'tomorrow' });
+    } else TaskFlowUI.toast(t('inboxScheduleError'), 'error');
+  } else if (act === 'inbox-date-schedule') {
+    const i = +el.dataset.task;
+    const inp = document.querySelector('#taskDrawer [data-role="inbox-date"]');
+    const v = inp && inp.value;
+    if (!v) return;
+    const parts = v.split('-').map(Number);
+    const ok = scheduleInboxTask(i, new Date(parts[0], parts[1] - 1, parts[2]));
+    if (ok) {
+      closeTaskDetail();
+      renderInbox();
+      TaskFlowUI.toast(t('inboxScheduleToast'), 'success');
+      trackEvent('schedule_task', { scope: 'inbox', target: 'date' });
+    } else TaskFlowUI.toast(t('inboxScheduleError'), 'error');
   } else if (act === 'pullyear') {
     pullYearGoalsFromMonths();
   } else if (act === 'mgoal') {
@@ -7795,7 +8057,19 @@ document.addEventListener('click', (e) => {
       if (g.done && weekStats(w).pct === 100) confettiBurst();
     }
   } else if (act === 'task') {
-    // Checkbox task — hỗ trợ data-y/data-m (từ Upcoming) để toggle task thuộc tháng khác.
+    // Checkbox task — hỗ trợ data-y/data-m (từ Upcoming) để toggle task thuộc tháng khác;
+    // data-scope="inbox" để toggle task trong Inbox.
+    if (el.dataset.scope === 'inbox') {
+      const t = inbox[+el.dataset.task];
+      if (t) {
+        t.done = !t.done;
+        if (t.done) addXP(10); else removeXP(10);
+        saveInbox();
+        renderInbox();
+        refreshFocusIfOpen();
+      }
+      return;
+    }
     const tY = el.dataset.y !== undefined ? +el.dataset.y : PLAN_YEAR;
     const tM = el.dataset.m !== undefined ? +el.dataset.m : PLAN_MONTH;
     const st = (tY === PLAN_YEAR && tM === PLAN_MONTH) ? state : monthStateRaw(tY, tM);
@@ -7892,13 +8166,15 @@ document.addEventListener('click', (e) => {
     }
   } else if (act === 'focus-task') {
     // Phase 6: focus vào đúng task này (nếu đang mở drawer thì đóng trước).
-    // Truyền cả y/m để focus task thuộc tháng khác (từ Upcoming).
+    // Truyền cả y/m để focus task thuộc tháng khác (từ Upcoming); scope=inbox cho task trong Inbox.
     closeTaskDetail();
-    openFocusMode({
-      week: el.dataset.week, day: el.dataset.day, task: el.dataset.task,
-      y: el.dataset.y !== undefined ? el.dataset.y : undefined,
-      m: el.dataset.m !== undefined ? el.dataset.m : undefined,
-    });
+    openFocusMode(el.dataset.scope === 'inbox'
+      ? { scope: 'inbox', task: el.dataset.task }
+      : {
+        week: el.dataset.week, day: el.dataset.day, task: el.dataset.task,
+        y: el.dataset.y !== undefined ? el.dataset.y : undefined,
+        m: el.dataset.m !== undefined ? el.dataset.m : undefined,
+      });
   } else if (act === 'focus-show-all') {
     openFocusMode();
   } else if (act === 'focus-timer-start') {
@@ -7908,7 +8184,8 @@ document.addEventListener('click', (e) => {
   } else if (act === 'focus-timer-set') {
     focusTimerSetDur(+el.dataset.min);
   } else if (act === 'task-detail') {
-    openTaskDetail(+el.dataset.week, +el.dataset.day, +el.dataset.task,
+    if (el.dataset.scope === 'inbox') openInboxTaskDetail(+el.dataset.task);
+    else openTaskDetail(+el.dataset.week, +el.dataset.day, +el.dataset.task,
       el.dataset.y !== undefined ? +el.dataset.y : undefined,
       el.dataset.m !== undefined ? +el.dataset.m : undefined);
   } else if (act === 'task-detail-close') {
@@ -7976,16 +8253,23 @@ document.addEventListener('click', (e) => {
     refreshTaskRowAfterEdit();
   } else if (act === 'td-delete') {
     const g = getTaskDetailTarget();
-    if (g && g.d && Array.isArray(g.d.tasks)) g.d.tasks.splice(taskDetailRef.task, 1);
-    const delY = taskDetailRef ? taskDetailRef.y : PLAN_YEAR;
-    const delM = taskDetailRef ? taskDetailRef.m : PLAN_MONTH;
-    const delSt = taskDetailState();
-    closeTaskDetail();
-    if (state.view === 'today') renderToday();
-    else if (state.view === 'upcoming') renderUpcoming();
-    else renderWeek();
-    if (delY === PLAN_YEAR && delM === PLAN_MONTH) save();
-    else if (delSt) saveMonthState(delY, delM, delSt);
+    if (taskDetailRef && taskDetailRef.scope === 'inbox') {
+      inbox.splice(taskDetailRef.task, 1);
+      closeTaskDetail();
+      saveInbox();
+      renderInbox();
+    } else {
+      if (g && g.d && Array.isArray(g.d.tasks)) g.d.tasks.splice(taskDetailRef.task, 1);
+      const delY = taskDetailRef ? taskDetailRef.y : PLAN_YEAR;
+      const delM = taskDetailRef ? taskDetailRef.m : PLAN_MONTH;
+      const delSt = taskDetailState();
+      closeTaskDetail();
+      if (state.view === 'today') renderToday();
+      else if (state.view === 'upcoming') renderUpcoming();
+      else renderWeek();
+      if (delY === PLAN_YEAR && delM === PLAN_MONTH) save();
+      else if (delSt) saveMonthState(delY, delM, delSt);
+    }
   } else if (act === 'addgoal') {
     const scope = el.dataset.scope;
     if (scope === 'm') {
@@ -8333,10 +8617,13 @@ document.addEventListener('input', (e) => {
   } else if (t.dataset.role === 'task-text') {
     state.weeks[+t.dataset.week - 1].days[+t.dataset.day].tasks[+t.dataset.task].text = t.innerText;
     save();
+  } else if (t.dataset.role === 'inbox-text') {
+    const tk = inbox[+t.dataset.task];
+    if (tk) { tk.text = t.innerText; saveInbox(); }
   } else if (t.dataset.role === 'td-text') {
     // Phase 5: text trong Task Detail Drawer — lưu trực tiếp (blur cũng cập nhật row qua bindTaskDetailEvents)
     const g = getTaskDetailTarget();
-    if (g) { g.tk.text = t.innerText; save(); }
+    if (g) { g.tk.text = t.innerText; saveTaskDetailState(); }
   } else if (t.dataset.role === 'w-goal-text') {
     state.weeks[+t.dataset.week - 1].goals[+t.dataset.id].text = t.innerText;
     save();
@@ -8381,9 +8668,10 @@ document.addEventListener('keydown', (e) => {
     }
   }
   if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
-  // role="button" + data-action (vd dòng task Upcoming) — Enter/Space kích hoạt được từ bàn phím
+  // role="button" + data-action (vd dòng task Upcoming) — Enter/Space kích hoạt được từ bàn phím.
+  // KHÔNG chặn khi đang gõ trong contenteditable (Enter/Space phải là ký tự, không phải click).
   const rb = e.target.closest('[data-action][role="button"]');
-  if (rb && (e.key === 'Enter' || e.key === ' ')) {
+  if (rb && !e.target.closest('[contenteditable="true"]') && (e.key === 'Enter' || e.key === ' ')) {
     e.preventDefault();
     rb.click();
     return;

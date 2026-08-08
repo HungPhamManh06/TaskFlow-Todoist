@@ -39,9 +39,9 @@ def desktop_checks(browser, base, errors, screenshots):
 
     assert page.locator("#desktopSidebar:visible").count() == 1
     assert page.locator("#appTopbar:visible").count() == 1
-    # Phase 1-3: sidebar mới có 6 nav view (today/upcoming/overview/week/year/calendar)
-    # × 2 (desktop sidebar + mobile nav) = 12
-    assert page.locator("[data-nav-view]").count() == 12
+    # Phase 1-3 + Phase 3: 7 nav view (today/inbox/upcoming/overview/week/year/calendar)
+    # desktop sidebar 7 + mobile nav 6 (inbox chỉ trong tools drawer mobile) = 13
+    assert page.locator("[data-nav-view]").count() == 13
     assert page.locator(".landing-hero").count() == 0
     assert page.locator(".app-primary-action").count() == 1
     assert_no_overflow(page, "desktop")
@@ -51,13 +51,13 @@ def desktop_checks(browser, base, errors, screenshots):
     assert page.evaluate("button => getComputedStyle(button).alignItems === 'center'", widget_button.element_handle())
     assert widget_label.bounding_box()["height"] < widget_button.bounding_box()["height"] - 8
 
-    # Thứ tự nav mới: today → upcoming → overview → week → year → calendar.
-    # ArrowRight từ today (nav đầu) phải sang upcoming — đồng thời verify default view mới.
+    # Thứ tự nav mới: today → inbox → upcoming → overview → week → year → calendar.
+    # ArrowRight từ today (nav đầu) phải sang inbox — đồng thời verify default view mới.
     today_tab = page.locator('#desktopSidebar [data-nav-view="today"]')
     today_tab.focus()
     page.keyboard.press("ArrowRight")
-    page.wait_for_selector("#view-upcoming.active")
-    assert page.evaluate("document.activeElement?.dataset.navView === 'upcoming'")
+    page.wait_for_selector("#view-inbox.active")
+    assert page.evaluate("document.activeElement?.dataset.navView === 'inbox'")
     page.locator('#desktopSidebar [data-nav-view="overview"]').click()
     page.wait_for_selector("#view-overview.active")
 

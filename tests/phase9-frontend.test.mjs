@@ -630,7 +630,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v99';/);
+  assert.match(SW, /const CACHE = 'taskflow-v102';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -708,7 +708,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v99';/);
+  assert.match(SW, /const CACHE = 'taskflow-v102';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -1018,8 +1018,9 @@ test('Phase 5: task detail drawer with fields, subtasks, and handlers', () => {
 test('Phase 6: task-specific focus with timer and session log', () => {
   const styles = readRequiredAsset('css/styles.css');
   const html = readRequiredAsset('app.html');
-  // focus-task button truyền ref vào openFocusMode
-  assert.match(APP_JS, /openFocusMode\(\{\s*week: el\.dataset\.week, day: el\.dataset\.day, task: el\.dataset\.task,/);
+  // focus-task button truyền ref vào openFocusMode (week/day hoặc scope=inbox cho task Inbox)
+  assert.match(APP_JS, /openFocusMode\(el\.dataset\.scope === 'inbox'/);
+  assert.match(APP_JS, /week: el\.dataset\.week, day: el\.dataset\.day, task: el\.dataset\.task,/);
   assert.match(APP_JS, /function openFocusMode\(ref\)/);
   assert.match(APP_JS, /let focusTaskRef = null/);
   assert.match(APP_JS, /function getFocusedTask\(\)/);
@@ -1163,10 +1164,10 @@ test('Phase 9: focus × task correlation stats modal with range filter', () => {
 });
 
 test('Phase 2: Upcoming view — nav item, view section, range filter and cross-month task access', () => {
-  // 1. Nav: có tab Upcoming trong buildNav + navAttributes + MAIN group (today, upcoming)
+  // 1. Nav: có tab Upcoming trong buildNav + navAttributes + MAIN group (today, inbox, upcoming)
   assert.match(APP_JS, /view: 'upcoming', icon: 'upcoming'/);
   assert.match(APP_JS, /upcoming: 'data-nav-view=\"upcoming\" data-view=\"upcoming\"'/);
-  assert.match(APP_JS, /byView\.today, byView\.upcoming/);
+  assert.match(APP_JS, /byView\.today, byView\.inbox, byView\.upcoming/);
   // 2. View section trong app.html + aria-label i18n
   assert.match(APP, /id="view-upcoming"/);
   assert.match(APP, /data-i18n-aria=\"viewUpcoming\"/);
@@ -1204,4 +1205,52 @@ test('Phase 2: Upcoming view — nav item, view section, range filter and cross-
   assert.match(upStyles, /\.up-range-btn\.active\s*{/);
   assert.match(upStyles, /\.up-task-row\s*{/);
   assert.match(upStyles, /\.up-focus\s*{/);
+});
+
+test('Phase 3: Inbox — nav item, view section, capture flow and schedule keeping uid', () => {
+  // 1. Nav: tab Inbox trong buildNav + navAttributes + MAIN group + mobile bỏ inbox
+  assert.match(APP_JS, /view: 'inbox', icon: 'inbox'/);
+  assert.match(APP_JS, /inbox: 'data-nav-view=\"inbox\" data-view=\"inbox\"'/);
+  assert.match(APP_JS, /byView\.today, byView\.inbox, byView\.upcoming/);
+  assert.match(APP_JS, /items\.filter\(\(item\) => item\.view !== 'inbox'\)/);
+  // 2. View section trong app.html + nút Inbox trong tools drawer (mobile)
+  assert.match(APP, /id="view-inbox"/);
+  assert.match(APP, /data-i18n-aria=\"viewInbox\"/);
+  assert.match(APP, /data-action=\"inbox-open\"/);
+  // 3. setView dispatch có nhánh inbox + deeplink chấp nhận
+  assert.match(APP_JS, /view === 'inbox'/);
+  assert.match(APP_JS, /renderInbox\(\)/);
+  const DEEPLINK_INBOX = readFileSync(path.join(ROOT, 'js/deeplink.js'), 'utf8');
+  assert.match(DEEPLINK_INBOX, /view === 'inbox'/);
+  // 4. Bộ nhớ inbox riêng (planner-inbox) — không phụ thuộc tháng
+  assert.match(APP_JS, /INBOX_KEY = 'planner-inbox'/);
+  assert.match(APP_JS, /function loadInbox\(\)/);
+  assert.match(APP_JS, /function saveInbox\(\)/);
+  // 5. Capture + schedule: add task, schedule giữ uid, move today/tomorrow/date
+  assert.match(APP_JS, /function addInboxTask\(\)/);
+  assert.match(APP_JS, /function scheduleInboxTask\(i, dt\)/);
+  assert.match(APP_JS, /inbox\.splice\(i, 1\)/);
+  assert.match(APP_JS, /inbox: true/);
+  assert.match(APP_JS, /act === 'inbox-today'/);
+  assert.match(APP_JS, /act === 'inbox-tomorrow'/);
+  assert.match(APP_JS, /act === 'inbox-date-schedule'/);
+  assert.match(APP_JS, /act === 'inbox-del'/);
+  // 6. Drawer scope inbox: mở + sửa + xoá + focus từ Inbox
+  assert.match(APP_JS, /function openInboxTaskDetail\(i\)/);
+  assert.match(APP_JS, /taskDetailRef\.scope === 'inbox'/);
+  assert.match(APP_JS, /data-scope=\"inbox\"/);
+  assert.match(APP_JS, /taskDetailRef\.scope === 'inbox'\) \{\s*inbox\.splice/s);
+  assert.match(APP_JS, /focusTaskRef\.scope === 'inbox'/);
+  // 7. i18n keys đủ vi+en
+  assert.match(APP_JS, /tabInbox: 'Inbox'/);
+  assert.match(APP_JS, /inboxEyebrow:/);
+  assert.match(APP_JS, /inboxEmpty:/);
+  assert.match(APP_JS, /inboxScheduleBtn:/);
+  // 8. sprite có icon inbox
+  assert.match(readRequiredAsset('icons/ui-sprite.svg'), /<symbol id="inbox"/);
+  // 9. CSS
+  const inStyles = readRequiredAsset('css/styles.css');
+  assert.match(inStyles, /\.inbox-task-row\s*{/);
+  assert.match(inStyles, /\.inbox-sched-today\s*{/);
+  assert.match(inStyles, /\.td-inbox-schedule\s*{/);
 });
