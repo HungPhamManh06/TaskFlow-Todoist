@@ -630,7 +630,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v97';/);
+  assert.match(SW, /const CACHE = 'taskflow-v99';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -708,7 +708,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v97';/);
+  assert.match(SW, /const CACHE = 'taskflow-v99';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -979,7 +979,7 @@ test('Phase 5: task detail drawer with fields, subtasks, and handlers', () => {
   assert.match(html, /class="drawer task-drawer"/);
   // renderTaskDetail + open/close + state ref
   assert.match(APP_JS, /let taskDetailRef = null/);
-  assert.match(APP_JS, /function openTaskDetail\(week, day, task\)/);
+  assert.match(APP_JS, /function openTaskDetail\(week, day, task, y, m\)/);
   assert.match(APP_JS, /function closeTaskDetail\(\)/);
   assert.match(APP_JS, /function renderTaskDetail\(\)/);
   assert.match(APP_JS, /function getTaskDetailTarget\(\)/);
@@ -1019,7 +1019,7 @@ test('Phase 6: task-specific focus with timer and session log', () => {
   const styles = readRequiredAsset('css/styles.css');
   const html = readRequiredAsset('app.html');
   // focus-task button truyền ref vào openFocusMode
-  assert.match(APP_JS, /openFocusMode\(\{ week: el\.dataset\.week, day: el\.dataset\.day, task: el\.dataset\.task \}\)/);
+  assert.match(APP_JS, /openFocusMode\(\{\s*week: el\.dataset\.week, day: el\.dataset\.day, task: el\.dataset\.task,/);
   assert.match(APP_JS, /function openFocusMode\(ref\)/);
   assert.match(APP_JS, /let focusTaskRef = null/);
   assert.match(APP_JS, /function getFocusedTask\(\)/);
@@ -1160,4 +1160,48 @@ test('Phase 9: focus × task correlation stats modal with range filter', () => {
   assert.match(APP_JS, /statsCorr:/);
   assert.match(APP_JS, /statsNoData:/);
   assert.match(APP_JS, /statsUnitWeek:/);
+});
+
+test('Phase 2: Upcoming view — nav item, view section, range filter and cross-month task access', () => {
+  // 1. Nav: có tab Upcoming trong buildNav + navAttributes + MAIN group (today, upcoming)
+  assert.match(APP_JS, /view: 'upcoming', icon: 'upcoming'/);
+  assert.match(APP_JS, /upcoming: 'data-nav-view=\"upcoming\" data-view=\"upcoming\"'/);
+  assert.match(APP_JS, /byView\.today, byView\.upcoming/);
+  // 2. View section trong app.html + aria-label i18n
+  assert.match(APP, /id="view-upcoming"/);
+  assert.match(APP, /data-i18n-aria=\"viewUpcoming\"/);
+  // 3. setView dispatch có nhánh upcoming
+  assert.match(APP_JS, /view === 'upcoming'/);
+  assert.match(APP_JS, /renderUpcoming\(\)/);
+  // 4. Range 7/14/30 + localStorage
+  assert.match(APP_JS, /let upcomingRange = 14;/);
+  assert.match(APP_JS, /UPCOMING_RANGE_KEY = 'planner-upcoming-range'/);
+  assert.match(APP_JS, /r === 7 \|\| r === 14 \|\| r === 30/);
+  assert.match(APP_JS, /act === 'upcoming-range'/);
+  // 5. Đọc task xuyên tháng: monthStateRaw không tạo state mới; task tháng khác mở drawer được
+  assert.match(APP_JS, /function tasksForDate\(dt\)/);
+  assert.match(APP_JS, /monthStateRaw\(y, m\)/);
+  assert.match(APP_JS, /function upcomingCollect\(\)/);
+  assert.match(APP_JS, /function upcomingTaskRowHTML\(r\)/);
+  assert.match(APP_JS, /function renderUpcoming\(\)/);
+  assert.match(APP_JS, /taskDetailRef = \{ y: y === undefined \? PLAN_YEAR : y,/);
+  assert.match(APP_JS, /openTaskDetail\(\+el\.dataset\.week, \+el\.dataset\.day, \+el\.dataset\.task,/);
+  assert.match(APP_JS, /saveMonthState\(tY, tM, st\)/);
+  // 6. i18n keys đủ vi+en
+  assert.match(APP_JS, /tabUpcoming: 'Sắp tới'/);
+  assert.match(APP_JS, /tabUpcoming: 'Upcoming'/);
+  assert.match(APP_JS, /upcomingOverdue:/);
+  assert.match(APP_JS, /upcomingRange7:/);
+  assert.match(APP_JS, /upcomingEmpty:/);
+  // 7. deeplink chấp nhận view=upcoming
+  const DEEPLINK = readFileSync(path.join(ROOT, 'js/deeplink.js'), 'utf8');
+  assert.match(DEEPLINK, /view === 'upcoming'/);
+  // 8. sprite có icon upcoming
+  assert.match(readRequiredAsset('icons/ui-sprite.svg'), /<symbol id="upcoming"/);
+  // 9. CSS
+  const upStyles = readRequiredAsset('css/styles.css');
+  assert.match(upStyles, /\.upcoming-page\s*{/);
+  assert.match(upStyles, /\.up-range-btn\.active\s*{/);
+  assert.match(upStyles, /\.up-task-row\s*{/);
+  assert.match(upStyles, /\.up-focus\s*{/);
 });

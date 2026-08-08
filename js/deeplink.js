@@ -25,7 +25,7 @@
     }
 
     var view = String(url.searchParams.get('view') || '').trim();
-    if (view === 'today' || view === 'overview' || view === 'year' || view === 'week' || view === 'calendar' || view === 'day') {
+    if (view === 'today' || view === 'overview' || view === 'year' || view === 'week' || view === 'calendar' || view === 'day' || view === 'upcoming') {
       out.view = view;
     }
 

@@ -528,6 +528,22 @@ const I18N = {
     todayEmpty: 'Không có việc gì hôm nay 🎯',
     todayEmptySub: 'Một ngày khá nhẹ nhàng. Thêm việc để tận dụng thời gian!',
     todayPriority: 'Ưu tiên',
+    tabUpcoming: 'Sắp tới',
+    upcomingEyebrow: 'Công việc sắp tới',
+    upcomingTitle: 'Sắp tới',
+    upcomingSubtitle: 'Nhìn trước các công việc trong những ngày tới — không cần mở lịch.',
+    upcomingOverdue: 'Quá hạn',
+    upcomingTodayLabel: 'Hôm nay',
+    upcomingTomorrowLabel: 'Ngày mai',
+    upcomingRange7: '7 ngày',
+    upcomingRange14: '14 ngày',
+    upcomingRange30: '30 ngày',
+    upcomingRangeAria: 'Khoảng thời gian: {n}',
+    upcomingEmpty: 'Chưa có công việc nào trong khoảng này.',
+    upcomingEmptySub: 'Lên kế hoạch tuần để xem việc sắp tới ở đây.',
+    upcomingOverdueAria: 'Công việc quá hạn',
+    upcomingDayAria: 'Công việc ngày {d}',
+    upcomingNoTime: '—',
     viewToday: 'Hôm nay',
     nowAria: 'Ngày giờ hiện tại',
     tabOverview: 'Tổng quan tháng',
@@ -1118,6 +1134,22 @@ const I18N = {
     todayEmpty: 'Nothing scheduled today 🎯',
     todayEmptySub: 'A pretty light day. Add a task to make the most of it!',
     todayPriority: 'Priority',
+    tabUpcoming: 'Upcoming',
+    upcomingEyebrow: 'Coming up',
+    upcomingTitle: 'Upcoming',
+    upcomingSubtitle: 'See your tasks for the days ahead — no calendar needed.',
+    upcomingOverdue: 'Overdue',
+    upcomingTodayLabel: 'Today',
+    upcomingTomorrowLabel: 'Tomorrow',
+    upcomingRange7: '7 days',
+    upcomingRange14: '14 days',
+    upcomingRange30: '30 days',
+    upcomingRangeAria: 'Time range: {n}',
+    upcomingEmpty: 'No tasks in this range yet.',
+    upcomingEmptySub: 'Plan your week and upcoming tasks will show here.',
+    upcomingOverdueAria: 'Overdue tasks',
+    upcomingDayAria: 'Tasks on {d}',
+    upcomingNoTime: '—',
     viewToday: 'Today',
     nowAria: 'Current date & time',
     tabOverview: 'Overview',
@@ -2890,7 +2922,7 @@ function loadState() {
     const tiMig = nowInfo();
     if (typeof s.dayWeek !== 'number' || s.dayWeek < 1 || s.dayWeek > NUM_WEEKS) s.dayWeek = tiMig.inRange ? tiMig.week : 1;
     if (typeof s.dayDay !== 'number' || s.dayDay < 0 || s.dayDay > 6) s.dayDay = tiMig.inRange ? tiMig.dayInWeek : 0;
-    if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar' && s.view !== 'today' && s.view !== 'day') s.view = 'today';
+    if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar' && s.view !== 'today' && s.view !== 'day' && s.view !== 'upcoming') s.view = 'today';
     // Migration: task cũ thiếu tags → mảng rỗng; thiếu remind → tắt; thiếu uid → gán uid cố định
     // (uid là nền tảng để carry-over theo dõi task qua việc xoá/chèn task phía trước).
     let tasksDirty = false;
@@ -5269,22 +5301,41 @@ function taskRowHTML(wn, di, ti, mod, task, pos) {
 
 /* ============================ Phase 5: Task Detail Drawer ============================ */
 
-// Con trỏ tới task đang xem trong drawer: { week, day, task } — index vào state (ổn định với uid).
+// Con trỏ tới task đang xem trong drawer: { y, m, week, day, task }.
+// y/m là tháng chứa task — mặc định tháng hiện tại; khi mở từ Upcoming có thể là tháng khác.
 let taskDetailRef = null;
+// State tháng chứa task khi ≠ tháng hiện tại (cache để mọi td-* handler mutate đúng state).
+let taskDetailMonthState = null;
+
+function taskDetailState() {
+  if (!taskDetailRef) return null;
+  if (taskDetailRef.y === PLAN_YEAR && taskDetailRef.m === PLAN_MONTH) return state;
+  if (!taskDetailMonthState) taskDetailMonthState = monthStateRaw(taskDetailRef.y, taskDetailRef.m);
+  return taskDetailMonthState;
+}
+
+function saveTaskDetailState() {
+  if (!taskDetailRef) { save(); return; }
+  if (taskDetailRef.y === PLAN_YEAR && taskDetailRef.m === PLAN_MONTH) { save(); return; }
+  if (taskDetailMonthState) saveMonthState(taskDetailRef.y, taskDetailRef.m, taskDetailMonthState);
+}
 
 function getTaskDetailTarget() {
   if (!taskDetailRef) return null;
-  const w = state.weeks[taskDetailRef.week - 1];
+  const st = taskDetailState();
+  if (!st) return null;
+  const w = st.weeks && st.weeks[taskDetailRef.week - 1];
   if (!w) return null;
-  const d = w.days[taskDetailRef.day];
+  const d = w.days && w.days[taskDetailRef.day];
   if (!d) return null;
-  const tk = d.tasks[taskDetailRef.task];
+  const tk = d.tasks && d.tasks[taskDetailRef.task];
   return tk ? { w, d, tk } : null;
 }
 
-function openTaskDetail(week, day, task) {
+function openTaskDetail(week, day, task, y, m) {
+  taskDetailRef = { y: y === undefined ? PLAN_YEAR : y, m: m === undefined ? PLAN_MONTH : m, week, day, task };
+  taskDetailMonthState = null;
   const opener = document.querySelector(`[data-action="task-detail"][data-week="${week}"][data-day="${day}"][data-task="${task}"]`);
-  taskDetailRef = { week, day, task };
   renderTaskDetail();
   TaskFlowUI.openDrawer('taskDrawer', opener);
   const b = document.getElementById('taskDetailBackdrop');
@@ -5296,13 +5347,16 @@ function closeTaskDetail() {
   const b = document.getElementById('taskDetailBackdrop');
   if (b) b.hidden = true;
   taskDetailRef = null;
+  taskDetailMonthState = null;
 }
 
 // Đồng bộ row task bên dưới sau khi sửa field trong drawer (không đóng drawer).
+// Lưu đúng tháng chứa task (drawer có thể mở từ Upcoming cho task tháng khác).
 function refreshTaskRowAfterEdit() {
   if (state.view === 'today') renderToday();
   else if (state.view === 'week') renderWeek();
-  save();
+  else if (state.view === 'upcoming') renderUpcoming();
+  saveTaskDetailState();
 }
 
 function renderTaskDetail() {
@@ -5440,7 +5494,7 @@ function bindTaskDetailEvents(drawer) {
       pushUndo();
       g.d.tasks = result.tasksFrom;
       g.w.days[toDay].tasks = result.tasksTo;
-      taskDetailRef = { week: taskDetailRef.week, day: toDay, task: g.w.days[toDay].tasks.length - 1 };
+      taskDetailRef = { y: taskDetailRef.y, m: taskDetailRef.m, week: taskDetailRef.week, day: toDay, task: g.w.days[toDay].tasks.length - 1 };
       renderTaskDetail();
       refreshTaskRowAfterEdit();
       trackEvent('move_task_across_days');
@@ -6613,6 +6667,7 @@ function buildNav() {
   const mobile = document.getElementById('mobileNav');
   const items = [
     { view: 'today', icon: 'calendar', label: shellNavLabel(t('todayTxt')), id: 'tab-today', controls: 'view-today' },
+    { view: 'upcoming', icon: 'upcoming', label: shellNavLabel(t('tabUpcoming')), id: 'tab-upcoming', controls: 'view-upcoming' },
     { view: 'overview', icon: 'overview', label: shellNavLabel(t('tabOverview')), id: 'tab-overview', controls: 'view-overview' },
     { view: 'week', icon: 'week', label: shellNavLabel(t('weekN', { n: state.currentWeek })), id: 'tab-week-' + state.currentWeek, controls: 'view-week', week: state.currentWeek },
     { view: 'year', icon: 'year', label: shellNavLabel(t('tabYear', { y: PLAN_YEAR })), id: 'tab-year', controls: 'view-year' },
@@ -6620,6 +6675,7 @@ function buildNav() {
   ];
   const navAttributes = {
     today: 'data-nav-view="today" data-view="today"',
+    upcoming: 'data-nav-view="upcoming" data-view="upcoming"',
     overview: 'data-nav-view="overview" data-view="overview"',
     week: 'data-nav-view="week" data-view="week"',
     year: 'data-nav-view="year" data-view="year"',
@@ -6637,7 +6693,7 @@ function buildNav() {
     items.forEach((it) => { byView[it.view] = it; });
     const groups = [
       { label: t('navGroupMain'), items: [
-        byView.today,
+        byView.today, byView.upcoming,
       ] },
       { label: t('navGroupPlan'), items: [
         byView.week, byView.overview, byView.year,
@@ -6745,6 +6801,161 @@ function addTaskFromShell() {
   if (add) add.click();
 }
 
+/* ============================ Upcoming — Công việc sắp tới ============================ */
+// Hiển thị task từ hôm nay đến +N ngày (7/14/30), nhóm theo ngày, quá hạn riêng.
+// Task thuộc tháng hiện tại đọc từ `state`; tháng khác đọc qua monthStateRaw (không tạo state mới).
+let upcomingRange = 14;
+const UPCOMING_RANGE_KEY = 'planner-upcoming-range';
+
+try { const r = +localStorage.getItem(UPCOMING_RANGE_KEY); if (r === 7 || r === 14 || r === 30) upcomingRange = r; } catch (e) { /* ẩn */ }
+
+function setUpcomingRange(n) {
+  if (n !== 7 && n !== 14 && n !== 30) return;
+  upcomingRange = n;
+  try { localStorage.setItem(UPCOMING_RANGE_KEY, String(n)); } catch (e) { /* ẩn */ }
+  renderUpcoming();
+  trackEvent('upcoming_range', { days: n });
+}
+
+// Quy ước: task của ngày D nằm trong lưới tháng đang xem (PLAN_START → +NUM_WEEKS*7 ngày)
+// nếu D nằm trong lưới đó — khớp cách view Lịch hiển thị (kể cả ngày ngoài tháng).
+// Ngược lại đọc từ chính tháng của D (monthStateRaw — không tạo state mới cho tháng tương lai).
+function tasksForDate(dt) {
+  const inCur = Math.floor((dt - PLAN_START) / 86400000);
+  if (inCur >= 0 && inCur < NUM_WEEKS * 7) {
+    const w = state.weeks[Math.floor(inCur / 7)];
+    const d = w && w.days && w.days[inCur % 7];
+    return d ? { y: PLAN_YEAR, m: PLAN_MONTH, week: Math.floor(inCur / 7) + 1, day: inCur % 7, tasks: d.tasks || [] } : null;
+  }
+  const y = dt.getFullYear(), m = dt.getMonth();
+  const first = new Date(y, m, 1);
+  const dow = (first.getDay() + 6) % 7; // Thứ 2 = 0
+  const start = new Date(first.getTime() - dow * 86400000);
+  const dayIdx = Math.floor((dt - start) / 86400000);
+  if (dayIdx < 0) return null;
+  const st = monthStateRaw(y, m);
+  if (!st) return null;
+  const w = st.weeks && st.weeks[Math.floor(dayIdx / 7)];
+  const d = w && w.days && w.days[dayIdx % 7];
+  return d ? { y, m, week: Math.floor(dayIdx / 7) + 1, day: dayIdx % 7, tasks: d.tasks || [] } : null;
+}
+
+// Gom task từ PLAN_START (đầu lưới tháng đang xem) đến hôm qua → quá hạn (chưa xong).
+function upcomingOverdueTasks() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const out = [];
+  const start = new Date(PLAN_START.getTime());
+  const end = today.getTime() - 86400000; // hôm qua
+  for (let t = start.getTime(); t <= end; t += 86400000) {
+    const ref = tasksForDate(new Date(t));
+    if (!ref) continue;
+    (ref.tasks || []).forEach((tk, ti) => {
+      if (!tk.done) out.push({ ...ref, task: ti, tk, date: new Date(t) });
+    });
+  }
+  return out;
+}
+
+// Gom task từ hôm nay → +upcomingRange ngày. Không trùng task (mỗi ngày quét đúng 1 lần).
+function upcomingCollect() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = [];
+  for (let i = 0; i < upcomingRange; i++) {
+    const dt = new Date(today.getTime() + i * 86400000);
+    const ref = tasksForDate(dt);
+    const list = ref ? (ref.tasks || []).map((tk, ti) => ({ ...ref, task: ti, tk, date: dt })) : [];
+    // Sort: task có giờ theo giờ tăng dần; task không giờ nằm cuối ngày; done xếp dưới cùng.
+    list.sort((a, b) => {
+      const ad = a.tk.done ? 1 : 0, bd = b.tk.done ? 1 : 0;
+      if (ad !== bd) return ad - bd;
+      const at = a.tk.remind && a.tk.remind.enabled && a.tk.remind.time ? a.tk.remind.time : '99:99';
+      const bt = b.tk.remind && b.tk.remind.enabled && b.tk.remind.time ? b.tk.remind.time : '99:99';
+      return at.localeCompare(bt);
+    });
+    days.push({ date: dt, ref, tasks: list });
+  }
+  return days;
+}
+
+function upcomingDayHeader(dt, i) {
+  if (i === 0) return t('upcomingTodayLabel');
+  if (i === 1) return t('upcomingTomorrowLabel');
+  return dt.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+// Meta gọn cho dòng Upcoming: giờ · thời lượng · P1 · deadline · repeat · tags.
+function upcomingTaskMeta(tk) {
+  const bits = [];
+  const timed = tk.remind && tk.remind.enabled && tk.remind.time;
+  if (timed) bits.push(timed);
+  if (tk.duration) bits.push(t('pomoMinShort', { n: tk.duration }));
+  if (tk.kind === 'priority') bits.push(t('taskPriorityLabel'));
+  if (tk.deadline) bits.push(fmtDeadline(tk.deadline));
+  if (tk.repeat && tk.repeat.freq) bits.push(t('repeatTitle'));
+  const tags = Array.isArray(tk.tags) ? tk.tags : [];
+  return { bits, tags };
+}
+
+function upcomingTaskRowHTML(r) {
+  const { tk, date, y, m, week, day, task } = r;
+  const data = `data-y="${y}" data-m="${m}" data-week="${week}" data-day="${day}" data-task="${task}"`;
+  const { bits, tags } = upcomingTaskMeta(tk);
+  const check = checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" ${data}`, window.TaskFlowUI.checkboxLabel('task', tk.text, fmtDate(date)));
+  const meta = bits.length ? `<span class="up-meta">${bits.map((b) => `<span>${esc(b)}</span>`).join('<span class="up-dot">·</span>')}</span>` : '';
+  const tagsHTML = tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : '';
+  return `<div class="up-task-row${tk.done ? ' done' : ''}${tk.kind === 'priority' ? ' prio' : ''}">
+    ${check}
+    <span class="up-main" data-action="task-detail" ${data} role="button" tabindex="0"
+      aria-label="${t('taskDetail')}: ${esc(tk.text || '')}">
+      <span class="up-text">${esc(tk.text ?? '')}</span>
+      ${meta}
+      ${tagsHTML}
+    </span>
+    ${tk.done ? '' : `<button type="button" class="up-focus" data-action="focus-task" ${data} title="${t('taskFocusBtn')}" aria-label="${t('taskFocusBtn')}">${window.TaskFlowUI.icon('focus')}</button>`}
+  </div>`;
+}
+
+function renderUpcoming() {
+  const el = document.getElementById('view-upcoming');
+  if (!el) return;
+  const overdue = upcomingOverdueTasks();
+  const days = upcomingCollect();
+  const hasAny = overdue.length || days.some((d) => d.tasks.length);
+  const rangeBtn = (n) => `<button type="button" class="up-range-btn${upcomingRange === n ? ' active' : ''}" data-action="upcoming-range" data-days="${n}" aria-pressed="${upcomingRange === n}">${t('upcomingRange' + n)}</button>`;
+  const overdueHTML = overdue.length ? `<section class="up-group up-overdue" aria-label="${t('upcomingOverdueAria')}">
+    <h2 class="up-group-head overdue"><span class="up-overdue-dot" aria-hidden="true"></span>${t('upcomingOverdue')}<span class="up-count">${overdue.length}</span></h2>
+    <div class="up-group-body">${overdue.map((r) => upcomingTaskRowHTML(r)).join('')}</div>
+  </section>` : '';
+  const daysHTML = days.map((d, i) => {
+    if (!d.tasks.length) return '';
+    return `<section class="up-group" aria-label="${t('upcomingDayAria', { d: upcomingDayHeader(d.date, i) })}">
+      <h2 class="up-group-head${i === 0 ? ' today' : ''}">${esc(upcomingDayHeader(d.date, i))}<span class="up-count">${d.tasks.length}</span></h2>
+      <div class="up-group-body">${d.tasks.map((r) => upcomingTaskRowHTML(r)).join('')}</div>
+    </section>`;
+  }).join('');
+  const emptyHTML = !hasAny ? `<div class="up-empty">
+    <p class="up-empty-title">${t('upcomingEmpty')}</p>
+    <p class="up-empty-sub">${t('upcomingEmptySub')}</p>
+  </div>` : '';
+  el.innerHTML = `<div class="upcoming-page">
+    <header class="upcoming-header">
+      <div>
+        <p class="upcoming-eyebrow">${t('upcomingEyebrow')}</p>
+        <h1 class="upcoming-title">${t('upcomingTitle')}</h1>
+        <p class="upcoming-subtitle">${t('upcomingSubtitle')}</p>
+      </div>
+      <div class="up-range" role="group" aria-label="${t('upcomingRangeAria', { n: upcomingRange })}">
+        ${rangeBtn(7)}${rangeBtn(14)}${rangeBtn(30)}
+      </div>
+    </header>
+    ${overdueHTML}
+    ${daysHTML}
+    ${emptyHTML}
+  </div>`;
+}
+
 function setView(view, week) {
   // Phase 5: đổi view/tuần → đóng drawer chi tiết (ref index có thể lệch theo tuần mới)
   if (taskDetailRef) closeTaskDetail();
@@ -6761,7 +6972,9 @@ function setView(view, week) {
   const cal = document.getElementById('view-calendar');
   const dy = document.getElementById('view-day');
   const td = document.getElementById('view-today');
+  const upc = document.getElementById('view-upcoming');
   if (td) td.classList.toggle('active', view === 'today');
+  if (upc) upc.classList.toggle('active', view === 'upcoming');
   ov.classList.toggle('active', view === 'overview');
   wk.classList.toggle('active', view === 'week');
   yr.classList.toggle('active', view === 'year');
@@ -6770,6 +6983,9 @@ function setView(view, week) {
   if (view === 'today') {
     if (td) td.setAttribute('aria-labelledby', 'tab-today');
     renderToday();
+  } else if (view === 'upcoming') {
+    if (upc) upc.setAttribute('aria-labelledby', 'tab-upcoming');
+    renderUpcoming();
   } else if (view === 'overview') {
     ov.setAttribute('aria-labelledby', 'tab-overview');
     renderOverview();
@@ -7190,7 +7406,13 @@ function doRestoreBackup(idx) {
 let focusTaskRef = null;
 
 function openFocusMode(ref) {
-  const newRef = ref ? { week: +ref.week, day: +ref.day, task: +ref.task } : null;
+  // ref có thể kèm y/m (từ Upcoming cho task tháng khác) — mặc định tháng hiện tại
+  const newRef = ref ? {
+    y: ref.y === undefined ? PLAN_YEAR : +ref.y,
+    m: ref.m === undefined ? PLAN_MONTH : +ref.m,
+    week: +ref.week, day: +ref.day, task: +ref.task,
+  } : null;
+  focusMonthState = null;
   // Phase 6: chuyển sang task khác / xem tất cả → dừng bộ đếm (phiên thuộc về task đã bắt đầu)
   const switched = !!focusTaskRef && JSON.stringify(newRef) !== JSON.stringify(focusTaskRef);
   if (switched && focusTimer.running) {
@@ -7211,13 +7433,31 @@ function closeFocusMode() {
   TaskFlowUI.closeDialog('focusOverlay');
   // Bộ đếm vẫn chạy nền — mở lại focus sẽ thấy tiến trình còn lại
 }
+// State tháng chứa task đang focus khi ≠ tháng hiện tại (cache để focusLog ghi đúng tháng).
+let focusMonthState = null;
+
+function focusState() {
+  if (!focusTaskRef) return null;
+  if (focusTaskRef.y === PLAN_YEAR && focusTaskRef.m === PLAN_MONTH) return state;
+  if (!focusMonthState) focusMonthState = monthStateRaw(focusTaskRef.y, focusTaskRef.m);
+  return focusMonthState;
+}
+
+function saveFocusState() {
+  if (!focusTaskRef) { save(); return; }
+  if (focusTaskRef.y === PLAN_YEAR && focusTaskRef.m === PLAN_MONTH) { save(); return; }
+  if (focusMonthState) saveMonthState(focusTaskRef.y, focusTaskRef.m, focusMonthState);
+}
+
 function getFocusedTask() {
   if (!focusTaskRef) return null;
-  const w = state.weeks[focusTaskRef.week - 1];
+  const st = focusState();
+  if (!st) return null;
+  const w = st.weeks && st.weeks[focusTaskRef.week - 1];
   if (!w) return null;
-  const d = w.days[focusTaskRef.day];
+  const d = w.days && w.days[focusTaskRef.day];
   if (!d) return null;
-  const tk = d.tasks[focusTaskRef.task];
+  const tk = d.tasks && d.tasks[focusTaskRef.task];
   return tk ? { w, d, tk, week: focusTaskRef.week, day: focusTaskRef.day, task: focusTaskRef.task } : null;
 }
 
@@ -7258,14 +7498,15 @@ function focusTimerComplete() {
   focusTimer.running = false;
   const secs = focusTimer.dur;
   focusTimer.endAt = 0;
-  // Ghi vào nhật ký của đúng task đã focus khi bắt đầu (theo uid — không lệch theo index)
+  // Ghi vào nhật ký của đúng task đã focus khi bắt đầu (theo uid — không lệch theo index).
+  // Tìm trong state tháng chứa task (focusTaskRef có thể trỏ task tháng khác khi mở từ Upcoming).
   const byUid = getTaskByUid(focusTimer.taskUid);
   if (byUid) {
     byUid.focusLog = byUid.focusLog || [];
     byUid.focusLog.push({ d: pomoDateKey(new Date()), secs });
     // Giới hạn dung lượng localStorage — chỉ giữ 100 phiên gần nhất (UI chỉ hiện 5)
     if (byUid.focusLog.length > 100) byUid.focusLog = byUid.focusLog.slice(-100);
-    save();
+    saveFocusState();
   }
   // Đồng thời cộng vào thống kê pomo hôm nay (focus minutes + quả cà chua)
   pomoAddSession(secs);
@@ -7315,10 +7556,17 @@ function focusTimerSetDur(min) {
 // Tìm task theo uid (bền vững khi index đổi do xoá/chèn).
 function getTaskByUid(uid) {
   if (!uid) return null;
-  for (const w of state.weeks) {
-    for (const d of w.days) {
-      const hit = (d.tasks || []).find((tk) => tk.uid === uid);
-      if (hit) return hit;
+  // Tìm trong state tháng hiện tại trước; nếu focus trỏ task tháng khác thì tìm thêm trong focusMonthState.
+  const sts = [state, focusMonthState].filter(Boolean);
+  for (const st of sts) {
+    if (!st || !Array.isArray(st.weeks)) continue;
+    for (const w of st.weeks) {
+      if (!w || !Array.isArray(w.days)) continue;
+      for (const d of w.days) {
+        if (!d || !Array.isArray(d.tasks)) continue;
+        const hit = d.tasks.find((tk) => tk && tk.uid === uid);
+        if (hit) return hit;
+      }
     }
   }
   return null;
@@ -7341,7 +7589,7 @@ function renderFocusContent() {
       <p class="focus-date">📅 ${fmtDate(now)}</p>
       <div class="focus-taskview">
         <p class="focus-focusing">${t('focusFocusing')}</p>
-        <div class="focus-tasktext ${tk.done ? 'done' : ''}">${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${week}" data-day="${day}" data-task="${task}"`, window.TaskFlowUI.checkboxLabel('task', tk.text, fmtDate(now)))}<span class="focus-tasktext-txt">${esc(tk.text) || '…'}</span></div>
+        <div class="focus-tasktext ${tk.done ? 'done' : ''}">${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${week}" data-day="${day}" data-task="${task}" data-y="${focusTaskRef.y}" data-m="${focusTaskRef.m}"`, window.TaskFlowUI.checkboxLabel('task', tk.text, fmtDate(now)))}<span class="focus-tasktext-txt">${esc(tk.text) || '…'}</span></div>
         <div class="focus-timer">
           <div class="focus-timer-presets" role="group" aria-label="${t('focusTimer')}">
             ${FOCUS_PRESETS.map((m) => `<button type="button" class="focus-preset" data-action="focus-timer-set" data-min="${m}" ${m * 60 === focusTimer.dur ? 'aria-pressed="true"' : 'aria-pressed="false"'}>${t('pomoMinShort', { n: m })}</button>`).join('')}
@@ -7516,6 +7764,8 @@ document.addEventListener('click', (e) => {
     if (g) { g.done = !g.done; if (g.done) addXP(30); else removeXP(30); afterYearGoalToggle(); }
   } else if (act === 'month') {
     openMonth(+el.dataset.month);
+  } else if (act === 'upcoming-range') {
+    setUpcomingRange(+el.dataset.days);
   } else if (act === 'gotoday') {
     // Về Today Dashboard — nếu đang xem tháng khác thì quay về tháng hiện tại trước
     const now = new Date();
@@ -7545,16 +7795,29 @@ document.addEventListener('click', (e) => {
       if (g.done && weekStats(w).pct === 100) confettiBurst();
     }
   } else if (act === 'task') {
-    const w = state.weeks[+el.dataset.week - 1];
-    const d = w.days[+el.dataset.day];
-    const t = d.tasks[+el.dataset.task];
+    // Checkbox task — hỗ trợ data-y/data-m (từ Upcoming) để toggle task thuộc tháng khác.
+    const tY = el.dataset.y !== undefined ? +el.dataset.y : PLAN_YEAR;
+    const tM = el.dataset.m !== undefined ? +el.dataset.m : PLAN_MONTH;
+    const st = (tY === PLAN_YEAR && tM === PLAN_MONTH) ? state : monthStateRaw(tY, tM);
+    if (!st || !st.weeks) return;
+    const w = st.weeks[+el.dataset.week - 1];
+    if (!w) return;
+    const d = w.days && w.days[+el.dataset.day];
+    if (!d) return;
+    const t = d.tasks && d.tasks[+el.dataset.task];
     if (t) {
       t.done = !t.done;
       if (t.done) addXP(10); else removeXP(10);
-      syncCarriedDone(+el.dataset.week - 1, +el.dataset.day, +el.dataset.task, t);
+      if (tY === PLAN_YEAR && tM === PLAN_MONTH) {
+        syncCarriedDone(+el.dataset.week - 1, +el.dataset.day, +el.dataset.task, t);
+        save();
+      } else {
+        saveMonthState(tY, tM, st);
+      }
       if (state.view === 'today') renderToday();
+      else if (state.view === 'upcoming') renderUpcoming();
       else refreshTaskUI(w, +el.dataset.day);
-      save(); refreshFocusIfOpen();
+      refreshFocusIfOpen();
     }
   } else if (act === 'today-addtask') {
     const ti = nowInfo();
@@ -7628,9 +7891,14 @@ document.addEventListener('click', (e) => {
       TaskFlowUI.toast(t('taskDuplicateDone'), 'success');
     }
   } else if (act === 'focus-task') {
-    // Phase 6: focus vào đúng task này (nếu đang mở drawer thì đóng trước)
+    // Phase 6: focus vào đúng task này (nếu đang mở drawer thì đóng trước).
+    // Truyền cả y/m để focus task thuộc tháng khác (từ Upcoming).
     closeTaskDetail();
-    openFocusMode({ week: el.dataset.week, day: el.dataset.day, task: el.dataset.task });
+    openFocusMode({
+      week: el.dataset.week, day: el.dataset.day, task: el.dataset.task,
+      y: el.dataset.y !== undefined ? el.dataset.y : undefined,
+      m: el.dataset.m !== undefined ? el.dataset.m : undefined,
+    });
   } else if (act === 'focus-show-all') {
     openFocusMode();
   } else if (act === 'focus-timer-start') {
@@ -7640,7 +7908,9 @@ document.addEventListener('click', (e) => {
   } else if (act === 'focus-timer-set') {
     focusTimerSetDur(+el.dataset.min);
   } else if (act === 'task-detail') {
-    openTaskDetail(+el.dataset.week, +el.dataset.day, +el.dataset.task);
+    openTaskDetail(+el.dataset.week, +el.dataset.day, +el.dataset.task,
+      el.dataset.y !== undefined ? +el.dataset.y : undefined,
+      el.dataset.m !== undefined ? +el.dataset.m : undefined);
   } else if (act === 'task-detail-close') {
     closeTaskDetail();
   } else if (act === 'td-time-toggle') {
@@ -7705,12 +7975,17 @@ document.addEventListener('click', (e) => {
     renderTaskDetail();
     refreshTaskRowAfterEdit();
   } else if (act === 'td-delete') {
-    const w = state.weeks[+el.dataset.week - 1];
-    w.days[+el.dataset.day].tasks.splice(+el.dataset.task, 1);
+    const g = getTaskDetailTarget();
+    if (g && g.d && Array.isArray(g.d.tasks)) g.d.tasks.splice(taskDetailRef.task, 1);
+    const delY = taskDetailRef ? taskDetailRef.y : PLAN_YEAR;
+    const delM = taskDetailRef ? taskDetailRef.m : PLAN_MONTH;
+    const delSt = taskDetailState();
     closeTaskDetail();
     if (state.view === 'today') renderToday();
+    else if (state.view === 'upcoming') renderUpcoming();
     else renderWeek();
-    save();
+    if (delY === PLAN_YEAR && delM === PLAN_MONTH) save();
+    else if (delSt) saveMonthState(delY, delM, delSt);
   } else if (act === 'addgoal') {
     const scope = el.dataset.scope;
     if (scope === 'm') {
@@ -8106,6 +8381,13 @@ document.addEventListener('keydown', (e) => {
     }
   }
   if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+  // role="button" + data-action (vd dòng task Upcoming) — Enter/Space kích hoạt được từ bàn phím
+  const rb = e.target.closest('[data-action][role="button"]');
+  if (rb && (e.key === 'Enter' || e.key === ' ')) {
+    e.preventDefault();
+    rb.click();
+    return;
+  }
   if (!inField) {
     const views = ['overview', 'week', 'year', 'calendar', 'week'];
     const idx = ['1', '2', '3', '4', '5'].indexOf(e.key);
