@@ -163,11 +163,17 @@ def week_checks(browser, base, width, height, errors, screenshot):
     mood.click()
     assert "on" in (mood.get_attribute("class") or "")
 
-    # Phase 4: nút 🔔 nằm trong dropdown ⋯ — mở menu rồi click menuitem
+    # Phase 4: nút 🔔 nằm trong dropdown ⋯ — mở menu rồi click menuitem.
+    # Task actions chỉ hiện khi hover row (pointer-events auto) — hover row
+    # trước để desktop Chrome (390px không emul touch) click được.
+    page.locator('.week-day-panel [data-drag="task"]').first.hover()
     page.locator('.week-day-panel [data-action="task-menu"]').first.click()
     remind = page.locator('.week-day-panel [data-action="remind-task"]').first
     remind.click()
-    assert remind.locator("xpath=ancestor::*[contains(@class,'task-row')][1]").locator(".remind-edit-input").count() == 1
+    # Phase 4: nút 🔔 nằm trong .task-row-actions (span) — XPath cũ
+    # ancestor::*[contains(@class,'task-row')] khớp nhầm wrapper đó;
+    # phải lấy ancestor là div.task-row thực sự.
+    assert remind.locator("xpath=ancestor::div[contains(@class,'task-row')][1]").locator(".remind-edit-input").count() == 1
 
     page.locator('[data-action="week-report"]').click()
     assert page.locator("#weekReportModal:not([hidden])").count() == 1

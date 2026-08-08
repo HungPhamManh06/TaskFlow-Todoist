@@ -24,7 +24,9 @@ def assert_no_overflow(page, label):
 
 def load_app(page, base):
     page.add_init_script("localStorage.setItem('planner-onboarded','1');")
-    page.goto(f"{base}/app.html", wait_until="networkidle")
+    # Phase 3: default view đã đổi sang 'today' — load thẳng overview để giữ
+    # smoke test overview-centric (habit toggle, widget settings).
+    page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
     if page.locator("#onboardModal:not([hidden])").count():
         page.locator('[data-action="ob-skip"]').click()
     page.wait_for_selector("#view-overview.active")
@@ -37,7 +39,9 @@ def desktop_checks(browser, base, errors, screenshots):
 
     assert page.locator("#desktopSidebar:visible").count() == 1
     assert page.locator("#appTopbar:visible").count() == 1
-    assert page.locator("[data-nav-view]").count() == 8
+    # Phase 1-3: sidebar mới có 5 nav view (today/overview/week/year/calendar)
+    # × 2 (desktop sidebar + mobile nav) = 10
+    assert page.locator("[data-nav-view]").count() == 10
     assert page.locator(".landing-hero").count() == 0
     assert page.locator(".app-primary-action").count() == 1
     assert_no_overflow(page, "desktop")
@@ -47,12 +51,14 @@ def desktop_checks(browser, base, errors, screenshots):
     assert page.evaluate("button => getComputedStyle(button).alignItems === 'center'", widget_button.element_handle())
     assert widget_label.bounding_box()["height"] < widget_button.bounding_box()["height"] - 8
 
-    overview_tab = page.locator('#desktopSidebar [data-nav-view="overview"]')
-    overview_tab.focus()
+    # Thứ tự nav mới: today → overview → week → year → calendar.
+    # ArrowRight từ today (nav đầu) phải sang week — đồng thời verify default view mới.
+    today_tab = page.locator('#desktopSidebar [data-nav-view="today"]')
+    today_tab.focus()
     page.keyboard.press("ArrowRight")
     page.wait_for_selector("#view-week.active")
     assert page.evaluate("document.activeElement?.dataset.navView === 'week'")
-    overview_tab.click()
+    page.locator('#desktopSidebar [data-nav-view="overview"]').click()
     page.wait_for_selector("#view-overview.active")
 
     habit = page.locator('[data-action="habit"]').first
