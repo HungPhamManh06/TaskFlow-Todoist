@@ -655,6 +655,12 @@ const I18N = {
     exportJson: '📤 Xuất JSON (sao lưu)',
     importJson: '📥 Nhập JSON (khôi phục)',
     exportCsv: '📊 Xuất CSV (Google Sheets)',
+    exportIcs: '📅 Xuất lịch (.ics)',
+    xpTitle: 'Điểm kinh nghiệm',
+    xpLevel: 'Cấp {lv}',
+    xpNote: 'Hoàn thành task, thói quen và mục tiêu để tích XP và tăng cấp. 🚀',
+    levelUp: '🎉 Chúc mừng! Lên cấp {lv}! ⭐',
+    carriedFrom: 'Dồn từ ngày {date} — task lặp bị lỡ',
     csvNote: 'Sheet chia nhỏ theo Section để lọc trong Google Sheets',
     printTitle: 'In / Lưu PDF',
     remindTitle: 'Nhắc việc hằng ngày',
@@ -1135,6 +1141,12 @@ const I18N = {
     exportJson: '📤 Export JSON (backup)',
     importJson: '📥 Import JSON (restore)',
     exportCsv: '📊 Export CSV (Google Sheets)',
+    exportIcs: '📅 Export calendar (.ics)',
+    xpTitle: 'Experience points',
+    xpLevel: 'Level {lv}',
+    xpNote: 'Complete tasks, habits and goals to earn XP and level up. 🚀',
+    levelUp: '🎉 Congrats! Level {lv}! ⭐',
+    carriedFrom: 'Carried over from {date} — missed repeating task',
     csvNote: 'Sheet split into sections, filter in Google Sheets',
     printTitle: 'Print / Save PDF',
     remindTitle: 'Daily reminder',
@@ -1507,6 +1519,7 @@ function setLang(l) {
   else if (state.view === 'calendar') renderCalendar();
   else renderYear();
   updateNav();
+  renderXP();
   save();
 }
 
@@ -1868,7 +1881,7 @@ function applyRecurrence() {
   if (!todayDay) return;
   const plan = window.PlanMath.planRecurrence(state.weeks, ti.dayIdx);
   plan.mark.forEach((t) => { t._recurred = true; });
-  plan.copies.forEach((c) => todayDay.tasks.push(c));
+  plan.copies.forEach((c) => { c.uid = newTaskUid(); todayDay.tasks.push(c); });
 }
 
 /* ============================ Xuất / Nhập dữ liệu ============================ */
@@ -1917,6 +1930,55 @@ function exportCSV() {
   }
   downloadFile('taskflow-todoist-data-' + date + '.csv', rows.join('\r\n') + '\r\n', 'text/csv;charset=utf-8');
   trackEvent('export_csv');
+}
+
+// Xuất lịch .ics (Google Calendar / Apple Calendar / Outlook) — toàn bộ 12 tháng của năm.
+// Task có nhắc giờ (remind) → sự kiện có giờ cụ thể; còn lại là sự kiện cả ngày.
+function icsEscape(s) {
+  return String(s ?? '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}
+function icsDayFromDay(d) {
+  const m = /^(\d{1,2})\/(\d{1,2})$/.exec(String(d.date || ''));
+  if (!m) return null;
+  return new Date(2000 + (d.yy || 0), +m[2] - 1, +m[1]);
+}
+function exportICS() {
+  const now = new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  const stamp = now.getFullYear() + p2(now.getMonth() + 1) + p2(now.getDate()) + 'T' + p2(now.getHours()) + p2(now.getMinutes()) + p2(now.getSeconds()) + 'Z';
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TaskFlow-Todoist//TaskFlow//VI',
+    'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:TaskFlow ' + PLAN_YEAR,
+  ];
+  const freqMap = { daily: 'DAILY', weekly: 'WEEKLY', monthly: 'MONTHLY' };
+  let uid = 1;
+  for (let m = 0; m < 12; m++) {
+    const s = loadMonthStateOrCreate(PLAN_YEAR, m);
+    s.weeks.forEach((w, wi) => {
+      (w.days || []).forEach((d, di) => {
+        const dt = icsDayFromDay(d);
+        if (!dt) return;
+        const date = dt.getFullYear() + p2(dt.getMonth() + 1) + p2(dt.getDate());
+        (d.tasks || []).forEach((tk) => {
+          if (!tk.text || !tk.text.trim()) return;
+          const timed = tk.remind && tk.remind.enabled && tk.remind.time;
+          lines.push('BEGIN:VEVENT');
+          lines.push('UID:taskflow-' + PLAN_YEAR + '-' + (m + 1) + '-' + (wi + 1) + '-' + (di + 1) + '-' + uid++ + '@taskflow-todoist');
+          lines.push('DTSTAMP:' + stamp);
+          lines.push('SUMMARY:' + icsEscape(tk.text));
+          if (timed) lines.push('DTSTART:' + date + 'T' + String(tk.remind.time).replace(':', '') + '00');
+          else lines.push('DTSTART;VALUE=DATE:' + date);
+          if (tk.repeat && tk.repeat.freq && freqMap[tk.repeat.freq]) lines.push('RRULE:FREQ=' + freqMap[tk.repeat.freq]);
+          // Lưu ý: không ghi STATUS:COMPLETED — RFC 5545 chỉ cho phép trạng thái này trên
+          // VTODO/VJOURNAL, không hợp lệ trên VEVENT (Google/Apple có thể bỏ qua hoặc lỗi).
+          lines.push('END:VEVENT');
+        });
+      });
+    });
+  }
+  lines.push('END:VCALENDAR');
+  downloadFile('taskflow-calendar-' + PLAN_YEAR + '.ics', lines.join('\r\n') + '\r\n', 'text/calendar;charset=utf-8');
+  trackEvent('export_ics');
 }
 
 // Bản cũ (dự phòng nếu PlanStats chưa tải được) — giữ nguyên hành vi để không hồi quy.
@@ -2140,8 +2202,8 @@ function demoPlan() {
     const w = state.weeks[ti.week - 1];
     const d = w && w.days[ti.dayInWeek];
     if (d && !d.tasks.length) {
-      d.tasks.push({ kind: 'priority', done: false, text: isEn ? 'Lock in today\u2019s goals' : 'Chốt mục tiêu hôm nay', tags: [], remind: { enabled: false, time: '20:00' } });
-      d.tasks.push({ kind: 'regular', done: false, text: isEn ? 'Check in habits' : 'Điểm danh thói quen', tags: [], remind: { enabled: false, time: '20:00' } });
+      d.tasks.push({ uid: newTaskUid(), kind: 'priority', done: false, text: isEn ? 'Lock in today\u2019s goals' : 'Chốt mục tiêu hôm nay', tags: [], remind: { enabled: false, time: '20:00' } });
+      d.tasks.push({ uid: newTaskUid(), kind: 'regular', done: false, text: isEn ? 'Check in habits' : 'Điểm danh thói quen', tags: [], remind: { enabled: false, time: '20:00' } });
     }
   }
   renderCurrentView();
@@ -2479,7 +2541,7 @@ function importCSVFile(file) {
         chunk.tasks.forEach((tk) => {
           const w = s.weeks[tk.week - 1];
           const d = w && w.days[tk.day - 1];
-          if (w && d) d.tasks.push({ kind: tk.kind, done: tk.done, text: tk.text, tags: [], remind: { enabled: false, time: '20:00' } });
+          if (w && d) d.tasks.push({ uid: newTaskUid(), kind: tk.kind, done: tk.done, text: tk.text, tags: [], remind: { enabled: false, time: '20:00' } });
         });
         saveMonthState(PLAN_YEAR, m - 1, s);
         // Tháng đang xem: đồng bộ vào state in-memory để setView/save() không ghi đè bản đã merge.
@@ -2521,7 +2583,7 @@ function seedHabitDays(targetPct) {
 }
 function seedTasks(pct) {
   const checked = Math.round(pct / 20); // 0..5
-  return Array.from({ length: 5 }, (_, i) => ({ kind: i < 2 ? 'priority' : 'regular', done: i < checked, text: '', tags: [] }));
+  return Array.from({ length: 5 }, (_, i) => ({ uid: newTaskUid(), kind: i < 2 ? 'priority' : 'regular', done: i < checked, text: '', tags: [] }));
 }
 
 function defaultState() {
@@ -2570,16 +2632,23 @@ function loadState() {
     if (!s.goalTab) s.goalTab = 'priority';
     if (typeof s.currentWeek !== 'number' || s.currentWeek < 1 || s.currentWeek > NUM_WEEKS) s.currentWeek = 1;
     if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar') s.view = 'overview';
-    // Migration: task cũ thiếu tags → mảng rỗng; thiếu remind → tắt
+    // Migration: task cũ thiếu tags → mảng rỗng; thiếu remind → tắt; thiếu uid → gán uid cố định
+    // (uid là nền tảng để carry-over theo dõi task qua việc xoá/chèn task phía trước).
+    let tasksDirty = false;
     s.weeks.forEach((w) => {
       (w.days || []).forEach((d) => {
         (d.tasks || []).forEach((tk) => {
           if (!Array.isArray(tk.tags)) tk.tags = [];
           if (!tk.remind || typeof tk.remind !== 'object') tk.remind = { enabled: false, time: '20:00' };
           if (typeof tk.repeat === 'undefined') tk.repeat = null;
+          if (typeof tk.uid !== 'string') { tk.uid = newTaskUid(); tasksDirty = true; }
         });
       });
     });
+    // Lưu uid mới sinh ngay (không gọi save() — state global đang trong TDZ lúc load khởi động)
+    if (tasksDirty) {
+      try { localStorage.setItem(monthKey(), JSON.stringify(s)); } catch (e) { /* ẩn */ }
+    }
     // Đồng bộ streak với số tích ✓: khi xem tháng hiện tại, tự bỏ tick các ngày tương lai
     // (dữ liệu cũ / seed trước đây từng tick cả tháng) để số streak phản ánh đúng những gì đã tick.
     const now = new Date();
@@ -2637,11 +2706,11 @@ function emptyState() {
           const dt = new Date(start.getTime() + (wi * 7 + di) * 86400000);
           return {
             tasks: [
-              { kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
             ],
             date: `${dt.getDate()}/${dt.getMonth() + 1}`,
             yy: dt.getFullYear() % 100,
@@ -2682,7 +2751,10 @@ function rebootState(render = true) {
   invalidateYearCache();
   // Phase 5: đổi tài khoản/sync-pull → xoá undo cũ (snapshot của tài khoản cũ không còn hợp lệ)
   if (typeof undoStack !== 'undefined' && undoStack) { undoStack.clear(); lastSnapshotJson = null; }
+  loadXP();
+  carryOverRepeatTasks();
   if (render) {
+    renderXP();
     setView(state.view, state.currentWeek);
     updateNav();
   }
@@ -2694,6 +2766,65 @@ function save() {
   try { localStorage.setItem(monthKey(), JSON.stringify(state)); } catch (e) { /* ẩn */ }
   if (window.Sync) window.Sync.push(monthKey());
   maybeAutoBackup();
+}
+
+/* ============================ XP & Cấp độ (Gamification) ============================ */
+// XP lưu ở key riêng 'planner-xp' (đồng bộ đám mây như mọi key planner-*) nên
+// KHÔNG bị reset khi đổi tháng/năm — điểm tích luỹ xuyên suốt.
+
+let xpTotal = 0;
+
+function loadXP() {
+  try {
+    const r = JSON.parse(localStorage.getItem('planner-xp'));
+    xpTotal = r && typeof r.xp === 'number' && r.xp >= 0 ? r.xp : 0;
+  } catch (e) { xpTotal = 0; }
+}
+function saveXP() {
+  try { localStorage.setItem('planner-xp', JSON.stringify({ xp: xpTotal, updatedAt: Date.now() })); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push('planner-xp');
+}
+// Cấp độ: cần 100 XP lên cấp 2, mỗi cấp sau tăng thêm 50 XP (100 → 150 → 200 → …)
+function xpLevelInfo(xp) {
+  let level = 1, need = 100, acc = 0;
+  while (xp >= acc + need) { acc += need; level++; need += 50; }
+  return { level, cur: xp - acc, need, pct: Math.min(100, Math.max(0, Math.round(((xp - acc) / need) * 100))) };
+}
+function addXP(n) {
+  if (!(n > 0)) return;
+  const before = xpLevelInfo(xpTotal);
+  xpTotal += n;
+  saveXP();
+  renderXP();
+  const after = xpLevelInfo(xpTotal);
+  if (after.level > before.level) {
+    confettiBurst();
+    TaskFlowUI.toast(t('levelUp', { lv: after.level }), 'success');
+  }
+}
+function removeXP(n) {
+  if (!(n > 0)) return;
+  xpTotal = Math.max(0, xpTotal - n);
+  saveXP();
+  renderXP();
+}
+function renderXP() {
+  const info = xpLevelInfo(xpTotal);
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  const pill = document.getElementById('appXp');
+  if (pill) pill.hidden = false;
+  const card = document.getElementById('xpCard');
+  if (card) card.hidden = false;
+  const lv = t('xpLevel', { lv: info.level });
+  const bar = info.cur + ' / ' + info.need + ' XP';
+  set('appXpLevel', lv);
+  set('appXpNum', bar);
+  set('xpCardLevel', lv);
+  set('xpCardSub', bar);
+  const f1 = document.getElementById('appXpFill');
+  if (f1) f1.style.width = info.pct + '%';
+  const f2 = document.getElementById('xpCardFill');
+  if (f2) f2.style.width = info.pct + '%';
 }
 
 /* ============================ Tính toán ============================ */
@@ -4620,8 +4751,9 @@ function dayColumnHTML(w, di, isToday) {
 
 function taskRowHTML(wn, di, ti, mod, task, pos) {
   const tags = Array.isArray(task.tags) ? task.tags : [];
-  return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}" draggable="true" data-drag="task" data-week="${wn}" data-day="${di}" data-task="${ti}" data-kind="${task.kind}" data-pos="${pos ?? 0}" title="${t('dragHint')}" aria-label="${t('dragHint')}">
+  return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}${task.carriedFrom ? ' carried' : ''}" draggable="true" data-drag="task" data-week="${wn}" data-day="${di}" data-task="${ti}" data-kind="${task.kind}" data-pos="${pos ?? 0}" title="${t('dragHint')}" aria-label="${t('dragHint')}">
     ${checkboxHTML(mod, task.done, `data-action="task" data-week="${wn}" data-day="${di}" data-task="${ti}"`, window.TaskFlowUI.checkboxLabel('task', task.text, `${t('weekN', { n: wn })}, ${dayLabel(di)}`))}
+    ${task.carriedFrom ? `<span class="carried-badge" title="${t('carriedFrom', { date: carriedDateLabel(task.carriedFrom) })}" aria-label="${t('carriedFrom', { date: carriedDateLabel(task.carriedFrom) })}">↳</span>` : ''}
     <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${wn}" data-day="${di}" data-task="${ti}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: ti + 1 })}">${esc(task.text ?? '')}</span>
     ${tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : ''}
     <span class="task-row-actions">
@@ -4879,7 +5011,7 @@ function copyMonthTemplate() {
             const dt = new Date(PLAN_START.getTime() + (wi * 7 + di) * 86400000);
             const sd = (sw.days && sw.days[di]) || {};
             return {
-              tasks: (sd.tasks || []).map((tk) => ({ kind: tk.kind, done: false, text: tk.text || '', tags: Array.isArray(tk.tags) ? tk.tags.slice() : [] })),
+              tasks: (sd.tasks || []).map((tk) => ({ uid: newTaskUid(), kind: tk.kind, done: false, text: tk.text || '', tags: Array.isArray(tk.tags) ? tk.tags.slice() : [] })),
               date: `${dt.getDate()}/${dt.getMonth() + 1}`,
               yy: dt.getFullYear() % 100,
               sticky: sd.sticky || null,
@@ -5551,6 +5683,8 @@ function openMonth(m) {
   // Tag filter theo tháng cũ — reset để không còn task bị ẩn mà không có UI gỡ
   tagFilter = null;
   calendarTagFilters = [];
+  // Tháng mới → carry task lặp bị lỡ vào hôm nay ngay khi mở (nếu hôm nay thuộc tháng này)
+  carryOverRepeatTasks();
   updateBrand();
   updateNowBtn();
   buildNav();
@@ -6034,10 +6168,10 @@ document.addEventListener('click', (e) => {
   }
   else if (act === 'goal') {
     const g = state.monthlyGoals.find((x) => x.id === el.dataset.id);
-    if (g) { g.done = !g.done; afterGoalToggle(g); if (g.done && monthlyStats().pct === 100) confettiBurst(); }
+    if (g) { g.done = !g.done; if (g.done) addXP(20); else removeXP(20); afterGoalToggle(g); if (g.done && monthlyStats().pct === 100) confettiBurst(); }
   } else if (act === 'ygoal') {
     const g = yearState.goals.find((x) => x.id === el.dataset.id);
-    if (g) { g.done = !g.done; afterYearGoalToggle(); }
+    if (g) { g.done = !g.done; if (g.done) addXP(30); else removeXP(30); afterYearGoalToggle(); }
   } else if (act === 'month') {
     openMonth(+el.dataset.month);
   } else if (act === 'gotoday') {
@@ -6054,20 +6188,34 @@ document.addEventListener('click', (e) => {
     toggleQuarterGoal(+el.dataset.q, el.dataset.key);
   } else if (act === 'habit') {
     const h = state.habits.find((x) => x.id === el.dataset.id);
-    if (h) { h.days[+el.dataset.day] = !h.days[+el.dataset.day]; afterHabitToggle(); refreshFocusIfOpen(); }
+    if (h) {
+      h.days[+el.dataset.day] = !h.days[+el.dataset.day];
+      if (h.days[+el.dataset.day]) addXP(15); else removeXP(15);
+      afterHabitToggle(); refreshFocusIfOpen();
+    }
   } else if (act === 'wgoal') {
     const w = state.weeks[+el.dataset.week - 1];
     const g = w.goals[+el.dataset.id];
-    if (g) { g.done = !g.done; afterWGoalToggle(w); if (g.done && weekStats(w).pct === 100) confettiBurst(); }
+    if (g) {
+      g.done = !g.done;
+      if (g.done) addXP(10); else removeXP(10);
+      afterWGoalToggle(w);
+      if (g.done && weekStats(w).pct === 100) confettiBurst();
+    }
   } else if (act === 'task') {
     const w = state.weeks[+el.dataset.week - 1];
     const d = w.days[+el.dataset.day];
     const t = d.tasks[+el.dataset.task];
-    if (t) { t.done = !t.done; refreshTaskUI(w, +el.dataset.day); save(); refreshFocusIfOpen(); }
+    if (t) {
+      t.done = !t.done;
+      if (t.done) addXP(10); else removeXP(10);
+      syncCarriedDone(+el.dataset.week - 1, +el.dataset.day, +el.dataset.task, t);
+      refreshTaskUI(w, +el.dataset.day); save(); refreshFocusIfOpen();
+    }
   } else if (act === 'addtask') {
     const w = state.weeks[+el.dataset.week - 1];
     const d = w.days[+el.dataset.day];
-    d.tasks.push({ kind: el.dataset.kind, done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
+    d.tasks.push({ uid: newTaskUid(), kind: el.dataset.kind, done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
     renderWeek();
     save();
     trackEvent('create_task', { kind: el.dataset.kind });
@@ -6301,6 +6449,9 @@ document.addEventListener('click', (e) => {
   } else if (act === 'export-csv') {
     togglePop('dataPop');
     exportCSV();
+  } else if (act === 'export-ics') {
+    togglePop('dataPop');
+    exportICS();
   } else if (act === 'widget-settings') {
     openWidgetSettingsModal(el.dataset.view);
   } else if (act === 'widget-toggle') {
@@ -6591,6 +6742,119 @@ function refreshTaskUI(w, di) {
   });
 }
 
+/* ============================ Task lặp thông minh (carry-over) ============================ */
+
+/* ---------- uid cố định cho task — nền tảng để carry-over không lệch chỉ số ---------- */
+function newTaskUid() {
+  return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+function ensureTaskUid(tk) {
+  if (tk && typeof tk.uid !== 'string') tk.uid = newTaskUid();
+  return tk;
+}
+function findTaskByUid(uid) {
+  if (!uid) return null;
+  for (const w of state.weeks) {
+    for (const d of w.days) {
+      for (const tk of d.tasks) {
+        if (tk.uid === uid) return tk;
+      }
+    }
+  }
+  return null;
+}
+
+// Task lặp (repeat) bị lỡ ngày sẽ được tự động "dồn" vào danh sách hôm nay,
+// để người dùng không phải tự thêm tay. Chạy khi khởi động app và khi đổi ngày.
+function dayDate(wi, di) {
+  return new Date(PLAN_START.getTime() + (wi * 7 + di) * 86400000);
+}
+function carryOverRepeatTasks() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let todayW = -1, todayD = -1;
+  state.weeks.forEach((w, wi) => {
+    w.days.forEach((d, di) => {
+      const dt = dayDate(wi, di);
+      if (dt && dt.getTime() === today.getTime()) { todayW = wi; todayD = di; }
+    });
+  });
+  if (todayW < 0 || !state.weeks[todayW] || !state.weeks[todayW].days[todayD]) return false;
+  const target = state.weeks[todayW].days[todayD];
+  let changed = false;
+  state.weeks.forEach((w, wi) => {
+    w.days.forEach((d, di) => {
+      const dt = dayDate(wi, di);
+      if (!dt || dt.getTime() >= today.getTime()) return;
+      d.tasks.forEach((tk, ti) => {
+        if (!tk || !tk.repeat || !tk.repeat.freq || tk.done || tk.carried) return;
+        ensureTaskUid(tk); // task cũ (data trước nâng cấp) chưa có uid → gán ngay
+        const uid = tk.uid;
+        // exists theo uid (fallback chỉ số cho bản dồn cũ) — không trùng lặp kể cả khi xoá/chèn task
+        const exists = target.tasks.some((x) => x.carriedFrom && (
+          (x.carriedFrom.uid && x.carriedFrom.uid === uid) ||
+          (!x.carriedFrom.uid && x.carriedFrom.w === wi && x.carriedFrom.d === di && x.carriedFrom.t === ti)
+        ));
+        if (exists) return;
+        const copy = Object.assign({}, tk, {
+          uid: newTaskUid(), // bản sao là task MỚI — uid riêng
+          done: false,
+          carried: false,
+          carriedFrom: { uid, date: d.date + '/' + (d.yy || '') },
+          repeat: null,
+          _recurred: undefined, // không kế thừa flag tạm của bản gốc (applyRecurrence)
+          tags: Array.isArray(tk.tags) ? tk.tags.slice() : [],
+          remind: tk.remind && typeof tk.remind === 'object' ? Object.assign({}, tk.remind) : { enabled: false, time: '20:00' },
+        });
+        target.tasks.push(copy);
+        tk.carried = true;
+        changed = true;
+      });
+    });
+  });
+  if (changed) save();
+  return changed;
+}
+function carriedDateLabel(cf) {
+  if (!cf) return '';
+  if (cf.date) return cf.date; // bản dồn mới: lưu sẵn ngày nguồn
+  try { // bản dồn cũ (trước nâng cấp uid): tra theo chỉ số
+    const w = state.weeks[cf.w];
+    const d = w && w.days[cf.d];
+    if (d && d.date) return d.date + '/' + (d.yy || '');
+  } catch (e) { /* ẩn */ }
+  return '';
+}
+// Đồng bộ trạng thái done giữa task gốc (lịch lặp) và bản dồn (carry) sang hôm nay.
+// Tra theo uid nên KHÔNG lệch khi task phía trước bị xoá/chèn; có fallback chỉ số cho bản dồn cũ.
+function syncCarriedDone(wi, di, ti, t) {
+  if (!t) return;
+  if (t.carriedFrom) {
+    let src = t.carriedFrom.uid ? findTaskByUid(t.carriedFrom.uid) : null;
+    if (!src && typeof t.carriedFrom.w === 'number') {
+      try {
+        const w = state.weeks[t.carriedFrom.w];
+        const d = w && w.days[t.carriedFrom.d];
+        src = d && d.tasks[t.carriedFrom.t];
+      } catch (e) { /* ẩn */ }
+    }
+    if (src) src.done = t.done;
+    return;
+  }
+  if (!t.uid) return;
+  for (const w2 of state.weeks) {
+    for (const d2 of w2.days) {
+      for (const tk of d2.tasks) {
+        if (!tk.carriedFrom) continue;
+        const match = tk.carriedFrom.uid
+          ? tk.carriedFrom.uid === t.uid
+          : (tk.carriedFrom.w === wi && tk.carriedFrom.d === di && tk.carriedFrom.t === ti);
+        if (match) tk.done = t.done;
+      }
+    }
+  }
+}
+
 /* ============================ Đồng bộ thời gian thực ============================ */
 
 const fmtDate = (d) => d.toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -6670,6 +6934,7 @@ function refreshToday() {
     setView(state.view, state.currentWeek);
   } else {
     if (jump) state.currentWeek = ti.week;
+    carryOverRepeatTasks();
     if (state.view === 'week') renderWeek();
     else if (state.view === 'overview') renderOverview();
     else if (state.view === 'calendar') renderCalendar();
@@ -6887,6 +7152,7 @@ function handleSyncChange(keys) {
     setView(state.view, state.currentWeek);
     updateNav();
   }
+  if (keys.indexOf('planner-xp') >= 0) { loadXP(); renderXP(); }
   // Áp dụng ngôn ngữ/chủ đề sau khi đã nạp lại state (an toàn với save() bên trong setLang)
   if (keys.indexOf('planner-lang') >= 0) {
     const l = localStorage.getItem('planner-lang');
@@ -7039,6 +7305,9 @@ renderClock();
 buildNav();
 updateUndoButtons();
 loadMood();
+loadXP();
+carryOverRepeatTasks();
+renderXP();
 setView(state.view, state.currentWeek);
 setTimeout(updateDigestCache, 2000);
 

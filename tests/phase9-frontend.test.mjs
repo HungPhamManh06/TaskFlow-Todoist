@@ -552,8 +552,35 @@ test('every generated checkbox receives a meaningful accessible label', () => {
   });
 });
 
+test('gamification XP, smart repeat carry-over and .ics export are wired end-to-end', () => {
+  // XP & Level
+  assert.match(APP_JS, /function xpLevelInfo/);
+  assert.match(APP_JS, /function addXP/);
+  assert.match(APP_JS, /function renderXP/);
+  assert.match(APP_JS, /addXP\(10\)/); // task
+  assert.match(APP_JS, /addXP\(15\)/); // habit
+  assert.match(APP_JS, /addXP\(20\)/); // mục tiêu tháng
+  assert.match(APP_JS, /addXP\(30\)/); // mục tiêu năm
+  assert.match(APP_JS, /localStorage\.getItem\('planner-xp'\)/);
+  assert.match(APP, /id="appXp"/);
+  assert.match(APP, /id="xpCard"/);
+  // Task lặp thông minh (carry-over) — theo uid cố định, không lệch khi xoá/chèn task
+  assert.match(APP_JS, /function carryOverRepeatTasks/);
+  assert.match(APP_JS, /function syncCarriedDone/);
+  assert.match(APP_JS, /function newTaskUid/);
+  assert.match(APP_JS, /function ensureTaskUid/);
+  assert.match(APP_JS, /function findTaskByUid/);
+  assert.match(APP_JS, /carriedFrom: \{ uid/); // bản dồn mới lưu uid nguồn + ngày
+  assert.match(APP_JS, /uid: newTaskUid\(\), kind/); // task mới được gán uid lúc tạo
+  // Export .ics
+  assert.match(APP_JS, /function exportICS/);
+  assert.match(APP_JS, /BEGIN:VCALENDAR/);
+  assert.match(APP_JS, /act === 'export-ics'/);
+  assert.match(APP, /data-action="export-ics"/);
+});
+
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v74';/);
+  assert.match(SW, /const CACHE = 'taskflow-v76';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -617,7 +644,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v74';/);
+  assert.match(SW, /const CACHE = 'taskflow-v76';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',

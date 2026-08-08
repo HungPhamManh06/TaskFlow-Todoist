@@ -5464,3 +5464,133 @@ body.focus-mode .container { padding: 0; }
     grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 }
+
+/* ============================ XP & Cấp độ (Gamification) ============================ */
+
+.app-xp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -14px 6px 18px;
+  padding: 8px 10px;
+  border-radius: var(--radius-control, 9px);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  min-width: 0;
+}
+.app-xp-star {
+  font-size: 16px;
+  flex: 0 0 auto;
+}
+.app-xp-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.app-xp-level {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-xp-bar {
+  display: block;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+.app-xp-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: width 0.45s ease;
+}
+.app-xp-num {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.xp-card {
+  margin: 0 2px 16px;
+  padding: 14px;
+  border-radius: var(--radius-panel, 14px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-panel, none);
+}
+.xp-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+.xp-card-star { font-size: 14px; }
+.xp-card-level {
+  margin-top: 8px;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.xp-card-bar {
+  display: block;
+  margin-top: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+.xp-card-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-accent);
+  transition: width 0.45s ease;
+}
+.xp-card-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.xp-card-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+/* Task lặp thông minh — bản dồn sang hôm nay */
+.carried-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-border);
+  cursor: help;
+  user-select: none;
+}
+.task-row.carried .task-text {
+  color: var(--color-text-muted);
+}

@@ -62,7 +62,7 @@
   <link rel="stylesheet" href="css/tokens.css?v=6" />
   <link rel="stylesheet" href="css/components.css?v=3" />
   <link rel="stylesheet" href="css/app-shell.css?v=5" />
-  <link rel="stylesheet" href="css/styles.css?v=65" />
+  <link rel="stylesheet" href="css/styles.css?v=66" />
 </head>
 
 <body>
@@ -76,6 +76,14 @@
           <span id="brandSub" hidden>Kế hoạch tháng 1 · 2026</span>
         </span>
       </a>
+      <div class="app-xp" id="appXp" hidden>
+        <span class="app-xp-star" aria-hidden="true">⭐</span>
+        <span class="app-xp-copy">
+          <span class="app-xp-level" id="appXpLevel">Cấp 1</span>
+          <span class="app-xp-bar" aria-hidden="true"><span class="app-xp-fill" id="appXpFill"></span></span>
+        </span>
+        <span class="app-xp-num" id="appXpNum">0 / 100 XP</span>
+      </div>
       <nav class="app-sidebar-nav" id="navTabs" role="tablist" aria-label="Điều hướng kế hoạch"
         data-i18n-aria="navPlan"></nav>
       <div class="app-sidebar-secondary" aria-label="Công cụ nhanh">
@@ -150,6 +158,13 @@
     </div>
 
     <div class="tools-drawer-scroll">
+      <div class="xp-card" id="xpCard" hidden>
+        <div class="xp-card-head"><span class="xp-card-star" aria-hidden="true">⭐</span> <span data-i18n="xpTitle">Điểm kinh nghiệm</span></div>
+        <div class="xp-card-level" id="xpCardLevel">Cấp 1</div>
+        <div class="xp-card-bar" aria-hidden="true"><span class="xp-card-fill" id="xpCardFill"></span></div>
+        <div class="xp-card-sub" id="xpCardSub">0 / 100 XP</div>
+        <p class="xp-card-note" data-i18n="xpNote">Hoàn thành task, thói quen và mục tiêu để tích XP và tăng cấp. 🚀</p>
+      </div>
       <section class="tools-group" aria-labelledby="toolsPlanningTitle">
         <h3 id="toolsPlanningTitle">Lập kế hoạch</h3>
         <nav class="tools-month-nav" aria-label="Chuyển tháng trong năm" data-i18n-aria="navMonths">
@@ -221,6 +236,7 @@
             <button type="button" class="pop-btn" data-action="import-json" data-i18n="importJson">Nhập JSON (khôi phục)</button>
             <button type="button" class="pop-btn" data-action="import-csv" data-i18n="importCsv">Nhập CSV (khôi phục)</button>
             <button type="button" class="pop-btn" data-action="export-csv" data-i18n="exportCsv">Xuất CSV (Google Sheets)</button>
+            <button type="button" class="pop-btn" data-action="export-ics" data-i18n="exportIcs">Xuất lịch (.ics)</button>
             <button type="button" class="pop-btn" data-action="backup-restore" data-i18n="backupRestore">Khôi phục bản sao lưu tự động</button>
             <button type="button" class="pop-btn" data-action="demo-data" data-i18n="demoData">Tạo dữ liệu mẫu</button>
             <button type="button" class="pop-btn" data-action="feedback" data-i18n="feedbackBtn">Góp ý / phản hồi</button>
@@ -558,7 +574,7 @@
   <script src="js/plan-stats.js?v=3"></script>
   <script src="js/sync.js?v=3"></script>
   <script src="js/ui.js?v=3"></script>
-  <script src="js/app.js?v=69"></script>
+  <script src="js/app.js?v=73"></script>
 </body>
 
 </html>
