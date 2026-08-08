@@ -1724,6 +1724,10 @@ textarea:focus-visible,
   font-size: 13px;
   font-weight: 700;
 }
+/* P8: display:flex override thuộc tính hidden → field ngày vẫn hiện trong Quick Add Inbox mode */
+.pop-field[hidden] { display: none; }
+/* P8: CTA "Tạo thói quen" inline trong Today habits empty card — gọn, không phồng như empty-actions */
+.today-habits-empty .empty-btn { margin-left: 8px; padding: 4px 12px; font-size: 12.5px; }
 .pop-field input[type="time"] {
   font: inherit;
   font-weight: 700;

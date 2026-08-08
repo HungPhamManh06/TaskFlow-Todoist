@@ -565,6 +565,7 @@ const I18N = {
     emptyGoUpcoming: 'Xem sắp tới',
     emptyAddInbox: 'Thêm nhanh',
     emptyPlanWeek: 'Lên kế hoạch tuần',
+    emptyAddHabit: 'Tạo thói quen',
     taskDeletedToast: 'Đã xóa task',
     undoBtnShort: 'Hoàn tác',
     quickAddTitle: 'Thêm công việc nhanh',
@@ -1216,6 +1217,7 @@ const I18N = {
     emptyGoUpcoming: 'See upcoming',
     emptyAddInbox: 'Quick add',
     emptyPlanWeek: 'Plan the week',
+    emptyAddHabit: 'Create a habit',
     taskDeletedToast: 'Task deleted',
     undoBtnShort: 'Undo',
     quickAddTitle: 'Quick Add',
@@ -3639,7 +3641,9 @@ function habitPanelHTML() {
             }).join('') : `<tr>
               <td class="sticky name-col"></td>
               <td class="sticky pct-col"></td>
-              <td colspan="${NUM_DAYS}" class="empty-cell">${emptyStateHTML('🐥', 'emptyHabitsT', 'emptyHabitsH')}</td>
+              <td colspan="${NUM_DAYS}" class="empty-cell">${emptyStateHTML('🐥', 'emptyHabitsT', 'emptyHabitsH', [
+                { label: t('emptyAddHabit'), action: 'habit-focus' },
+              ])}</td>
             </tr>`}
           </tbody>
         </table>
@@ -5405,7 +5409,7 @@ function renderToday() {
         <span class="today-habit-streak" title="${t('overviewMetricStreakMeta')}">🔥<span>${habitStreakCached(h).cur}</span></span>
       </div>`;
       }).join('')
-    : `<p class="today-habits-empty">${t('todayHabitsEmpty')}</p>`;
+    : `<p class="today-habits-empty">${t('todayHabitsEmpty')} <button type="button" class="empty-btn" data-action="habit-focus" title="${t('emptyAddHabit')}">${t('emptyAddHabit')}</button></p>`;
 
   const focusMinutes = totalFocusMinutesToday();
   el.innerHTML = `<div class="today-page">
@@ -7367,7 +7371,7 @@ function renderInbox() {
     </header>
     ${inbox.length ? `<div class="inbox-list" role="list">${list}</div>` : ''}
     ${empty}
-    <button type="button" class="btn-add-today" data-action="inbox-add" aria-label="${t('inboxAddTask')}">＋ ${t('inboxAddTask')}</button>
+    ${inbox.length ? `<button type="button" class="btn-add-today" data-action="inbox-add" aria-label="${t('inboxAddTask')}">＋ ${t('inboxAddTask')}</button>` : ''}
   </div>`;
 }
 
@@ -7458,7 +7462,9 @@ function openQuickAdd() {
   } else {
     if (dateField) dateField.hidden = false;
     if (dateIn) dateIn.value = localISODate(quickAddTarget.dt);
-    if (note) note.textContent = t('quickAddToday');
+    // P8: note trung thực với ngữ cảnh — mở từ Day/Week view ngày khác → "ngày đã chọn"
+    const isToday = quickAddTarget.dt && localISODate(quickAddTarget.dt) === localISODate(new Date());
+    if (note) note.textContent = t(isToday ? 'quickAddToday' : 'quickAddDay');
     // Đổi ngày → cập nhật note cho trung thực với ngày đã chọn
     if (dateIn && !dateIn.dataset.qaWired) {
       dateIn.dataset.qaWired = '1';
@@ -8393,6 +8399,13 @@ document.addEventListener('click', (e) => {
     closeQuickAdd();
   } else if (act === 'quickadd-do') {
     submitQuickAdd();
+  } else if (act === 'habit-focus') {
+    // P8: CTA empty state "Tạo thói quen" — từ Today chuyển sang Overview (nơi có ô nhập habit)
+    if (state.view !== 'overview') setView('overview');
+    const inp = document.querySelector('[data-role="habit-name-input"]');
+    if (inp) inp.focus();
+    // Fallback: widget habit bị ẩn trong cài đặt → focus main để không rơi vào trạng thái không focus
+    else { const main = document.getElementById('appMain'); if (main) main.focus(); }
   } else if (act === 'inbox-add') {
     addInboxTask();
   } else if (act === 'inbox-del') {

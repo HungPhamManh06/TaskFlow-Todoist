@@ -1396,6 +1396,16 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
   const qaStyles = readRequiredAsset('css/styles.css');
   assert.match(qaStyles, /\.quickadd-card\s*{/);
   assert.match(qaStyles, /\.quickadd-fields\s*{/);
+  // P8: note theo context date (day/week view ngày khác → "ngày đã chọn") + hidden field thật sự ẩn
+  assert.match(APP_JS, /quickAddTarget\.dt && localISODate\(quickAddTarget\.dt\) === localISODate\(new Date\(\)\)/);
+  assert.match(qaStyles, /\.pop-field\[hidden\]\s*\{\s*display: none;?\s*}/);
+  // P8: CTA "Tạo thói quen" từ empty states + handler focus input
+  assert.match(APP_JS, /emptyAddHabit: 'Tạo thói quen'/);
+  assert.match(APP_JS, /emptyAddHabit: 'Create a habit'/);
+  assert.match(APP_JS, /act === 'habit-focus'/);
+  assert.ok(APP_JS.includes('[data-role="habit-name-input"]'), 'habit-focus targets habit input');
+  // P8: inbox không còn duplicate CTA — nút ＋ Thêm việc chỉ render khi có list
+  assert.match(APP_JS, /\$\{inbox\.length \? `<button type=\"button\" class=\"btn-add-today\"/);
 });
 
 test('Phase 9: PWA manifest shortcuts, screenshots, and notification deep-link', () => {
