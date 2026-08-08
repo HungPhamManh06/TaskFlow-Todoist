@@ -4906,6 +4906,46 @@ body.focus-mode .container { padding: 0; }
   .week-habit-row {
     grid-template-columns: minmax(0, 1fr) 64px auto;
   }
+
+  /* ===== Phase 5: Mobile UX polish ===== */
+  /* Task Drawer → bottom sheet (khớp tools-drawer): dễ dùng 1 tay, an toàn với notch.
+     Dùng specificity cao hơn (.drawer.task-drawer) vì base rule ở dòng ~6231 load sau media block. */
+  .drawer.task-drawer {
+    inset: auto 0 0;
+    width: 100%;
+    height: min(88dvh, 760px);
+    max-height: 88dvh;
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    border-inline-start: 0;
+  }
+
+  /* Quick Add: dính lên trên để bàn phím mobile không che input (id thắng base .quickadd-modal) */
+  #quickAddModal {
+    align-items: flex-start;
+    padding-top: max(20px, env(safe-area-inset-top));
+  }
+
+  /* Touch target task rows / inbox rows: mở rộng hit area cho ngón tay */
+  .checkbox { width: 26px; height: 26px; }
+  .btn-add { width: 30px; height: 30px; font-size: 14px; }
+  /* specificity cao hơn base (.task-focus-btn 24px) và .week-page .task-row .task-focus-btn (3 class) */
+  .btn-del,
+  .task-focus-btn,
+  .task-menu-open,
+  .week-page .task-row .task-focus-btn,
+  .week-page .task-row .task-menu-open,
+  .mood-btn,
+  .btn-day-open,
+  .inbox-more,
+  .td-subtask-del {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 13px;
+  }
+  .inbox-sched-today { min-height: 36px; }
+  .td-add-btn { width: 36px; height: 36px; min-width: 36px; min-height: 36px; }
 }
 
 @media print {
@@ -7216,3 +7256,4 @@ body.focus-mode .container { padding: 0; }
 :root[data-dark="true"] .quickadd-fields input[type="date"],
 :root[data-dark="true"] .quickadd-fields input[type="time"],
 :root[data-dark="true"] .quickadd-fields input[type="number"] { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .15); color: #F2E8D5; }
+

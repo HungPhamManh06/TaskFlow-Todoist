@@ -549,7 +549,8 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     z-index: 55;
     inset: auto 0 0;
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    /* 6 nav mục + cột Thêm cố định — cả 7 phần tử nằm trên 1 hàng (trước đây Thêm bị wrap xuống hàng 2) */
+    grid-template-columns: repeat(6, minmax(0, 1fr)) 56px;
     min-height: calc(68px + env(safe-area-inset-bottom));
     border-block-start: 1px solid var(--color-border);
     padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
@@ -566,7 +567,8 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     justify-content: center;
     gap: 4px;
     min-width: 44px;
-    min-height: 50px;
+    height: 60px;
+    min-height: 60px;
     border: 0;
     border-radius: var(--radius-control);
     padding: 4px 2px;
@@ -591,7 +593,9 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
 
   .app-mobile-nav-item span:last-child {
     max-width: 100%;
-    white-space: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     text-align: center;
   }
 
