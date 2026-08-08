@@ -93,6 +93,18 @@ test('2.1: nhấn kết quả → mở tháng đúng', () => {
   assert.match(APP_JS, /function goSearchResult/);
 });
 
+test('2.1: search mở rộng — tags + subtasks + Inbox (m=-2)', () => {
+  // Task tìm thêm qua tags + subtasks (needles)
+  assert.match(APP_JS, /const taskNeedles = \(tk\) =>/);
+  assert.match(APP_JS, /tk\.subtasks\.map\(\(s\) => s && s\.text\)/);
+  // Inbox được đánh index với m = -2 → goSearchResult mở view Inbox
+  assert.match(APP_JS, /push\(-2, 'inbox'/);
+  assert.match(APP_JS, /if \(m === -2\) \{ setView\('inbox'\); return; \}/);
+  // i18n nhóm Inbox + keyboard nav ↑/↓ trong kết quả
+  assert.match(APP_JS, /searchInbox: 'Inbox'/);
+  assert.match(APP_JS, /e\.key === 'ArrowDown' \|\| e\.key === 'ArrowUp'/);
+});
+
 /* ============================================================
    Task 2.2 — Tag cho task
    ============================================================ */

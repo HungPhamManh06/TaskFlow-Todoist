@@ -907,6 +907,7 @@ const I18N = {
     searchReflect: 'Phản ánh',
     searchMonth: 'Tháng {n}',
     searchYear: 'Năm {y}',
+    searchInbox: 'Inbox',
     searchAll: 'Tất cả',
     searchOpenAria: 'Tìm kiếm xuyên tháng',
     tagLbl: 'Tag',
@@ -1007,7 +1008,7 @@ const I18N = {
     chatPh: 'Nhập câu hỏi của bạn...',
     chatSend: 'Gửi',
     helpTitle: 'Hướng dẫn sử dụng',
-    helpContent: '<h3>📋 Các chức năng của TaskFlow</h3><ul><li><b>📅 Tổng quan tháng:</b> Xem mục tiêu, thói quen và tiến độ tháng.</li><li><b>🗓️ Kế hoạch năm:</b> Mục tiêu năm, biểu đồ 12 tháng, phản ánh quý/năm.</li><li><b>📋 Kế hoạch tuần:</b> Mục tiêu & task theo ngày, thói quen, phản ánh, Pomodoro.</li><li><b>🎯 Mục tiêu:</b> Thêm/sửa/xoá mục tiêu ưu tiên và thường. Tick ✓ để đánh dấu hoàn thành.</li><li><b>🔥 Thói quen:</b> Theo dõi thói quen 31 ngày, tính % hoàn thành, streak và heatmap.</li><li><b>🍅 Pomodoro:</b> Timer tập trung 25 phút. Sau 4 lần tập trung sẽ được nghỉ dài 25 phút.</li><li><b>📝 Phản ánh:</b> Viết nhật ký reflection theo tuần, tháng, quý, năm.</li><li><b>🏷️ Tag:</b> Gắn tag cho task để lọc và tìm kiếm.</li><li><b>🔍 Tìm kiếm:</b> Tìm kiếm xuyên tháng (Ctrl+K).</li><li><b>📊 Dashboard:</b> Thống kê tổng quan năm.</li><li><b>🌙 Chế độ tối:</b> Bật/tắt giao diện tối.</li><li><b>🌐 Ngôn ngữ:</b> Chuyển đổi VI/EN.</li><li><b>🎯 Chế độ Tập trung:</b> Xem task & thói quen hôm nay trong giao diện tối giản.</li><li><b>↩️ Hoàn tác/Làm lại:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Dữ liệu:</b> Xuất/nhập JSON, CSV, sao lưu tự động, khôi phục.</li><li><b>☁️ Đồng bộ:</b> Đăng nhập để đồng bộ dữ liệu giữa các thiết bị.</li><li><b>📅 Lịch:</b> Xem task theo lịch tháng.</li><li><b>📋 Templates:</b> Sao chép cấu trúc tháng.</li><li><b>🎨 Chủ đề:</b> 4 chủ đề màu kem/bạc hà/oải hương/đào.</li><li><b>🤖 Trợ lý học tập:</b> Chatbot hỗ trợ lên kế hoạch học tập và trả lời câu hỏi.</li></ul><p>💡 <b>Mẹo:</b> Dùng phím số 1-5 để chuyển nhanh giữa các view.</p>',
+    helpContent: '<h3>📋 Các chức năng của TaskFlow</h3><ul><li><b>📅 Tổng quan tháng:</b> Xem mục tiêu, thói quen và tiến độ tháng.</li><li><b>🗓️ Kế hoạch năm:</b> Mục tiêu năm, biểu đồ 12 tháng, phản ánh quý/năm.</li><li><b>📋 Kế hoạch tuần:</b> Mục tiêu & task theo ngày, thói quen, phản ánh, Pomodoro.</li><li><b>🎯 Mục tiêu:</b> Thêm/sửa/xoá mục tiêu ưu tiên và thường. Tick ✓ để đánh dấu hoàn thành.</li><li><b>🔥 Thói quen:</b> Theo dõi thói quen 31 ngày, tính % hoàn thành, streak và heatmap.</li><li><b>🍅 Pomodoro:</b> Timer tập trung 25 phút. Sau 4 lần tập trung sẽ được nghỉ dài 25 phút.</li><li><b>📝 Phản ánh:</b> Viết nhật ký reflection theo tuần, tháng, quý, năm.</li><li><b>🏷️ Tag:</b> Gắn tag cho task để lọc và tìm kiếm.</li><li><b>🔍 Tìm kiếm:</b> Tìm kiếm xuyên tháng (Ctrl+K).</li><li><b>📊 Dashboard:</b> Thống kê tổng quan năm.</li><li><b>🌙 Chế độ tối:</b> Bật/tắt giao diện tối.</li><li><b>🌐 Ngôn ngữ:</b> Chuyển đổi VI/EN.</li><li><b>🎯 Chế độ Tập trung:</b> Xem task & thói quen hôm nay trong giao diện tối giản.</li><li><b>↩️ Hoàn tác/Làm lại:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Dữ liệu:</b> Xuất/nhập JSON, CSV, sao lưu tự động, khôi phục.</li><li><b>☁️ Đồng bộ:</b> Đăng nhập để đồng bộ dữ liệu giữa các thiết bị.</li><li><b>📅 Lịch:</b> Xem task theo lịch tháng.</li><li><b>📋 Templates:</b> Sao chép cấu trúc tháng.</li><li><b>🎨 Chủ đề:</b> 4 chủ đề màu kem/bạc hà/oải hương/đào.</li><li><b>🤖 Trợ lý học tập:</b> Chatbot hỗ trợ lên kế hoạch học tập và trả lời câu hỏi.</li></ul><p>💡 <b>Mẹo:</b> Phím số <b>1-5</b> chuyển nhanh giữa các view · <b>Q</b> thêm việc nhanh · <b>Ctrl+K</b> tìm kiếm.</p>',
     profileTitle: 'Tài khoản',
     profileUser: 'Tên người dùng: {u}',
     pwTitle: 'Đổi mật khẩu',
@@ -1031,7 +1032,7 @@ const I18N = {
     noUndo: 'Không có gì để hoàn tác',
     dragHint: 'Kéo để sắp xếp lại',
     reorderDone: 'Đã sắp xếp lại',
-    shortcutHint: 'Phím tắt: Ctrl+K tìm kiếm · 1-5 chuyển view · / thêm task',
+    shortcutHint: 'Phím tắt: Ctrl+K tìm kiếm · Q thêm việc nhanh · 1-5 chuyển view',
     backupRestore: 'Khôi phục bản sao lưu tự động',
     backupEmpty: 'Chưa có bản sao lưu nào. Bản sao lưu tự lưu sau mỗi lần bạn thay đổi dữ liệu.',
     backupRestoreDone: 'Đã khôi phục bản sao lưu! Trang sẽ tải lại.',
@@ -1553,6 +1554,7 @@ const I18N = {
     searchReflect: 'Reflection',
     searchMonth: 'Month {n}',
     searchYear: 'Year {y}',
+    searchInbox: 'Inbox',
     searchAll: 'All',
     searchOpenAria: 'Search across months',
     tagLbl: 'Tag',
@@ -1614,7 +1616,7 @@ const I18N = {
     chatPh: 'Type your question...',
     chatSend: 'Send',
     helpTitle: 'User Guide',
-    helpContent: '<h3>📋 TaskFlow Features</h3><ul><li><b>📅 Month Overview:</b> View monthly goals, habits and progress.</li><li><b>🗓️ Year Plan:</b> Year goals, 12-month chart, quarter/year reflections.</li><li><b>📋 Week Plan:</b> Daily goals & tasks, habits, reflections, Pomodoro.</li><li><b>🎯 Goals:</b> Add/edit/delete priority & regular goals. Tick ✓ to mark done.</li><li><b>🔥 Habits:</b> Track 31-day habits, calculate %, streak and heatmap.</li><li><b>🍅 Pomodoro:</b> 25-min focus timer. After 4 focus sessions, take a 25-min long break.</li><li><b>📝 Reflection:</b> Write reflection journals by week, month, quarter, year.</li><li><b>🏷️ Tags:</b> Tag tasks for filtering and searching.</li><li><b>🔍 Search:</b> Search across months (Ctrl+K).</li><li><b>📊 Dashboard:</b> Year overview statistics.</li><li><b>🌙 Dark Mode:</b> Toggle dark interface.</li><li><b>🌐 Language:</b> Switch VI/EN.</li><li><b>🎯 Focus Mode:</b> View today tasks & habits in a minimalist interface.</li><li><b>↩️ Undo/Redo:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Data:</b> Export/import JSON, CSV, auto backup, restore.</li><li><b>☁️ Sync:</b> Sign in to sync data across devices.</li><li><b>📅 Calendar:</b> View tasks in monthly calendar.</li><li><b>📋 Templates:</b> Copy month structure.</li><li><b>🎨 Themes:</b> 4 color themes: cream/mint/lavender/peach.</li><li><b>🤖 Study Assistant:</b> Chatbot for study planning and answering questions.</li></ul><p>💡 <b>Tip:</b> Use number keys 1-5 to quickly switch between views.</p>',
+    helpContent: '<h3>📋 TaskFlow Features</h3><ul><li><b>📅 Month Overview:</b> View monthly goals, habits and progress.</li><li><b>🗓️ Year Plan:</b> Year goals, 12-month chart, quarter/year reflections.</li><li><b>📋 Week Plan:</b> Daily goals & tasks, habits, reflections, Pomodoro.</li><li><b>🎯 Goals:</b> Add/edit/delete priority & regular goals. Tick ✓ to mark done.</li><li><b>🔥 Habits:</b> Track 31-day habits, calculate %, streak and heatmap.</li><li><b>🍅 Pomodoro:</b> 25-min focus timer. After 4 focus sessions, take a 25-min long break.</li><li><b>📝 Reflection:</b> Write reflection journals by week, month, quarter, year.</li><li><b>🏷️ Tags:</b> Tag tasks for filtering and searching.</li><li><b>🔍 Search:</b> Search across months (Ctrl+K).</li><li><b>📊 Dashboard:</b> Year overview statistics.</li><li><b>🌙 Dark Mode:</b> Toggle dark interface.</li><li><b>🌐 Language:</b> Switch VI/EN.</li><li><b>🎯 Focus Mode:</b> View today tasks & habits in a minimalist interface.</li><li><b>↩️ Undo/Redo:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Data:</b> Export/import JSON, CSV, auto backup, restore.</li><li><b>☁️ Sync:</b> Sign in to sync data across devices.</li><li><b>📅 Calendar:</b> View tasks in monthly calendar.</li><li><b>📋 Templates:</b> Copy month structure.</li><li><b>🎨 Themes:</b> 4 color themes: cream/mint/lavender/peach.</li><li><b>🤖 Study Assistant:</b> Chatbot for study planning and answering questions.</li></ul><p>💡 <b>Tip:</b> Number keys <b>1-5</b> switch views · <b>Q</b> quick add · <b>Ctrl+K</b> search.</p>',
     /* Phase 4 — habit/task reminders */
     remindHabitAria: 'Set reminder for habit',
     remindTaskAria: 'Set reminder for task',
@@ -1677,7 +1679,7 @@ const I18N = {
     noUndo: 'Nothing to undo',
     dragHint: 'Drag to reorder',
     reorderDone: 'Reordered',
-    shortcutHint: 'Shortcuts: Ctrl+K search · 1-5 switch view · / add task',
+    shortcutHint: 'Shortcuts: Ctrl+K search · Q quick add · 1-5 switch view',
     backupRestore: 'Restore auto backup',
     backupEmpty: 'No backups yet. Backups are saved automatically after each change.',
     backupRestoreDone: 'Backup restored! The page will reload.',
@@ -5777,9 +5779,19 @@ function runSearch(q) {
   const y = PLAN_YEAR;
   const now = new Date();
   // m = -1 đánh dấu kết quả thuộc năm (goSearchResult mở view Năm khi m < 0)
-  const push = (m, type, text, week, day) => {
-    if (text && String(text).toLowerCase().includes(q)) hits.push({ y, m, type, text: String(text), week, day });
+  // needles: danh sách chuỗi cần kiểm tra (mặc định là [text]) — task tìm thêm tags + subtasks.
+  const push = (m, type, text, week, day, needles) => {
+    const list = (needles && needles.length ? needles : [text]).filter(Boolean);
+    const match = list.find((s) => String(s).toLowerCase().includes(q));
+    // text rỗng (vd task chỉ khớp qua tag) → hiển thị chuỗi khớp để dòng kết quả không trống.
+    if (match) hits.push({ y, m, type, text: String(text || match), week, day });
   };
+  // Các chuỗi cần tìm của task: tên + tags + subtasks.
+  const taskNeedles = (tk) => [
+    tk.text,
+    ...(Array.isArray(tk.tags) ? tk.tags : []),
+    ...(Array.isArray(tk.subtasks) ? tk.subtasks.map((s) => s && s.text) : []),
+  ];
   for (let m = 0; m < 12; m++) {
     const s = (y === now.getFullYear() && m === now.getMonth()) ? state : monthStateRaw(y, m);
     if (!s) continue;
@@ -5787,7 +5799,7 @@ function runSearch(q) {
     (s.habits || []).forEach((h) => push(m, 'habit', h.name));
     (s.weeks || []).forEach((w) => {
       (w.days || []).forEach((d, di) => {
-        (d.tasks || []).forEach((tk) => push(m, 'task', tk.text, w.n, di));
+        (d.tasks || []).forEach((tk) => push(m, 'task', tk.text, w.n, di, taskNeedles(tk)));
         push(m, 'note', d.note, w.n, di);
         push(m, 'note', d.sticky, w.n, di);
       });
@@ -5799,6 +5811,11 @@ function runSearch(q) {
   }
   (yearState.goals || []).forEach((g) => push(-1, 'ygoal', g.text));
   (yearState.monthNotes || []).forEach((n, mi) => push(-1, 'ynote', n, null, mi));
+  // Inbox (planner-inbox): tìm tên task + tags — m = -2 để goSearchResult mở view Inbox.
+  (Array.isArray(inbox) ? inbox : []).forEach((tk) => {
+    if (!tk) return;
+    push(-2, 'inbox', tk.text, undefined, undefined, [tk.text, ...(Array.isArray(tk.tags) ? tk.tags : [])]);
+  });
   return hits;
 }
 
@@ -5815,20 +5832,20 @@ function renderSearchResults(q) {
     box.innerHTML = emptyStateHTML('🐥', 'searchNoResults', 'searchNoResultsSub');
     return;
   }
-  const typeIcon = { goal: '🎯', habit: '🐥', task: '✅', note: '📝', reflect: '💭', ygoal: '🎯', ynote: '📝' };
-  const typeLbl = { goal: 'goal', habit: 'habit', task: 'task', note: 'note', reflect: 'reflect', ygoal: 'goal', ynote: 'note' };
+  const typeIcon = { goal: '🎯', habit: '🐥', task: '✅', note: '📝', reflect: '💭', ygoal: '🎯', ynote: '📝', inbox: '📥' };
+  const typeLbl = { goal: 'goal', habit: 'habit', task: 'task', note: 'note', reflect: 'reflect', ygoal: 'goal', ynote: 'note', inbox: 'inbox' };
   // Nhóm theo tháng
   const groups = new Map();
   hits.forEach((h) => {
-    const key = h.m >= 0 ? 'm' + h.m : 'y';
+    const key = h.m >= 0 ? 'm' + h.m : (h.m === -2 ? 'i' : 'y');
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(h);
   });
-  const order = ['m0', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'y'];
+  const order = ['i', 'm0', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'y'];
   const months = Array.from(groups.keys()).sort((a, b) => order.indexOf(a) - order.indexOf(b));
   box.innerHTML = months.map((key) => {
     const items = groups.get(key);
-    const label = key === 'y' ? t('searchYear', { y: PLAN_YEAR }) : t('searchMonth', { n: (+key.slice(1)) + 1 });
+    const label = key === 'y' ? t('searchYear', { y: PLAN_YEAR }) : (key === 'i' ? t('searchInbox') : t('searchMonth', { n: (+key.slice(1)) + 1 }));
     return `<div class="search-group">
       <div class="search-group-h">${label} <small>${items.length}</small></div>
       ${items.map((h) => `<button type="button" class="search-hit" data-action="search-go" data-y="${h.y}" data-m="${h.m}" data-week="${h.week ?? ''}" data-day="${h.day ?? ''}">
@@ -5843,6 +5860,7 @@ function renderSearchResults(q) {
 function goSearchResult(btn) {
   const y = +btn.dataset.y, m = +btn.dataset.m;
   closeSearchModal();
+  if (m === -2) { setView('inbox'); return; }
   if (m < 0) { openYear(y - PLAN_YEAR); setView('year'); return; }
   openMonth(m);
   const wk = btn.dataset.week;
@@ -8982,6 +9000,24 @@ document.addEventListener('keydown', (e) => {
       });
       return;
     }
+  }
+  // Phase 17: điều hướng kết quả tìm kiếm bằng bàn phím (↑/↓ chọn, Enter chạy, Esc đóng)
+  const searchModalEl = document.getElementById('searchModal');
+  const searchOpen = searchModalEl && !searchModalEl.hidden && searchModalEl.contains(document.activeElement);
+  if (searchOpen && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const hitBtns = Array.from(searchModalEl.querySelectorAll('.search-hit'));
+    if (hitBtns.length) {
+      e.preventDefault();
+      let i = hitBtns.indexOf(document.activeElement);
+      i = e.key === 'ArrowDown' ? (i + 1) % hitBtns.length : (i - 1 + hitBtns.length) % hitBtns.length;
+      hitBtns[i].focus();
+      hitBtns[i].scrollIntoView({ block: 'nearest' });
+    }
+    return;
+  }
+  if (searchOpen && e.key === 'Enter' && document.activeElement === searchModalEl.querySelector('#searchInput')) {
+    const firstHit = searchModalEl.querySelector('.search-hit');
+    if (firstHit) { e.preventDefault(); firstHit.click(); return; }
   }
   if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
   // role="button" + data-action (vd dòng task Upcoming) — Enter/Space kích hoạt được từ bàn phím.

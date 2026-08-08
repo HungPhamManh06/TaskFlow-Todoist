@@ -18,10 +18,15 @@
   <meta property="og:description" content="Nơi dữ liệu của bạn được lưu trữ và cách bạn kiểm soát nó trong TaskFlow." />
   <meta property="og:url" content="https://taskflow-todoist.vercel.app/privacy" />
   <meta property="og:site_name" content="TaskFlow" />
+  <meta property="og:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Giao diện ứng dụng lập kế hoạch TaskFlow" />
 
-  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Chính sách bảo mật — TaskFlow" />
   <meta name="twitter:description" content="Nơi dữ liệu của bạn được lưu trữ và cách bạn kiểm soát nó trong TaskFlow." />
+  <meta name="twitter:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
 
   <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -156,16 +161,30 @@
 
   <footer class="landing-footer" id="landingFooter">
     <div class="landing-footer-inner">
-      <a class="landing-brand" href="index.html" aria-label="TaskFlow — về đầu trang"
-        data-label-vi="TaskFlow — về đầu trang" data-label-en="TaskFlow — back to top">
-        <img src="icons/taskflow-mark.svg" alt="" width="30" height="30" /><span>TaskFlow</span>
-      </a>
-      <p data-t-vi="Lập kế hoạch riêng tư, nhẹ nhàng và có thể mang theo."
-        data-t-en="Private, calm planning you can take with you.">Lập kế hoạch riêng tư, nhẹ nhàng và có thể mang theo.</p>
+      <div class="footer-brand-col">
+        <a class="landing-brand" href="index.html" aria-label="TaskFlow — về đầu trang"
+          data-label-vi="TaskFlow — về đầu trang" data-label-en="TaskFlow — back to top">
+          <img src="icons/taskflow-mark.svg" alt="" width="30" height="30" /><span>TaskFlow</span>
+        </a>
+        <p data-t-vi="Lập kế hoạch riêng tư, nhẹ nhàng và có thể mang theo."
+          data-t-en="Private, calm planning you can take with you.">Lập kế hoạch riêng tư, nhẹ nhàng và có thể mang theo.</p>
+      </div>
       <nav aria-label="Liên kết chân trang" data-label-vi="Liên kết chân trang" data-label-en="Footer links">
-        <a href="app.html" data-t-vi="Ứng dụng" data-t-en="App">Ứng dụng</a>
-        <a href="privacy.html" data-t-vi="Quyền riêng tư" data-t-en="Privacy">Quyền riêng tư</a>
-        <a href="terms.html" data-t-vi="Điều khoản" data-t-en="Terms">Điều khoản</a>
+        <div class="footer-group">
+          <h3 data-t-vi="Sản phẩm" data-t-en="Product">Sản phẩm</h3>
+          <a href="app.html" data-t-vi="Ứng dụng" data-t-en="App">Ứng dụng</a>
+          <a href="index.html#features" data-t-vi="Tính năng" data-t-en="Features">Tính năng</a>
+        </div>
+        <div class="footer-group">
+          <h3 data-t-vi="Tài nguyên" data-t-en="Resources">Tài nguyên</h3>
+          <a href="https://github.com/HungPhamManh06/Todoist" rel="noopener noreferrer">GitHub</a>
+        </div>
+        <div class="footer-group">
+          <h3 data-t-vi="Pháp lý" data-t-en="Legal">Pháp lý</h3>
+          <a href="privacy.html" data-t-vi="Quyền riêng tư" data-t-en="Privacy">Quyền riêng tư</a>
+          <a href="terms.html" data-t-vi="Điều khoản" data-t-en="Terms">Điều khoản</a>
+          <a href="data-and-security.html" data-t-vi="Dữ liệu &amp; Bảo mật" data-t-en="Data &amp; Security">Dữ liệu &amp; Bảo mật</a>
+        </div>
       </nav>
     </div>
   </footer>

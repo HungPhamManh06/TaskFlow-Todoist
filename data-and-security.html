@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="cream">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dữ liệu &amp; Bảo mật — TaskFlow</title>
+  <meta name="description"
+    content="Nơi dữ liệu TaskFlow của bạn được lưu trữ, cách đồng bộ đám mây hoạt động và các biện pháp bảo mật được áp dụng — tóm tắt ngắn, đúng với cách ứng dụng thực sự hoạt động." />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#f4f0e9" />
+  <link rel="canonical" href="https://taskflow-todoist.vercel.app/data-and-security" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="vi_VN" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta property="og:title" content="Dữ liệu &amp; Bảo mật — TaskFlow" />
+  <meta property="og:description" content="Nơi dữ liệu của bạn được lưu trữ, đồng bộ ra sao và cách TaskFlow bảo vệ nó." />
+  <meta property="og:url" content="https://taskflow-todoist.vercel.app/data-and-security" />
+  <meta property="og:site_name" content="TaskFlow" />
+  <meta property="og:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Giao diện ứng dụng lập kế hoạch TaskFlow" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Dữ liệu &amp; Bảo mật — TaskFlow" />
+  <meta name="twitter:description" content="Nơi dữ liệu của bạn được lưu trữ, đồng bộ ra sao và cách TaskFlow bảo vệ nó." />
+  <meta name="twitter:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
+
+  <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('planner-dark');
+        var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-dark', saved === '1' || (saved === null && systemDark) ? 'true' : 'false');
+      } catch (error) { /* Storage may be unavailable in privacy mode. */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="css/tokens.css?v=5" />
+  <link rel="stylesheet" href="css/landing.css?v=9" />
+  <link rel="stylesheet" href="css/legal.css?v=1" />
+</head>
+
+<body>
+  <a class="landing-skip" href="#legalMain" data-t-vi="Đi tới nội dung chính" data-t-en="Skip to main content">Đi tới nội dung chính</a>
+
+  <header class="landing-nav" id="landingNav">
+    <div class="landing-nav-inner">
+      <a class="landing-brand" href="index.html" aria-label="TaskFlow — trang chủ"
+        data-label-vi="TaskFlow — trang chủ" data-label-en="TaskFlow — home">
+        <img src="icons/taskflow-mark.svg" alt="" width="34" height="34" />
+        <span>TaskFlow</span>
+      </a>
+      <nav class="landing-links" aria-label="Điều hướng trang giới thiệu"
+        data-label-vi="Điều hướng trang giới thiệu" data-label-en="Marketing page navigation">
+        <a href="index.html#features" data-t-vi="Tính năng" data-t-en="Features">Tính năng</a>
+        <a href="index.html#workflow" data-t-vi="Cách hoạt động" data-t-en="How it works">Cách hoạt động</a>
+        <a href="index.html#product" data-t-vi="Giao diện" data-t-en="Product">Giao diện</a>
+      </nav>
+      <div class="landing-actions">
+        <button class="landing-icon-button" type="button" id="darkBtn" aria-label="Bật chế độ tối" aria-pressed="false" title="Bật chế độ tối">
+          <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#theme"></use></svg>
+        </button>
+        <button class="landing-language" type="button" id="langBtn" aria-label="Đổi ngôn ngữ">EN</button>
+        <a class="button button-primary nav-cta" href="app.html" data-t-vi="Mở ứng dụng" data-t-en="Open app">Mở ứng dụng</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="legalMain" class="legal-page">
+    <div class="legal-inner">
+      <p class="eyebrow" data-t-vi="Dữ liệu &amp; Bảo mật" data-t-en="Data &amp; Security">Dữ liệu &amp; Bảo mật</p>
+      <h1 data-t-vi="Dữ liệu của bạn được xử lý minh bạch." data-t-en="Your data is handled transparently.">Dữ liệu của bạn được xử lý minh bạch.</h1>
+      <p class="legal-lede" data-t-vi="Bản tóm tắt ngắn về nơi dữ liệu được lưu trữ, cách đồng bộ đám mây hoạt động và các biện pháp bảo mật mà TaskFlow <em>thực sự</em> áp dụng. Chi tiết đầy đủ nằm trong Chính sách bảo mật và Điều khoản sử dụng — liên kết ở cuối trang."
+        data-t-en="A short summary of where data is stored, how cloud sync works, and the security measures TaskFlow <em>actually</em> applies. Full details live in the Privacy Policy and Terms of Use — linked at the bottom of this page.">Bản tóm tắt ngắn về nơi dữ liệu được lưu trữ, cách đồng bộ đám mây hoạt động và các biện pháp bảo mật mà TaskFlow <em>thực sự</em> áp dụng. Chi tiết đầy đủ nằm trong Chính sách bảo mật và Điều khoản sử dụng — liên kết ở cuối trang.</p>
+
+      <section class="legal-section">
+        <h2 data-t-vi="1. Lưu trữ offline-first: dữ liệu nằm trong trình duyệt"
+          data-t-en="1. Offline-first storage: data lives in your browser">1. Lưu trữ offline-first: dữ liệu nằm trong trình duyệt</h2>
+        <p data-t-vi="TaskFlow là ứng dụng offline-first. Khi bạn chưa đăng nhập, toàn bộ dữ liệu — kế hoạch, task, thói quen, ghi chú, inbox, XP, cài đặt — nằm trong <strong>localStorage của trình duyệt</strong> (các khóa dạng <code>planner-*</code>) và <strong>không có gì được gửi lên máy chủ</strong>."
+          data-t-en="TaskFlow is an offline-first app. When you are not signed in, all data — plans, tasks, habits, notes, inbox, XP, settings — lives in your <strong>browser's localStorage</strong> (keys like <code>planner-*</code>) and <strong>nothing is sent to any server</strong>.">TaskFlow là ứng dụng offline-first. Khi bạn chưa đăng nhập, toàn bộ dữ liệu — kế hoạch, task, thói quen, ghi chú, inbox, XP, cài đặt — nằm trong <strong>localStorage của trình duyệt</strong> (các khóa dạng <code>planner-*</code>) và <strong>không có gì được gửi lên máy chủ</strong>.</p>
+        <p data-t-vi="Dữ liệu gắn với đúng trình duyệt bạn đang dùng. Xóa dữ liệu duyệt web (hoặc dùng trình duyệt khác) sẽ không còn thấy kế hoạch cũ — trừ khi bạn đã đăng nhập và đồng bộ."
+          data-t-en="Data is tied to the exact browser you use. Clearing browsing data (or switching browsers) will not show your old plans — unless you signed in and synced.">Dữ liệu gắn với đúng trình duyệt bạn đang dùng. Xóa dữ liệu duyệt web (hoặc dùng trình duyệt khác) sẽ không còn thấy kế hoạch cũ — trừ khi bạn đã đăng nhập và đồng bộ.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2 data-t-vi="2. Đồng bộ đám mây" data-t-en="2. Cloud sync">2. Đồng bộ đám mây</h2>
+        <p data-t-vi="Khi đăng nhập, các khóa <code>planner-*</code> được đẩy qua API <code>POST /api/sync</code> lên máy chủ và lưu trong cơ sở dữ liệu quan hệ (PostgreSQL), bảng <code>planner_state</code>, mỗi dòng gắn với tài khoản của bạn. Bạn vẫn dùng được TaskFlow ngoại tuyến — thay đổi sẽ được đồng bộ lại sau."
+          data-t-en="When you sign in, your <code>planner-*</code> keys are pushed via the <code>POST /api/sync</code> API to a server and stored in a relational database (PostgreSQL), table <code>planner_state</code>, with each row tied to your account. You can still use TaskFlow offline — changes sync back later.">Khi đăng nhập, các khóa <code>planner-*</code> được đẩy qua API <code>POST /api/sync</code> lên máy chủ và lưu trong cơ sở dữ liệu quan hệ (PostgreSQL), bảng <code>planner_state</code>, mỗi dòng gắn với tài khoản của bạn. Bạn vẫn dùng được TaskFlow ngoại tuyến — thay đổi sẽ được đồng bộ lại sau.</p>
+        <ul class="legal-list">
+          <li data-t-vi="Mật khẩu được băm bằng <strong>bcrypt</strong> (10 vòng) — máy chủ không lưu mật khẩu dạng văn bản thuần."
+            data-t-en="Passwords are hashed with <strong>bcrypt</strong> (10 rounds) — the server never stores plaintext passwords.">Mật khẩu được băm bằng <strong>bcrypt</strong> (10 vòng) — máy chủ không lưu mật khẩu dạng văn bản thuần.</li>
+          <li data-t-vi="Phiên dùng token <strong>JWT</strong> hết hạn sau 30 ngày; token nằm trong localStorage của trình duyệt."
+            data-t-en="Sessions use a <strong>JWT</strong> token valid for 30 days; the token lives in your browser's localStorage.">Phiên dùng token <strong>JWT</strong> hết hạn sau 30 ngày; token nằm trong localStorage của trình duyệt.</li>
+          <li data-t-vi="Đăng nhập/đăng ký bị giới hạn tốc độ (10 lần mỗi 15 phút mỗi IP) để hạn chế đoán mật khẩu."
+            data-t-en="Login/signup is rate-limited (10 attempts per 15 minutes per IP) to limit password guessing.">Đăng nhập/đăng ký bị giới hạn tốc độ (10 lần mỗi 15 phút mỗi IP) để hạn chế đoán mật khẩu.</li>
+        </ul>
+      </section>
+
+      <section class="legal-section">
+        <h2 data-t-vi="3. Bảo mật truyền tải" data-t-en="3. Transport security">3. Bảo mật truyền tải</h2>
+        <p data-t-vi="Mọi liên lạc với máy chủ đều qua <strong>HTTPS</strong>. Máy chủ chỉ chấp nhận yêu cầu từ các origin đã khai báo (domain sản phẩm và localhost khi phát triển) qua CORS allowlist, đồng thời gửi kèm CSP và các security headers. Nếu thiếu cấu hình bí mật ở production, máy chủ <em>từ chối khởi động</em> thay vì dùng giá trị mặc định."
+          data-t-en="All communication with the server goes over <strong>HTTPS</strong>. The server only accepts requests from declared origins (the product domain, plus localhost during development) via a CORS allowlist, and sends CSP and security headers. If secret configuration is missing in production, the server <em>refuses to start</em> instead of using defaults.">Mọi liên lạc với máy chủ đều qua <strong>HTTPS</strong>. Máy chủ chỉ chấp nhận yêu cầu từ các origin đã khai báo (domain sản phẩm và localhost khi phát triển) qua CORS allowlist, đồng thời gửi kèm CSP và các security headers. Nếu thiếu cấu hình bí mật ở production, máy chủ <em>từ chối khởi động</em> thay vì dùng giá trị mặc định.</p>
+        <p data-t-vi="Dữ liệu đồng bộ được lưu dạng JSON trong cơ sở dữ liệu — chúng tôi <em>không</em> mã hóa nội dung khi lưu (không có mã hóa end-to-end). Nếu dữ liệu của bạn nhạy cảm, hãy cân nhắc dùng TaskFlow mà không đăng nhập."
+          data-t-en="Synced data is stored as JSON in the database — we do <em>not</em> encrypt content at rest (there is no end-to-end encryption). If your data is sensitive, consider using TaskFlow without an account.">Dữ liệu đồng bộ được lưu dạng JSON trong cơ sở dữ liệu — chúng tôi <em>không</em> mã hóa nội dung khi lưu (không có mã hóa end-to-end). Nếu dữ liệu của bạn nhạy cảm, hãy cân nhắc dùng TaskFlow mà không đăng nhập.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2 data-t-vi="4. Sao lưu, xuất và khôi phục" data-t-en="4. Backup, export and restore">4. Sao lưu, xuất và khôi phục</h2>
+        <p data-t-vi="TaskFlow tự lưu bản sao lưu trong localStorage sau mỗi thay đổi, và bạn luôn có thể tải dữ liệu của mình bất cứ lúc nào từ Công cụ → Dữ liệu:"
+          data-t-en="TaskFlow keeps an automatic backup in localStorage after each change, and you can always download your data anytime from Tools → Data:">TaskFlow tự lưu bản sao lưu trong localStorage sau mỗi thay đổi, và bạn luôn có thể tải dữ liệu của mình bất cứ lúc nào từ Công cụ → Dữ liệu:</p>
+        <ul class="legal-list">
+          <li data-t-vi="<strong>Xuất JSON (sao lưu)</strong> — mọi khóa <code>planner-*</code>, là bản sao đầy đủ nhất."
+            data-t-en="<strong>Export JSON (backup)</strong> — every <code>planner-*</code> key, the most complete snapshot."><strong>Xuất JSON (sao lưu)</strong> — mọi khóa <code>planner-*</code>, là bản sao đầy đủ nhất.</li>
+          <li data-t-vi="<strong>Xuất CSV</strong> — task và thói quen dạng bảng cho Excel/Sheets."
+            data-t-en="<strong>Export CSV</strong> — tasks and habits in spreadsheet form."><strong>Xuất CSV</strong> — task và thói quen dạng bảng cho Excel/Sheets.</li>
+          <li data-t-vi="<strong>Xuất ICS</strong> — task có thời gian dạng lịch cho Google/Apple Calendar."
+            data-t-en="<strong>Export ICS</strong> — timed tasks as calendar files for Google/Apple Calendar."><strong>Xuất ICS</strong> — task có thời gian dạng lịch cho Google/Apple Calendar.</li>
+          <li data-t-vi="Nhập lại bản sao JSON khôi phục dữ liệu của bạn (ghi đè dữ liệu hiện tại sau khi xác nhận)."
+            data-t-en="Re-importing a JSON backup restores your data (overwriting current data after confirmation).">Nhập lại bản sao JSON khôi phục dữ liệu của bạn (ghi đè dữ liệu hiện tại sau khi xác nhận).</li>
+        </ul>
+      </section>
+
+      <section class="legal-section">
+        <h2 data-t-vi="5. Kiểm soát của bạn" data-t-en="5. Your control">5. Kiểm soát của bạn</h2>
+        <ul class="legal-list">
+          <li data-t-vi="<strong>Đặt lại:</strong> xóa toàn bộ dữ liệu localStorage và đưa ứng dụng về mặc định."
+            data-t-en="<strong>Reset:</strong> clears all localStorage data and restores defaults."><strong>Đặt lại:</strong> xóa toàn bộ dữ liệu localStorage và đưa ứng dụng về mặc định.</li>
+          <li data-t-vi="<strong>Đăng xuất:</strong> ngắt đồng bộ trên thiết bị này; dữ liệu localStorage vẫn còn."
+            data-t-en="<strong>Sign out:</strong> stops syncing on this device; localStorage data remains."><strong>Đăng xuất:</strong> ngắt đồng bộ trên thiết bị này; dữ liệu localStorage vẫn còn.</li>
+          <li data-t-vi="<strong>Xóa tài khoản:</strong> xóa vĩnh viễn tài khoản và toàn bộ dữ liệu đám mây liên quan (khóa ngoại <code>on delete cascade</code>)."
+            data-t-en="<strong>Delete account:</strong> permanently deletes the account and all related cloud data (<code>on delete cascade</code>)."><strong>Xóa tài khoản:</strong> xóa vĩnh viễn tài khoản và toàn bộ dữ liệu đám mây liên quan (khóa ngoại <code>on delete cascade</code>).</li>
+        </ul>
+      </section>
+
+      <nav class="legal-links" aria-label="Tài liệu pháp lý khác" data-label-vi="Tài liệu pháp lý khác" data-label-en="More legal documents">
+        <a href="privacy.html" data-t-vi="Chính sách bảo mật" data-t-en="Privacy Policy">Chính sách bảo mật</a>
+        <a href="terms.html" data-t-vi="Điều khoản sử dụng" data-t-en="Terms of Use">Điều khoản sử dụng</a>
+      </nav>
+    </div>
+  </main>
+
+  <footer class="landing-footer" id="landingFooter">
+    <div class="landing-footer-inner">
+      <div class="footer-brand-col">
+        <a class="landing-brand" href="index.html" aria-label="TaskFlow — về đầu trang"
+          data-label-vi="TaskFlow — về đầu trang" data-label-en="TaskFlow — back to top">
+          <img src="icons/taskflow-mark.svg" alt="" width="30" height="30" /><span>TaskFlow</span>
+        </a>
+        <p data-t-vi="Lập kế hoạch riêng tư, nhẹ nhàng và có thể mang theo."
+          data-t-en="Private, calm planning you can take with you.">Lập kế hoạch riêng tư, nhẹ nhàng và có thể mang theo.</p>
+      </div>
+      <nav aria-label="Liên kết chân trang" data-label-vi="Liên kết chân trang" data-label-en="Footer links">
+        <div class="footer-group">
+          <h3 data-t-vi="Sản phẩm" data-t-en="Product">Sản phẩm</h3>
+          <a href="app.html" data-t-vi="Ứng dụng" data-t-en="App">Ứng dụng</a>
+          <a href="index.html#features" data-t-vi="Tính năng" data-t-en="Features">Tính năng</a>
+        </div>
+        <div class="footer-group">
+          <h3 data-t-vi="Tài nguyên" data-t-en="Resources">Tài nguyên</h3>
+          <a href="https://github.com/HungPhamManh06/Todoist" rel="noopener noreferrer">GitHub</a>
+        </div>
+        <div class="footer-group">
+          <h3 data-t-vi="Pháp lý" data-t-en="Legal">Pháp lý</h3>
+          <a href="privacy.html" data-t-vi="Quyền riêng tư" data-t-en="Privacy">Quyền riêng tư</a>
+          <a href="terms.html" data-t-vi="Điều khoản" data-t-en="Terms">Điều khoản</a>
+          <a href="data-and-security.html" data-t-vi="Dữ liệu &amp; Bảo mật" data-t-en="Data &amp; Security">Dữ liệu &amp; Bảo mật</a>
+        </div>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var LANG_KEY = 'planner-lang';
+      var DARK_KEY = 'planner-dark';
+      var lang = 'vi';
+      try { lang = localStorage.getItem(LANG_KEY) || 'vi'; } catch (error) { /* Use default. */ }
+      if (lang !== 'vi' && lang !== 'en') lang = 'vi';
+
+      function applyLanguage() {
+        document.documentElement.lang = lang;
+        var attribute = lang === 'vi' ? 'data-t-vi' : 'data-t-en';
+        document.querySelectorAll('[data-t-vi]').forEach(function (element) {
+          element.innerHTML = element.getAttribute(attribute);
+        });
+        var labelAttribute = lang === 'vi' ? 'data-label-vi' : 'data-label-en';
+        document.querySelectorAll('[data-label-vi]').forEach(function (element) {
+          element.setAttribute('aria-label', element.getAttribute(labelAttribute));
+        });
+        var button = document.getElementById('langBtn');
+        if (button) {
+          button.textContent = lang === 'vi' ? 'EN' : 'VI';
+          button.setAttribute('aria-label', lang === 'vi' ? 'Switch to English' : 'Chuyển sang tiếng Việt');
+        }
+      }
+
+      function systemDark() {
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
+
+      function darkIsOn() {
+        var saved = null;
+        try { saved = localStorage.getItem(DARK_KEY); } catch (error) { /* Use system setting. */ }
+        return saved === '1' ? true : saved === '0' ? false : systemDark();
+      }
+
+      function applyDarkMode() {
+        var on = darkIsOn();
+        document.documentElement.setAttribute('data-dark', on ? 'true' : 'false');
+        var button = document.getElementById('darkBtn');
+        var label = on
+          ? (lang === 'vi' ? 'Bật chế độ sáng' : 'Use light mode')
+          : (lang === 'vi' ? 'Bật chế độ tối' : 'Use dark mode');
+        if (button) {
+          button.setAttribute('aria-pressed', on ? 'true' : 'false');
+          button.setAttribute('aria-label', label);
+          button.setAttribute('title', label);
+        }
+        var theme = document.querySelector('meta[name="theme-color"]');
+        if (theme) theme.setAttribute('content', on ? '#1b1917' : '#f4f0e9');
+      }
+
+      applyLanguage();
+      applyDarkMode();
+
+      document.getElementById('langBtn').addEventListener('click', function () {
+        lang = lang === 'vi' ? 'en' : 'vi';
+        try { localStorage.setItem(LANG_KEY, lang); } catch (error) { /* Continue without persistence. */ }
+        applyLanguage();
+        applyDarkMode();
+      });
+
+      document.getElementById('darkBtn').addEventListener('click', function () {
+        var on = darkIsOn();
+        try { localStorage.setItem(DARK_KEY, on ? '0' : '1'); } catch (error) { /* Continue without persistence. */ }
+        applyDarkMode();
+      });
+    })();
+  </script>
+</body>
+
+</html>
