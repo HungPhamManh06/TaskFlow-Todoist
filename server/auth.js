@@ -6,7 +6,19 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { initDb } = require('./db');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-doi-tren-render';
+// Bảo mật: tuyệt đối không fallback về secret hardcode trên production.
+// Production (có DATABASE_URL — Render Postgres — hoặc NODE_ENV=production)
+// phải có JWT_SECRET; thiếu → server từ chối khởi động rõ ràng.
+// Local dev (pg-mem, không DATABASE_URL) dùng secret dev-only kèm cảnh báo.
+const JWT_SECRET_ENV = process.env.JWT_SECRET;
+const IS_PROD = !!(process.env.DATABASE_URL) || process.env.NODE_ENV === 'production';
+if (!JWT_SECRET_ENV && IS_PROD) {
+  throw new Error('FATAL: JWT_SECRET env is required in production (DATABASE_URL or NODE_ENV=production detected). Refusing to start with a fallback secret — set JWT_SECRET and redeploy.');
+}
+const JWT_SECRET = JWT_SECRET_ENV || 'dev-only-secret-pgmem-local';
+if (!JWT_SECRET_ENV) {
+  console.warn('[auth] WARN: no JWT_SECRET env — using a dev-only secret (pg-mem local). Tokens are forgeable; never run like this with DATABASE_URL.');
+}
 const TOKEN_TTL = '30d';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';

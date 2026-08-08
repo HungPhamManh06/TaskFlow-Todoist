@@ -1442,3 +1442,24 @@ test('Phase 10: a11y — focus-visible cho contenteditable + heading order year 
   assert.match(UI_JS, /key === 'Escape'/);
   assert.match(UI_JS, /setAttribute\('role', kindOk === 'error' \? 'alert' : 'status'\)/);
 });
+
+test('Phase 13: vercel.json security headers + CSP không chặn font/sync', () => {
+  const VERCEL = JSON.parse(readRequiredAsset('vercel.json'));
+  const headers = Object.fromEntries(
+    VERCEL.headers[0].headers.map((h) => [h.key, h.value])
+  );
+  assert.equal(headers['X-Content-Type-Options'], 'nosniff');
+  assert.equal(headers['X-Frame-Options'], 'DENY');
+  assert.match(headers['Permissions-Policy'] || '', /geolocation=\(\)/);
+  assert.match(headers['Strict-Transport-Security'] || '', /max-age=31536000/);
+  const csp = headers['Content-Security-Policy'];
+  assert.ok(csp, 'CSP header must exist');
+  assert.match(csp, /default-src 'self'/);
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.match(csp, /object-src 'none'/);
+  // Nunito load từ Google Fonts — CSP phải cho phép, không được chặn font
+  assert.match(csp, /style-src 'self' 'unsafe-inline' https:\/\/fonts\.googleapis\.com/);
+  assert.match(csp, /font-src 'self' data: https:\/\/fonts\.gstatic\.com/);
+  // sync tới backend Render
+  assert.match(csp, /connect-src 'self' https:\/\/todoist-m3c7\.onrender\.com/);
+});
