@@ -15,6 +15,7 @@ const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 const LANDING = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const LANDING_CSS = readFileSync(path.join(ROOT, 'css/landing.css'), 'utf8');
 const DEEPLINK_JS = readFileSync(path.join(ROOT, 'js/deeplink.js'), 'utf8');
+const UI_JS = readFileSync(path.join(ROOT, 'js/ui.js'), 'utf8');
 
 function readRequiredAsset(relativePath) {
   const absolutePath = path.join(ROOT, relativePath);
@@ -731,7 +732,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v114';/);
+  assert.match(SW, /const CACHE = 'taskflow-v115';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -809,7 +810,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v114';/);
+  assert.match(SW, /const CACHE = 'taskflow-v115';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -1417,4 +1418,27 @@ test('Phase 9: PWA manifest shortcuts, screenshots, and notification deep-link',
   assert.match(DEEPLINK_JS || '', /quick=1/);
   assert.match(APP_JS, /window\.__quickAddOnBoot = true/);
   assert.match(APP_JS, /if \(window\.__quickAddOnBoot\)/);
+});
+
+test('Phase 10: a11y — focus-visible cho contenteditable + heading order year view', () => {
+  const STYLES = readRequiredAsset('css/styles.css');
+  // 1. Contenteditable fields (task text, goals, notes, reflections) có focus indicator:
+  //    global :focus-visible rule bao gồm [contenteditable] và textarea
+  assert.match(
+    STYLES,
+    /button:focus-visible[\s\S]*?\[contenteditable\]:focus-visible\s*\{[\s\S]*?outline:\s*2\.5px solid var\(--accent-deep\)/s,
+    'global :focus-visible must include [contenteditable] with visible outline'
+  );
+  assert.match(STYLES, /textarea:focus-visible\s*,?[\s\S]*?\[contenteditable\]:focus-visible/);
+  // Không có rule (0,2,0)+ set outline:none trên combo editable (chúng sẽ thắng focus-visible bằng source order)
+  assert.doesNotMatch(STYLES, /\.(g-text|task-text)\.editable\s*\{[^}]*outline:\s*none/,
+    'no (0,2,0)+ outline:none on editable combos that would beat the focus-visible ring');
+  assert.doesNotMatch(STYLES, /\.ref-(line|question)\s*\{[^}]*outline:\s*none[^}]*border-radius:/);
+  // 2. Year view: không còn heading order lộn xộn (H3 trước H2) — year-card dùng h3 cùng mức
+  const yearCardBody = APP_JS.match(/function yearCardHTML\(\) \{([\s\S]*?)\n\}/)?.[1] || '';
+  assert.match(yearCardBody, /<h3 class="week-section-title">/);
+  assert.doesNotMatch(yearCardBody, /<h2 class="week-section-title">/);
+  // 3. Layer system đã có: Escape đóng + focus trap + toast aria-live (không hồi quy)
+  assert.match(UI_JS, /key === 'Escape'/);
+  assert.match(UI_JS, /setAttribute\('role', kindOk === 'error' \? 'alert' : 'status'\)/);
 });

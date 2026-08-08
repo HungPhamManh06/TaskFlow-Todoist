@@ -4763,7 +4763,7 @@ function renderYear() {
 function yearCardHTML() {
   const now = new Date();
   return `<div class="card year-card">
-    <h2 class="week-section-title">${t('widgetLabel_year-card')}</h2>
+    <h3 class="week-section-title">${t('widgetLabel_year-card')}</h3>
     <table class="info-table">
       <tr><th>${t('yearTh')}</th><td>${PLAN_YEAR}</td></tr>
       <tr><th>${t('curMonthTh')}</th><td>${now.getMonth() + 1}</td></tr>
