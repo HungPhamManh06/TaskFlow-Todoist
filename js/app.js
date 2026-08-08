@@ -982,6 +982,12 @@ const I18N = {
     weekReportCardTitle: 'Báo cáo Tuần {n}',
     weekReportShareTxt: 'Tuần {n} · {p}%',
     weekReportDayT: 'Ngày {d}',
+    /* Phase 18 — So sánh tuần trước */
+    reportVsTitle: 'So với tuần trước',
+    reportVsGoal: 'Mục tiêu',
+    reportVsTasks: 'Task',
+    reportVsHabit: 'Thói quen',
+    reportVsFocus: 'Tập trung',
     /* Phase 4 — Widget Pomodoro */
     pomoWidgetTitle: '🍅 Pomodoro',
     pomoToday: 'Hôm nay',
@@ -1636,6 +1642,12 @@ const I18N = {
     weekReportCardTitle: 'Week {n} report',
     weekReportShareTxt: 'Week {n} · {p}%',
     weekReportDayT: 'Day {d}',
+    /* Phase 18 — vs last week */
+    reportVsTitle: 'vs last week',
+    reportVsGoal: 'Goals',
+    reportVsTasks: 'Tasks',
+    reportVsHabit: 'Habits',
+    reportVsFocus: 'Focus',
     /* Phase 4 — Pomodoro widget */
     pomoWidgetTitle: '🍅 Pomodoro',
     pomoToday: 'Today',
@@ -4254,6 +4266,68 @@ function weeklyReportData(w) {
   return { n: w.n, pct: st.pct, done: st.done, inProg: st.inProg, total: st.total, habitByDay, top, topN, bestDay, focusByDay, focusTotal, topTask, bestFocusDay };
 }
 
+// Phase 18: dữ liệu tuần TRƯỚC để so sánh (goal %, task, habit avg, focus phút).
+// Tuần 1 của tháng → lấy tuần cuối tháng trước qua monthStateRaw + dayAggregateAt.
+function lastWeekReportData() {
+  const curW = state.currentWeek;
+  let pw = null, srcY = PLAN_YEAR, srcM = PLAN_MONTH, srcState = state;
+  if (curW > 1) {
+    pw = state.weeks[curW - 2];
+  } else {
+    const pm = window.PlanMath ? window.PlanMath.prevMonth(PLAN_YEAR, PLAN_MONTH) : null;
+    if (pm) {
+      const ps = monthStateRaw(pm.y, pm.m);
+      if (ps && ps.weeks && ps.weeks.length) { pw = ps.weeks[ps.weeks.length - 1]; srcY = pm.y; srcM = pm.m; srcState = ps; }
+    }
+  }
+  if (!pw) return null;
+  const st = weekStats(pw);
+  const monthDays = new Date(srcY, srcM + 1, 0).getDate();
+  let habitSum = 0, habitN = 0;
+  for (let di = 0; di < 7; di++) {
+    const gi = (pw.n - 1) * 7 + di;
+    if (gi < monthDays) {
+      habitSum += (srcState === state) ? dayAggregate(gi) : dayAggregateAt(srcY, srcM, gi);
+      habitN++;
+    }
+  }
+  // Focus: tuần cùng tháng dùng focusWeekMinutes (gốc PLAN_START); tuần cuối tháng trước
+  // dùng grid của tháng đó (ps.start) cho đúng cùng cửa sổ 7 ngày với cột habit —
+  // không lấy "7 ngày dương lịch cuối" vì tuần grid có thể lệch (vd tuần 5 tháng 12
+  // nằm 28/12–3/1, không phải 25/12–31/12).
+  let focus = 0;
+  if (curW > 1) {
+    focus = focusWeekMinutes(pw.n).reduce((a, b) => a + b, 0);
+  } else {
+    const gridStart = new Date(psStart(srcState, srcY, srcM)).getTime();
+    for (let di = 0; di < 7; di++) {
+      const gi = (pw.n - 1) * 7 + di;
+      if (gi < monthDays) focus += pomoDaySecs(new Date(gridStart + gi * 86400000));
+    }
+    focus = Math.round(focus / 60);
+  }
+  const out = { pct: st.pct, done: st.done, total: st.total, habitAvg: habitN ? Math.round(habitSum / habitN) : 0, focus };
+  // Tuần trước tồn tại nhưng trống rỗng → không hiển thị block so sánh gây hiểu nhầm
+  if (out.total === 0 && out.habitAvg === 0 && out.focus === 0) return null;
+  return out;
+}
+
+// Ngày bắt đầu grid của tháng (state lưu field start; thiếu thì fallback ngày 1)
+function psStart(s, y, m) {
+  if (s && s.start) return s.start;
+  return new Date(y, m, 1);
+}
+
+// Ô so sánh tuần này vs tuần trước — delta chip ▲/▼, mỗi chỉ số trả lời 1 câu hỏi.
+function vsCell(label, curText, diff, unit) {
+  let chip = '';
+  if (diff !== null && diff !== undefined) {
+    if (diff === 0) chip = `<span class="vs-chip vs-same">—</span>`;
+    else chip = `<span class="vs-chip ${diff > 0 ? 'vs-up' : 'vs-down'}">${diff > 0 ? '▲' : '▼'} ${Math.abs(diff)}${unit}</span>`;
+  }
+  return `<div class="vs-cell"><span class="vs-label">${label}</span><b class="vs-value">${curText}</b>${chip}</div>`;
+}
+
 // Dải cột focus cho báo cáo — có nhãn dưới mỗi cột, hiển thị empty state khi chưa có phiên.
 function focusReportBars(values, labelFn) {
   const max = Math.max(...values, 1);
@@ -4272,12 +4346,25 @@ function renderWeekReportModal() {
   if (!w) return;
   const r = weeklyReportData(w);
   const topName = r.top ? esc(r.top.name) : '—';
+  // Phase 18: tuần này vs tuần trước — chỉ hiện khi có dữ liệu tuần trước
+  const lw = lastWeekReportData();
+  const curHabitAvg = r.habitByDay.length ? Math.round(r.habitByDay.reduce((a, b) => a + b, 0) / r.habitByDay.length) : 0;
+  const vsBlock = lw ? `<div class="report-vs" aria-label="${t('reportVsTitle')}">
+      <h4 class="report-vs-title">${t('reportVsTitle')}</h4>
+      <div class="report-vs-grid">
+        ${vsCell(t('reportVsGoal'), r.pct + '%', r.pct - lw.pct, '%')}
+        ${vsCell(t('reportVsTasks'), r.done + '/' + r.total, r.done - lw.done, '')}
+        ${vsCell(t('reportVsHabit'), curHabitAvg + '%', curHabitAvg - lw.habitAvg, '%')}
+        ${vsCell(t('reportVsFocus'), r.focusTotal + 'p', r.focusTotal - lw.focus, 'p')}
+      </div>
+    </div>` : '';
   el.innerHTML = `
     <div class="report-head">
       <div class="donut-wrap"><div class="donut">${donutSVG(r.pct, 96, 12, '#C24E28')}</div>
         <div class="donut-center"><span>${r.pct}%</span><small>${t('weekReportGoalPct')}</small></div>
       </div>
     </div>
+    ${vsBlock}
     <div class="report-grid">
       <div class="report-cell"><b>${r.done}</b><span>${t('weekReportDone')}</span></div>
       <div class="report-cell"><b>${r.inProg}</b><span>${t('weekReportInProg')}</span></div>

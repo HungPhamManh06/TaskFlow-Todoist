@@ -732,7 +732,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v116';/);
+  assert.match(SW, /const CACHE = 'taskflow-v118';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -810,7 +810,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v116';/);
+  assert.match(SW, /const CACHE = 'taskflow-v118';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -1484,4 +1484,32 @@ test('Phase 16: perf — debounce search + save-on-type + content-visibility upc
   // 4. Upcoming với dữ liệu lớn — content-visibility bỏ render ngoài viewport
   const STYLES16 = readRequiredAsset('css/styles.css');
   assert.match(STYLES16, /\.up-group \{[\s\S]*?content-visibility: auto;[\s\S]*?contain-intrinsic-size: auto 120px;/);
+});
+
+test('Phase 18: reports — week vs last week comparison block', () => {
+  // 1. lastWeekReportData xử lý cả tuần 1 của tháng (lấy tuần cuối tháng trước)
+  assert.match(APP_JS, /function lastWeekReportData\(\) \{/);
+  assert.match(APP_JS, /function lastWeekReportData\(\)[\s\S]*?window\.PlanMath[\s\S]*?prevMonth[\s\S]*?monthStateRaw/);
+  assert.match(APP_JS, /function lastWeekReportData\(\)[\s\S]*?dayAggregateAt\(srcY, srcM, gi\)/);
+  // focus xuyên tháng theo grid ps.start (không lấy 7 ngày dương lịch cuối — sai cửa sổ)
+  assert.match(APP_JS, /function lastWeekReportData\(\)[\s\S]*?gridStart \+ gi \* 86400000/);
+  // tuần trước trống rỗng → ẩn block
+  assert.match(APP_JS, /if \(out\.total === 0 && out\.habitAvg === 0 && out\.focus === 0\) return null;/);
+  // 2. vsCell + block hiển thị trong week report
+  assert.match(APP_JS, /function vsCell\(label, curText, diff, unit\)/);
+  assert.match(APP_JS, /const vsBlock = lw \?/);
+  assert.match(APP_JS, /report-vs-grid[\s\S]*?vsCell\(t\('reportVsGoal'\)/);
+  assert.match(APP_JS, /vsCell\(t\('reportVsFocus'\)/);
+  // 3. i18n cả 2 ngôn ngữ
+  assert.match(APP_JS, /reportVsTitle: 'So với tuần trước'/);
+  assert.match(APP_JS, /reportVsTitle: 'vs last week'/);
+  assert.ok((APP_JS.match(/reportVsGoal:/g) || []).length >= 2, 'reportVsGoal defined for VI+EN');
+  // 4. CSS block + responsive 2 cột mobile
+  const STYLES18 = readRequiredAsset('css/styles.css');
+  assert.match(STYLES18, /\.report-vs \{[\s\S]*?border-radius: 14px;/);
+  assert.match(STYLES18, /\.vs-up \{[\s\S]*?color: #1E7A46;/);
+  assert.match(STYLES18, /\.vs-down \{[\s\S]*?color: #B03A2E;/);
+  // dark mode override cho chips
+  assert.match(STYLES18, /:root\[data-dark="true"\] \.vs-up \{[\s\S]*?color: #7ED9A0;/);
+  assert.match(STYLES18, /@media \(max-width: 640px\) \{[\s\S]*?\.report-vs-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
 });
