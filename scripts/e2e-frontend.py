@@ -29,25 +29,25 @@ def assert_no_page_overflow(page, label):
 def load_app(page, base):
     page.add_init_script("localStorage.setItem('planner-onboarded','1');")
     page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
-    if page.locator("#onboardModal:not([hidden])").count():
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
         page.locator('[data-action="ob-skip"]').click()
-    page.wait_for_selector("#view-overview.active .overview-page")
+    page.wait_for_selector('[data-testid="overview-view"] .overview-page', state="visible")
 
 
 def load_week(page, base):
     page.add_init_script("localStorage.setItem('planner-onboarded','1');")
     page.goto(f"{base}/app.html?view=week&w=1", wait_until="networkidle")
-    if page.locator("#onboardModal:not([hidden])").count():
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
         page.locator('[data-action="ob-skip"]').click()
-    page.wait_for_selector("#view-week.active .week-page")
+    page.wait_for_selector('[data-testid="week-view"] .week-page', state="visible")
 
 
 def load_planning_view(page, base, view):
     page.add_init_script("localStorage.setItem('planner-onboarded','1');")
     page.goto(f"{base}/app.html?view={view}", wait_until="networkidle")
-    if page.locator("#onboardModal:not([hidden])").count():
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
         page.locator('[data-action="ob-skip"]').click()
-    page.wait_for_selector(f"#view-{view}.active .{view}-page")
+    page.wait_for_selector(f'[data-testid="{view}-view"] .{view}-page', state="visible")
 
 
 def overview_checks(browser, base, width, height, errors, screenshot):
@@ -68,7 +68,7 @@ def overview_checks(browser, base, width, height, errors, screenshot):
           }
         """)
         page.reload(wait_until="networkidle")
-        page.wait_for_selector("#view-overview.active .overview-page")
+        page.wait_for_selector('[data-testid="overview-view"] .overview-page', state="visible")
         assert page.locator(".overview-primary-grid > .overview-widget").first.get_attribute("data-widget-id") == "mood"
         page.evaluate("""
           saved => saved === null
@@ -76,9 +76,9 @@ def overview_checks(browser, base, width, height, errors, screenshot):
             : localStorage.setItem('planner-widgets-overview', saved)
         """, original_config)
         page.reload(wait_until="networkidle")
-        page.wait_for_selector("#view-overview.active .overview-page")
+        page.wait_for_selector('[data-testid="overview-view"] .overview-page', state="visible")
 
-    assert page.locator("#view-overview h1").count() == 1
+    assert page.locator('[data-testid="overview-view"] h1').count() == 1
     assert page.locator(".overview-metrics .metric").count() == 4
     assert page.locator(".overview-primary-grid").count() == 1
     assert page.locator('.overview-widget[data-widget-id="goals"]').count() == 1
@@ -88,9 +88,9 @@ def overview_checks(browser, base, width, height, errors, screenshot):
 
     settings = page.locator('.overview-header [data-action="widget-settings"]')
     settings.click()
-    page.wait_for_selector("#widgetSettingsModal:not([hidden])")
-    page.locator('#widgetSettingsModal [data-action="widget-save"]').click()
-    assert page.locator("#widgetSettingsModal[hidden]").count() == 1
+    page.wait_for_selector('[data-testid="widget-settings-modal"]', state="visible")
+    page.locator('[data-testid="widget-settings-modal"] [data-action="widget-save"]').click()
+    assert page.locator('[data-testid="widget-settings-modal"]:visible').count() == 0
 
     goal_metric = page.locator('[data-role="overview-goals-value"]')
     goal_before = int(goal_metric.inner_text())
@@ -127,7 +127,7 @@ def week_checks(browser, base, width, height, errors, screenshot):
     page.on("pageerror", lambda error: errors.append(f"week {width}px: {error}"))
     load_week(page, base)
 
-    assert page.locator("#view-week h1").count() == 1
+    assert page.locator('[data-testid="week-view"] h1').count() == 1
     assert page.locator(".week-day-panel").count() == 7
     assert page.locator(".week-goals-summary").count() == 1
     assert page.locator(".week-support-grid").count() == 1
@@ -170,14 +170,12 @@ def week_checks(browser, base, width, height, errors, screenshot):
     page.locator('.week-day-panel [data-action="task-menu"]').first.click()
     remind = page.locator('.week-day-panel [data-action="remind-task"]').first
     remind.click()
-    # Phase 4: nút 🔔 nằm trong .task-row-actions (span) — XPath cũ
-    # ancestor::*[contains(@class,'task-row')] khớp nhầm wrapper đó;
-    # phải lấy ancestor là div.task-row thực sự.
-    assert remind.locator("xpath=ancestor::div[contains(@class,'task-row')][1]").locator(".remind-edit-input").count() == 1
+    # Phase 19: dùng data-testid ổn định thay XPath contains theo class
+    assert remind.locator("xpath=ancestor::div[@data-testid='task-row'][1]").locator(".remind-edit-input").count() == 1
 
     page.locator('[data-action="week-report"]').click()
-    assert page.locator("#weekReportModal:not([hidden])").count() == 1
-    page.locator('#weekReportModal [data-action="close-week-report"]').click()
+    assert page.locator('[data-testid="week-report-modal"]:visible').count() == 1
+    page.locator('[data-testid="week-report-modal"] [data-action="close-week-report"]').click()
 
     start = page.locator('#view-week [data-action="pomo-start"]')
     start.click()
@@ -195,7 +193,7 @@ def year_checks(browser, base, width, height, errors, screenshot):
     page.on("pageerror", lambda error: errors.append(f"year {width}px: {error}"))
     load_planning_view(page, base, "year")
 
-    assert page.locator("#view-year h1").count() == 1
+    assert page.locator('[data-testid="year-view"] h1').count() == 1
     assert page.locator(".year-summary .year-summary-metric").count() == 4
     assert page.locator(".year-goal-grid").count() == 1
     assert page.locator(".quarter-grid").count() == 1
@@ -217,7 +215,7 @@ def calendar_checks(browser, base, width, height, errors, screenshot):
     page.on("pageerror", lambda error: errors.append(f"calendar {width}px: {error}"))
     load_planning_view(page, base, "calendar")
 
-    assert page.locator("#view-calendar h1").count() == 1
+    assert page.locator('[data-testid="calendar-view"] h1').count() == 1
     assert page.locator(".calendar-grid-desktop .cal-dow").count() == 7
     assert page.locator(".calendar-grid-desktop .cal-cell").count() >= 28
     assert_no_page_overflow(page, f"calendar {width}px")
@@ -254,20 +252,20 @@ def dialog_checks(browser, base, width, height, errors, screenshot):
     opener = page.locator('[data-action="search-toggle"]').first
     opener.focus()
     page.keyboard.press("Control+K")
-    page.wait_for_selector("#searchModal:not([hidden])")
+    page.wait_for_selector('[data-testid="search-modal"]', state="visible")
     assert page.evaluate("document.activeElement && document.activeElement.id") == "searchInput"
     page.keyboard.press("Escape")
-    assert page.locator("#searchModal[hidden]").count() == 1
+    assert page.locator('[data-testid="search-modal"]:visible').count() == 0
     assert opener.evaluate("el => document.activeElement === el")
 
     tools = page.locator('[data-action="tools-open"]:visible').first
     tools.click()
-    page.wait_for_selector("#toolsDrawer:not([hidden])")
-    assert page.locator('#toolsDrawer [data-action="tools-close"]').evaluate(
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
+    assert page.locator('[data-testid="tools-drawer"] [data-action="tools-close"]').evaluate(
         "el => document.activeElement === el"
     )
     page.keyboard.press("Escape")
-    assert page.locator("#toolsDrawer[hidden]").count() == 1
+    assert page.locator('[data-testid="tools-drawer"]:visible').count() == 0
     assert tools.evaluate("el => document.activeElement === el")
 
     page.evaluate("TaskFlowUI.openDialog('syncModal')")
@@ -278,16 +276,16 @@ def dialog_checks(browser, base, width, height, errors, screenshot):
     page.keyboard.press("Escape")
 
     page.evaluate("TaskFlowUI.toast('Saved', 'success', 2000)")
-    assert page.locator("#toastRegion .toast-success", has_text="Saved").count() == 1
+    assert page.locator('[data-testid="toast-region"] .toast-success', has_text="Saved").count() == 1
 
     if width <= 390:
         page.locator('[data-action="chat-toggle"]').click()
-        assert page.locator("#chatPop:not([hidden])").count() == 1
+        assert page.locator('[data-testid="chat-pop"]:visible').count() == 1
         page.locator('[data-action="pomo-toggle"]').click()
-        assert page.locator("#chatPop[hidden]").count() == 1
-        assert page.locator("#pomoPanel:not([hidden])").count() == 1
+        assert page.locator('[data-testid="chat-pop"]:visible').count() == 0
+        assert page.locator('[data-testid="pomo-panel"]:visible').count() == 1
         page.locator('[data-action="chat-toggle"]').click()
-        assert page.locator("#pomoPanel[hidden]").count() == 1
+        assert page.locator('[data-testid="pomo-panel"]:visible').count() == 0
 
     assert_no_page_overflow(page, f"dialogs {width}px")
     page.screenshot(path=screenshot, full_page=False)
@@ -348,16 +346,16 @@ def focus_checks(browser, base, width, height, errors, screenshot):
     trigger = page.locator('[data-action="focus"]:visible').first
     if trigger.count() == 0:
         page.locator('[data-action="tools-open"]:visible').first.click()
-        page.wait_for_selector("#toolsDrawer:not([hidden])")
-        trigger = page.locator('#toolsDrawer [data-action="focus"]')
+        page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
+        trigger = page.locator('[data-testid="tools-drawer"] [data-action="focus"]')
     trigger.click()
-    page.wait_for_selector("#focusOverlay:not([hidden])")
+    page.wait_for_selector('[data-testid="focus-overlay"]', state="visible")
     assert page.locator("body.focus-mode").count() == 1
-    assert page.locator('#focusOverlay [data-action="focus-close"]').count() == 1
+    assert page.locator('[data-testid="focus-overlay"] [data-action="focus-close"]').count() == 1
     assert_no_page_overflow(page, f"focus {width}px")
     page.screenshot(path=screenshot, full_page=False)
-    page.locator('#focusOverlay [data-action="focus-close"]').click()
-    assert page.locator("#focusOverlay[hidden]").count() == 1
+    page.locator('[data-testid="focus-overlay"] [data-action="focus-close"]').click()
+    assert page.locator('[data-testid="focus-overlay"]:visible').count() == 0
     page.close()
 
 
@@ -369,7 +367,7 @@ def dark_overview_checks(browser, base, width, height, errors, screenshot):
       localStorage.setItem('planner-dark','1');
     """)
     page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
-    page.wait_for_selector("#view-overview.active .overview-page")
+    page.wait_for_selector('[data-testid="overview-view"] .overview-page', state="visible")
     assert page.locator("html").get_attribute("data-dark") == "true"
     assert_no_page_overflow(page, f"dark overview {width}px")
     page.screenshot(path=screenshot, full_page=False)
@@ -388,8 +386,8 @@ def release_layout_checks(browser, base, width, height, errors):
         page.on("pageerror", lambda error, v=view: errors.append(f"release {v} {width}px: {error}"))
         page.add_init_script("localStorage.setItem('planner-onboarded','1');")
         page.goto(f"{base}/app.html?view={view}", wait_until="networkidle")
-        page.wait_for_selector(f"#view-{view}.active")
-        assert page.locator(f"#view-{view} h1").count() == 1
+        page.wait_for_selector(f'[data-testid="{view}-view"]', state="visible")
+        assert page.locator(f'[data-testid="{view}-view"] h1').count() == 1
         assert_no_page_overflow(page, f"release {view} {width}px")
         page.close()
 

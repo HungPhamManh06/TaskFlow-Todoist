@@ -732,7 +732,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v118';/);
+  assert.match(SW, /const CACHE = 'taskflow-v119';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -810,7 +810,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v118';/);
+  assert.match(SW, /const CACHE = 'taskflow-v119';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -1512,4 +1512,37 @@ test('Phase 18: reports — week vs last week comparison block', () => {
   // dark mode override cho chips
   assert.match(STYLES18, /:root\[data-dark="true"\] \.vs-up \{[\s\S]*?color: #7ED9A0;/);
   assert.match(STYLES18, /@media \(max-width: 640px\) \{[\s\S]*?\.report-vs-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
+});
+
+test('Phase 19: e2e stability — stable data-testid hooks, no .active in scripts', () => {
+  // View sections đều có data-testid ổn định
+  for (const [id, tid] of [
+    ['view-today', 'today-view'], ['view-upcoming', 'upcoming-view'], ['view-inbox', 'inbox-view'],
+    ['view-overview', 'overview-view'], ['view-week', 'week-view'], ['view-year', 'year-view'],
+    ['view-calendar', 'calendar-view'], ['view-day', 'day-view'],
+  ]) {
+    assert.match(APP, new RegExp(`id="${id}"[^>]*data-testid="${tid}"`), `${id} → ${tid}`);
+  }
+  // Các modal/drawer chính có data-testid
+  for (const [id, tid] of [
+    ['quickAddModal', 'quick-add'], ['searchModal', 'search-modal'], ['toolsDrawer', 'tools-drawer'],
+    ['taskDrawer', 'task-drawer'], ['pomoPanel', 'pomo-panel'], ['focusOverlay', 'focus-overlay'],
+    ['syncModal', 'sync-modal'], ['reportModal', 'report-modal'], ['weekReportModal', 'week-report-modal'],
+    ['yearReportModal', 'year-report-modal'], ['widgetSettingsModal', 'widget-settings-modal'],
+    ['toastRegion', 'toast-region'],
+  ]) {
+    assert.match(APP, new RegExp(`id="${id}"[^>]*data-testid="${tid}"`), `${id} → ${tid}`);
+  }
+  // Task row động có data-testid="task-row"
+  assert.match(APP_JS, /<div class="task-row[^>]*data-testid="task-row"/);
+  // E2E scripts không còn phụ thuộc .active làm selector chính
+  const SMOKE = readRequiredAsset('scripts/e2e-smoke.py');
+  const FRONT = readRequiredAsset('scripts/e2e-frontend.py');
+  assert.doesNotMatch(SMOKE, /wait_for_selector\("#view-[a-z]+[^)]*\.active"/);
+  assert.doesNotMatch(FRONT, /wait_for_selector\(f?"#view-\{?\w+\}?\.active/);
+  assert.match(SMOKE, /data-testid="(quick-add|week-view)"/);
+  assert.match(FRONT, /data-testid="(overview-view|focus-overlay)"/);
+  // Remind test dùng data-testid thay XPath contains(@class,'task-row')
+  assert.doesNotMatch(FRONT, /contains\(@class,'task-row'\)/);
+  assert.match(FRONT, /ancestor::div\[@data-testid='task-row'\]/);
 });

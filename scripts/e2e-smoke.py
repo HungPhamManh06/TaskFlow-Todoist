@@ -27,9 +27,9 @@ def load_app(page, base):
     # Phase 3: default view đã đổi sang 'today' — load thẳng overview để giữ
     # smoke test overview-centric (habit toggle, widget settings).
     page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
-    if page.locator("#onboardModal:not([hidden])").count():
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
         page.locator('[data-action="ob-skip"]').click()
-    page.wait_for_selector("#view-overview.active")
+    page.wait_for_selector('[data-testid="overview-view"]', state="visible")
 
 
 def desktop_checks(browser, base, errors, screenshots):
@@ -56,10 +56,10 @@ def desktop_checks(browser, base, errors, screenshots):
     today_tab = page.locator('#desktopSidebar [data-nav-view="today"]')
     today_tab.focus()
     page.keyboard.press("ArrowRight")
-    page.wait_for_selector("#view-inbox.active")
+    page.wait_for_selector('[data-testid="inbox-view"]', state="visible")
     assert page.evaluate("document.activeElement?.dataset.navView === 'inbox'")
     page.locator('#desktopSidebar [data-nav-view="overview"]').click()
-    page.wait_for_selector("#view-overview.active")
+    page.wait_for_selector('[data-testid="overview-view"]', state="visible")
 
     habit = page.locator('[data-action="habit"]').first
     before = habit.get_attribute("aria-checked")
@@ -68,7 +68,7 @@ def desktop_checks(browser, base, errors, screenshots):
 
     for view in ("calendar", "year", "week"):
         page.locator(f'#desktopSidebar [data-nav-view="{view}"]').click()
-        page.wait_for_selector(f"#view-{view}.active")
+        page.wait_for_selector(f'[data-testid="{view}-view"]', state="visible")
         assert page.locator(f'#desktopSidebar [data-nav-view="{view}"][aria-current="page"]').count() == 1
         assert page.locator(f'#mobileNav [data-nav-view="{view}"][aria-current="page"]').count() == 1
 
@@ -79,15 +79,15 @@ def desktop_checks(browser, base, errors, screenshots):
         assert strip_box["y"] + strip_box["height"] <= goals_card_box["y"] + goals_card_box["height"] + 1
 
     page.locator('[data-action="search-toggle"]').first.click()
-    page.wait_for_selector("#searchModal:not([hidden])")
+    page.wait_for_selector('[data-testid="search-modal"]', state="visible")
     page.locator('[data-action="search-close"]').click()
 
     tools_trigger = page.locator('#appTopbar [data-action="tools-open"]')
     tools_trigger.click()
-    page.wait_for_selector("#toolsDrawer:not([hidden])")
-    assert page.locator("#toolsDrawer").get_attribute("role") == "dialog"
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
+    assert page.locator('[data-testid="tools-drawer"]').get_attribute("role") == "dialog"
     page.keyboard.press("Escape")
-    assert page.locator("#toolsDrawer[hidden]").count() == 1
+    assert page.locator('[data-testid="tools-drawer"]:visible').count() == 0
     assert page.evaluate("document.activeElement === document.querySelector('#appTopbar [data-action=\"tools-open\"]')")
 
     tools_trigger.click()
@@ -100,23 +100,23 @@ def desktop_checks(browser, base, errors, screenshots):
     task_count = page.locator('[data-role="task-text"]').count()
     # Phase 4: nút Thêm công việc mở Quick Add — KHÔNG chuyển view
     page.locator(".app-primary-action").click()
-    page.wait_for_selector("#quickAddModal:not([hidden])")
+    page.wait_for_selector('[data-testid="quick-add"]', state="visible")
     page.locator("#quickAddInput").fill("Việc từ Quick Add")
     page.keyboard.press("Enter")
-    page.wait_for_selector("#quickAddModal", state="hidden")
-    assert page.locator("#view-week.active").count() == 1
+    page.wait_for_selector('[data-testid="quick-add"]', state="hidden")
+    assert page.locator('[data-testid="week-view"]:visible').count() == 1
     assert page.locator('[data-role="task-text"]').count() == task_count + 1
     # Escape đóng Quick Add
     page.locator(".app-primary-action").click()
-    page.wait_for_selector("#quickAddModal:not([hidden])")
+    page.wait_for_selector('[data-testid="quick-add"]', state="visible")
     page.keyboard.press("Escape")
-    page.wait_for_selector("#quickAddModal", state="hidden")
+    page.wait_for_selector('[data-testid="quick-add"]', state="hidden")
     page.locator("#appViewTitle").click()
     page.keyboard.press("4")
-    page.wait_for_selector("#view-calendar.active")
+    page.wait_for_selector('[data-testid="calendar-view"]', state="visible")
 
     page.locator('[data-action="pomo-toggle"]').click()
-    page.wait_for_selector("#pomoPanel:not([hidden])")
+    page.wait_for_selector('[data-testid="pomo-panel"]', state="visible")
     assert_no_overflow(page, "desktop after interactions")
     page.screenshot(path=screenshots["desktop"], full_page=True)
     page.close()
@@ -132,12 +132,12 @@ def mobile_checks(browser, base, errors, screenshots):
     assert_no_overflow(page, "mobile")
 
     page.locator('#mobileNav [data-nav-view="week"]').click()
-    page.wait_for_selector("#view-week.active")
+    page.wait_for_selector('[data-testid="week-view"]', state="visible")
     assert page.locator('#mobileNav [data-nav-view="week"][aria-current="page"]').count() == 1
 
     more = page.locator('#mobileNav [data-action="tools-open"]')
     more.click()
-    page.wait_for_selector("#toolsDrawer:not([hidden])")
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
     assert page.locator("#toolsDrawerBackdrop:not([hidden])").count() == 1
 
     period_before = page.locator("#appPeriod").inner_text()
@@ -155,28 +155,28 @@ def mobile_checks(browser, base, errors, screenshots):
     assert page.locator("#drawerRedo").is_disabled()
 
     page.keyboard.press("Escape")
-    assert page.locator("#toolsDrawer[hidden]").count() == 1
+    assert page.locator('[data-testid="tools-drawer"]:visible').count() == 0
     assert page.evaluate("document.activeElement === document.querySelector('#mobileNav [data-action=\"tools-open\"]')")
 
     page.locator('#mobileNav [data-nav-view="week"]').click()
-    page.wait_for_selector("#view-week.active")
+    page.wait_for_selector('[data-testid="week-view"]', state="visible")
     task_count = page.locator('[data-role="task-text"]').count()
     page.locator(".app-primary-action").click()
-    page.wait_for_selector("#quickAddModal:not([hidden])")
+    page.wait_for_selector('[data-testid="quick-add"]', state="visible")
     page.locator("#quickAddInput").fill("Việc từ Quick Add mobile")
     page.keyboard.press("Enter")
-    page.wait_for_selector("#quickAddModal", state="hidden")
-    assert page.locator("#view-week.active").count() == 1
+    page.wait_for_selector('[data-testid="quick-add"]', state="hidden")
+    assert page.locator('[data-testid="week-view"]:visible').count() == 1
     assert page.locator('[data-role="task-text"]').count() == task_count + 1
 
     more.click()
-    page.wait_for_selector("#toolsDrawer:not([hidden])")
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
     assert not page.locator("#drawerUndo").is_disabled()
     assert page.locator("#drawerRedo").is_disabled()
     page.locator("#drawerUndo").click()
     assert not page.locator("#drawerRedo").is_disabled()
     page.locator('#toolsDrawer [data-action="tools-close"]').click()
-    assert page.locator("#toolsDrawer[hidden]").count() == 1
+    assert page.locator('[data-testid="tools-drawer"]:visible').count() == 0
     assert_no_overflow(page, "mobile after interactions")
     page.screenshot(path=screenshots["mobile"], full_page=True)
     page.close()

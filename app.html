@@ -136,22 +136,22 @@
       </header>
 
       <main class="container" id="appMain" tabindex="-1">
-    <section id="view-today" class="view" role="tabpanel" aria-label="Hôm nay" data-i18n-aria="viewToday"></section>
-    <section id="view-upcoming" class="view" role="tabpanel" aria-label="Sắp tới" data-i18n-aria="viewUpcoming"></section>
-    <section id="view-inbox" class="view" role="tabpanel" aria-label="Inbox" data-i18n-aria="viewInbox"></section>
-    <section id="view-calendar" class="view" role="tabpanel" aria-label="Lịch tháng" data-i18n-aria="viewCalendar"></section>
-    <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng" data-i18n-aria="viewOverview">
+    <section id="view-today" class="view" role="tabpanel" aria-label="Hôm nay" data-i18n-aria="viewToday" data-testid="today-view"></section>
+    <section id="view-upcoming" class="view" role="tabpanel" aria-label="Sắp tới" data-i18n-aria="viewUpcoming" data-testid="upcoming-view"></section>
+    <section id="view-inbox" class="view" role="tabpanel" aria-label="Inbox" data-i18n-aria="viewInbox" data-testid="inbox-view"></section>
+    <section id="view-calendar" class="view" role="tabpanel" aria-label="Lịch tháng" data-i18n-aria="viewCalendar" data-testid="calendar-view"></section>
+    <section id="view-overview" class="view" role="tabpanel" aria-label="Tổng quan tháng" data-i18n-aria="viewOverview" data-testid="overview-view">
       <div id="ov-content"></div>
     </section>
-    <section id="view-year" class="view" role="tabpanel" aria-label="Kế hoạch năm" data-i18n-aria="viewYear"></section>
-    <section id="view-week" class="view" role="tabpanel" aria-label="Kế hoạch tuần" data-i18n-aria="viewWeek"></section>
-    <section id="view-day" class="view" role="tabpanel" aria-label="Xem ngày" data-i18n-aria="viewDay"></section>
+    <section id="view-year" class="view" role="tabpanel" aria-label="Kế hoạch năm" data-i18n-aria="viewYear" data-testid="year-view"></section>
+    <section id="view-week" class="view" role="tabpanel" aria-label="Kế hoạch tuần" data-i18n-aria="viewWeek" data-testid="week-view"></section>
+    <section id="view-day" class="view" role="tabpanel" aria-label="Xem ngày" data-i18n-aria="viewDay" data-testid="day-view"></section>
       </main>
     </div>
   </div>
 
   <div class="drawer-backdrop" id="toolsDrawerBackdrop" data-action="tools-close" hidden></div>
-  <aside class="drawer tools-drawer" id="toolsDrawer" role="dialog" aria-modal="true"
+  <aside class="drawer tools-drawer" id="toolsDrawer" role="dialog" aria-modal="true" data-testid="tools-drawer"
     aria-labelledby="toolsDrawerTitle" hidden>
     <div class="tools-drawer-head">
       <div>
@@ -294,12 +294,12 @@
 
   <nav class="app-mobile-nav" id="mobileNav" role="tablist" aria-label="Điều hướng chính trên di động"></nav>
 
-  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
+  <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true" data-testid="toast-region"></div>
 
   <input type="file" id="importFile" accept=".json,application/json,.csv,text/csv" hidden />
 
   <!-- ===== Tìm kiếm xuyên tháng (Phase 2) ===== -->
-  <div class="search-modal" id="searchModal" hidden>
+  <div class="search-modal" id="searchModal" hidden data-testid="search-modal">
     <div class="search-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="searchDialogTitle">
       <button type="button" class="sync-close" data-action="search-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -311,7 +311,7 @@
   </div>
 
   <!-- ===== Thêm nhanh (Phase 4) — dùng được ở mọi màn hình ===== -->
-  <div class="quickadd-modal" id="quickAddModal" hidden>
+  <div class="quickadd-modal" id="quickAddModal" hidden data-testid="quick-add">
     <div class="quickadd-card dialog" role="dialog" aria-modal="true" aria-labelledby="quickAddTitle">
       <button type="button" class="sync-close" data-action="quickadd-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -336,7 +336,7 @@
   </div>
 
   <!-- ===== Template tháng (Phase 2) ===== -->
-  <div class="template-modal" id="templateModal" hidden>
+  <div class="template-modal" id="templateModal" hidden data-testid="template-modal">
     <div class="template-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="templateDialogTitle">
       <button type="button" class="sync-close" data-action="template-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -357,7 +357,7 @@
   </div>
 
   <!-- ===== Sao lưu tự động (Phase 5) ===== -->
-  <div class="backup-modal" id="backupModal" hidden>
+  <div class="backup-modal" id="backupModal" hidden data-testid="backup-modal">
     <div class="backup-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle">
       <button type="button" class="sync-close" data-action="backup-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -367,7 +367,7 @@
   </div>
 
   <!-- ===== Focus Mode (Phase 5) ===== -->
-  <div class="focus-overlay" id="focusOverlay" hidden>
+  <div class="focus-overlay" id="focusOverlay" hidden data-testid="focus-overlay">
     <div class="focus-card dialog" role="dialog" aria-modal="true" aria-labelledby="focusDialogTitle">
       <div class="focus-head">
         <h2 class="focus-title" id="focusDialogTitle"><span data-i18n="focusOpen">Chế độ Tập trung</span></h2>
@@ -379,7 +379,7 @@
   </div>
 
   <!-- ===== Profile / Tài khoản (Phase 3) ===== -->
-  <div class="profile-modal" id="profileModal" hidden>
+  <div class="profile-modal" id="profileModal" hidden data-testid="profile-modal">
     <div class="profile-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle">
       <button type="button" class="sync-close" data-action="profile-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -405,7 +405,7 @@
   <!-- ===== Pomodoro (Phase 2) ===== -->
   <div class="pomo-fab-wrap">
     <button type="button" class="pomo-fab" data-action="pomo-toggle" title="Pomodoro 🍅" aria-label="Pomodoro 🍅">🍅</button>
-    <div class="pomo-panel" id="pomoPanel" hidden>
+    <div class="pomo-panel" id="pomoPanel" hidden data-testid="pomo-panel">
       <div class="pomo-mode" id="pomoMode"></div>
       <div class="pomo-time" id="pomoTime">25:00</div>
       <div class="pomo-tomato-wrap" id="pomoTomatoCounter"></div>
@@ -420,7 +420,7 @@
   <div class="fb-fab-wrap" id="chatFabWrap">
     <button type="button" class="fb-fab" data-action="chat-toggle" title="Trợ lý học tập"
       data-i18n-title="chatTitle" data-i18n-aria="chatTitle">🤖</button>
-    <div class="chat-pop" id="chatPop" hidden>
+    <div class="chat-pop" id="chatPop" hidden data-testid="chat-pop">
       <div class="chat-header">
         <strong data-i18n="chatTitle">🤖 Trợ lý học tập</strong>
         <button type="button" class="sync-close" data-action="chat-close" aria-label="Đóng"
@@ -446,7 +446,7 @@
   </div>
 
   <!-- ===== Hướng dẫn sử dụng (Help Modal) ===== -->
-  <div class="report-modal" id="helpModal" hidden>
+  <div class="report-modal" id="helpModal" hidden data-testid="help-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="helpDialogTitle">
       <button type="button" class="sync-close" data-action="help-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -455,7 +455,7 @@
     </div>
   </div>
 
-  <div class="sync-modal" id="syncModal" hidden>
+  <div class="sync-modal" id="syncModal" hidden data-testid="sync-modal">
     <div class="sync-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="syncDialogTitle">
       <button type="button" class="sync-close" data-action="sync-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -497,7 +497,7 @@
   </div>
 
   <!-- ===== Báo cáo tháng ===== -->
-  <div class="report-modal" id="reportModal" hidden>
+  <div class="report-modal" id="reportModal" hidden data-testid="report-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="reportDialogTitle">
       <button type="button" class="sync-close" data-action="close-report" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -511,7 +511,7 @@
   </div>
 
   <!-- ===== Báo cáo tuần (Phase 4) ===== -->
-  <div class="report-modal" id="weekReportModal" hidden>
+  <div class="report-modal" id="weekReportModal" hidden data-testid="week-report-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="weekReportDialogTitle">
       <button type="button" class="sync-close" data-action="close-week-report" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -525,7 +525,7 @@
   </div>
 
   <!-- ===== Báo cáo năm (Phase 6) ===== -->
-  <div class="report-modal" id="yearReportModal" hidden>
+  <div class="report-modal" id="yearReportModal" hidden data-testid="year-report-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="yearReportDialogTitle">
       <button type="button" class="sync-close" data-action="close-year-report" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -539,7 +539,7 @@
   </div>
 
   <!-- ===== Thống kê tương quan focus × task (Phase 9) ===== -->
-  <div class="report-modal stats-modal" id="statsModal" hidden>
+  <div class="report-modal stats-modal" id="statsModal" hidden data-testid="stats-modal">
     <div class="report-modal-card stats-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="statsDialogTitle">
       <button type="button" class="sync-close" data-action="stats-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -549,7 +549,7 @@
   </div>
 
   <!-- ===== Phase 8: Widget Settings (Dashboard tuỳ chỉnh) ===== -->
-  <div class="widget-modal" id="widgetSettingsModal" hidden>
+  <div class="widget-modal" id="widgetSettingsModal" hidden data-testid="widget-settings-modal">
     <div class="widget-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="widgetDialogTitle">
       <button type="button" class="sync-close" data-action="widget-close" aria-label="Đóng"
         data-i18n-aria="closeBtn">✕</button>
@@ -562,7 +562,7 @@
   </div>
 
   <!-- ===== Onboarding 3 bước (lần dùng đầu) ===== -->
-  <div class="onboard-modal" id="onboardModal" hidden>
+  <div class="onboard-modal" id="onboardModal" hidden data-testid="onboard-modal">
     <div class="onboard-card dialog" role="dialog" aria-modal="true" aria-labelledby="onboardDialogTitle">
       <h2 class="sr-only" id="onboardDialogTitle">Bắt đầu với TaskFlow</h2>
       <div class="ob-steps" aria-hidden="true">
@@ -614,7 +614,7 @@
 
   <!-- ===== Phase 5: Task Detail Drawer ===== -->
   <div class="drawer-backdrop" id="taskDetailBackdrop" data-action="task-detail-close" hidden></div>
-  <aside class="drawer task-drawer" id="taskDrawer" role="dialog" aria-modal="true"
+  <aside class="drawer task-drawer" id="taskDrawer" role="dialog" aria-modal="true" data-testid="task-drawer"
     aria-labelledby="taskDrawerTitle" hidden>
     <div class="task-drawer-head">
       <div>
@@ -634,7 +634,7 @@
   <script src="js/plan-carry.js?v=1"></script>
   <script src="js/sync.js?v=3"></script>
   <script src="js/ui.js?v=6"></script>
-  <script src="js/app.js?v=107"></script>
+  <script src="js/app.js?v=108"></script>
 </body>
 
 </html>
