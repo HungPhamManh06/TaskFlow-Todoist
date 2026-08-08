@@ -194,6 +194,25 @@ body:has([data-ui-layer="open"]) {
 .toast-success { border-inline-start-color: var(--color-accent); }
 .toast-error { border-inline-start-color: var(--color-danger); }
 
+.toast { display: flex; align-items: center; gap: 10px; }
+.toast-msg { flex: 1; min-width: 0; }
+.toast-action {
+  appearance: none;
+  flex: none;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: var(--color-surface-muted);
+  color: var(--color-accent);
+  font: 700 .8rem/1 var(--font-body);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.toast-action:hover {
+  background: var(--color-accent);
+  color: #fffdf9;
+}
+
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,

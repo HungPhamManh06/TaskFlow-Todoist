@@ -173,20 +173,70 @@
     }
   }
 
-  function toast(message, kind = 'info', duration = 4200) {
+  function toast(message, kind = 'info', duration = 4200, actions) {
     const region = getLayer('toastRegion');
     if (!region) return null;
+    const kindOk = ['success', 'error', 'info'].includes(kind) ? kind : 'info';
+    // Dedup: toast cùng message+kind đang hiển thị → không tạo mới, chỉ kéo dài thời gian
+    const existing = Array.from(region.querySelectorAll('.toast')).find(function (el) {
+      return el.dataset.toastKey === message && el.classList.contains('toast-' + kindOk);
+    });
+    if (existing) {
+      // Dedup: nếu toast cũ chưa có action nhưng lần này có → bổ sung action vào element cũ
+      if (Array.isArray(actions) && actions.length && !existing.querySelector('.toast-action')) {
+        actions.forEach(function (a) {
+          if (!a || !a.label) return;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'toast-action';
+          btn.textContent = String(a.label);
+          btn.addEventListener('click', function () {
+            if (typeof a.onClick === 'function') a.onClick();
+            dismissToast(existing);
+          });
+          existing.appendChild(btn);
+        });
+      }
+      if (existing._toastTimer) window.clearTimeout(existing._toastTimer);
+      existing._toastTimer = window.setTimeout(function () { dismissToast(existing); }, Math.max(1200, duration));
+      return existing;
+    }
+    // Giới hạn tối đa 4 toast — đẩy toast cũ nhất
+    while (region.children.length >= 4) region.firstChild.remove();
     const item = document.createElement('div');
-    item.className = `toast toast-${['success', 'error', 'info'].includes(kind) ? kind : 'info'}`;
-    item.setAttribute('role', kind === 'error' ? 'alert' : 'status');
-    item.textContent = String(message || '');
+    item.className = `toast toast-${kindOk}`;
+    item.setAttribute('role', kindOk === 'error' ? 'alert' : 'status');
+    item.dataset.toastKey = String(message || '');
+    const msg = document.createElement('span');
+    msg.className = 'toast-msg';
+    msg.textContent = String(message || '');
+    item.appendChild(msg);
+    if (Array.isArray(actions) && actions.length) {
+      actions.forEach(function (a) {
+        if (!a || !a.label) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'toast-action';
+        btn.textContent = String(a.label);
+        btn.addEventListener('click', function () {
+          if (typeof a.onClick === 'function') a.onClick();
+          dismissToast(item);
+        });
+        item.appendChild(btn);
+      });
+    }
     region.appendChild(item);
     requestAnimationFrame(function () { item.classList.add('toast-visible'); });
-    window.setTimeout(function () {
-      item.classList.remove('toast-visible');
-      window.setTimeout(function () { item.remove(); }, 180);
-    }, Math.max(1200, duration));
+    item._toastTimer = window.setTimeout(function () { dismissToast(item); }, Math.max(1200, duration));
     return item;
+  }
+
+  function dismissToast(item) {
+    if (!item || item._dismissed) return;
+    item._dismissed = true;
+    if (item._toastTimer) window.clearTimeout(item._toastTimer);
+    item.classList.remove('toast-visible');
+    window.setTimeout(function () { item.remove(); }, 180);
   }
 
   if (typeof document !== 'undefined') document.addEventListener('keydown', handleLayerKeydown);

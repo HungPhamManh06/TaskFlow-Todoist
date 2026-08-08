@@ -523,6 +523,49 @@ test('routine completion feedback uses non-blocking toasts', () => {
   assert.doesNotMatch(APP_JS, /alert\(t\('shareDone'\)/);
 });
 
+test('Phase 7: unified empty states with CTA actions and dedup toasts', () => {
+  const ui = readRequiredAsset('js/ui.js');
+  // emptyStateHTML supports CTA action buttons
+  assert.match(APP_JS, /function emptyStateHTML\(icon, titleKey, hintKey, actions\)/);
+  assert.match(APP_JS, /class=\"empty-actions\"/);
+  assert.match(APP_JS, /class=\"empty-btn\" data-action=\"\$\{esc\(a\.action\)\}\"/);
+  // Today / Inbox / Upcoming / Search all route through the shared helper
+  assert.match(APP_JS, /emptyStateHTML\('🎯', 'todayEmpty', 'todayEmptySub'/);
+  assert.match(APP_JS, /emptyStateHTML\('📥', 'inboxEmpty', 'inboxEmptySub'/);
+  assert.match(APP_JS, /emptyStateHTML\('🗓️', 'upcomingEmpty', 'upcomingEmptySub'/);
+  assert.match(APP_JS, /emptyStateHTML\('🔍', 'searchEmpty', 'searchEmptySub'\)/);
+  assert.match(APP_JS, /emptyStateHTML\('🐥', 'searchNoResults', 'searchNoResultsSub'\)/);
+  // toast dedup + action button + max-4 cap
+  assert.match(ui, /toast\(message, kind = 'info', duration = 4200, actions\)/);
+  assert.match(ui, /dataset\.toastKey === message/);
+  assert.match(ui, /while \(region\.children\.length >= 4\) region\.firstChild\.remove\(\)/);
+  assert.match(ui, /btn\.className = 'toast-action'/);
+  assert.match(ui, /function dismissToast\(item\)/);
+  // deltask shows undo toast with snapshot BEFORE splice
+  assert.match(APP_JS, /pushUndo\(\); \/\/ snapshot TRƯỚC khi xóa/);
+  assert.match(APP_JS, /TaskFlowUI\.toast\(t\('taskDeletedToast'\), 'info', 6000, \[/);
+  assert.match(APP_JS, /label: t\('undoBtnShort'\), onClick: \(\) => doUndo\(\)/);
+  // undo consistency: inbox in snapshot, inbox-del + td-delete also push undo + toast
+  assert.match(APP_JS, /inbox: Array\.isArray\(inbox\) \? JSON\.parse\(JSON\.stringify\(inbox\)\) : \[\]/);
+  assert.match(APP_JS, /if \(Array\.isArray\(snap\.inbox\)\) \{ inbox = JSON\.parse\(JSON\.stringify\(snap\.inbox\)\); \}/);
+  assert.match(APP_JS, /act === 'inbox-del'/);
+  assert.match(APP_JS, /act === 'td-delete'/);
+  // dedup reuses element but can attach missing action button
+  assert.match(ui, /!existing\.querySelector\('.toast-action'\)/);
+  // i18n keys exist in both languages
+  assert.match(APP_JS, /taskDeletedToast: 'Đã xóa task'/);
+  assert.match(APP_JS, /taskDeletedToast: 'Task deleted'/);
+  assert.match(APP_JS, /emptyPlanWeek: 'Lên kế hoạch tuần'/);
+  assert.match(APP_JS, /emptyPlanWeek: 'Plan the week'/);
+  // CSS: empty-actions + toast-action
+  const css = readRequiredAsset('css/styles.css');
+  const comp = readRequiredAsset('css/components.css');
+  assert.match(css, /\.empty-actions/);
+  assert.match(css, /\.empty-btn\s*\{/);
+  assert.match(comp, /\.toast\s*\{ display: flex; align-items: center; gap: 10px; \}/);
+  assert.match(comp, /\.toast-action\s*\{/);
+});
+
 test('onboarding Escape follows the persisted skip action', () => {
   const html = readRequiredAsset('app.html');
   const ui = readRequiredAsset('js/ui.js');
@@ -638,7 +681,7 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v108';/);
+  assert.match(SW, /const CACHE = 'taskflow-v110';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -716,7 +759,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v108';/);
+  assert.match(SW, /const CACHE = 'taskflow-v110';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',

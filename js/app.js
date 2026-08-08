@@ -557,6 +557,12 @@ const I18N = {
     inboxScheduleDateLbl: 'Chọn ngày',
     inboxScheduleToast: 'Đã chuyển vào lịch',
     inboxScheduleError: 'Không thể lên lịch cho ngày này',
+    emptyAddToday: 'Thêm việc',
+    emptyGoUpcoming: 'Xem sắp tới',
+    emptyAddInbox: 'Thêm nhanh',
+    emptyPlanWeek: 'Lên kế hoạch tuần',
+    taskDeletedToast: 'Đã xóa task',
+    undoBtnShort: 'Hoàn tác',
     quickAddTitle: 'Thêm công việc nhanh',
     quickAddPh: 'Bạn cần làm gì?',
     quickAddBtn: 'Thêm việc',
@@ -891,7 +897,9 @@ const I18N = {
     searchTitle: 'Tìm kiếm xuyên tháng',
     searchPh: 'Nhập từ khoá...',
     searchEmpty: 'Gõ ít nhất 2 ký tự để tìm kiếm.',
+    searchEmptySub: 'Tìm theo tên task, ghi chú, tag hoặc mục tiêu.',
     searchNoResults: 'Không tìm thấy kết quả nào 🐥',
+    searchNoResultsSub: 'Thử từ khóa khác hoặc kiểm tra chính tả.',
     searchGoal: 'Mục tiêu',
     searchHabit: 'Thói quen',
     searchTask: 'Task',
@@ -1189,6 +1197,12 @@ const I18N = {
     inboxScheduleDateLbl: 'Pick a date',
     inboxScheduleToast: 'Moved to the calendar',
     inboxScheduleError: 'Cannot schedule for this date',
+    emptyAddToday: 'Add task',
+    emptyGoUpcoming: 'See upcoming',
+    emptyAddInbox: 'Quick add',
+    emptyPlanWeek: 'Plan the week',
+    taskDeletedToast: 'Task deleted',
+    undoBtnShort: 'Undo',
     quickAddTitle: 'Quick Add',
     quickAddPh: 'What do you need to do?',
     quickAddBtn: 'Add task',
@@ -1523,7 +1537,9 @@ const I18N = {
     searchTitle: 'Search across months',
     searchPh: 'Type to search...',
     searchEmpty: 'Type at least 2 characters to search.',
+    searchEmptySub: 'Search task titles, notes, tags, or goals.',
     searchNoResults: 'No results found 🐥',
+    searchNoResultsSub: 'Try another keyword or check your spelling.',
     searchGoal: 'Goal',
     searchHabit: 'Habit',
     searchTask: 'Task',
@@ -3502,11 +3518,20 @@ function goalsPanelHTML(ms) {
   </div>`;
 }
 
-function emptyStateHTML(icon, titleKey, hintKey) {
+// Phase 7: empty state thống nhất — icon + title + hint + optional CTA actions.
+// actions: [{ label, action, ...extraAttrs }] → render nút button data-action.
+function emptyStateHTML(icon, titleKey, hintKey, actions) {
+  const cta = (Array.isArray(actions) && actions.length)
+    ? `<div class="empty-actions">${actions.map((a) => {
+        const extra = a.attrs || '';
+        return `<button type="button" class="empty-btn" data-action="${esc(a.action)}" ${extra}>${esc(a.label)}</button>`;
+      }).join('')}</div>`
+    : '';
   return `<div class="empty-state">
     <span class="empty-icon" aria-hidden="true">${icon}</span>
     <p class="empty-title">${t(titleKey)}</p>
     <p class="empty-hint">${t(hintKey)}</p>
+    ${cta}
   </div>`;
 }
 
@@ -5269,7 +5294,10 @@ function renderToday() {
         ${tk.done ? '' : `<button type="button" class="btn-del" data-action="deltask" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">✕</button>`}
       </div>`;
       }).join('')
-    : `<div class="today-empty"><p class="today-empty-title">${t('todayEmpty')}</p><p class="today-empty-sub">${t('todayEmptySub')}</p></div>`;
+    : emptyStateHTML('🎯', 'todayEmpty', 'todayEmptySub', [
+        { label: t('emptyAddToday'), action: 'shell-add-task' },
+        { label: t('emptyGoUpcoming'), action: 'nav', attrs: 'data-view="upcoming"' },
+      ]);
 
   const habitRows = habitsToday.length
     ? habitsToday.map((h) => {
@@ -5692,12 +5720,12 @@ function renderSearchResults(q) {
   if (!box) return;
   q = (q || '').trim();
   if (q.length < 2) {
-    box.innerHTML = `<p class="search-hint">${t('searchEmpty')}</p>`;
+    box.innerHTML = emptyStateHTML('🔍', 'searchEmpty', 'searchEmptySub');
     return;
   }
   const hits = runSearch(q);
   if (!hits.length) {
-    box.innerHTML = `<p class="search-hint">${t('searchNoResults')}</p>`;
+    box.innerHTML = emptyStateHTML('🐥', 'searchNoResults', 'searchNoResultsSub');
     return;
   }
   const typeIcon = { goal: '🎯', habit: '🐥', task: '✅', note: '📝', reflect: '💭', ygoal: '🎯', ynote: '📝' };
@@ -7040,10 +7068,9 @@ function renderUpcoming() {
       <div class="up-group-body">${d.tasks.map((r) => upcomingTaskRowHTML(r)).join('')}</div>
     </section>`;
   }).join('');
-  const emptyHTML = !hasAny ? `<div class="up-empty">
-    <p class="up-empty-title">${t('upcomingEmpty')}</p>
-    <p class="up-empty-sub">${t('upcomingEmptySub')}</p>
-  </div>` : '';
+  const emptyHTML = !hasAny ? emptyStateHTML('🗓️', 'upcomingEmpty', 'upcomingEmptySub', [
+    { label: t('emptyPlanWeek'), action: 'nav', attrs: 'data-view="week"' },
+  ]) : '';
   el.innerHTML = `<div class="upcoming-page">
     <header class="upcoming-header">
       <div>
@@ -7103,10 +7130,9 @@ function renderInbox() {
   const el = document.getElementById('view-inbox');
   if (!el) return;
   const list = inbox.map((tk, i) => inboxTaskRowHTML(tk, i)).join('');
-  const empty = inbox.length ? '' : `<div class="up-empty">
-    <p class="up-empty-title">${t('inboxEmpty')}</p>
-    <p class="up-empty-sub">${t('inboxEmptySub')}</p>
-  </div>`;
+  const empty = inbox.length ? '' : emptyStateHTML('📥', 'inboxEmpty', 'inboxEmptySub', [
+    { label: t('emptyAddInbox'), action: 'inbox-add' },
+  ]);
   el.innerHTML = `<div class="upcoming-page">
     <header class="upcoming-header">
       <div>
@@ -7405,6 +7431,7 @@ function snapshotAll() {
     mood: typeof moodMap !== 'undefined' ? JSON.parse(JSON.stringify(moodMap)) : null,
     theme: (typeof THEME !== 'undefined' ? THEME : null) || null,
     plan: { y: PLAN_YEAR, m: PLAN_MONTH, cw: state.currentWeek },
+    inbox: Array.isArray(inbox) ? JSON.parse(JSON.stringify(inbox)) : [],
   };
 }
 function pushUndo() {
@@ -7420,6 +7447,7 @@ function applySnapshot(snap) {
   if (!snap) return;
   state = snap.state;
   yearState = snap.yearState;
+  if (Array.isArray(snap.inbox)) { inbox = JSON.parse(JSON.stringify(snap.inbox)); }
   if (snap.mood && typeof moodMap !== 'undefined') { moodMap = JSON.parse(JSON.stringify(snap.mood)); }
   if (snap.theme) {
     setTheme(snap.theme);
@@ -8139,10 +8167,14 @@ document.addEventListener('click', (e) => {
   } else if (act === 'inbox-del') {
     const i = +el.dataset.task;
     if (inbox[i]) {
+      pushUndo(); // snapshot TRƯỚC khi xóa (inbox đã nằm trong snapshotAll) → Undo khôi phục
       inbox.splice(i, 1);
       saveInbox();
       renderInbox();
       trackEvent('delete_task', { scope: 'inbox' });
+      TaskFlowUI.toast(t('taskDeletedToast'), 'info', 6000, [
+        { label: t('undoBtnShort'), onClick: () => doUndo() },
+      ]);
     }
   } else if (act === 'inbox-today') {
     const i = +el.dataset.task;
@@ -8262,10 +8294,18 @@ document.addEventListener('click', (e) => {
     if (fresh) fresh.focus();
   } else if (act === 'deltask') {
     const w = state.weeks[+el.dataset.week - 1];
-    w.days[+el.dataset.day].tasks.splice(+el.dataset.task, 1);
+    const day = w.days[+el.dataset.day];
+    if (!day) return;
+    const tk = day.tasks[+el.dataset.task];
+    if (!tk) return;
+    pushUndo(); // snapshot TRƯỚC khi xóa → Undo khôi phục task
+    day.tasks.splice(+el.dataset.task, 1);
     if (state.view === 'today') renderToday();
     else renderWeek();
     save();
+    TaskFlowUI.toast(t('taskDeletedToast'), 'info', 6000, [
+      { label: t('undoBtnShort'), onClick: () => doUndo() },
+    ]);
   } else if (act === 'task-menu') {
     // Phase 4: dropdown ⋯ — toggle menu của task row này, đóng các menu khác
     const row = el.closest('.task-row');
@@ -8398,6 +8438,7 @@ document.addEventListener('click', (e) => {
     refreshTaskRowAfterEdit();
   } else if (act === 'td-delete') {
     const g = getTaskDetailTarget();
+    pushUndo(); // snapshot TRƯỚC khi xóa → Undo khôi phục task từ drawer
     if (taskDetailRef && taskDetailRef.scope === 'inbox') {
       inbox.splice(taskDetailRef.task, 1);
       closeTaskDetail();
@@ -8415,6 +8456,9 @@ document.addEventListener('click', (e) => {
       if (delY === PLAN_YEAR && delM === PLAN_MONTH) save();
       else if (delSt) saveMonthState(delY, delM, delSt);
     }
+    TaskFlowUI.toast(t('taskDeletedToast'), 'info', 6000, [
+      { label: t('undoBtnShort'), onClick: () => doUndo() },
+    ]);
   } else if (act === 'addgoal') {
     const scope = el.dataset.scope;
     if (scope === 'm') {
