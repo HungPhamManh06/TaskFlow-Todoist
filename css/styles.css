@@ -5348,6 +5348,60 @@ body.focus-mode .container { padding: 0; }
   display: none;
 }
 
+/* Không có thanh trượt page ở view Lịch (desktop/tablet): grid vừa khớp viewport,
+   mỗi ô ngày tự cuộn nội bộ với scrollbar ẩn (kiểu Google Calendar). */
+@media (min-width: 721px) {
+  .calendar-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    height: 100%;
+    min-height: 0;
+  }
+
+  .calendar-grid-desktop {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-rows: auto;
+    grid-auto-rows: minmax(0, 1fr);
+  }
+
+  .calendar-page .cal-cell {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .calendar-page .cal-tasks {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .calendar-page .cal-tasks::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  #view-calendar.active {
+    /* 68px topbar + 24px top + 64px bottom padding của .container */
+    height: calc(100dvh - 156px);
+    overflow: hidden;
+  }
+}
+
+/* 721-767px: shell mobile (topbar 64px, container padding 16px/108px) —
+   grid vẫn hiển thị nên khóa chiều cao theo shell này. */
+@media (min-width: 721px) and (max-width: 767px) {
+  #view-calendar.active {
+    height: calc(100dvh - 188px);
+    overflow: hidden;
+  }
+}
+
 @media (max-width: 1100px) {
   .year-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5566,6 +5620,18 @@ body.focus-mode .container { padding: 0; }
   .calendar-grid-desktop {
     display: grid !important;
     grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  /* Bỏ khóa chiều cao view Lịch khi in — hiển thị đủ toàn bộ lưới */
+  #view-calendar.active,
+  .calendar-page {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .calendar-page .cal-cell,
+  .calendar-page .cal-tasks {
+    overflow: visible !important;
   }
 
   /* Day view (Xem ngày) — mobile */
