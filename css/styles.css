@@ -1892,12 +1892,15 @@ input:focus-visible {
   border: 2px solid rgba(var(--ink-rgb), .25);
   background: var(--surface);
   font-size: 24px;
-  cursor: pointer;
+  cursor: grab;
   box-shadow: 0 8px 22px rgba(var(--ink-rgb), .22);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: transform .2s ease, box-shadow .2s ease;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .fb-fab:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 12px 26px rgba(var(--ink-rgb), .28); }
 .fb-fab:focus-visible { outline: 3px solid var(--blue-tag, #6fb3d2); outline-offset: 2px; }
@@ -3147,7 +3150,7 @@ sup.remind-dot {
 /* ---------- Pomodoro ---------- */
 .pomo-fab-wrap {
   position: fixed;
-  left: 18px;
+  left: calc(236px + 18px);
   bottom: 18px;
   z-index: 94;
   display: flex;
@@ -3155,19 +3158,31 @@ sup.remind-dot {
   align-items: flex-start;
   gap: 10px;
 }
+@media (max-width: 1180px) {
+  .pomo-fab-wrap { left: calc(200px + 18px); }
+}
 .pomo-fab {
   width: 46px;
   height: 46px;
   border-radius: 50%;
   border: none;
   font-size: 22px;
-  cursor: pointer;
+  cursor: grab;
   background: var(--accent-btn, #c24e28);
   box-shadow: 0 8px 22px rgba(194, 78, 40, .35);
   transition: transform .2s ease, box-shadow .2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pomo-fab.fab-dragging,
+.fb-fab.fab-dragging {
+  cursor: grabbing;
+  transition: none;
+  transform: none;
 }
 .pomo-fab:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 12px 28px rgba(194, 78, 40, .42); }
 .pomo-fab:active { transform: scale(.95); }

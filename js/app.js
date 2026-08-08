@@ -877,6 +877,8 @@ const I18N = {
     pomoLongBreak: 'Nghỉ dài 🧘',
     pomoLongBreakDone: 'Hết giờ nghỉ dài! Bắt đầu chu kỳ mới 🍅',
     pomoSessionCount: 'Đã tập trung {n} lần',
+    fabDragHint: 'Kéo để di chuyển · Nhấp đúp để về vị trí mặc định',
+    fabDragReset: 'Đã đưa về vị trí mặc định',
     chatTitle: '🤖 Trợ lý học tập',
     chatWelcome: '👋 Chào bạn! Tôi là trợ lý học tập. Bạn cần hỗ trợ gì?',
     chatPh: 'Nhập câu hỏi của bạn...',
@@ -1322,6 +1324,8 @@ const I18N = {
     pomoLongBreak: 'Long break 🧘',
     pomoLongBreakDone: 'Long break done! Start a new cycle 🍅',
     pomoSessionCount: 'Focused {n} times',
+    fabDragHint: 'Drag to move · Double-click to reset position',
+    fabDragReset: 'Back to default position',
     chatTitle: '🤖 Study Assistant',
     chatWelcome: '👋 Hi! I am your study assistant. How can I help you?',
     chatPh: 'Type your question...',
@@ -4898,6 +4902,9 @@ function copyMonthTemplate() {
 
 const POMO_WORK = 25 * 60, POMO_BREAK = 5 * 60, POMO_LONG_BREAK = 25 * 60;
 let pomo = { mode: 'work', left: POMO_WORK, running: false, timer: null, sessionCount: 0, todayCount: 0 };
+// Timestamp (ms) khi phiên kết thúc — dùng để tính thời gian còn lại chính xác
+// kể cả khi tab ẩn (setInterval bị browser throttle ở tab nền).
+let pomoEndAt = 0;
 
 function renderPomo() {
   const mm = String(Math.floor(pomo.left / 60)).padStart(2, '0');
@@ -4925,56 +4932,89 @@ function renderPomo() {
   if (wB) wB.textContent = pomo.running ? t('pomoPause') : t('pomoStart');
 }
 
+function pomoDuration() {
+  return pomo.mode === 'work' ? POMO_WORK : (pomo.mode === 'longBreak' ? POMO_LONG_BREAK : POMO_BREAK);
+}
+
+// Cập nhật pomo.left từ đồng hồ thật — chạy được cả khi tab ẩn (visibilitychange/focus).
+function pomoSync() {
+  if (!pomo.running) return;
+  const left = Math.max(0, Math.ceil((pomoEndAt - Date.now()) / 1000));
+  if (left <= 0) {
+    pomoComplete();
+  } else {
+    pomo.left = left;
+    renderPomo();
+  }
+}
+
+// Hoàn thành phiên: ghi session, tự chuyển mode (work → break, sau 4 lần → long break).
+function pomoComplete() {
+  if (!pomo.running) return;
+  clearInterval(pomo.timer);
+  pomo.timer = null;
+  pomo.running = false;
+  const finished = pomo.mode;
+  trackEvent('pomodoro_complete', { mode: finished });
+  if (finished === 'work') {
+    pomoAddSession(POMO_WORK);
+    // Tăng session count và kiểm tra 4 lần → long break
+    const log = loadPomoLog();
+    const todayKey = pomoDateKey(new Date());
+    const todaySessions = log[todayKey] ? log[todayKey].count : 0;
+    if (todaySessions > 0 && todaySessions % 4 === 0) {
+      pomo.mode = 'longBreak';
+      TaskFlowUI.toast(t('pomoWorkDoneTxt') + ' · ' + t('pomoLongBreak'), 'success');
+    } else {
+      TaskFlowUI.toast(t('pomoDoneWork'), 'success');
+      pomo.mode = 'break';
+    }
+  } else if (finished === 'longBreak') {
+    TaskFlowUI.toast(t('pomoLongBreakDone'), 'success');
+    pomo.mode = 'work';
+  } else {
+    TaskFlowUI.toast(t('pomoDoneBreak'), 'success');
+    pomo.mode = 'work';
+  }
+  pomo.left = pomoDuration();
+  pomoEndAt = 0;
+  renderPomoWidgetStats();
+  renderPomo();
+  refreshFocusIfOpen();
+}
+
 function pomoStart() {
-  if (pomo.running) { clearInterval(pomo.timer); pomo.running = false; renderPomo(); return; }
+  if (pomo.running) {
+    clearInterval(pomo.timer);
+    pomo.timer = null;
+    pomo.running = false;
+    pomoEndAt = 0;
+    renderPomo();
+    return;
+  }
   pomo.running = true;
   trackEvent('pomodoro_start', { mode: pomo.mode });
-  pomo.timer = setInterval(() => {
-    pomo.left--;
-    if (pomo.left <= 0) {
-      clearInterval(pomo.timer);
-      pomo.running = false;
-      const finished = pomo.mode;
-      trackEvent('pomodoro_complete', { mode: finished });
-      if (finished === 'work') {
-        pomoAddSession(POMO_WORK);
-        // Tăng session count và kiểm tra 4 lần → long break
-        const log = loadPomoLog();
-        const todayKey = pomoDateKey(new Date());
-        const todaySessions = log[todayKey] ? log[todayKey].count : 0;
-        if (todaySessions > 0 && todaySessions % 4 === 0) {
-          pomo.mode = 'longBreak'; pomo.left = POMO_LONG_BREAK;
-          TaskFlowUI.toast(t('pomoWorkDoneTxt') + ' · ' + t('pomoLongBreak'), 'success');
-        } else {
-          TaskFlowUI.toast(t('pomoDoneWork'), 'success');
-          pomo.mode = 'break'; pomo.left = POMO_BREAK;
-        }
-      } else if (finished === 'longBreak') {
-        TaskFlowUI.toast(t('pomoLongBreakDone'), 'success');
-        pomo.mode = 'work'; pomo.left = POMO_WORK;
-      } else {
-        TaskFlowUI.toast(t('pomoDoneBreak'), 'success');
-        pomo.mode = 'work'; pomo.left = POMO_WORK;
-      }
-      renderPomoWidgetStats();
-    }
-    renderPomo();
-  }, 1000);
+  pomoEndAt = Date.now() + pomo.left * 1000;
+  pomo.timer = setInterval(pomoSync, 1000);
   renderPomo();
 }
 
 function pomoReset() {
   clearInterval(pomo.timer);
+  pomo.timer = null;
   pomo.running = false;
-  pomo.left = pomo.mode === 'work' ? POMO_WORK : (pomo.mode === 'longBreak' ? POMO_LONG_BREAK : POMO_BREAK);
+  pomoEndAt = 0;
+  pomo.left = pomoDuration();
   renderPomo();
 }
 
 function pomoSetMode(mode) {
   clearInterval(pomo.timer);
+  pomo.timer = null;
   pomo.running = false;
+  pomoEndAt = 0;
   pomo.mode = mode === 'break' ? 'break' : mode === 'longBreak' ? 'longBreak' : 'work';
-  pomo.left = pomo.mode === 'work' ? POMO_WORK : (pomo.mode === 'longBreak' ? POMO_LONG_BREAK : POMO_BREAK);
+  pomo.left = pomoDuration();
   renderPomo();
   trackEvent('pomodoro_mode', { mode: pomo.mode });
 }
@@ -6109,8 +6149,26 @@ document.addEventListener('click', (e) => {
     goSearchResult(el);
   } else if (act === 'tagfilter') {
     tagFilter = el.dataset.tag || null;
-    if (state.view === 'calendar') renderCalendar();
-    else renderWeek();
+    if (state.view === 'calendar') { renderCalendar(); }
+    else {
+      // Partial update: cập nhật filter bar + toggle class filtered-out trên
+      // các task row hiện có, tránh renderWeek() toàn bộ (giữ focus/scroll).
+      const bar = document.querySelector('.tag-filter-bar');
+      if (bar) {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = weekTagFilterBar();
+        bar.replaceWith(tmp.firstElementChild);
+      }
+      const weeks = state.weeks;
+      document.querySelectorAll('.task-row').forEach((row) => {
+        const wk = +row.dataset.week, dy = +row.dataset.day, ti = +row.dataset.task;
+        const w = Number.isFinite(wk) ? weeks[wk - 1] : null;
+        const d = w && Number.isFinite(dy) ? w.days[dy] : null;
+        const task = d && Number.isFinite(ti) ? d.tasks[ti] : null;
+        const tags = task && Array.isArray(task.tags) ? task.tags : [];
+        row.classList.toggle('filtered-out', !!tagFilter && !tags.includes(tagFilter));
+      });
+    }
   } else if (act === 'calendar-tagfilter') {
     const selectedTag = el.dataset.tag || '';
     if (!selectedTag) calendarTagFilters = [];
@@ -6181,7 +6239,11 @@ document.addEventListener('click', (e) => {
   } else if (act === 'mood') {
     moodMap[el.dataset.dayKey] = +el.dataset.mood;
     saveMood();
-    renderWeek();
+    // Partial update: chỉ toggle class 'on' trên mood buttons của ngày đó,
+    // tránh renderWeek() toàn bộ (mất focus/scroll khi đang thao tác view Tuần).
+    document.querySelectorAll(`[data-action="mood"][data-day-key="${el.dataset.dayKey}"]`).forEach((b) => {
+      b.classList.toggle('on', +b.dataset.mood === +el.dataset.mood);
+    });
   } else if (act === 'mood-pick') {
     openMoodPicker(+el.dataset.day);
   } else if (act === 'mood-set') {
@@ -6610,9 +6672,9 @@ setInterval(syncNow, 1000);
 
 // Đồng bộ lại ngay khi quay lại tab (trình duyệt làm chậm timer khi tab ẩn)
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) syncNow();
+  if (!document.hidden) { syncNow(); pomoSync(); }
 });
-window.addEventListener('focus', syncNow);
+window.addEventListener('focus', () => { syncNow(); pomoSync(); });
 
 /* ============================ Đồng bộ đám mây ============================ */
 
@@ -6977,10 +7039,131 @@ if (window.Sync) {
   window.Sync.init();
 }
 
+/* ---------- FAB kéo-thả (Pomodoro 🍅 + Chat 🤖) ---------- */
+
+const FAB_POS_KEYS = { pomo: 'planner-fab-pomo', chat: 'planner-fab-chat' };
+const FAB_MARGIN = 8; // lề tối thiểu so với mép viewport
+
+function loadFabPos(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || null; } catch (e) { return null; }
+}
+function saveFabPos(key, x, y) {
+  try { localStorage.setItem(key, JSON.stringify({ x, y })); } catch (e) { /* ẩn */ }
+}
+function clearFabPos(key) {
+  try { localStorage.removeItem(key); } catch (e) { /* ẩn */ }
+}
+
+// Chặn click sau khi vừa kéo thả (tránh mở panel do click phát sinh)
+let fabDragJustMoved = false;
+document.addEventListener('click', (e) => {
+  if (fabDragJustMoved) {
+    fabDragJustMoved = false;
+    e.stopPropagation();
+    e.preventDefault();
+  }
+}, true);
+
+function clampFabPos(x, y, w, h) {
+  // Mobile có bottom nav cố định (~82px) → chặn FAB kéo xuống dưới nav
+  const bottomPad = window.innerWidth <= 767 ? 82 : FAB_MARGIN;
+  return {
+    x: Math.min(Math.max(x, FAB_MARGIN), window.innerWidth - w - FAB_MARGIN),
+    y: Math.min(Math.max(y, FAB_MARGIN), window.innerHeight - h - bottomPad),
+  };
+}
+
+function initFabDrag(wrap, fab, key) {
+  const applyPos = (x, y) => {
+    const r = fab.getBoundingClientRect();
+    const c = clampFabPos(x, y, r.width, r.height);
+    wrap.style.left = c.x + 'px';
+    wrap.style.top = c.y + 'px';
+    wrap.style.right = 'auto';
+    wrap.style.bottom = 'auto';
+  };
+  const resetPos = () => {
+    wrap.style.left = '';
+    wrap.style.top = '';
+    wrap.style.right = '';
+    wrap.style.bottom = '';
+  };
+  // Áp vị trí đã lưu (nếu có) — dùng khi khởi động / đổi kích thước
+  const saved = loadFabPos(key);
+  if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
+    applyPos(saved.x, saved.y);
+  }
+  window.addEventListener('resize', () => {
+    const s = loadFabPos(key);
+    if (s) applyPos(s.x, s.y);
+  });
+  // Nhấp đúp → về vị trí mặc định (CSS)
+  fab.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    clearFabPos(key);
+    resetPos();
+    TaskFlowUI.toast(t('fabDragReset'), 'success');
+  });
+  // Kéo thả bằng pointer events (hợp cả chuột + cảm ứng)
+  let drag = null;
+  fab.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    const r = wrap.getBoundingClientRect();
+    drag = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: r.left,
+      origY: r.top,
+      moved: false,
+    };
+    fab.setPointerCapture(e.pointerId);
+    fab.classList.add('fab-dragging');
+    e.preventDefault();
+  });
+  fab.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+    if (!drag.moved) return;
+    applyPos(drag.origX + dx, drag.origY + dy);
+  });
+  const endDrag = (e) => {
+    if (!drag) return;
+    const wasMoved = drag.moved;
+    const r = wrap.getBoundingClientRect();
+    drag = null;
+    fab.classList.remove('fab-dragging');
+    if (wasMoved) {
+      saveFabPos(key, r.left, r.top);
+      fabDragJustMoved = true; // chặn click phát sinh sau khi kéo
+      // An toàn: nếu không có click nào phát sinh (vd pointercancel),
+      // tự xoá cờ ở sự kiện kế — tránh nuốt click không liên quan sau đó.
+      setTimeout(() => { fabDragJustMoved = false; }, 0);
+    }
+  };
+  fab.addEventListener('pointerup', endDrag);
+  fab.addEventListener('pointercancel', endDrag);
+}
+
+function initFabDrags() {
+  const pomoWrap = document.querySelector('.pomo-fab-wrap');
+  if (pomoWrap) {
+    const fab = pomoWrap.querySelector('.pomo-fab');
+    if (fab) initFabDrag(pomoWrap, fab, FAB_POS_KEYS.pomo);
+  }
+  const chatWrap = document.getElementById('chatFabWrap');
+  if (chatWrap) {
+    const fab = chatWrap.querySelector('.fb-fab');
+    if (fab) initFabDrag(chatWrap, fab, FAB_POS_KEYS.chat);
+  }
+}
+
 /* ---------- Khởi động phụ trợ (PWA, Analytics, Nhắc việc, Import) ---------- */
 
 initAnalytics();
 registerSW();
+initFabDrags();
 setInterval(checkDailyReminder, 30000);
 if (getRemindTime()) registerPeriodicReminder();
 setTimeout(syncReminderTimers, 1000);
