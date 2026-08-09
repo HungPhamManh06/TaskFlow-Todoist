@@ -500,6 +500,12 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
 }
 
 @media (max-width: 767px) {
+  /* Mobile UI polish: 1 biến nav height dùng chung (nav height, content bottom
+     padding, toast-region) — không hardcode 64/84/108px rải rác. */
+  :root {
+    --mobile-nav-height: 64px;
+  }
+
   .app-layout {
     display: block;
     min-height: 100dvh;
@@ -525,24 +531,33 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     display: none;
   }
 
+  /* Mobile UI polish: bỏ nút + trùng trong header (FAB bottom nav là CTA chính),
+     header chỉ còn title + period + search (không toolbar card). Specificity
+     cao hơn base .app-primary-action.button-primary (2 class). */
+  .app-topbar-actions .app-primary-action.button-primary {
+    display: none;
+  }
+
   .app-view-title {
-    font-size: .9375rem;
+    font-size: 1.0625rem;
   }
 
   .app-period {
-    font-size: .6875rem;
+    font-size: .75rem;
   }
 
-  .app-primary-action.button-primary {
+  .app-topbar-actions .icon-button {
     width: 44px;
     min-width: 44px;
     height: 44px;
     min-height: 44px;
-    padding: 0;
   }
 
   .app-workspace > .container {
-    padding: 16px 12px calc(108px + env(safe-area-inset-bottom));
+    /* Content bottom padding = nav height + safe area + 16px spacing — dùng
+       --mobile-nav-height (nav) để không hardcode, đảm bảo task cuối/calendar/
+       habits cuộn lên hết phía trên nav. */
+    padding: 16px 12px calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 16px);
   }
 
   .app-mobile-nav {
@@ -552,8 +567,8 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     display: grid;
     /* Bottom nav (redesign): Hôm nay / Sắp tới / + (FAB) / Thói quen / Thêm — đủ rộng 360–430px */
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    height: calc(64px + env(safe-area-inset-bottom));
-    min-height: calc(64px + env(safe-area-inset-bottom));
+    height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+    min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     border-block-start: 1px solid var(--color-border);
     padding: 2px 6px env(safe-area-inset-bottom);
     background: color-mix(in srgb, var(--color-surface) 96%, transparent);
@@ -594,9 +609,48 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     background: color-mix(in srgb, var(--color-accent) 10%, transparent);
   }
 
-  .app-mobile-nav-item .ui-icon {
+  /* Legacy-collision shield: styles.css load SAU app-shell.css nên class global
+     .tab (border-radius 999px, border 2px, surface bg, box-shadow, transform
+     hover) có cùng specificity và thắng theo source order. Scope theo #mobileNav
+     (ID) để các rule này luôn thắng dù styles.css có thêm rule mới. Mobile nav
+     KHÔNG dùng .tab (xem buildNav: mobileItem bỏ class tab) — updateNav active
+     qua [data-nav-view]. */
+  #mobileNav .app-mobile-nav-item {
+    appearance: none;
+    min-width: 44px;
+    min-height: 44px;
+    border: 0;
+    border-radius: 14px;
+    padding: 4px 2px;
+    color: var(--color-text-muted);
+    background: transparent;
+    box-shadow: none;
+    font: 650 11px/1.1 var(--font-body);
+    transform: none;
+  }
+
+  @media (hover: hover) {
+    #mobileNav .app-mobile-nav-item:hover {
+      background: color-mix(in srgb, var(--color-accent) 7%, transparent);
+    }
+  }
+
+  #mobileNav .app-mobile-nav-item.active {
+    border: 0;
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    box-shadow: none;
+    transform: none;
+  }
+
+  #mobileNav .app-mobile-nav-item .ui-icon {
     width: 22px;
     height: 22px;
+  }
+
+  #mobileNav .app-mobile-nav-add {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .app-mobile-nav-item span:last-child {
@@ -665,6 +719,14 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
 
   body .pomo-fab-wrap { left: 12px; }
   body .fb-fab-wrap { right: 12px; }
+
+  /* Mobile UI polish: bỏ 2 nút floating (Pomodoro 🍅 + Trợ lý 🤖) — CTA duy
+     nhất là FAB + giữa. Truy cập qua More sheet (Công cụ: Focus/Trợ lý/Báo
+     cáo). Wrap vẫn giữ để chatPop/pomoPanel hiển thị đúng khi toggle từ sheet. */
+  body .pomo-fab-wrap .pomo-fab,
+  body .fb-fab-wrap .fb-fab {
+    display: none;
+  }
 
   .tools-drawer {
     inset: auto 0 0;
@@ -760,6 +822,28 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
   padding: 10px 12px calc(14px + env(safe-area-inset-bottom));
 }
 
+/* Mobile UI polish: More sheet chia 3 nhóm (Điều hướng / Công cụ / Hệ thống) —
+   label nhỏ muted (11px, uppercase) + separator mảnh giữa nhóm, row ≥44px. */
+.more-sheet-group {
+  display: grid;
+  gap: 2px;
+}
+
+.more-sheet-group + .more-sheet-group {
+  border-block-start: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  margin-block-start: 8px;
+  padding-block-start: 8px;
+}
+
+.more-sheet-group-label {
+  padding: 2px 12px 6px;
+  color: var(--color-text-muted);
+  font: 700 11px/1.2 var(--font-body);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  opacity: .8;
+}
+
 .more-sheet-nav .app-nav-item {
   appearance: none;
   display: flex;
@@ -810,7 +894,9 @@ body.more-sheet-open {
   overflow: hidden;
 }
 
-body.more-sheet-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
+/* Chỉ ẩn nút floating khi sheet mở — wrap/panel giữ nguyên để Công cụ
+   (Trợ lý/Pomodoro) mở được từ More sheet (panel nằm trong wrap). */
+body.more-sheet-open :is(.pomo-fab, .fb-fab) {
   visibility: hidden;
   pointer-events: none;
 }

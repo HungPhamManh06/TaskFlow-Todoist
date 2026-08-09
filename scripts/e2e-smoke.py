@@ -119,7 +119,9 @@ def desktop_checks(browser, base, errors, screenshots):
     page.keyboard.press("4")
     page.wait_for_selector('[data-testid="calendar-view"]', state="visible")
 
-    page.locator('[data-action="pomo-toggle"]').click()
+    # Desktop giữ nút floating Pomodoro (.pomo-fab) — More sheet cũng có entry
+    # pomo-toggle nên cần selector cụ thể cho floating button.
+    page.locator('.pomo-fab').click()
     page.wait_for_selector('[data-testid="pomo-panel"]', state="visible")
     assert_no_overflow(page, "desktop after interactions")
     page.screenshot(path=screenshots["desktop"], full_page=True)

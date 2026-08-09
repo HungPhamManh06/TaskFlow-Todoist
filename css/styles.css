@@ -7320,14 +7320,31 @@ body.focus-mode .container { padding: 0; }
   border-radius: 16px;
   box-shadow: var(--shadow-panel, 0 18px 50px rgba(0, 0, 0, .18));
   padding: 20px;
+  /* Mobile UI polish: bàn phím mở không che input/submit — modal scroll nội bộ */
+  max-height: min(90dvh, calc(100dvh - 24px));
+  overflow-y: auto;
 }
 .quickadd-input { font-size: 1.05rem; width: 100%; }
 .quickadd-note { margin: 6px 0 0; font: 600 .82rem var(--font-body); color: var(--accent, #C24E28); min-height: 1.1em; }
 .quickadd-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: var(--space-2, 8px);
+  gap: 10px;
   margin: 14px 0;
+}
+
+/* Mobile UI polish: metadata 2 cột (Ngày|Giờ / Thời lượng|Ưu tiên) — không
+   dồn 4 field vào 1 hàng, chỉ áp dụng mobile (desktop giữ auto-fit 4 cột). */
+@media (max-width: 430px) {
+  .quickadd-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .quickadd-fields {
+    grid-template-columns: 1fr;
+  }
 }
 .quickadd-fields .pop-field { margin: 0; }
 .quickadd-fields input[type="date"],

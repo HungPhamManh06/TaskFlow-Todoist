@@ -256,7 +256,9 @@ textarea:focus-visible,
 
 @media (max-width: 767px) {
   .toast-region {
-    inset-block-end: calc(84px + env(safe-area-inset-bottom));
+    /* Dùng --mobile-nav-height (khai báo trong app-shell.css media block) +
+       safe area + 16px — không hardcode 84px. */
+    inset-block-end: calc(var(--mobile-nav-height, 64px) + env(safe-area-inset-bottom) + 16px);
   }
 }
 

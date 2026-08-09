@@ -814,8 +814,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=141/);
-  assert.match(SW, /const CACHE = 'taskflow-v158';/);
+  assert.match(APP, /js\/app\.min\.js\?v=143/);
+  assert.match(SW, /const CACHE = 'taskflow-v162';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1238,14 +1238,22 @@ test('Mobile bottom-nav redesign: Today/Upcoming/FAB/Habits/More + sheet chứa 
   assert.match(APP_JS, /actionBtn\('focus'/);
   assert.match(APP_JS, /actionBtn\('report'/);
   assert.match(APP_JS, /actionBtn\('tools-open', 'settings'/);
+  // Mobile UI polish: More sheet chia 3 nhóm (Điều hướng/Công cụ/Hệ thống) —
+  // Trợ lý (chat-toggle) thay cho nút floating 🤖; sheet có group label.
+  assert.match(APP_JS, /const moreGroups = \[/);
+  assert.match(APP_JS, /actionBtn\('chat-toggle', 'help'/);
+  assert.match(APP_JS, /more-sheet-group-label/);
   // Week không còn là tab chính mobile
   assert.doesNotMatch(APP_JS, /mobileItem\(byView\.week\)/);
   // View trong More sheet → highlight nút Thêm (luôn ĐÚNG MỘT active trên mobile)
   assert.match(APP_JS, /const MORE_SHEET_VIEWS = \['inbox', 'week', 'overview', 'year', 'calendar'\]/);
   assert.match(APP_JS, /moreBtn\.classList\.toggle\('active', moreActive\)/);
-  // CSS: thanh 64px, active chỉ 1 tab với accent bg nhẹ (10%), hover chỉ khi hover-capable
+  // CSS: thanh dùng --mobile-nav-height (64px), active chỉ 1 tab accent 10%, hover hover-only
   const shell = readRequiredAsset('css/app-shell.css');
-  assert.match(shell, /\.app-mobile-nav\s*{[^}]*height:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/s);
+  assert.match(shell, /:root\s*{[^}]*--mobile-nav-height:\s*64px/s);
+  assert.match(shell, /\.app-mobile-nav\s*{[^}]*height:\s*calc\(var\(--mobile-nav-height\) \+ env\(safe-area-inset-bottom\)\)/s);
+  assert.match(shell, /\.more-sheet-group-label\s*{[^}]*text-transform:\s*uppercase/s);
+  assert.match(shell, /body \.pomo-fab-wrap \.pomo-fab,\s*body \.fb-fab-wrap \.fb-fab\s*{[^}]*display:\s*none/s);
   assert.match(shell, /@media \(hover: hover\)/);
   assert.match(shell, /\.app-mobile-nav-item\.active\s*{[^}]*color-mix\(in srgb, var\(--color-accent\) 10%/s);
   assert.match(shell, /\.app-mobile-nav-fab\s*{[^}]*width:\s*54px[^}]*border-radius:\s*999px/s);
@@ -1253,6 +1261,16 @@ test('Mobile bottom-nav redesign: Today/Upcoming/FAB/Habits/More + sheet chứa 
   // drag handle bottom sheet
   assert.match(APP, /more-sheet-grip/);
   assert.match(shell, /\.more-sheet-grip/);
+  // Legacy-collision fix: mobileItem KHÔNG dùng class .tab (pill-style cũ trong
+  // styles.css: border-radius 999px + border 2px + surface bg) — updateNav active
+  // qua [data-nav-view]. Defensive rule scoped #mobileNav (ID) thắng source order.
+  assert.doesNotMatch(APP_JS, /app-mobile-nav-item tab/);
+  assert.match(APP_JS, /class="app-mobile-nav-item" role="tab"/);
+  assert.match(shell, /#mobileNav \.app-mobile-nav-item\s*{[^}]*border-radius:\s*14px/s);
+  assert.match(shell, /#mobileNav \.app-mobile-nav-item\s*{[^}]*background:\s*transparent/s);
+  assert.match(shell, /#mobileNav \.app-mobile-nav-item\.active\s*{[^}]*color-mix\(in srgb, var\(--color-accent\) 10%/s);
+  // Desktop sidebar vẫn giữ .tab (không đổi)
+  assert.match(APP_JS, /class="app-nav-item tab"/);
 });
 
 test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source giữ readable', () => {
@@ -1262,12 +1280,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=141/);
-  assert.match(APP, /css\/styles\.min\.css\?v=97/);
+  assert.match(APP, /js\/app\.min\.js\?v=143/);
+  assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v158';/);
+  assert.match(SW, /const CACHE = 'taskflow-v162';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1590,7 +1608,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v158';/);
+  assert.match(SW, /const CACHE = 'taskflow-v162';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1668,7 +1686,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v158';/);
+  assert.match(SW, /const CACHE = 'taskflow-v162';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',

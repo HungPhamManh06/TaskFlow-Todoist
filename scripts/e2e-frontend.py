@@ -526,13 +526,19 @@ def dialog_checks(browser, base, width, height, errors, screenshot):
     assert page.locator('[data-testid="toast-region"] .toast-success', has_text="Saved").count() == 1
 
     if width <= 390:
-        page.locator('[data-action="chat-toggle"]').click()
+        # Mobile UI polish: nút floating Focus/AI đã ẩn — Trợ lý + Pomodoro mở
+        # qua More sheet (Công cụ group), hành vi panel giữ nguyên.
+        page.locator('#mobileNav [data-action="more"]').click()
+        page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+        page.locator('#moreSheet [data-action="chat-toggle"]').click()
         assert page.locator('[data-testid="chat-pop"]:visible').count() == 1
-        page.locator('[data-action="pomo-toggle"]').click()
+        page.locator('#moreSheet [data-action="pomo-toggle"]').click()
         assert page.locator('[data-testid="chat-pop"]:visible').count() == 0
         assert page.locator('[data-testid="pomo-panel"]:visible').count() == 1
-        page.locator('[data-action="chat-toggle"]').click()
+        page.locator('#moreSheet [data-action="chat-toggle"]').click()
         assert page.locator('[data-testid="pomo-panel"]:visible').count() == 0
+        page.keyboard.press("Escape")
+        page.wait_for_selector('[data-testid="more-sheet"]', state="hidden")
 
     assert_no_page_overflow(page, f"dialogs {width}px")
     page.screenshot(path=screenshot, full_page=False)

@@ -4799,7 +4799,10 @@ function buildNav() {
     // Chỉ view thật (Today/Upcoming) là tab có data-nav-view → updateNav active ĐÚNG MỘT tab.
     // + / Thói quen / Thêm là ACTION (không data-nav-view) → không bao giờ active.
     // More mở bottom sheet: Inbox, Tuần, Tổng quan, Năm, Lịch + Focus, Báo cáo, Cài đặt.
-    const mobileItem = (item) => `<button type="button" class="app-mobile-nav-item tab" role="tab"
+    // Không thêm class .tab (legacy pill-style trong styles.css) — nó ghi đè
+    // border-radius 999px + border + surface background lên nav mobile mới.
+    // updateNav() active qua [data-nav-view], không cần .tab.
+    const mobileItem = (item) => `<button type="button" class="app-mobile-nav-item" role="tab"
       id="mobile-${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
       ${item.week ? `data-week="${item.week}"` : ''}>
       ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
@@ -4820,12 +4823,24 @@ function buildNav() {
       const sheetItem = (item) => `<button type="button" class="app-nav-item" data-action="nav" ${navAttributes[item.view]}
         ${item.week ? `data-week="${item.week}"` : ''}>
         ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
-      moreSheetNav.innerHTML =
-        MORE_SHEET_VIEWS.map((v) => byView[v]).filter(Boolean)
-          .map((item) => sheetItem(item)).join('') +
-        actionBtn('focus', 'focus', shellNavLabel(t('focusOpen'))) +
-        actionBtn('report', 'report', shellNavLabel(t('reportTitle'))) +
-        actionBtn('tools-open', 'settings', t('moreSettings'));
+      // Mobile UI polish: More sheet chia 3 nhóm — Điều hướng / Công cụ (Focus,
+      // Trợ lý, Báo cáo — thay cho 2 nút floating trên mobile) / Hệ thống.
+      const moreGroups = [
+        { label: t('moreSheetTitle'), items: MORE_SHEET_VIEWS.map((v) => byView[v]).filter(Boolean).map((it) => sheetItem(it)) },
+        { label: t('moreGroupTools'), items: [
+          actionBtn('focus', 'focus', shellNavLabel(t('focusOpen'))),
+          actionBtn('chat-toggle', 'help', shellNavLabel(t('chatTitle'))),
+          actionBtn('report', 'report', shellNavLabel(t('reportTitle'))),
+          actionBtn('pomo-toggle', 'bell', shellNavLabel(t('pomoWidgetTitle'))),
+        ] },
+        { label: t('moreGroupSystem'), items: [
+          actionBtn('tools-open', 'settings', t('moreSettings')),
+        ] },
+      ];
+      moreSheetNav.innerHTML = moreGroups.map((g) => `<div class="more-sheet-group">
+        <span class="more-sheet-group-label">${esc(g.label)}</span>
+        ${g.items.join('')}
+      </div>`).join('');
     }
   }
   renderShellIcons();
