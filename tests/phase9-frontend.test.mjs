@@ -224,10 +224,12 @@ test('responsive tools drawer keeps month navigation and history actions reachab
 });
 
 test('month and undo state updates synchronize every responsive shell control', () => {
-  assert.match(APP_JS, /querySelectorAll\('\[data-action="monthselect"\]'\)/);
+  // monthselect nav đã tách sang js/shell.js (P11 extraction 19) — assert chuyển sang module
   assert.match(APP_JS, /querySelectorAll\('\[data-action="undo"\]'\)/);
   assert.match(APP_JS, /querySelectorAll\('\[data-action="redo"\]'\)/);
   assert.doesNotMatch(APP_JS, /const sel = document\.getElementById\('monthSelect'\)/);
+  const shellMod = readRequiredAsset('js/shell.js');
+  assert.match(shellMod, /querySelectorAll\('\[data-action="monthselect"\]'\)/);
 });
 
 test('navigation renderer synchronizes every desktop and mobile destination', () => {
@@ -790,8 +792,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.js + sw cache
-  assert.match(APP, /js\/app\.js\?v=125/);
-  assert.match(SW, /const CACHE = 'taskflow-v139';/);
+  assert.match(APP, /js\/app\.js\?v=129/);
+  assert.match(SW, /const CACHE = 'taskflow-v143';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -837,6 +839,117 @@ test('P11: date helpers extracted — fmtDate/isDayToday/dayLabelShort live in j
   const mod = readRequiredAsset('js/dates.js');
   assert.match(mod, /return \{ fmtDate, isDayToday, dayLabelShort \}/);
   assert.match(mod, /TaskFlowI18N/);
+});
+
+test('P11: sync UI helpers extracted — syncStatusText/updateSyncStatus/syncFormValues/syncErrorText live in js/syncui.js', () => {
+  // app.html loads syncui.js before app.js
+  assert.match(APP, /src="js\/syncui\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const sIdx = APP.indexOf('js/syncui.js?v=');
+  assert.ok(sIdx >= 0 && sIdx < appIdx, 'syncui.js phải load trước app.js');
+  // sw.js precache syncui.js
+  assert.ok(SW.includes("'./js/syncui.js'"), 'sw.js phải precache js/syncui.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowSyncUI\) throw new Error\('TaskFlowSyncUI missing/);
+  assert.match(APP_JS, /const \{ syncStatusText, updateSyncStatus, syncFormValues, syncErrorText \} = window\.TaskFlowSyncUI;/);
+  assert.doesNotMatch(APP_JS, /^function syncStatusText\(/m);
+  assert.doesNotMatch(APP_JS, /^function updateSyncStatus\(/m);
+  assert.doesNotMatch(APP_JS, /^function syncFormValues\(/m);
+  assert.doesNotMatch(APP_JS, /^function syncErrorText\(/m);
+  // call-sites giữ nguyên trong app.js (qua alias)
+  assert.match(APP_JS, /syncErrorText\(r && r\.error\)/);
+  assert.match(APP_JS, /const \{ user, pass, pass2 \} = syncFormValues\(\)/);
+  assert.match(APP_JS, /updateSyncStatus\(\);/);
+  // setSyncMode + syncMode state giữ nguyên trong app.js
+  assert.match(APP_JS, /^let syncMode = 'login';/m);
+  assert.match(APP_JS, /^function setSyncMode\(/m);
+  // module export đủ API + accessor pattern
+  const mod = readRequiredAsset('js/syncui.js');
+  assert.match(mod, /return \{ syncStatusText, updateSyncStatus, syncFormValues, syncErrorText \}/);
+  assert.match(mod, /syncStatusConnecting/);
+  assert.match(mod, /syncErrUsernameTaken/);
+  assert.match(mod, /TaskFlowI18N/);
+  assert.match(mod, /window\.Sync/);
+});
+
+test('P11: mini plan/report helpers extracted — psStart/shortMonth live in js/planmini.js', () => {
+  // app.html loads planmini.js before app.js
+  assert.match(APP, /src="js\/planmini\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const pmIdx = APP.indexOf('js/planmini.js?v=');
+  assert.ok(pmIdx >= 0 && pmIdx < appIdx, 'planmini.js phải load trước app.js');
+  // sw.js precache planmini.js
+  assert.ok(SW.includes("'./js/planmini.js'"), 'sw.js phải precache js/planmini.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowPlanMini\) throw new Error\('TaskFlowPlanMini missing/);
+  assert.match(APP_JS, /const \{ psStart, shortMonth \} = window\.TaskFlowPlanMini;/);
+  assert.doesNotMatch(APP_JS, /^function psStart\(/m);
+  assert.doesNotMatch(APP_JS, /^function shortMonth\(/m);
+  // call-sites giữ nguyên trong app.js (qua alias)
+  assert.match(APP_JS, /new Date\(psStart\(srcState, srcY, srcM\)\)/);
+  assert.match(APP_JS, /shortMonth\(r\.topMonth\)/);
+  assert.match(APP_JS, /focusReportBars\(r\.focusByMonth, \(i\) => shortMonth\(i\)\)/);
+  // module export đủ API + accessor pattern
+  const mod = readRequiredAsset('js/planmini.js');
+  assert.match(mod, /return \{ psStart, shortMonth \}/);
+  assert.match(mod, /TaskFlowI18N/);
+  assert.match(mod, /MONTH_NAMES/);
+});
+
+test('P11: now/clock helpers extracted — nowInfo/renderClock live in js/clock.js', () => {
+  // app.html loads clock.js before app.js
+  assert.match(APP, /src="js\/clock\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const cIdx = APP.indexOf('js/clock.js?v=');
+  assert.ok(cIdx >= 0 && cIdx < appIdx, 'clock.js phải load trước app.js');
+  // sw.js precache clock.js
+  assert.ok(SW.includes("'./js/clock.js'"), 'sw.js phải precache js/clock.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowClock\) throw new Error\('TaskFlowClock missing/);
+  assert.match(APP_JS, /const \{ nowInfo, renderClock \} = window\.TaskFlowClock;/);
+  assert.doesNotMatch(APP_JS, /^function nowInfo\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderClock\(/m);
+  // call-sites đổi signature: nowInfo(PLAN_START, NUM_DAYS) + renderClock() giữ nguyên
+  assert.match(APP_JS, /nowInfo\(PLAN_START, NUM_DAYS\)/);
+  assert.match(APP_JS, /renderClock\(\);/);
+  assert.doesNotMatch(APP_JS, /nowInfo\(\)/);
+  // REGRESSION GUARD: destructure phải TRƯỚC top-level `state = bootState()` (gọi
+  // loadState → nowInfo) — tránh TDZ 'Cannot access nowInfo before initialization'
+  assert.ok(APP_JS.indexOf('window.TaskFlowClock') < APP_JS.indexOf('let state = bootState()'),
+    'clock destructure phải TRƯỚC top-level bootState() — tránh TDZ nowInfo');
+  // module export đủ API + accessor pattern
+  const mod = readRequiredAsset('js/clock.js');
+  assert.match(mod, /return \{ nowInfo, renderClock \}/);
+  assert.match(mod, /TaskFlowDates/);
+  assert.match(mod, /TaskFlowI18N/);
+});
+
+test('P11: plan shell helpers extracted — monthKey/updateBrand/buildMonthNav live in js/shell.js', () => {
+  // app.html loads shell.js before app.js
+  assert.match(APP, /src="js\/shell\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const shIdx = APP.indexOf('js/shell.js?v=');
+  assert.ok(shIdx >= 0 && shIdx < appIdx, 'shell.js phải load trước app.js');
+  // sw.js precache shell.js
+  assert.ok(SW.includes("'./js/shell.js'"), 'sw.js phải precache js/shell.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowShell\) throw new Error\('TaskFlowShell missing/);
+  assert.match(APP_JS, /const \{ monthKey, updateBrand, buildMonthNav \} = window\.TaskFlowShell;/);
+  assert.doesNotMatch(APP_JS, /^function monthKey\(/m);
+  assert.doesNotMatch(APP_JS, /^function updateBrand\(/m);
+  assert.doesNotMatch(APP_JS, /^function buildMonthNav\(/m);
+  // call-sites đổi signature: nhận PLAN_YEAR/PLAN_MONTH tham số
+  assert.match(APP_JS, /monthKey\(PLAN_YEAR, PLAN_MONTH\)/);
+  assert.match(APP_JS, /updateBrand\(PLAN_YEAR, PLAN_MONTH\)/);
+  assert.doesNotMatch(APP_JS, /monthKey\(\)/);
+  // REGRESSION GUARD (bài học extraction 18 TDZ): destructure phải TRƯỚC bootState
+  assert.ok(APP_JS.indexOf('window.TaskFlowShell') < APP_JS.indexOf('let state = bootState()'),
+    'shell destructure phải TRƯỚC top-level bootState() — tránh TDZ monthKey');
+  // module export đủ API + accessor pattern
+  const mod = readRequiredAsset('js/shell.js');
+  assert.match(mod, /return \{ monthKey, updateBrand, buildMonthNav \}/);
+  assert.match(mod, /TaskFlowI18N/);
+  assert.match(mod, /querySelectorAll\('\[data-action="monthselect"\]'\)/);
 });
 
 test('P11: account core extracted — helpers live in js/account.js, app.js keeps aliases', () => {
@@ -1147,7 +1260,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v139';/);
+  assert.match(SW, /const CACHE = 'taskflow-v143';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -1225,7 +1338,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v139';/);
+  assert.match(SW, /const CACHE = 'taskflow-v143';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',

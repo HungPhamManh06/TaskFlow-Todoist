@@ -19,6 +19,10 @@ import Export from '../js/export.js';
 import Streak from '../js/streak.js';
 import Goals from '../js/goals.js';
 import Fab from '../js/fab.js';
+import SyncUI from '../js/syncui.js';
+import PlanMini from '../js/planmini.js';
+import Clock from '../js/clock.js';
+import Shell from '../js/shell.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
@@ -890,6 +894,106 @@ test('P11: fab.js drag/tuck helpers giữ nguyên behavior sau khi tách', () =>
     if (hadLS) globalThis.localStorage = savedLS; else delete globalThis.localStorage;
     if (hadWindow) globalThis.window = savedWindow; else delete globalThis.window;
   }
+});
+
+test('P11: syncui.js sync helpers giữ nguyên behavior sau khi tách', () => {
+  // syncStatusText/syncErrorText: map t() keys qua TaskFlowI18N mock
+  const savedI18n = globalThis.TaskFlowI18N;
+  const hadWindow = typeof globalThis.window !== 'undefined';
+  const savedWindow = hadWindow ? globalThis.window : null;
+  try {
+    globalThis.TaskFlowI18N = { t: (k) => '[' + k + ']' };
+    globalThis.window = { Sync: null };
+    // syncStatusText: mọi trạng thái → key tương ứng
+    assert.equal(SyncUI.syncStatusText('connecting'), '[syncStatusConnecting]');
+    assert.equal(SyncUI.syncStatusText('syncing'), '[syncStatusSyncing]');
+    assert.equal(SyncUI.syncStatusText('ready'), '[syncStatusReady]');
+    assert.equal(SyncUI.syncStatusText('signedout'), '[syncStatusSignedOut]');
+    assert.equal(SyncUI.syncStatusText('error'), '[syncStatusError]');
+    assert.equal(SyncUI.syncStatusText('anything-else'), '[syncStatusOff]');
+    // syncErrorText: mọi code → key tương ứng
+    assert.equal(SyncUI.syncErrorText('username-taken'), '[syncErrUsernameTaken]');
+    assert.equal(SyncUI.syncErrorText('bad-credentials'), '[syncErrBadCredentials]');
+    assert.equal(SyncUI.syncErrorText('network'), '[syncErrNetwork]');
+    assert.equal(SyncUI.syncErrorText('no-config'), '[syncNeedConfig]');
+    assert.equal(SyncUI.syncErrorText('too-many-requests'), '[syncErrRateLimited]');
+    assert.equal(SyncUI.syncErrorText('xyz'), '[syncErrServer]');
+    // updateSyncStatus + syncFormValues: không có Sync + không có DOM node → return sớm (không throw)
+    assert.doesNotThrow(() => SyncUI.updateSyncStatus());
+    assert.deepEqual(SyncUI.syncFormValues(), { user: '', pass: '', pass2: '' });
+  } finally {
+    if (savedI18n === undefined) delete globalThis.TaskFlowI18N; else globalThis.TaskFlowI18N = savedI18n;
+    if (hadWindow) globalThis.window = savedWindow; else delete globalThis.window;
+  }
+});
+
+test('P11: planmini.js psStart/shortMonth giữ nguyên behavior sau khi tách', () => {
+  // psStart: state.start được ưu tiên; thiếu → fallback ngày 1
+  const d0 = new Date(2026, 6, 20);
+  assert.equal(PlanMini.psStart({ start: d0 }, 2026, 7), d0);
+  const fallback = PlanMini.psStart(null, 2026, 7);
+  assert.equal(fallback.getFullYear(), 2026);
+  assert.equal(fallback.getMonth(), 7);
+  assert.equal(fallback.getDate(), 1);
+  // shortMonth: vi → T1..T12; en → JAN..DEC (via TaskFlowI18N mock)
+  const savedI18n = globalThis.TaskFlowI18N;
+  try {
+    globalThis.TaskFlowI18N = {
+      getLang: () => 'vi',
+      MONTH_NAMES: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    };
+    assert.equal(PlanMini.shortMonth(0), 'T1');
+    assert.equal(PlanMini.shortMonth(11), 'T12');
+    globalThis.TaskFlowI18N = {
+      getLang: () => 'en',
+      MONTH_NAMES: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    };
+    assert.equal(PlanMini.shortMonth(0), 'JAN');
+    assert.equal(PlanMini.shortMonth(8), 'SEP');
+    // thiếu TaskFlowI18N → fallback số (không throw)
+    delete globalThis.TaskFlowI18N;
+    assert.equal(PlanMini.shortMonth(2), '3');
+    assert.equal(PlanMini.psStart({}, 2026, 0).getDate(), 1);
+  } finally {
+    if (savedI18n === undefined) delete globalThis.TaskFlowI18N; else globalThis.TaskFlowI18N = savedI18n;
+  }
+});
+
+test('P11: clock.js nowInfo/renderClock giữ nguyên behavior sau khi tách', () => {
+  // nowInfo: tính vị trí trong plan grid từ planStart + numDays
+  const y = 2026, m = 7; // tháng 8/2026
+  const planStart = new Date(y, m, 1);
+  const numDays = new Date(y, m + 1, 0).getDate();
+  const today = new Date();
+  const inRange = today.getFullYear() === y && today.getMonth() === m;
+  const ti = Clock.nowInfo(planStart, numDays);
+  assert.ok(ti.now instanceof Date);
+  assert.equal(ti.dayIdx, Math.floor((today - planStart) / 86400000));
+  assert.equal(ti.inRange, inRange);
+  if (inRange) {
+    assert.equal(ti.week, Math.floor(ti.dayIdx / 7) + 1);
+    assert.equal(ti.habitCol, ti.dayIdx);
+  } else {
+    assert.equal(ti.week, null);
+    assert.equal(ti.habitCol, -1);
+  }
+  // ngoài range (quá khứ xa) → inRange false
+  const past = Clock.nowInfo(new Date(2000, 0, 1), 30);
+  assert.equal(past.inRange, false);
+  assert.equal(past.week, null);
+  // renderClock: không có document → return sớm (không throw)
+  assert.doesNotThrow(() => Clock.renderClock());
+});
+
+test('P11: shell.js monthKey/updateBrand/buildMonthNav giữ nguyên behavior sau khi tách', () => {
+  // monthKey: 'planner-Y-M' với month 0-based + 1
+  assert.equal(Shell.monthKey(2026, 7), 'planner-2026-8');
+  assert.equal(Shell.monthKey(2026, 0), 'planner-2026-1');
+  assert.equal(Shell.monthKey(1999, 11), 'planner-1999-12');
+  // buildMonthNav: không có document → return sớm (không throw)
+  assert.doesNotThrow(() => Shell.buildMonthNav(2026, 7));
+  // updateBrand: không có document → không throw
+  assert.doesNotThrow(() => Shell.updateBrand(2026, 7));
 });
 
 test('P11: util.js helpers giữ nguyên behavior sau khi tách', () => {

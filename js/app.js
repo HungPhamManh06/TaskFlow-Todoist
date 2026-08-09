@@ -110,27 +110,11 @@ function initPlan(now) {
   NUM_WEEKS = Math.ceil((dow + NUM_DAYS) / 7); // 4..6 tuần
 }
 
-function monthKey() {
-  return 'planner-' + PLAN_YEAR + '-' + (PLAN_MONTH + 1);
-}
-
-function updateBrand() {
-  const el = document.getElementById('brandTitle');
-  if (el) el.textContent = 'TaskFlow';
-  const s = document.getElementById('brandSub');
-  if (s) s.hidden = true;
-  document.title = 'TaskFlow';
-  buildMonthNav();
-}
-
-function buildMonthNav() {
-  const options = MONTH_NAMES.map((n, m) => `<option value="${m}">${t('monthOption', { m: monthLabel(m), n: m + 1, y: PLAN_YEAR })}</option>`).join('');
-  document.querySelectorAll('[data-action="monthselect"]').forEach((select) => {
-    select.innerHTML = options;
-    select.value = String(PLAN_MONTH);
-  });
-}
-
+// monthKey/updateBrand/buildMonthNav được tách sang js/shell.js (window.TaskFlowShell) —
+// đổi signature: monthKey(py, pm) + updateBrand(py, pm) + buildMonthNav(py, pm) nhận tham số.
+// Destructure phải TRƯỚC top-level `state = bootState()` (defaultState/loadState dùng monthKey).
+if (!window.TaskFlowShell) throw new Error('TaskFlowShell missing — js/shell.js failed to load');
+const { monthKey, updateBrand, buildMonthNav } = window.TaskFlowShell;
 /* ============================ Kế hoạch năm ============================ */
 
 function yearKey() {
@@ -429,6 +413,10 @@ function getVisibleWidgets(view) {
 // sang js/i18n.js (window.TaskFlowI18N). Giữ alias để call-sites không đổi.
 if (!window.TaskFlowI18N) throw new Error('TaskFlowI18N missing — js/i18n.js failed to load');
 const { I18N, t, monthLabel, dayLabel, fmtDeadline, dateLocale, getLang, setLangCore, applyStaticI18N } = window.TaskFlowI18N;
+// nowInfo/renderClock tách sang js/clock.js (window.TaskFlowClock) — destructure
+// phải TRƯỚC top-level `state = bootState()` (gọi loadState → nowInfo).
+if (!window.TaskFlowClock) throw new Error('TaskFlowClock missing — js/clock.js failed to load');
+const { nowInfo, renderClock } = window.TaskFlowClock;
 
 function setLang(l) {
   setLangCore(l);
@@ -436,7 +424,7 @@ function setLang(l) {
   applyStaticI18N();
   applySidebarCollapse();
   setSyncMode(syncMode);
-  updateBrand();
+  updateBrand(PLAN_YEAR, PLAN_MONTH);
   buildNav();
   if (state.view === 'today') renderToday();
   else if (state.view === 'overview') renderOverview();
@@ -743,7 +731,7 @@ function applyRecurrence() {
   // Lỗi cũ: scan "alreadyExists" quét cả ngày quá khứ (gồm chính task đang xét) → luôn
   // true → không bao giờ sinh; giờ chuyển logic thuần sang PlanMath.planRecurrence
   // (chỉ so sánh với task từ hôm nay trở đi) và push bản sao vào ĐÚNG ngày hôm nay.
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   if (!ti.inRange || !window.PlanMath || !window.PlanMath.planRecurrence) return; // hôm nay ngoài kỳ kế hoạch → không có chỗ sinh
   const todayDay = state.weeks[ti.week - 1] && state.weeks[ti.week - 1].days[ti.dayInWeek];
   if (!todayDay) return;
@@ -1025,7 +1013,7 @@ function templatesPopHTML() {
 
 function demoPlan() {
   const now = new Date();
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   const today = now.getDate() - 1;
   const isEn = getLang() === 'en';
   if (!state.monthlyGoals.length) {
@@ -1453,14 +1441,14 @@ function seedTasks(pct) {
 }
 
 function defaultState() {
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   return {
     view: 'today',
     currentWeek: ti.inRange ? ti.week : 1,
     dayWeek: ti.inRange ? ti.week : 1,
     dayDay: ti.inRange ? ti.dayInWeek : 0,
     goalTab: 'priority',
-    monthKey: monthKey(),
+    monthKey: monthKey(PLAN_YEAR, PLAN_MONTH),
     monthlyGoals: GOAL_DEFS.map(([text, kind, done], i) => ({ id: 'g' + i, text, kind, done })),
     habits: HABIT_DEFS.map(([name, target], i) => ({ id: 'h' + i, name, target, days: seedHabitDays(target) })),
     weeks: WEEK_PATTERNS.slice(0, NUM_WEEKS).map((wd, wi) => {
@@ -1489,18 +1477,18 @@ function defaultState() {
 
 function loadState() {
   try {
-    let raw = localStorage.getItem(monthKey());
+    let raw = localStorage.getItem(monthKey(PLAN_YEAR, PLAN_MONTH));
     // Chỉ dùng dữ liệu legacy cho khách vãng lai; tài khoản đã đăng nhập không kế thừa key cũ
-    if (!raw && monthKey() === 'planner-2026-1' && !hasAccount()) raw = localStorage.getItem(LEGACY_KEY);
+    if (!raw && monthKey(PLAN_YEAR, PLAN_MONTH) === 'planner-2026-1' && !hasAccount()) raw = localStorage.getItem(LEGACY_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s || !Array.isArray(s.monthlyGoals) || !Array.isArray(s.habits) || !Array.isArray(s.weeks)) return null;
-    if (s.monthKey !== monthKey() || s.weeks.length !== NUM_WEEKS) return null;
+    if (s.monthKey !== monthKey(PLAN_YEAR, PLAN_MONTH) || s.weeks.length !== NUM_WEEKS) return null;
     if (!s.reflections || !Array.isArray(s.reflections.weeks) || s.reflections.weeks.length !== NUM_WEEKS) s.reflections = defaultState().reflections;
     if (!s.goalTab) s.goalTab = 'priority';
     if (typeof s.currentWeek !== 'number' || s.currentWeek < 1 || s.currentWeek > NUM_WEEKS) s.currentWeek = 1;
     // Migration: vị trí Xem ngày (tuần + ngày trong tuần) — mặc định về hôm nay nếu hợp lệ
-    const tiMig = nowInfo();
+    const tiMig = nowInfo(PLAN_START, NUM_DAYS);
     if (typeof s.dayWeek !== 'number' || s.dayWeek < 1 || s.dayWeek > NUM_WEEKS) s.dayWeek = tiMig.inRange ? tiMig.week : 1;
     if (typeof s.dayDay !== 'number' || s.dayDay < 0 || s.dayDay > 6) s.dayDay = tiMig.inRange ? tiMig.dayInWeek : 0;
     if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar' && s.view !== 'today' && s.view !== 'day' && s.view !== 'upcoming' && s.view !== 'inbox') s.view = 'today';
@@ -1519,7 +1507,7 @@ function loadState() {
     });
     // Lưu uid mới sinh ngay (không gọi save() — state global đang trong TDZ lúc load khởi động)
     if (tasksDirty) {
-      try { localStorage.setItem(monthKey(), JSON.stringify(s)); } catch (e) { /* ẩn */ }
+      try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(s)); } catch (e) { /* ẩn */ }
     }
     // Đồng bộ streak với số tích ✓: khi xem tháng hiện tại, tự bỏ tick các ngày tương lai
     // (dữ liệu cũ / seed trước đây từng tick cả tháng) để số streak phản ánh đúng những gì đã tick.
@@ -1542,7 +1530,7 @@ function loadState() {
       });
       // Lưu lại dữ liệu đã vệ sinh (không gọi save() vì biến global state đang trong TDZ khi load lúc khởi động).
       if (dirty) {
-        try { localStorage.setItem(monthKey(), JSON.stringify(s)); } catch (e) { /* ẩn */ }
+        try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(s)); } catch (e) { /* ẩn */ }
       }
     }
     return s;
@@ -1557,14 +1545,14 @@ initPlan(new Date());
 //   · Khách vãng lai (chưa có tài khoản, chưa có dữ liệu) → hiện dữ liệu mẫu (demo)
 //   · Đã đăng nhập + chưa có dữ liệu → hiện state TRỐNG (tài khoản mới = dữ liệu mới, không demo)
 function emptyState() {
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   return {
     view: 'today',
     currentWeek: ti.inRange ? ti.week : 1,
     dayWeek: ti.inRange ? ti.week : 1,
     dayDay: ti.inRange ? ti.dayInWeek : 0,
     goalTab: 'priority',
-    monthKey: monthKey(),
+    monthKey: monthKey(PLAN_YEAR, PLAN_MONTH),
     monthlyGoals: [],
     habits: [],
     weeks: Array.from({ length: NUM_WEEKS }, (_, wi) => {
@@ -1644,8 +1632,8 @@ function saveInbox() {
 inbox = loadInbox();
 
 function save() {
-  try { localStorage.setItem(monthKey(), JSON.stringify(state)); } catch (e) { /* ẩn */ }
-  if (window.Sync) window.Sync.push(monthKey());
+  try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(state)); } catch (e) { /* ẩn */ }
+  if (window.Sync) window.Sync.push(monthKey(PLAN_YEAR, PLAN_MONTH));
   maybeAutoBackup();
 }
 
@@ -1881,7 +1869,7 @@ function dateCardHTML() {
 
 function weeklyChartHTML() {
   const levels = [100, 75, 50, 25, 0];
-  const curWeek = nowInfo().week;
+  const curWeek = nowInfo(PLAN_START, NUM_DAYS).week;
   return `<div class="card chart-card">
     <h3 class="card-title">${t('weeklyProg')}</h3>
     <div class="chart-wrap">
@@ -2146,7 +2134,7 @@ function weekHabitPct(wk) {
 }
 
 function weekCompareHTML() {
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   const curWeek = ti.inRange ? ti.week : state.currentWeek;
   const thisWk = weekHabitPct(curWeek);
   const lastWk = weekHabitPct(curWeek - 1);
@@ -2177,9 +2165,10 @@ function dayAggregateAt(y, m, d) {
   return Math.round((sum / hs.length) * 100);
 }
 
-function shortMonth(m) {
-  return getLang() === 'vi' ? 'T' + (m + 1) : MONTH_NAMES[m].slice(0, 3).toUpperCase();
-}
+// psStart/shortMonth được tách sang js/planmini.js (window.TaskFlowPlanMini) —
+// giữ signature 100%; getLang + MONTH_NAMES access qua TaskFlowI18N trong module.
+if (!window.TaskFlowPlanMini) throw new Error('TaskFlowPlanMini missing — js/planmini.js failed to load');
+const { psStart, shortMonth } = window.TaskFlowPlanMini;
 
 // Hero: thói quen có chuỗi 🔥 dài nhất + thanh tiến tới kỷ lục 🏆
 function heatHeroHTML() {
@@ -2717,11 +2706,7 @@ function lastWeekReportData() {
   return out;
 }
 
-// Ngày bắt đầu grid của tháng (state lưu field start; thiếu thì fallback ngày 1)
-function psStart(s, y, m) {
-  if (s && s.start) return s.start;
-  return new Date(y, m, 1);
-}
+
 
 // Ô so sánh tuần này vs tuần trước — delta chip ▲/▼, mỗi chỉ số trả lời 1 câu hỏi.
 function vsCell(label, curText, diff, unit) {
@@ -3485,7 +3470,7 @@ function renderWeek() {
   const el = document.getElementById('view-week');
   const w = state.weeks[state.currentWeek - 1];
   const st = weekStats(w);
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   el.innerHTML = `
     <div class="week-page">
       <header class="week-page-header">
@@ -3744,7 +3729,7 @@ function todayWeekdayLabel() {
 function renderToday() {
   const el = document.getElementById('view-today');
   if (!el) return;
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   // Đang xem tháng khác (viewedMonth !== null) → "hôm nay" không thuộc tháng đang xem:
   // ẩn tasks/habits để không hiển thị nhầm ngày tương ứng trong lịch tháng khác.
   const inTodayMonth = viewedMonth === null && ti.inRange;
@@ -5989,7 +5974,7 @@ function openMonth(m) {
   calendarTagFilters = [];
   // Tháng mới → carry task lặp bị lỡ vào hôm nay ngay khi mở (nếu hôm nay thuộc tháng này)
   carryOverRepeatTasks();
-  updateBrand();
+  updateBrand(PLAN_YEAR, PLAN_MONTH);
   buildNav();
   setView('overview', state.currentWeek);
   syncReminderTimers();
@@ -6002,7 +5987,7 @@ function openYear(dy) {
   state = bootState();
   yearState = bootYearState();
   state.view = 'overview';
-  updateBrand();
+  updateBrand(PLAN_YEAR, PLAN_MONTH);
   buildNav();
   setView('overview', state.currentWeek);
 }
@@ -6107,7 +6092,7 @@ function toggleSearchModal() {
   if (m.hidden) openSearchModal(); else closeSearchModal();
 }
 function focusTodayTaskAdd() {
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   if (state.view !== 'week' || !ti.inRange) return;
   const col = document.querySelector(`.day-col-${ti.dayInWeek}`);
   const add = col && col.querySelector('[data-action="addtask"]');
@@ -6539,7 +6524,7 @@ function renderFocusContent() {
   const box = document.getElementById('focusContent');
   if (!box) return;
   const now = new Date();
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   const today = ti.inRange ? ti.dayInWeek : -1;
   const focused = getFocusedTask();
   if (focused) {
@@ -6876,7 +6861,7 @@ document.addEventListener('click', (e) => {
       refreshFocusIfOpen();
     }
   } else if (act === 'today-addtask') {
-    const ti = nowInfo();
+    const ti = nowInfo(PLAN_START, NUM_DAYS);
     if (!ti.inRange) return;
     const w = state.weeks[ti.week - 1];
     const d = w.days[ti.dayInWeek];
@@ -7802,27 +7787,6 @@ function scrollWeekToToday() {
   });
 }
 
-function nowInfo() {
-  const now = new Date();
-  const dayIdx = Math.floor((now - PLAN_START) / 86400000);
-  const inRange = dayIdx >= 0 && dayIdx < NUM_DAYS;
-  return {
-    now,
-    dayIdx,
-    inRange,
-    week: inRange ? Math.floor(dayIdx / 7) + 1 : null,
-    dayInWeek: inRange ? dayIdx % 7 : null,
-    habitCol: inRange ? dayIdx : -1,
-  };
-}
-
-function renderClock() {
-  const box = document.getElementById('nowText');
-  if (!box) return;
-  const n = new Date();
-  box.textContent = fmtDate(n) + ' · ' + n.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
 let lastDayKey = '';
 let lastRealWeek = null;
 let viewedMonth = null;
@@ -7835,20 +7799,20 @@ function refreshToday() {
       viewedMonth = null;
       initPlan(now);
       state = bootState();
-      updateBrand();
+      updateBrand(PLAN_YEAR, PLAN_MONTH);
       buildNav();
       setView(state.view, state.currentWeek);
     }
     return;
   }
-  const prevKey = monthKey();
+  const prevKey = monthKey(PLAN_YEAR, PLAN_MONTH);
   initPlan(now);
-  const ti = nowInfo();
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
   const jump = state.view === 'week' && ti.inRange && ti.week !== state.currentWeek && state.currentWeek === lastRealWeek;
   lastRealWeek = ti.inRange ? ti.week : null;
-  if (monthKey() !== prevKey) {
+  if (monthKey(PLAN_YEAR, PLAN_MONTH) !== prevKey) {
     state = bootState();
-    updateBrand();
+    updateBrand(PLAN_YEAR, PLAN_MONTH);
     buildNav();
     setView(state.view, state.currentWeek);
   } else {
@@ -7884,35 +7848,10 @@ window.addEventListener('focus', () => { syncNow(); pomoSync(); });
 
 /* ============================ Đồng bộ đám mây ============================ */
 
-function syncStatusText(s) {
-  switch (s) {
-    case 'connecting': return t('syncStatusConnecting');
-    case 'syncing': return t('syncStatusSyncing');
-    case 'ready': return t('syncStatusReady');
-    case 'signedout': return t('syncStatusSignedOut');
-    case 'error': return t('syncStatusError');
-    default: return t('syncStatusOff');
-  }
-}
-
-function updateSyncStatus() {
-  const st = document.getElementById('syncStatus');
-  if (!st) return;
-  const s = (window.Sync && window.Sync.getStatus) ? window.Sync.getStatus() : 'off';
-  st.textContent = syncStatusText(s);
-  st.dataset.status = s;
-  const dot = document.getElementById('syncDot');
-  if (dot) dot.dataset.status = s;
-  const btn = document.getElementById('syncBtn');
-  if (btn) {
-    btn.dataset.status = s;
-    btn.title = t('syncTitle') + ' - ' + syncStatusText(s);
-  }
-  const lo = document.getElementById('syncLogoutBtn');
-  if (lo) lo.hidden = (s !== 'ready' && s !== 'syncing' && s !== 'connecting');
-  const pf = document.getElementById('syncProfileBtn');
-  if (pf) pf.hidden = lo ? lo.hidden : true;
-}
+// syncStatusText/updateSyncStatus/syncFormValues/syncErrorText được tách sang
+// js/syncui.js (window.TaskFlowSyncUI) — giữ signature 100%.
+if (!window.TaskFlowSyncUI) throw new Error('TaskFlowSyncUI missing — js/syncui.js failed to load');
+const { syncStatusText, updateSyncStatus, syncFormValues, syncErrorText } = window.TaskFlowSyncUI;
 
 function toggleSyncModal() {
   const m = document.getElementById('syncModal');
@@ -7956,13 +7895,6 @@ document.addEventListener('click', (e) => {
   if (focus && !focus.hidden && e.target === focus) closeFocusMode();
 });
 
-function syncFormValues() {
-  const us = document.getElementById('syncUser');
-  const pw = document.getElementById('syncPass');
-  const pw2 = document.getElementById('syncPass2');
-  return { user: us ? us.value.trim() : '', pass: pw ? pw.value : '', pass2: pw2 ? pw2.value : '' };
-}
-
 let syncMode = 'login';
 
 function setSyncMode(mode) {
@@ -7982,17 +7914,6 @@ function setSyncMode(mode) {
 }
 
 const USER_RE = /^[A-Za-z0-9_.-]{3,30}$/;
-
-function syncErrorText(code) {
-  switch (code) {
-    case 'username-taken': return t('syncErrUsernameTaken');
-    case 'bad-credentials': return t('syncErrBadCredentials');
-    case 'network': return t('syncErrNetwork');
-    case 'no-config': return t('syncNeedConfig');
-    case 'too-many-requests': return t('syncErrRateLimited');
-    default: return t('syncErrServer');
-  }
-}
 
 async function doSyncSignup() {
   if (!window.Sync) return;
@@ -8065,7 +7986,7 @@ function handleSyncChange(keys) {
   // QUAN TRỌNG: nạp lại state tháng/năm TRƯỚC khi gọi setLang() — vì setLang() kết thúc bằng
   // save() ghi biến global `state`; nếu state vẫn là bản cũ (rỗng), save() sẽ đè mất dữ liệu
   // remote vừa pull từ pullAll và đẩy dữ liệu cũ lên server.
-  const cur = monthKey();
+  const cur = monthKey(PLAN_YEAR, PLAN_MONTH);
   const yk = yearKey();
   const monthHit = keys.indexOf(cur) >= 0;
   const yearHit = keys.indexOf(yk) >= 0;
@@ -8100,7 +8021,7 @@ let obStep = 1;
 
 function obHasAnyData() {
   try {
-    if (localStorage.getItem(monthKey())) return true;
+    if (localStorage.getItem(monthKey(PLAN_YEAR, PLAN_MONTH))) return true;
     if (localStorage.getItem(yearKey())) return true;
   } catch (e) { /* ẩn */ }
   return false;
@@ -8187,7 +8108,7 @@ function maybeStartOnboarding() {
 
 /* ============================ Khởi động ============================ */
 
-const ti0 = nowInfo();
+const ti0 = nowInfo(PLAN_START, NUM_DAYS);
 if (ti0.inRange) {
   state.currentWeek = ti0.week;
   // Không tự nhảy view — mở app ở view đã chọn (mặc định Overview có landing hero)
@@ -8211,7 +8132,7 @@ if (window.DeepLink) {
     state = bootState();
     const nowD = new Date();
     viewedMonth = (dl.year === nowD.getFullYear() && dl.month === nowD.getMonth()) ? null : dl.month;
-    updateBrand();
+    updateBrand(PLAN_YEAR, PLAN_MONTH);
   }
   if (dl.view) state.view = dl.view;
   if (dl.view === 'week' && dl.week !== null && dl.week <= NUM_WEEKS) state.currentWeek = dl.week;
@@ -8227,7 +8148,7 @@ setTheme(THEME);
 applyDark(DARK);
 applyStaticI18N();
 applySidebarCollapse();
-updateBrand();
+updateBrand(PLAN_YEAR, PLAN_MONTH);
 renderClock();
 buildNav();
 updateUndoButtons();
