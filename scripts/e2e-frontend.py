@@ -337,6 +337,148 @@ def deeplink_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def taskdetail_checks(browser, base, width, height, errors, screenshot):
+    """P0.2: task-detail drawer edit flow (title/date/time/duration/priority/repeat/
+    tags/notes/subtasks) + delete/undo + export download flow (JSON/CSV/ICS), on stable
+    data-testid / data-action hooks."""
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"taskdetail {width}px: {error}"))
+    load_week(page, base)
+
+    # --- create a task in the first day panel ---
+    panel = page.locator(".week-day-panel").first
+    task_count = panel.locator('[data-testid="task-row"]').count()
+    page.locator('.week-day-panel [data-action="addtask"]').first.click()
+    row = panel.locator('[data-testid="task-row"]').nth(task_count)
+    assert row.count() == 1, "addtask must create one row"
+    text = row.locator('[data-role="task-text"]')
+    text.fill("E2E detail task")
+    assert text.inner_text() == "E2E detail task"
+
+    # --- open the task drawer from the row menu (hover reveals ⋯) ---
+    row.hover()
+    row.locator('[data-action="task-menu"]').click()
+    row.locator('[data-action="task-detail"]').click()
+    page.wait_for_selector('[data-testid="task-drawer"]', state="visible")
+    drawer = page.locator('[data-testid="task-drawer"]')
+
+    # --- edit title (Enter commits via blur) ---
+    title = drawer.locator('[data-role="td-text"]')
+    title.fill("E2E edited task")
+    title.press("Enter")
+    assert title.inner_text() == "E2E edited task"
+
+    # --- time: enable then set (change fires on blur) ---
+    time_toggle = drawer.locator('[data-action="td-time-toggle"]')
+    time_toggle.check()
+    time_in = drawer.locator('[data-action="td-time"]')
+    assert not time_in.is_disabled(), "time input must enable after toggle"
+    time_in.fill("09:30")
+    time_in.press("Tab")
+
+    # --- duration ---
+    dur = drawer.locator('[data-action="td-duration"]')
+    dur.fill("45")
+    dur.press("Tab")
+
+    # --- priority (P0.2: had no dispatcher handler — edit must persist) ---
+    prio = drawer.locator('[data-action="td-prio"]')
+    # Force a real toggle through the dispatcher — the fix under test. Without the
+    # td-prio branch the native checkbox flips but tk.kind never changes, so the
+    # row's data-kind (driven by the model, not the DOM) mismatches the checkbox.
+    prio.click()
+    is_prio_now = prio.is_checked()
+    # Week panels sort priority tasks into their own section, so the row can move
+    # index after a kind change — locate it by its unique text instead.
+    kind_row = panel.locator('[data-testid="task-row"]', has_text="E2E edited task")
+    assert kind_row.count() == 1
+    assert kind_row.get_attribute("data-kind") == ("priority" if is_prio_now else "regular")
+
+    # --- repeat weekly ---
+    drawer.locator('[data-action="td-repeat"]').select_option("weekly")
+
+    # --- notes ---
+    note = drawer.locator('[data-action="td-note"]')
+    note.fill("E2E notes")
+    note.press("Tab")
+
+    # --- subtask (Enter on input triggers subtask-add) ---
+    sub = drawer.locator('[data-role="td-subtask-input"]')
+    sub.fill("E2E subtask")
+    sub.press("Enter")
+    assert drawer.locator(".td-subtask").count() == 1
+
+    # --- tag ---
+    tag = drawer.locator('[data-role="td-tag-input"]')
+    tag.fill("urgent")
+    tag.press("Enter")
+    assert drawer.locator(".tag-chip.td-tag").count() == 1
+
+    # --- move to another day (td-date change re-renders the drawer) ---
+    date_sel = drawer.locator('[data-action="td-date"]')
+    current_day = date_sel.input_value()
+    target_day = "1" if current_day != "1" else "2"
+    date_sel.select_option(target_day)
+    assert drawer.locator('[data-role="td-text"]').count() == 1, "drawer must re-render"
+
+    # --- close, then re-open to verify persistence ---
+    drawer.locator('[data-action="task-detail-close"]').click()
+    page.wait_for_selector('[data-testid="task-drawer"]', state="hidden")
+    moved = page.locator(".week-day-panel").nth(int(target_day)).locator(
+        '[data-testid="task-row"]', has_text="E2E edited task"
+    )
+    assert moved.count() == 1, "edited task must persist on the new day"
+    moved.hover()
+    moved.locator('[data-action="task-menu"]').click()
+    moved.locator('[data-action="task-detail"]').click()
+    page.wait_for_selector('[data-testid="task-drawer"]', state="visible")
+    drawer = page.locator('[data-testid="task-drawer"]')
+    assert drawer.locator('[data-role="td-text"]').inner_text() == "E2E edited task"
+    assert drawer.locator('[data-action="td-duration"]').input_value() == "45"
+    assert drawer.locator('[data-action="td-note"]').input_value() == "E2E notes"
+    assert drawer.locator('[data-action="td-repeat"]').input_value() == "weekly"
+    assert drawer.locator('[data-action="td-prio"]').is_checked() == is_prio_now
+    assert drawer.locator('[data-action="td-time"]').input_value() == "09:30"
+    assert not drawer.locator('[data-action="td-time"]').is_disabled()
+    assert drawer.locator(".td-subtask").count() == 1
+    assert drawer.locator(".tag-chip.td-tag").count() == 1
+
+    # --- delete + undo restore ---
+    drawer.locator('[data-action="td-delete"]').click()
+    page.wait_for_selector('[data-testid="task-drawer"]', state="hidden")
+    assert moved.count() == 0, "deleted task must leave the day panel"
+    undo = page.locator('[data-testid="toast-region"] .toast-action', has_text="Hoàn tác")
+    assert undo.count() == 1, "delete toast must offer Undo"
+    undo.click()
+    restored = page.locator(".week-day-panel").nth(int(target_day)).locator(
+        '[data-testid="task-row"]', has_text="E2E edited task"
+    )
+    assert restored.count() == 1, "undo must restore the deleted task"
+
+    # --- export flow: JSON / CSV / ICS downloads ---
+    if width <= 767:
+        page.locator('#mobileNav [data-action="more"]').click()
+        page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+        page.locator('#moreSheet [data-action="tools-open"]').click()
+    else:
+        page.locator('[data-action="tools-open"]:visible').first.click()
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
+    for action, prefix in (
+        ("export-json", "taskflow-todoist-backup-"),
+        ("export-csv", "taskflow-todoist-data-"),
+        ("export-ics", "taskflow-calendar-"),
+    ):
+        page.locator('[data-action="data-toggle"]').click()
+        page.wait_for_selector('#dataPop:not([hidden])', state="visible")
+        with page.expect_download() as dl:
+            page.locator(f'[data-action="{action}"]').click()
+        assert dl.value.suggested_filename.startswith(prefix), f"{action} filename wrong"
+
+    assert_no_page_overflow(page, f"taskdetail {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dialog_checks(browser, base, width, height, errors, screenshot):
     page = browser.new_page(viewport={"width": width, "height": height})
     page.on("pageerror", lambda error: errors.append(f"dialogs {width}px: {error}"))
@@ -504,7 +646,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -528,7 +670,9 @@ def main():
             if args.all:
                 release_layout_checks(browser, base, 360, 800, errors)
                 release_layout_checks(browser, base, 1024, 768, errors)
-                matrix = ((390, 844), (768, 1024), (1440, 900))
+                # P0.2: small mobile 360x800 + desktop large 1920x1080 now run full scenarios,
+                # not just the layout-only release pass.
+                matrix = ((360, 800), (390, 844), (768, 1024), (1440, 900), (1920, 1080))
                 scenarios = (
                     ("landing", landing_checks),
                     ("overview", overview_checks),
@@ -537,6 +681,7 @@ def main():
                     ("calendar", calendar_checks),
                     ("inbox", inbox_checks),
                     ("deeplink", deeplink_checks),
+                    ("taskdetail", taskdetail_checks),
                     ("dialogs", dialog_checks),
                     ("focus", focus_checks),
                     ("dark-overview", dark_overview_checks),
@@ -571,6 +716,9 @@ def main():
             elif args.view == "deeplink":
                 deeplink_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 deeplink_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "taskdetail":
+                taskdetail_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                taskdetail_checks(browser, base, 390, 844, errors, shots["mobile"])
             browser.close()
     finally:
         httpd.shutdown()

@@ -70,12 +70,11 @@ def desktop_checks(browser, base, errors, screenshots):
         page.locator(f'#desktopSidebar [data-nav-view="{view}"]').click()
         page.wait_for_selector(f'[data-testid="{view}-view"]', state="visible")
         assert page.locator(f'#desktopSidebar [data-nav-view="{view}"][aria-current="page"]').count() == 1
-        # week nằm ở bottom nav mobile; calendar/year nằm trong More sheet (cả hai luôn
-        # render để sync active state qua updateNav)
+        # Bottom-nav mobile (redesign): chỉ Today/Upcoming là tab chính;
+        # week/calendar/year nằm trong More sheet (luôn render để sync active state)
         if view == "week":
-            assert page.locator(f'#mobileNav [data-nav-view="{view}"][aria-current="page"]').count() == 1
-        else:
-            assert page.locator(f'#moreSheet [data-nav-view="{view}"][aria-current="page"]').count() == 1
+            assert page.locator(f'#mobileNav [data-nav-view="upcoming"][aria-current="page"]').count() == 0
+        assert page.locator(f'#moreSheet [data-nav-view="{view}"][aria-current="page"]').count() == 1
 
     goals_card_box = page.locator(".week-goals-card").bounding_box()
     for strip in page.locator(".week-goals-card .v-strip").all():
@@ -136,12 +135,24 @@ def mobile_checks(browser, base, errors, screenshots):
     assert page.locator("#mobileNav:visible").count() == 1
     assert_no_overflow(page, "mobile")
 
-    page.locator('#mobileNav [data-nav-view="week"]').click()
-    page.wait_for_selector('[data-testid="week-view"]', state="visible")
-    assert page.locator('#mobileNav [data-nav-view="week"][aria-current="page"]').count() == 1
+    # Bottom-nav mobile (redesign): Sắp tới là tab chính (tuần nằm trong More sheet)
+    page.locator('#mobileNav [data-nav-view="upcoming"]').click()
+    page.wait_for_selector('[data-testid="upcoming-view"]', state="visible")
+    assert page.locator('#mobileNav [data-nav-view="upcoming"][aria-current="page"]').count() == 1
+    # Chỉ ĐÚNG MỘT tab active trong bottom nav
+    assert page.locator('#mobileNav [aria-current="page"]').count() == 1
 
-    # More sheet: điều hướng view bên trong sheet → sheet tự đóng
+    # More sheet: Tuần nằm trong sheet + điều hướng view bên trong → sheet tự đóng
     more = page.locator('#mobileNav [data-action="more"]')
+    more.click()
+    page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+    page.locator('#moreSheet [data-nav-view="week"]').click()
+    page.wait_for_selector('[data-testid="week-view"]', state="visible")
+    assert page.locator('[data-testid="more-sheet"]:visible').count() == 0
+    # View trong More sheet → highlight nút Thêm (ĐÚNG MỘT active trong bottom nav)
+    assert page.locator('#mobileNav [aria-current="page"]').count() == 1
+    assert page.locator('#mobileNav [data-action="more"][aria-current="page"]').count() == 1
+
     more.click()
     page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
     page.locator('#moreSheet [data-nav-view="calendar"]').click()
@@ -174,11 +185,18 @@ def mobile_checks(browser, base, errors, screenshots):
     # Sheet đã đóng trước khi mở drawer → focus quay về nút More trong bottom nav
     assert page.evaluate("document.activeElement === document.querySelector('#mobileNav [data-action=\"more\"]')")
 
-    page.locator('#mobileNav [data-nav-view="week"]').click()
+    # Tuần qua More sheet → Quick Add mở từ FAB giữa (action, không active) → task vào tuần
+    more.click()
+    page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+    page.locator('#moreSheet [data-nav-view="week"]').click()
     page.wait_for_selector('[data-testid="week-view"]', state="visible")
+    assert page.locator('[data-testid="more-sheet"]:visible').count() == 0
     task_count = page.locator('[data-role="task-text"]').count()
-    page.locator(".app-primary-action").click()
+    page.locator('#mobileNav [data-action="shell-add-task"]').click()
     page.wait_for_selector('[data-testid="quick-add"]', state="visible")
+    # FAB là ACTION — không bao giờ active, không làm tăng số tab active (đang xem week → Thêm active)
+    assert page.locator('#mobileNav [aria-current="page"]').count() == 1
+    assert page.locator('#mobileNav [data-action="more"][aria-current="page"]').count() == 1
     page.locator("#quickAddInput").fill("Việc từ Quick Add mobile")
     page.keyboard.press("Enter")
     page.wait_for_selector('[data-testid="quick-add"]', state="hidden")
