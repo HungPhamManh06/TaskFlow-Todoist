@@ -179,6 +179,10 @@ body:has([data-ui-layer="open"]) {
 
 .toast {
   border-inline-start: 3px solid var(--color-info);
+  /* P0.2: region is pointer-events:none so dead space passes through, but the
+     toast (and its action button, e.g. Undo) must stay clickable — a delete
+     toast with an unclickable Undo was silently dead for real users. */
+  pointer-events: auto;
   opacity: 0;
   transform: translateY(8px);
   transition:
