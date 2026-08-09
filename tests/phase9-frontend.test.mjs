@@ -10,6 +10,7 @@ import DeepLink from '../js/deeplink.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const INBOX_JS = readFileSync(path.join(ROOT, 'js/inbox.js'), 'utf8');
 const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
 const SYNC_JS = readFileSync(path.join(ROOT, 'js/sync.js'), 'utf8');
 const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
@@ -540,7 +541,7 @@ test('Phase 7: unified empty states with CTA actions and dedup toasts', () => {
   assert.match(APP_JS, /class=\"empty-btn\" data-action=\"\$\{esc\(a\.action\)\}\"/);
   // Today / Inbox / Upcoming / Search all route through the shared helper
   assert.match(APP_JS, /emptyStateHTML\('🎯', 'todayEmpty', 'todayEmptySub'/);
-  assert.match(APP_JS, /emptyStateHTML\('📥', 'inboxEmpty', 'inboxEmptySub'/);
+  assert.match(INBOX_JS, /emptyStateHTML\('📥', 'inboxEmpty', 'inboxEmptySub'/);
   assert.match(APP_JS, /emptyStateHTML\('🗓️', 'upcomingEmpty', 'upcomingEmptySub'/);
   assert.match(APP_JS, /emptyStateHTML\('🔍', 'searchEmpty', 'searchEmptySub'\)/);
   assert.match(APP_JS, /emptyStateHTML\('🐥', 'searchNoResults', 'searchNoResultsSub'\)/);
@@ -557,7 +558,7 @@ test('Phase 7: unified empty states with CTA actions and dedup toasts', () => {
   // undo consistency: inbox in snapshot, inbox-del + td-delete also push undo + toast
   assert.match(APP_JS, /inbox: Array\.isArray\(inbox\) \? JSON\.parse\(JSON\.stringify\(inbox\)\) : \[\]/);
   assert.match(APP_JS, /if \(Array\.isArray\(snap\.inbox\)\) \{ inbox = JSON\.parse\(JSON\.stringify\(snap\.inbox\)\); \}/);
-  assert.match(APP_JS, /act === 'inbox-del'/);
+  assert.match(INBOX_JS, /act === 'inbox-del'/);
   assert.match(APP_JS, /act === 'td-delete'/);
   // dedup reuses element but can attach missing action button
   assert.match(ui, /!existing\.querySelector\('.toast-action'\)/);
@@ -792,8 +793,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.js + sw cache
-  assert.match(APP, /js\/app\.js\?v=129/);
-  assert.match(SW, /const CACHE = 'taskflow-v144';/);
+  assert.match(APP, /js\/app\.js\?v=130/);
+  assert.match(SW, /const CACHE = 'taskflow-v145';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -950,6 +951,40 @@ test('P11: plan shell helpers extracted — monthKey/updateBrand/buildMonthNav l
   assert.match(mod, /return \{ monthKey, updateBrand, buildMonthNav \}/);
   assert.match(mod, /TaskFlowI18N/);
   assert.match(mod, /querySelectorAll\('\[data-action="monthselect"\]'\)/);
+});
+
+test('P11: inbox view extracted — loadInbox/saveInbox/renderInbox/schedule flow live in js/inbox.js', () => {
+  // app.html loads inbox.js before app.js
+  assert.match(APP, /src="js\/inbox\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const ibIdx = APP.indexOf('js/inbox.js?v=');
+  assert.ok(ibIdx >= 0 && ibIdx < appIdx, 'inbox.js phải load trước app.js');
+  // sw.js precache inbox.js
+  assert.ok(SW.includes("'./js/inbox.js'"), 'sw.js phải precache js/inbox.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowInbox\) throw new Error\('TaskFlowInbox missing/);
+  assert.match(APP_JS, /const \{ loadInbox, saveInbox, renderInbox, inboxTargetForDate, handleInboxAction \} = window\.TaskFlowInbox;/);
+  assert.doesNotMatch(APP_JS, /^function loadInbox\(/m);
+  assert.doesNotMatch(APP_JS, /^function saveInbox\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderInbox\(/m);
+  assert.doesNotMatch(APP_JS, /^function inboxTargetForDate\(/m);
+  assert.doesNotMatch(APP_JS, /^function scheduleInboxTask\(/m);
+  assert.doesNotMatch(APP_JS, /^function addInboxTask\(/m);
+  // call-sites giữ nguyên trong app.js (qua alias) — inbox nạp trước khi render
+  assert.match(APP_JS, /let inbox = loadInbox\(\);/);
+  assert.match(APP_JS, /renderInbox\(inbox\)/);
+  assert.match(APP_JS, /saveInbox\(inbox\)/);
+  assert.match(APP_JS, /inboxTargetForDate\(dt\)/);
+  // REGRESSION GUARD: destructure phải TRƯỚC top-level `let inbox = loadInbox()` (TDZ loadInbox)
+  assert.ok(APP_JS.indexOf('window.TaskFlowInbox') < APP_JS.indexOf('let inbox = loadInbox()'),
+    'inbox destructure phải TRƯỚC top-level loadInbox() — tránh TDZ loadInbox');
+  // module export đủ API + accessor pattern
+  const mod = readRequiredAsset('js/inbox.js');
+  assert.match(mod, /return \{[\s\S]*loadInbox,[\s\S]*saveInbox,[\s\S]*renderInbox,[\s\S]*inboxTargetForDate,[\s\S]*scheduleInboxTask,[\s\S]*addInboxTask,[\s\S]*handleInboxAction,[\s\S]*\};/);
+  assert.match(mod, /window\.Sync/);
+  assert.match(mod, /module\.exports/);
+  // pushTaskToDate vẫn ở app.js (dùng chung Quick Add + Inbox)
+  assert.match(APP_JS, /^function pushTaskToDate\(/m);
 });
 
 test('P11: account core extracted — helpers live in js/account.js, app.js keeps aliases', () => {
@@ -1260,7 +1295,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v144';/);
+  assert.match(SW, /const CACHE = 'taskflow-v145';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -1338,7 +1373,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v144';/);
+  assert.match(SW, /const CACHE = 'taskflow-v145';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -1861,22 +1896,25 @@ test('Phase 3: Inbox — nav item, view section, capture flow and schedule keepi
   assert.match(APP_JS, /\[byView\.inbox, byView\.upcoming, byView\.overview, byView\.year, byView\.calendar\]/);
   // 3. setView dispatch có nhánh inbox + deeplink chấp nhận
   assert.match(APP_JS, /view === 'inbox'/);
-  assert.match(APP_JS, /renderInbox\(\)/);
+  assert.match(APP_JS, /renderInbox\(inbox\)/);
   const DEEPLINK_INBOX = readFileSync(path.join(ROOT, 'js/deeplink.js'), 'utf8');
   assert.match(DEEPLINK_INBOX, /view === 'inbox'/);
-  // 4. Bộ nhớ inbox riêng (planner-inbox) — không phụ thuộc tháng
-  assert.match(APP_JS, /INBOX_KEY = 'planner-inbox'/);
-  assert.match(APP_JS, /function loadInbox\(\)/);
-  assert.match(APP_JS, /function saveInbox\(\)/);
+  // 4. Bộ nhớ inbox riêng (planner-inbox) — không phụ thuộc tháng; logic tách sang js/inbox.js
+  assert.match(INBOX_JS, /INBOX_KEY = 'planner-inbox'/);
+  assert.match(INBOX_JS, /function loadInbox\(\)/);
+  assert.match(INBOX_JS, /function saveInbox\(inbox\)/);
   // 5. Capture + schedule: add task, schedule giữ uid, move today/tomorrow/date
-  assert.match(APP_JS, /function addInboxTask\(\)/);
-  assert.match(APP_JS, /function scheduleInboxTask\(i, dt\)/);
-  assert.match(APP_JS, /inbox\.splice\(i, 1\)/);
-  assert.match(APP_JS, /inbox: true/);
-  assert.match(APP_JS, /act === 'inbox-today'/);
-  assert.match(APP_JS, /act === 'inbox-tomorrow'/);
-  assert.match(APP_JS, /act === 'inbox-date-schedule'/);
-  assert.match(APP_JS, /act === 'inbox-del'/);
+  assert.match(INBOX_JS, /function addInboxTask\(inbox\)/);
+  assert.match(INBOX_JS, /function scheduleInboxTask\(inbox, i, dt\)/);
+  assert.match(INBOX_JS, /inbox\.splice\(i, 1\)/);
+  assert.match(INBOX_JS, /inbox: true/);
+  assert.match(INBOX_JS, /act === 'inbox-today'/);
+  assert.match(INBOX_JS, /act === 'inbox-tomorrow'/);
+  assert.match(INBOX_JS, /act === 'inbox-date-schedule'/);
+  assert.match(INBOX_JS, /act === 'inbox-del'/);
+  // app.js ủy quyền sang module (alias destructure + dispatch inbox-*)
+  assert.match(APP_JS, /const \{ loadInbox, saveInbox, renderInbox, inboxTargetForDate, handleInboxAction \} = window\.TaskFlowInbox;/);
+  assert.match(APP_JS, /handleInboxAction\(act, el, inbox\)/);
   // 6. Drawer scope inbox: mở + sửa + xoá + focus từ Inbox
   assert.match(APP_JS, /function openInboxTaskDetail\(i\)/);
   assert.match(APP_JS, /taskDetailRef\.scope === 'inbox'/);
@@ -1939,7 +1977,7 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
   assert.match(APP_JS, /act === 'habit-focus'/);
   assert.ok(APP_JS.includes('[data-role="habit-name-input"]'), 'habit-focus targets habit input');
   // P8: inbox không còn duplicate CTA — nút ＋ Thêm việc chỉ render khi có list
-  assert.match(APP_JS, /\$\{inbox\.length \? `<button type=\"button\" class=\"btn-add-today\"/);
+  assert.match(INBOX_JS, /\$\{inbox\.length \? `<button type=\"button\" class=\"btn-add-today\"/);
 });
 
 test('Phase 9: PWA manifest shortcuts, screenshots, and notification deep-link', () => {
@@ -2030,7 +2068,7 @@ test('Phase 16: perf — debounce search + save-on-type + content-visibility upc
   // 2. Gõ text không serialize toàn bộ state mỗi phím — saveSoon/saveYearSoon/saveInboxSoon/saveTaskDetailStateSoon
   assert.match(APP_JS, /function saveSoon\(\) \{[\s\S]*?setTimeout\(save, 350\)/);
   assert.match(APP_JS, /function saveYearSoon\(\) \{[\s\S]*?setTimeout\(saveYear, 350\)/);
-  assert.match(APP_JS, /function saveInboxSoon\(\) \{[\s\S]*?setTimeout\(saveInbox, 350\)/);
+  assert.match(APP_JS, /function saveInboxSoon\(\) \{[\s\S]*?setTimeout\(\(\) => saveInbox\(inbox\), 350\)/);
   assert.match(APP_JS, /function saveTaskDetailStateSoon\(\) \{[\s\S]*?setTimeout\(saveTaskDetailState, 350\)/);
   // text-editing paths dùng bản debounce (không gọi save() trực tiếp)
   assert.match(APP_JS, /t\.dataset\.role === 'task-text'\).*saveSoon\(\)/s);
@@ -2125,3 +2163,4 @@ test('Phase 20: sidebar collapsed — chặn horizontal overflow, tooltip portal
   assert.match(APP_JS, /data-tooltip="\$\{esc\(item\.label\)\}" aria-label="\$\{esc\(item\.label\)\}"/);
   assert.match(APP_JS, /data-tooltip="\$\{esc\(label\)\}" aria-label="\$\{esc\(label\)\}"/);
 });
+

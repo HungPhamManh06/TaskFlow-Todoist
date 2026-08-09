@@ -1609,27 +1609,14 @@ function rebootState(render = true) {
 let state = bootState();
 
 /* ============================ Inbox — bắt nhanh việc chưa lên lịch ============================ */
-// Inbox lưu ở key riêng 'planner-inbox' (đồng bộ đám mây như planner-xp) nên KHÔNG phụ thuộc tháng/năm.
-const INBOX_KEY = 'planner-inbox';
-let inbox = [];
-
-function loadInbox() {
-  try {
-    const r = JSON.parse(localStorage.getItem(INBOX_KEY));
-    if (Array.isArray(r)) {
-      // Vệ sinh: task thiếu uid → gán uid cố định (nền tảng carry-over khi lên lịch)
-      r.forEach((tk) => { if (!tk || typeof tk.uid !== 'string') tk.uid = newTaskUid(); if (!Array.isArray(tk.tags)) tk.tags = []; });
-      return r;
-    }
-  } catch (e) { /* ẩn */ }
-  return [];
-}
-function saveInbox() {
-  try { localStorage.setItem(INBOX_KEY, JSON.stringify(inbox)); } catch (e) { /* ẩn */ }
-  if (window.Sync) window.Sync.push(INBOX_KEY);
-}
-
-inbox = loadInbox();
+// Inbox view (loadInbox/saveInbox/renderInbox/inboxTargetForDate/scheduleInboxTask/
+// addInboxTask/handleInboxAction) được tách sang js/inbox.js (window.TaskFlowInbox) —
+// P11 extraction 20. State `inbox` vẫn là global lexical tại đây (nhiều call-site app.js
+// đọc/ghi trực tiếp) — module nhận `inbox` qua tham số. Destructure phải TRƯỚC top-level
+// `let inbox = loadInbox()` (inbox nạp ngay khi boot, trước mọi render).
+if (!window.TaskFlowInbox) throw new Error('TaskFlowInbox missing — js/inbox.js failed to load');
+const { loadInbox, saveInbox, renderInbox, inboxTargetForDate, handleInboxAction } = window.TaskFlowInbox;
+let inbox = loadInbox();
 
 function save() {
   try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(state)); } catch (e) { /* ẩn */ }
@@ -3875,7 +3862,7 @@ function taskDetailState() {
 
 function saveTaskDetailState() {
   if (!taskDetailRef) { save(); return; }
-  if (taskDetailRef.scope === 'inbox') { saveInbox(); return; }
+  if (taskDetailRef.scope === 'inbox') { saveInbox(inbox); return; }
   if (taskDetailRef.y === PLAN_YEAR && taskDetailRef.m === PLAN_MONTH) { save(); return; }
   if (taskDetailMonthState) saveMonthState(taskDetailRef.y, taskDetailRef.m, taskDetailMonthState);
 }
@@ -3932,7 +3919,7 @@ function refreshTaskRowAfterEdit() {
   if (state.view === 'today') renderToday();
   else if (state.view === 'week') renderWeek();
   else if (state.view === 'upcoming') renderUpcoming();
-  else if (state.view === 'inbox') renderInbox();
+  else if (state.view === 'inbox') renderInbox(inbox);
   saveTaskDetailState();
 }
 
@@ -5652,78 +5639,10 @@ function renderUpcoming() {
 }
 
 /* ============================ Inbox — bắt nhanh ============================ */
-// Row Inbox: checkbox + text (sửa trực tiếp) + meta + hành động (lên lịch hôm nay / xoá).
-function inboxMeta(tk) {
-  const bits = [];
-  if (tk.kind === 'priority') bits.push(t('taskPriorityLabel'));
-  if (tk.duration) bits.push(t('pomoMinShort', { n: tk.duration }));
-  if (tk.deadline) bits.push(fmtDeadline(tk.deadline));
-  const tags = Array.isArray(tk.tags) ? tk.tags : [];
-  return { bits, tags };
-}
-
-function inboxTaskRowHTML(tk, i) {
-  const data = `data-scope="inbox" data-task="${i}"`;
-  const { bits, tags } = inboxMeta(tk);
-  const check = checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" ${data}`, window.TaskFlowUI.checkboxLabel('task', tk.text, t('tabInbox')));
-  const meta = bits.length ? `<span class="up-meta">${bits.map((b) => `<span>${esc(b)}</span>`).join('<span class="up-dot">·</span>')}</span>` : '';
-  const tagsHTML = tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : '';
-  return `<div class="inbox-task-row${tk.done ? ' done' : ''}${tk.kind === 'priority' ? ' prio' : ''}">
-    ${check}
-    <span class="inbox-main" data-action="task-detail" ${data}
-      aria-label="${t('taskDetail')}: ${esc(tk.text || '')}">
-      <span class="inbox-text editable" contenteditable="true" spellcheck="false" data-singleline="1"
-        data-role="inbox-text" ${data} data-placeholder="${t('taskPh')}"
-        aria-label="${t('taskAria', { n: i + 1 })}">${esc(tk.text ?? '')}</span>
-      ${meta}
-      ${tagsHTML}
-    </span>
-    <span class="inbox-actions">
-      <button type="button" class="inbox-more" data-action="task-detail" ${data}
-        title="${t('taskDetail')}" aria-label="${t('taskDetail')}">⋯</button>
-      <button type="button" class="inbox-sched-today" data-action="inbox-today" data-task="${i}"
-        title="${t('inboxTodayAria')}" aria-label="${t('inboxTodayAria')}">${t('inboxScheduleToday')}</button>
-      <button type="button" class="btn-del" data-action="inbox-del" data-task="${i}"
-        title="${t('inboxDeleteAria')}" aria-label="${t('inboxDeleteAria')}">✕</button>
-    </span>
-  </div>`;
-}
-
-function renderInbox() {
-  const el = document.getElementById('view-inbox');
-  if (!el) return;
-  const list = inbox.map((tk, i) => inboxTaskRowHTML(tk, i)).join('');
-  const empty = inbox.length ? '' : emptyStateHTML('📥', 'inboxEmpty', 'inboxEmptySub', [
-    { label: t('emptyAddInbox'), action: 'inbox-add' },
-  ]);
-  el.innerHTML = `<div class="upcoming-page">
-    <header class="upcoming-header">
-      <div>
-        <p class="upcoming-eyebrow">${t('inboxEyebrow')}</p>
-        <h1 class="upcoming-title">${t('inboxTitle')}</h1>
-        <p class="upcoming-subtitle">${t('inboxSubtitle')}</p>
-      </div>
-    </header>
-    ${inbox.length ? `<div class="inbox-list" role="list">${list}</div>` : ''}
-    ${empty}
-    ${inbox.length ? `<button type="button" class="btn-add-today" data-action="inbox-add" aria-label="${t('inboxAddTask')}">＋ ${t('inboxAddTask')}</button>` : ''}
-  </div>`;
-}
-
-// Ngày dt → (y, m, week, day) trong lưới tháng — khớp cách view Lịch hiển thị (Thứ 2 = 0).
-function inboxTargetForDate(dt) {
-  const inCur = Math.floor((dt - PLAN_START) / 86400000);
-  if (inCur >= 0 && inCur < NUM_WEEKS * 7) {
-    return { y: PLAN_YEAR, m: PLAN_MONTH, week: Math.floor(inCur / 7) + 1, day: inCur % 7 };
-  }
-  const y = dt.getFullYear(), m = dt.getMonth();
-  const first = new Date(y, m, 1);
-  const dow = (first.getDay() + 6) % 7; // Thứ 2 = 0
-  const start = new Date(first.getTime() - dow * 86400000);
-  const dayIdx = Math.floor((dt - start) / 86400000);
-  if (dayIdx < 0) return null;
-  return { y, m, week: Math.floor(dayIdx / 7) + 1, day: dayIdx % 7 };
-}
+// Row Inbox (inboxMeta/inboxTaskRowHTML) + renderInbox + inboxTargetForDate +
+// scheduleInboxTask + addInboxTask + handleInboxAction được tách sang js/inbox.js
+// (window.TaskFlowInbox) — P11 extraction 20. pushTaskToDate vẫn ở app.js (dùng chung
+// với Quick Add), gọi inboxTargetForDate qua alias destructure ở trên.
 
 // Đặt 1 task vào ngày dt (lưới tháng đúng — tháng khác tạo qua loadMonthStateOrCreate).
 // Dùng chung cho: lên lịch từ Inbox, Quick Add. Trả về false nếu ngày không hợp lệ.
@@ -5736,27 +5655,6 @@ function pushTaskToDate(tk, dt) {
   w.days[tgt.day].tasks.push(tk);
   if (tgt.y === PLAN_YEAR && tgt.m === PLAN_MONTH) save(); else saveMonthState(tgt.y, tgt.m, st);
   return true;
-}
-
-// Chuyển task inbox vào ngày cụ thể — GIỮ uid (carry-over/repeat theo dõi đúng task).
-function scheduleInboxTask(i, dt) {
-  const tk = inbox[i];
-  if (!tk) return false;
-  const moved = { ...tk, inbox: false, remind: (tk.remind && tk.remind.enabled) ? tk.remind : { enabled: false, time: '20:00' } };
-  if (!pushTaskToDate(moved, dt)) return false;
-  inbox.splice(i, 1);
-  saveInbox();
-  return true;
-}
-
-function addInboxTask() {
-  inbox.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' }, inbox: true });
-  saveInbox();
-  renderInbox();
-  trackEvent('create_task', { scope: 'inbox' });
-  // Focus ô text mới để gõ ngay
-  const fresh = document.querySelector('[data-role="inbox-text"][data-task="' + (inbox.length - 1) + '"]');
-  if (fresh) fresh.focus();
 }
 
 /* ============================ Quick Add — thêm nhanh ở mọi màn hình (Phase 4) ============================ */
@@ -5845,7 +5743,7 @@ function submitQuickAdd() {
   if (quickAddTarget && quickAddTarget.scope === 'inbox') {
     tk.inbox = true;
     inbox.push(tk);
-    saveInbox();
+    saveInbox(inbox);
     ok = true;
     trackEvent('create_task', { scope: 'quickadd-inbox' });
   } else {
@@ -5903,7 +5801,7 @@ function setView(view, week) {
     renderUpcoming();
   } else if (view === 'inbox') {
     if (ibx) ibx.setAttribute('aria-labelledby', 'tab-inbox');
-    renderInbox();
+    renderInbox(inbox);
   } else if (view === 'overview') {
     ov.setAttribute('aria-labelledby', 'tab-overview');
     renderOverview();
@@ -6047,7 +5945,7 @@ function applySnapshot(snap) {
 function renderCurrentView() {
   if (state.view === 'today') renderToday();
   else if (state.view === 'upcoming') renderUpcoming();
-  else if (state.view === 'inbox') renderInbox();
+  else if (state.view === 'inbox') renderInbox(inbox);
   else if (state.view === 'overview') renderOverview();
   else if (state.view === 'week') renderWeek();
   else if (state.view === 'day') renderDay();
@@ -6385,7 +6283,7 @@ function focusState() {
 
 function saveFocusState() {
   if (!focusTaskRef) { save(); return; }
-  if (focusTaskRef.scope === 'inbox') { saveInbox(); return; }
+  if (focusTaskRef.scope === 'inbox') { saveInbox(inbox); return; }
   if (focusTaskRef.y === PLAN_YEAR && focusTaskRef.m === PLAN_MONTH) { save(); return; }
   if (focusMonthState) saveMonthState(focusTaskRef.y, focusTaskRef.m, focusMonthState);
 }
@@ -6752,54 +6650,9 @@ document.addEventListener('click', (e) => {
     if (inp) inp.focus();
     // Fallback: widget habit bị ẩn trong cài đặt → focus main để không rơi vào trạng thái không focus
     else { const main = document.getElementById('appMain'); if (main) main.focus(); }
-  } else if (act === 'inbox-add') {
-    addInboxTask();
-  } else if (act === 'inbox-del') {
-    const i = +el.dataset.task;
-    if (inbox[i]) {
-      pushUndo(); // snapshot TRƯỚC khi xóa (inbox đã nằm trong snapshotAll) → Undo khôi phục
-      inbox.splice(i, 1);
-      saveInbox();
-      renderInbox();
-      trackEvent('delete_task', { scope: 'inbox' });
-      TaskFlowUI.toast(t('taskDeletedToast'), 'info', 6000, [
-        { label: t('undoBtnShort'), onClick: () => doUndo() },
-      ]);
-    }
-  } else if (act === 'inbox-today') {
-    const i = +el.dataset.task;
-    const d = new Date();
-    const ok = scheduleInboxTask(i, new Date(d.getFullYear(), d.getMonth(), d.getDate()));
-    if (ok) {
-      closeTaskDetail();
-      renderInbox();
-      TaskFlowUI.toast(t('inboxScheduleToast'), 'success');
-      trackEvent('schedule_task', { scope: 'inbox', target: 'today' });
-    } else TaskFlowUI.toast(t('inboxScheduleError'), 'error');
-  } else if (act === 'inbox-tomorrow') {
-    const i = +el.dataset.task;
-    const d = new Date();
-    const tom = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-    const ok = scheduleInboxTask(i, tom);
-    if (ok) {
-      closeTaskDetail();
-      renderInbox();
-      TaskFlowUI.toast(t('inboxScheduleToast'), 'success');
-      trackEvent('schedule_task', { scope: 'inbox', target: 'tomorrow' });
-    } else TaskFlowUI.toast(t('inboxScheduleError'), 'error');
-  } else if (act === 'inbox-date-schedule') {
-    const i = +el.dataset.task;
-    const inp = document.querySelector('#taskDrawer [data-role="inbox-date"]');
-    const v = inp && inp.value;
-    if (!v) return;
-    const parts = v.split('-').map(Number);
-    const ok = scheduleInboxTask(i, new Date(parts[0], parts[1] - 1, parts[2]));
-    if (ok) {
-      closeTaskDetail();
-      renderInbox();
-      TaskFlowUI.toast(t('inboxScheduleToast'), 'success');
-      trackEvent('schedule_task', { scope: 'inbox', target: 'date' });
-    } else TaskFlowUI.toast(t('inboxScheduleError'), 'error');
+  } else if (act === 'inbox-add' || act === 'inbox-del' || act === 'inbox-today' || act === 'inbox-tomorrow' || act === 'inbox-date-schedule') {
+    // P11 extraction 20: logic inbox-* sang js/inbox.js — fail-fast destructure ở trên đã đảm bảo module tồn tại
+    handleInboxAction(act, el, inbox);
   } else if (act === 'pullyear') {
     pullYearGoalsFromMonths();
   } else if (act === 'mgoal') {
@@ -6831,8 +6684,8 @@ document.addEventListener('click', (e) => {
       if (t) {
         t.done = !t.done;
         if (t.done) addXP(10); else removeXP(10);
-        saveInbox();
-        renderInbox();
+        saveInbox(inbox);
+        renderInbox(inbox);
         refreshFocusIfOpen();
       }
       return;
@@ -7048,8 +6901,8 @@ document.addEventListener('click', (e) => {
     if (taskDetailRef && taskDetailRef.scope === 'inbox') {
       inbox.splice(taskDetailRef.task, 1);
       closeTaskDetail();
-      saveInbox();
-      renderInbox();
+      saveInbox(inbox);
+      renderInbox(inbox);
     } else {
       if (g && g.d && Array.isArray(g.d.tasks)) g.d.tasks.splice(taskDetailRef.task, 1);
       const delY = taskDetailRef ? taskDetailRef.y : PLAN_YEAR;
@@ -7404,7 +7257,7 @@ function saveYearSoon() {
 let inboxSaveTimer = null;
 function saveInboxSoon() {
   clearTimeout(inboxSaveTimer);
-  inboxSaveTimer = setTimeout(saveInbox, 350);
+  inboxSaveTimer = setTimeout(() => saveInbox(inbox), 350);
 }
 let tdSaveTimer = null;
 function saveTaskDetailStateSoon() {
@@ -7414,7 +7267,7 @@ function saveTaskDetailStateSoon() {
 function flushPendingSaves() {
   if (saveDebounceTimer) { clearTimeout(saveDebounceTimer); saveDebounceTimer = null; save(); }
   if (saveYearDebounceTimer) { clearTimeout(saveYearDebounceTimer); saveYearDebounceTimer = null; saveYear(); }
-  if (inboxSaveTimer) { clearTimeout(inboxSaveTimer); inboxSaveTimer = null; saveInbox(); }
+  if (inboxSaveTimer) { clearTimeout(inboxSaveTimer); inboxSaveTimer = null; saveInbox(inbox); }
   if (tdSaveTimer) { clearTimeout(tdSaveTimer); tdSaveTimer = null; saveTaskDetailState(); }
 }
 
