@@ -18,6 +18,13 @@
       "type": "image/png",
       "form_factor": "wide",
       "label": "TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày"
+    },
+    {
+      "src": "app-screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "TaskFlow trên thiết bị di động"
     }
   ],
   "icons": [
