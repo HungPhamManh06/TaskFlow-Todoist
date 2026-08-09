@@ -793,7 +793,7 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.js + sw cache
   assert.match(APP, /js\/app\.js\?v=129/);
-  assert.match(SW, /const CACHE = 'taskflow-v143';/);
+  assert.match(SW, /const CACHE = 'taskflow-v144';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1260,7 +1260,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v143';/);
+  assert.match(SW, /const CACHE = 'taskflow-v144';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -1338,7 +1338,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v143';/);
+  assert.match(SW, /const CACHE = 'taskflow-v144';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
