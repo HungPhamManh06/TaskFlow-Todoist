@@ -2164,3 +2164,32 @@ test('Phase 20: sidebar collapsed — chặn horizontal overflow, tooltip portal
   assert.match(APP_JS, /data-tooltip="\$\{esc\(label\)\}" aria-label="\$\{esc\(label\)\}"/);
 });
 
+test('Phase 21: inbox e2e data-testid hooks + notification deep-link routing', () => {
+  // 1. Inbox dynamic rows có hook ổn định (không phụ thuộc class/role)
+  assert.match(INBOX_JS, /data-testid="inbox-task-row"/);
+  assert.match(INBOX_JS, /class="inbox-task-row[^"]*" data-testid="inbox-task-row"/);
+  // 2. CTA add có hook — cả empty state (qua attrs) lẫn nút dưới danh sách
+  assert.match(INBOX_JS, /attrs: 'data-testid="inbox-add"'/);
+  assert.match(INBOX_JS, /data-action="inbox-add" data-testid="inbox-add"/);
+  // 3. e2e-frontend có inbox_checks + deeplink_checks, dùng data-testid không phải .active
+  const FRONT21 = readRequiredAsset('scripts/e2e-frontend.py');
+  assert.match(FRONT21, /def inbox_checks\(/);
+  assert.match(FRONT21, /def deeplink_checks\(/);
+  assert.match(FRONT21, /\[data-testid="inbox-view"\] \.upcoming-page/);
+  assert.match(FRONT21, /data-testid="inbox-task-row"/);
+  assert.match(FRONT21, /\("inbox", inbox_checks\)/);
+  assert.match(FRONT21, /\("deeplink", deeplink_checks\)/);
+  assert.match(FRONT21, /\/app\?view=today/);
+  // deeplink_checks boots every manifest shortcut: week/overview/year + today/quick
+  assert.match(FRONT21, /for view in \("week", "overview", "year"\):/);
+  assert.match(FRONT21, /app\?view=\{view\}/);
+  assert.match(FRONT21, /\[data-testid="\{view\}-view"\] h1/);
+  // 4. SW notification click vẫn deep-link vào app (không về landing)
+  const SW21 = readRequiredAsset('sw.js');
+  assert.match(SW21, /notificationclick/);
+  assert.match(SW21, /APP_URL = '\.\/app\?view=today'/);
+  assert.doesNotMatch(SW21, /openWindow\('\/\)/);
+  // 5. Deep-link parser chấp nhận inbox + quick=1 (shortcut "Thêm việc")
+  assert.match(DEEPLINK_JS, /view === 'inbox'/);
+  assert.match(DEEPLINK_JS, /out\.quick = url\.searchParams\.get\('quick'\) === '1'/);
+});

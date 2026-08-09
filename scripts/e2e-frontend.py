@@ -255,6 +255,88 @@ def calendar_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def load_inbox(page, base):
+    """Load the Inbox view via deep-link. Inbox renders .upcoming-page (not .inbox-page),
+    so it cannot reuse load_planning_view."""
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.goto(f"{base}/app.html?view=inbox", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="inbox-view"] .upcoming-page', state="visible")
+
+
+def inbox_checks(browser, base, width, height, errors, screenshot):
+    """Phase D: full Inbox flow — capture, type, schedule-to-today — on stable data-testid hooks."""
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"inbox {width}px: {error}"))
+    load_inbox(page, base)
+
+    assert page.locator('[data-testid="inbox-view"] h1').count() == 1
+    assert_no_page_overflow(page, f"inbox {width}px")
+
+    # Empty state CTA has stable hook (data-testid="inbox-add")
+    add = page.locator('[data-testid="inbox-add"]')
+    assert add.count() == 1
+    add.click()
+    row = page.locator('[data-testid="inbox-task-row"]')
+    assert row.count() == 1, "inbox-add must create one row"
+
+    # Type a real task into the new row's contenteditable
+    text = page.locator('[data-testid="inbox-task-row"] [data-role="inbox-text"]')
+    text.fill("E2E inbox task")
+    assert text.inner_text() == "E2E inbox task"
+
+    # Schedule to today: row clears, task lands on Today
+    page.locator('[data-testid="inbox-task-row"] [data-action="inbox-today"]').click()
+    page.wait_for_selector('[data-testid="inbox-task-row"]', state="detached")
+    assert row.count() == 0, "scheduled task must leave the inbox"
+
+    page.evaluate("setView('today')")
+    page.wait_for_selector('[data-testid="today-view"]', state="visible")
+    assert "E2E inbox task" in page.locator('[data-testid="today-view"]').inner_text()
+
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def deeplink_checks(browser, base, width, height, errors, screenshot):
+    """Phase D: browser-level PWA deep-links.
+    - notificationclick opens './app?view=today' (SW APP_URL) → Today must boot visible.
+    - manifest shortcut 'Thêm công việc' opens './app?view=today&quick=1' → Quick Add opens.
+    The self-hosted server maps /app → /app.html (clean URLs), same as Vercel.
+    NOTE: this tests the deep-link ROUTING the SW/notification opens, not the SW
+    notificationclick handler itself (real notifications are untestable in headless)."""
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.on("pageerror", lambda error: errors.append(f"deeplink {width}px: {error}"))
+
+    # 1. Notification deep-link target: today view, no quick-add
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.goto(f"{base}/app?view=today", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="today-view"]', state="visible")
+    assert page.locator('[data-testid="today-view"]').is_visible()
+    assert page.locator('[data-testid="quick-add"]:visible').count() == 0
+    assert_no_page_overflow(page, f"deeplink today {width}px")
+
+    # 2. Manifest 'Thêm việc' shortcut: quick=1 must open Quick Add after boot
+    page.goto(f"{base}/app?view=today&quick=1", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="quick-add"]', state="visible", timeout=8000)
+    assert page.locator('[data-testid="quick-add"]:visible').count() == 1
+    assert_no_page_overflow(page, f"deeplink quick {width}px")
+
+    # 3. Remaining manifest shortcuts (Tuần này / Tổng quan tháng / Kế hoạch năm):
+    #    each boots to its own view, quick-add stays closed.
+    for view in ("week", "overview", "year"):
+        page.goto(f"{base}/app?view={view}", wait_until="networkidle")
+        page.wait_for_selector(f'[data-testid="{view}-view"]', state="visible", timeout=8000)
+        assert page.locator(f'[data-testid="{view}-view"]').is_visible()
+        assert page.locator(f'[data-testid="{view}-view"] h1').count() == 1, f"{view} h1 missing"
+        assert page.locator('[data-testid="quick-add"]:visible').count() == 0, f"{view} must not open quick-add"
+        assert_no_page_overflow(page, f"deeplink {view} {width}px")
+
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dialog_checks(browser, base, width, height, errors, screenshot):
     page = browser.new_page(viewport={"width": width, "height": height})
     page.on("pageerror", lambda error: errors.append(f"dialogs {width}px: {error}"))
@@ -422,7 +504,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -453,6 +535,8 @@ def main():
                     ("week", week_checks),
                     ("year", year_checks),
                     ("calendar", calendar_checks),
+                    ("inbox", inbox_checks),
+                    ("deeplink", deeplink_checks),
                     ("dialogs", dialog_checks),
                     ("focus", focus_checks),
                     ("dark-overview", dark_overview_checks),
@@ -481,6 +565,12 @@ def main():
             elif args.view == "calendar":
                 calendar_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 calendar_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "inbox":
+                inbox_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                inbox_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "deeplink":
+                deeplink_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                deeplink_checks(browser, base, 390, 844, errors, shots["mobile"])
             browser.close()
     finally:
         httpd.shutdown()
