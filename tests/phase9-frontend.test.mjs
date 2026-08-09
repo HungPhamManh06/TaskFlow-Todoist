@@ -10,6 +10,7 @@ import DeepLink from '../js/deeplink.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
 const SYNC_JS = readFileSync(path.join(ROOT, 'js/sync.js'), 'utf8');
 const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 const LANDING = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -559,10 +560,10 @@ test('Phase 7: unified empty states with CTA actions and dedup toasts', () => {
   // dedup reuses element but can attach missing action button
   assert.match(ui, /!existing\.querySelector\('.toast-action'\)/);
   // i18n keys exist in both languages
-  assert.match(APP_JS, /taskDeletedToast: 'Đã xóa task'/);
-  assert.match(APP_JS, /taskDeletedToast: 'Task deleted'/);
-  assert.match(APP_JS, /emptyPlanWeek: 'Lên kế hoạch tuần'/);
-  assert.match(APP_JS, /emptyPlanWeek: 'Plan the week'/);
+  assert.match(I18N_JS, /taskDeletedToast: 'Đã xóa task'/);
+  assert.match(I18N_JS, /taskDeletedToast: 'Task deleted'/);
+  assert.match(I18N_JS, /emptyPlanWeek: 'Lên kế hoạch tuần'/);
+  assert.match(I18N_JS, /emptyPlanWeek: 'Plan the week'/);
   // CSS: empty-actions + toast-action
   const css = readRequiredAsset('css/styles.css');
   const comp = readRequiredAsset('css/components.css');
@@ -735,8 +736,418 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
   assert.match(UI_JS, /view === 'day' && day !== undefined/);
 });
 
+test('P11: util.js module extracted — helpers live there, app.js keeps aliases', () => {
+  const UTIL = readRequiredAsset('js/util.js');
+  // app.html loads util.js before app.js
+  assert.match(APP, /src="js\/util\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const utilIdx = APP.indexOf('js/util.js?v=');
+  assert.ok(utilIdx >= 0 && utilIdx < appIdx, 'util.js phải load trước app.js');
+  // sw.js precache util.js
+  assert.ok(SW.includes("'./js/util.js'"), 'sw.js phải precache js/util.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại
+  assert.match(APP_JS, /const \{ esc, localISODate, formatFocusTime, lineChartSVG \} = window\.TaskFlowUtil;/);
+  assert.doesNotMatch(APP_JS, /const esc = \(s\) => String/);
+  assert.doesNotMatch(APP_JS, /function localISODate\(/);
+  // module export đủ 4 helpers
+  assert.match(UTIL, /function esc\(s\)/);
+  assert.match(UTIL, /function localISODate\(date\)/);
+  assert.match(UTIL, /function formatFocusTime\(min\)/);
+  assert.match(UTIL, /function lineChartSVG\(values/);
+  assert.match(UTIL, /return \{ esc, localISODate, formatFocusTime, lineChartSVG \}/);
+});
+
+test('P11: i18n core extracted — helpers live in js/i18n.js, app.js keeps aliases', () => {
+  // app.html loads i18n.js before app.js
+  assert.match(APP, /src="js\/i18n\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const i18nIdx = APP.indexOf('js/i18n.js?v=');
+  assert.ok(i18nIdx >= 0 && i18nIdx < appIdx, 'i18n.js phải load trước app.js');
+  // sw.js precache i18n.js
+  assert.ok(SW.includes("'./js/i18n.js'"), 'sw.js phải precache js/i18n.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại dictionary (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowI18N\) throw new Error\('TaskFlowI18N missing/);
+  assert.match(APP_JS, /const \{ I18N, t, monthLabel, dayLabel, fmtDeadline, dateLocale, getLang, setLangCore, applyStaticI18N \} = window\.TaskFlowI18N;/);
+  assert.doesNotMatch(APP_JS, /^const I18N = \{/m);
+  assert.doesNotMatch(APP_JS, /function applyStaticI18N\(\)/);
+  assert.doesNotMatch(APP_JS, /^let LANG = /m);
+  // module export đủ API
+  const mod = readRequiredAsset('js/i18n.js');
+  assert.match(mod, /return \{ I18N, t, monthLabel, dayLabel, fmtDeadline, dateLocale, getLang, setLangCore, applyStaticI18N, MONTH_NAMES \}/);
+  // dictionary đủ vi + en (2 bản I18N)
+  assert.equal((mod.match(/^  vi: \{/m) || []).length, 1, 'i18n.js phải có dictionary vi');
+  assert.equal((mod.match(/^  en: \{/m) || []).length, 1, 'i18n.js phải có dictionary en');
+});
+
+test('P12: setView clears stale inactive view DOM after rendering the target', () => {
+  const source = APP_JS.slice(APP_JS.indexOf('function setView('), APP_JS.indexOf('function goWeek('));
+  // Clear logic phải nằm trong setView, sau nhánh render view đích
+  assert.match(source, /const activeSectionId = 'view-' \+ view;/);
+  assert.match(source, /if \(s\.id === 'view-overview'\) \{[\s\S]{0,120}document\.getElementById\('ov-content'\)[\s\S]{0,120}oc\.innerHTML = ''/);
+  assert.match(source, /else \{[\s\S]{0,60}s\.innerHTML = '';/);
+  // Không clear view đang active — giữ section id bằng view hiện tại
+  assert.match(source, /if \(!s \|\| s\.id === activeSectionId\) return;/);
+  // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
+  assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
+  // Version bumps: app.js + sw cache
+  assert.match(APP, /js\/app\.js\?v=125/);
+  assert.match(SW, /const CACHE = 'taskflow-v139';/);
+});
+
+test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
+  // app.html loads stats.js before app.js
+  assert.match(APP, /src="js\/stats\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const stIdx = APP.indexOf('js/stats.js?v=');
+  assert.ok(stIdx >= 0 && stIdx < appIdx, 'stats.js phải load trước app.js');
+  // sw.js precache stats.js
+  assert.ok(SW.includes("'./js/stats.js'"), 'sw.js phải precache js/stats.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowStats\) throw new Error\('TaskFlowStats missing/);
+  assert.match(APP_JS, /const \{ weekStats, monthlyStats \} = window\.TaskFlowStats;/);
+  assert.doesNotMatch(APP_JS, /^function weekStats\(/m);
+  assert.doesNotMatch(APP_JS, /^function monthlyStats\(/m);
+  // call-sites giữ nguyên: weekStats(w) giữ signature, monthlyStats nhận state
+  assert.match(APP_JS, /weekStats\(selectedWeek\)/);
+  assert.match(APP_JS, /monthlyStats\(state\)/);
+  assert.doesNotMatch(APP_JS, /monthlyStats\(\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/stats.js');
+  assert.match(mod, /return \{ weekStats, monthlyStats \}/);
+});
+
+test('P11: date helpers extracted — fmtDate/isDayToday/dayLabelShort live in js/dates.js', () => {
+  // app.html loads dates.js before app.js
+  assert.match(APP, /src="js\/dates\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const dtIdx = APP.indexOf('js/dates.js?v=');
+  assert.ok(dtIdx >= 0 && dtIdx < appIdx, 'dates.js phải load trước app.js');
+  // sw.js precache dates.js
+  assert.ok(SW.includes("'./js/dates.js'"), 'sw.js phải precache js/dates.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowDates\) throw new Error\('TaskFlowDates missing/);
+  assert.match(APP_JS, /const \{ fmtDate, isDayToday, dayLabelShort \} = window\.TaskFlowDates;/);
+  assert.doesNotMatch(APP_JS, /^function isDayToday\(/m);
+  assert.doesNotMatch(APP_JS, /^function dayLabelShort\(/m);
+  assert.doesNotMatch(APP_JS, /^const fmtDate = /m);
+  // call-sites giữ nguyên (week day panel + focus chart + calendar)
+  assert.match(APP_JS, /dayColumnHTML\(w, di, isDayToday\(d\)\)/);
+  assert.match(APP_JS, /dayLabelShort\(di\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/dates.js');
+  assert.match(mod, /return \{ fmtDate, isDayToday, dayLabelShort \}/);
+  assert.match(mod, /TaskFlowI18N/);
+});
+
+test('P11: account core extracted — helpers live in js/account.js, app.js keeps aliases', () => {
+  // app.html loads account.js before app.js
+  assert.match(APP, /src="js\/account\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const acIdx = APP.indexOf('js/account.js?v=');
+  assert.ok(acIdx >= 0 && acIdx < appIdx, 'account.js phải load trước app.js');
+  // sw.js precache account.js
+  assert.ok(SW.includes("'./js/account.js'"), 'sw.js phải precache js/account.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowAccount\) throw new Error\('TaskFlowAccount missing/);
+  assert.match(APP_JS, /const \{ BADGES_KEY, hasAccount, defaultYearState, emptyYearState, loadBadges, saveBadges \} = window\.TaskFlowAccount;/);
+  assert.doesNotMatch(APP_JS, /^function hasAccount\(/m);
+  assert.doesNotMatch(APP_JS, /^function defaultYearState\(/m);
+  assert.doesNotMatch(APP_JS, /^function emptyYearState\(/m);
+  assert.doesNotMatch(APP_JS, /^function loadBadges\(/m);
+  assert.doesNotMatch(APP_JS, /^const BADGES_KEY = /m);
+  assert.doesNotMatch(APP_JS, /^const YEAR_GOAL_DEFS = /m);
+  // call-sites giữ nguyên + truyền PLAN_YEAR cho year state
+  assert.match(APP_JS, /hasAccount\(\)/);
+  assert.match(APP_JS, /emptyYearState\(PLAN_YEAR\)/);
+  assert.match(APP_JS, /defaultYearState\(PLAN_YEAR\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/account.js');
+  assert.match(mod, /return \{ BADGES_KEY, YEAR_GOAL_DEFS, hasAccount, defaultYearState, emptyYearState, loadBadges, saveBadges \}/);
+  assert.match(mod, /planner-token/);
+  assert.match(mod, /planner-badges/);
+  assert.match(mod, /YEAR_GOAL_DEFS = \[/);
+});
+
+test('P11: habit day helpers extracted — habitDaysElapsed/dayAggregate/heatLevel live in js/habits.js', () => {
+  // app.html loads habits.js before app.js
+  assert.match(APP, /src="js\/habits\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const hbIdx = APP.indexOf('js/habits.js?v=');
+  assert.ok(hbIdx >= 0 && hbIdx < appIdx, 'habits.js phải load trước app.js');
+  // sw.js precache habits.js
+  assert.ok(SW.includes("'./js/habits.js'"), 'sw.js phải precache js/habits.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowHabits\) throw new Error\('TaskFlowHabits missing/);
+  assert.match(APP_JS, /const \{ habitDaysElapsed, dayAggregate, heatLevel \} = window\.TaskFlowHabits;/);
+  assert.doesNotMatch(APP_JS, /^function habitDaysElapsed\(/m);
+  assert.doesNotMatch(APP_JS, /^function dayAggregate\(/m);
+  assert.doesNotMatch(APP_JS, /^function heatLevel\(/m);
+  // call-sites giữ nguyên: habitDaysElapsed nhận (PLAN_YEAR, PLAN_MONTH, NUM_DAYS), dayAggregate nhận state
+  assert.match(APP_JS, /habitDaysElapsed\(PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
+  assert.match(APP_JS, /dayAggregate\(state, d\)/);
+  assert.doesNotMatch(APP_JS, /dayAggregate\(d\)/);
+  assert.match(APP_JS, /heatLevel\(pct\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/habits.js');
+  assert.match(mod, /return \{ habitDaysElapsed, dayAggregate, heatLevel \}/);
+  assert.match(mod, /root\.TaskFlowHabits = api/);
+});
+
+test('P11: date key generators extracted — pomoDateKey/moodDateKey live in js/keys.js', () => {
+  // app.html loads keys.js before app.js
+  assert.match(APP, /src="js\/keys\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const kIdx = APP.indexOf('js/keys.js?v=');
+  assert.ok(kIdx >= 0 && kIdx < appIdx, 'keys.js phải load trước app.js');
+  // sw.js precache keys.js
+  assert.ok(SW.includes("'./js/keys.js'"), 'sw.js phải precache js/keys.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowKeys\) throw new Error\('TaskFlowKeys missing/);
+  assert.match(APP_JS, /const \{ pomoDateKey, moodDateKey \} = window\.TaskFlowKeys;/);
+  assert.doesNotMatch(APP_JS, /^function moodDateKey\(/m);
+  assert.doesNotMatch(APP_JS, /^function pomoDateKey\(/m);
+  // call-sites giữ nguyên: moodDateKey nhận (d, PLAN_YEAR, PLAN_MONTH), pomoDateKey giữ signature
+  assert.match(APP_JS, /moodDateKey\(d, PLAN_YEAR, PLAN_MONTH\)/);
+  assert.match(APP_JS, /moodDateKey\(d \+ 1, PLAN_YEAR, PLAN_MONTH\)/);
+  assert.match(APP_JS, /pomoDateKey\(new Date\(\)\)/);
+  assert.doesNotMatch(APP_JS, /moodDateKey\(d\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/keys.js');
+  assert.match(mod, /return \{ pomoDateKey, moodDateKey \}/);
+  assert.match(mod, /padStart\(2, '0'\)/);
+});
+
+test('P11: reminder helpers extracted — remind core lives in js/remind.js', () => {
+  // app.html loads remind.js before app.js
+  assert.match(APP, /src="js\/remind\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const rmIdx = APP.indexOf('js/remind.js?v=');
+  assert.ok(rmIdx >= 0 && rmIdx < appIdx, 'remind.js phải load trước app.js');
+  // sw.js precache remind.js
+  assert.ok(SW.includes("'./js/remind.js'"), 'sw.js phải precache js/remind.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowRemind\) throw new Error\('TaskFlowRemind missing/);
+  assert.match(APP_JS, /const \{ getRemindTime, setRemindTime, requestRemindPermission, registerPeriodicReminder \} = window\.TaskFlowRemind;/);
+  assert.doesNotMatch(APP_JS, /^function getRemindTime\(/m);
+  assert.doesNotMatch(APP_JS, /^function setRemindTime\(/m);
+  assert.doesNotMatch(APP_JS, /^function requestRemindPermission\(/m);
+  assert.doesNotMatch(APP_JS, /^function registerPeriodicReminder\(/m);
+  // call-sites giữ nguyên: getRemindTime()/setRemindTime(v)/registerPeriodicReminder() + top-level boot call
+  assert.match(APP_JS, /if \(getRemindTime\(\)\) registerPeriodicReminder\(\);/);
+  assert.match(APP_JS, /setRemindTime\(time\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/remind.js');
+  assert.match(mod, /return \{ getRemindTime, setRemindTime, requestRemindPermission, registerPeriodicReminder \}/);
+  assert.match(mod, /planner-remind/);
+  assert.match(mod, /periodic-background-sync/);
+});
+
+test('P11: dark mode helpers extracted — theme core lives in js/theme.js', () => {
+  // app.html loads theme.js before app.js
+  assert.match(APP, /src="js\/theme\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const thIdx = APP.indexOf('js/theme.js?v=');
+  assert.ok(thIdx >= 0 && thIdx < appIdx, 'theme.js phải load trước app.js');
+  // sw.js precache theme.js
+  assert.ok(SW.includes("'./js/theme.js'"), 'sw.js phải precache js/theme.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowTheme\) throw new Error\('TaskFlowTheme missing/);
+  assert.match(APP_JS, /const \{ systemPrefersDark, darkIsOn, applyDark, toggleDark \} = window\.TaskFlowTheme;/);
+  assert.doesNotMatch(APP_JS, /^function systemPrefersDark\(/m);
+  assert.doesNotMatch(APP_JS, /^function darkIsOn\(/m);
+  assert.doesNotMatch(APP_JS, /^function applyDark\(/m);
+  assert.doesNotMatch(APP_JS, /^function toggleDark\(/m);
+  // prefersReducedMotion giữ lại trong app.js (test lock phase9)
+  assert.match(APP_JS, /^function prefersReducedMotion\(/m);
+  // call-sites giữ nguyên: darkIsOn/applyDark/toggleDark nhận DARK tham số
+  assert.match(APP_JS, /DARK = toggleDark\(DARK\)/);
+  assert.match(APP_JS, /applyDark\(DARK\)/);
+  assert.match(APP_JS, /if \(DARK === null\) applyDark\(DARK\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/theme.js');
+  assert.match(mod, /return \{ systemPrefersDark, darkIsOn, applyDark, toggleDark \}/);
+  assert.match(mod, /planner-dark/);
+});
+
+test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
+  // app.html loads analytics.js before app.js
+  assert.match(APP, /src="js\/analytics\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const anIdx = APP.indexOf('js/analytics.js?v=');
+  assert.ok(anIdx >= 0 && anIdx < appIdx, 'analytics.js phải load trước app.js');
+  // sw.js precache analytics.js
+  assert.ok(SW.includes("'./js/analytics.js'"), 'sw.js phải precache js/analytics.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowAnalytics\) throw new Error\('TaskFlowAnalytics missing/);
+  assert.match(APP_JS, /const \{ GA4_ID, GA4_ENABLED, initAnalytics, trackEvent \} = window\.TaskFlowAnalytics;/);
+  assert.doesNotMatch(APP_JS, /^const GA4_ID = /m);
+  assert.doesNotMatch(APP_JS, /^function initAnalytics\(/m);
+  assert.doesNotMatch(APP_JS, /^function trackEvent\(/m);
+  // call-sites giữ nguyên: trackEvent(...) khắp app.js + boot initAnalytics()
+  assert.match(APP_JS, /trackEvent\('demo_data'\)/);
+  assert.match(APP_JS, /trackEvent\('share_year_report'/);
+  assert.match(APP_JS, /trackEvent\('import_csv'\)/);
+  assert.match(APP_JS, /initAnalytics\(\)/);
+  // module export đủ API + GA4 placeholder tự tắt
+  const mod = readRequiredAsset('js/analytics.js');
+  assert.match(mod, /return \{ GA4_ID, GA4_ENABLED, initAnalytics, trackEvent \}/);
+  assert.match(mod, /GA4_ENABLED = !!\(GA4_ID && !GA4_ID\.startsWith\('G-XXXX'\)\)/);
+  assert.match(mod, /googletagmanager\.com\/gtag\/js\?id=/);
+});
+
+test('P11: export helpers extracted — downloadFile/collectAllData/exportJSON live in js/export.js', () => {
+  // app.html loads export.js before app.js
+  assert.match(APP, /src="js\/export\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const exIdx = APP.indexOf('js/export.js?v=');
+  assert.ok(exIdx >= 0 && exIdx < appIdx, 'export.js phải load trước app.js');
+  // sw.js precache export.js
+  assert.ok(SW.includes("'./js/export.js'"), 'sw.js phải precache js/export.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowExport\) throw new Error\('TaskFlowExport missing/);
+  assert.match(APP_JS, /const \{ downloadFile, collectAllData, exportJSON \} = window\.TaskFlowExport;/);
+  assert.doesNotMatch(APP_JS, /^function collectAllData\(/m);
+  assert.doesNotMatch(APP_JS, /^function downloadFile\(/m);
+  assert.doesNotMatch(APP_JS, /^function exportJSON\(/m);
+  // call-sites giữ nguyên: collectAllData(LEGACY_KEY)/exportJSON(LEGACY_KEY), downloadFile giữ signature
+  assert.match(APP_JS, /rotateBackup\(collectAllData\(LEGACY_KEY\)\)/);
+  assert.match(APP_JS, /exportJSON\(LEGACY_KEY\)/);
+  assert.doesNotMatch(APP_JS, /collectAllData\(\)/);
+  assert.doesNotMatch(APP_JS, /exportJSON\(\)/);
+  // exportCSV/legacyCSVRows/csvRow ở lại app.js (phụ thuộc nhiều global)
+  assert.match(APP_JS, /function exportCSV\(/);
+  assert.match(APP_JS, /function legacyCSVRows\(/);
+  assert.match(APP_JS, /function csvRow\(/);
+  // module export đủ API + trackEvent qua TaskFlowAnalytics
+  const mod = readRequiredAsset('js/export.js');
+  assert.match(mod, /return \{ downloadFile, collectAllData, exportJSON \}/);
+  assert.match(mod, /TaskFlowAnalytics/);
+});
+
+test('P11: habit streak helpers extracted — streak core lives in js/streak.js', () => {
+  // app.html loads streak.js before app.js
+  assert.match(APP, /src="js\/streak\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const stIdx = APP.indexOf('js/streak.js?v=');
+  assert.ok(stIdx >= 0 && stIdx < appIdx, 'streak.js phải load trước app.js');
+  // sw.js precache streak.js
+  assert.ok(SW.includes("'./js/streak.js'"), 'sw.js phải precache js/streak.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowStreak\) throw new Error\('TaskFlowStreak missing/);
+  assert.match(APP_JS, /const \{ habitInMonthState, habitDaysAt, streakAnchorDay, habitTimeline, habitStreakOf, habitStreakCached, clearStreakCache \} = window\.TaskFlowStreak;/);
+  assert.doesNotMatch(APP_JS, /^function habitInMonthState\(/m);
+  assert.doesNotMatch(APP_JS, /^function habitDaysAt\(/m);
+  assert.doesNotMatch(APP_JS, /^function streakAnchorDay\(/m);
+  assert.doesNotMatch(APP_JS, /^function habitTimeline\(/m);
+  assert.doesNotMatch(APP_JS, /^function habitStreakOf\(/m);
+  assert.doesNotMatch(APP_JS, /^function habitStreakCached\(/m);
+  assert.doesNotMatch(APP_JS, /^function clearStreakCache\(/m);
+  // phase9:1369 vẫn match — alias chứa chuỗi habitStreakCached
+  assert.match(APP_JS, /habitStreakCached/);
+  // call-sites giữ nguyên: nhận PLAN_YEAR/PLAN_MONTH/NUM_DAYS tham số
+  assert.match(APP_JS, /habitStreakCached\(h, PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
+  assert.match(APP_JS, /habitStreakCached\(habit, PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
+  assert.match(APP_JS, /streakAnchorDay\(PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
+  assert.match(APP_JS, /habitDaysAt\(y, m, h, PLAN_YEAR, PLAN_MONTH\)/);
+  assert.doesNotMatch(APP_JS, /streakAnchorDay\(\)/);
+  // module export đủ API + hmStreakCache nội bộ
+  const mod = readRequiredAsset('js/streak.js');
+  assert.match(mod, /return \{ habitInMonthState, habitDaysAt, streakAnchorDay, habitTimeline, habitStreakOf, habitStreakCached, clearStreakCache \}/);
+  assert.match(mod, /let hmStreakCache = new Map\(\);/);
+  assert.match(mod, /TaskFlowStorage/);
+});
+
+test('P11: month goal helpers extracted — monthPctOf/monthGoalsOf live in js/goals.js', () => {
+  // app.html loads goals.js before app.js
+  assert.match(APP, /src="js\/goals\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const gIdx = APP.indexOf('js/goals.js?v=');
+  assert.ok(gIdx >= 0 && gIdx < appIdx, 'goals.js phải load trước app.js');
+  // sw.js precache goals.js
+  assert.ok(SW.includes("'./js/goals.js'"), 'sw.js phải precache js/goals.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowGoals\) throw new Error\('TaskFlowGoals missing/);
+  assert.match(APP_JS, /const \{ monthPctOf, monthGoalsOf \} = window\.TaskFlowGoals;/);
+  assert.doesNotMatch(APP_JS, /^function monthPctOf\(/m);
+  assert.doesNotMatch(APP_JS, /^function monthGoalsOf\(/m);
+  // call-sites đổi signature: truyền defaultMonthPct/GOAL_DEFS tham số
+  assert.match(APP_JS, /monthPctOf\(PLAN_YEAR, m, defaultMonthPct\)/);
+  assert.match(APP_JS, /monthGoalsOf\(PLAN_YEAR, m, GOAL_DEFS\)/);
+  assert.match(APP_JS, /monthGoalsOf\(y, m, GOAL_DEFS\)/);
+  // defaultMonthPct + GOAL_DEFS vẫn sống trong app.js
+  assert.match(APP_JS, /^function defaultMonthPct\(/m);
+  assert.match(APP_JS, /^const GOAL_DEFS = /m);
+  // module export đủ API + hasAccount access qua TaskFlowAccount
+  const mod = readRequiredAsset('js/goals.js');
+  assert.match(mod, /return \{ monthPctOf, monthGoalsOf \}/);
+  assert.match(mod, /TaskFlowAccount/);
+  assert.match(mod, /localStorage\.getItem\('planner-' \+ y \+ '-' \+ \(m \+ 1\)\)/);
+});
+
+test('P11: FAB drag/tuck helpers extracted — FAB core lives in js/fab.js', () => {
+  // app.html loads fab.js before app.js
+  assert.match(APP, /src="js\/fab\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const fIdx = APP.indexOf('js/fab.js?v=');
+  assert.ok(fIdx >= 0 && fIdx < appIdx, 'fab.js phải load trước app.js');
+  // sw.js precache fab.js
+  assert.ok(SW.includes("'./js/fab.js'"), 'sw.js phải precache js/fab.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowFab\) throw new Error\('TaskFlowFab missing/);
+  assert.match(APP_JS, /const \{ loadFabPos, saveFabPos, clearFabPos, clampFabPos, initFabDrag, initFabDrags, fabTuckAllowed, nearestTuckEdge, tuckOffset, initFabTuck \} = window\.TaskFlowFab;/);
+  assert.doesNotMatch(APP_JS, /^function loadFabPos\(/m);
+  assert.doesNotMatch(APP_JS, /^function saveFabPos\(/m);
+  assert.doesNotMatch(APP_JS, /^function clampFabPos\(/m);
+  assert.doesNotMatch(APP_JS, /^function initFabDrag\(/m);
+  assert.doesNotMatch(APP_JS, /^function initFabDrags\(/m);
+  assert.doesNotMatch(APP_JS, /^function fabTuckAllowed\(/m);
+  assert.doesNotMatch(APP_JS, /^function nearestTuckEdge\(/m);
+  assert.doesNotMatch(APP_JS, /^function tuckOffset\(/m);
+  assert.doesNotMatch(APP_JS, /^function initFabTuck\(/m);
+  assert.doesNotMatch(APP_JS, /^const FAB_MARGIN = /m);
+  assert.doesNotMatch(APP_JS, /^const FAB_POS_KEYS = /m);
+  // boot call giữ nguyên (initFabDrags chạy lúc khởi động)
+  assert.match(APP_JS, /initFabDrags\(\);/);
+  // module export đủ API + state/consts nội bộ + accessor pattern
+  const mod = readRequiredAsset('js/fab.js');
+  assert.match(mod, /return \{ loadFabPos, saveFabPos, clearFabPos, clampFabPos, initFabDrag, initFabDrags, fabTuckAllowed, nearestTuckEdge, tuckOffset, initFabTuck \}/);
+  assert.match(mod, /const FAB_MARGIN = 8;/);
+  assert.match(mod, /const FAB_POS_KEYS = \{ pomo: 'planner-fab-pomo', chat: 'planner-fab-chat' \};/);
+  assert.match(mod, /FAB_TUCK_MS = 2200/);
+  assert.match(mod, /FAB_TUCK_SLIVER = 14/);
+  assert.match(mod, /fabDragJustMoved/);
+  assert.match(mod, /TaskFlowI18N/);
+  assert.match(mod, /TaskFlowUI/);
+});
+
+test('P11: storage core extracted — helpers live in js/storage.js, app.js keeps aliases', () => {
+  // app.html loads storage.js before app.js
+  assert.match(APP, /src="js\/storage\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.js?v=');
+  const stIdx = APP.indexOf('js/storage.js?v=');
+  assert.ok(stIdx >= 0 && stIdx < appIdx, 'storage.js phải load trước app.js');
+  // sw.js precache storage.js
+  assert.ok(SW.includes("'./js/storage.js'"), 'sw.js phải precache js/storage.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowStorage\) throw new Error\('TaskFlowStorage missing/);
+  assert.match(APP_JS, /const \{ POMO_LOG_KEY, monthStateRaw, saveMonthState, loadPomoLog, savePomoLog, backupSlotKey \} = window\.TaskFlowStorage;/);
+  assert.doesNotMatch(APP_JS, /^function monthStateRaw\(/m);
+  assert.doesNotMatch(APP_JS, /^function saveMonthState\(/m);
+  assert.doesNotMatch(APP_JS, /^function loadPomoLog\(/m);
+  assert.doesNotMatch(APP_JS, /^function backupSlotKey\(/m);
+  assert.doesNotMatch(APP_JS, /^const POMO_LOG_KEY = /m);
+  // module export đủ API
+  const mod = readRequiredAsset('js/storage.js');
+  assert.match(mod, /return \{ POMO_LOG_KEY, monthStateRaw, saveMonthState, loadPomoLog, savePomoLog, backupSlotKey \}/);
+  assert.match(mod, /POMO_LOG_KEY = 'planner-pomo-log'/);
+  // call-sites giữ nguyên trong app.js
+  assert.match(APP_JS, /monthStateRaw\(/);
+  assert.match(APP_JS, /saveMonthState\(/);
+  assert.match(APP_JS, /backupSlotKey\(/);
+});
+
 test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v121';/);
+  assert.match(SW, /const CACHE = 'taskflow-v139';/);
   assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
 });
 
@@ -814,7 +1225,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v121';/);
+  assert.match(SW, /const CACHE = 'taskflow-v139';/);
   [
     './css/tokens.css', './css/components.css', './css/app-shell.css',
     './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
@@ -991,7 +1402,8 @@ test('hardening: reduced-motion helper suppresses confetti and smooth journey sc
 
 test('hardening: browser theme metadata follows semantic cream and dark canvases', () => {
   assert.match(APP, /<meta name="theme-color" content="#f4f0e9"/i);
-  assert.match(APP_JS, /mc\.setAttribute\('content', on \? '#1b1917' : '#f4f0e9'\)/i);
+  // applyDark (đã tách sang js/theme.js) vẫn set theme-color đúng cho dark/light
+  assert.match(readRequiredAsset('js/theme.js'), /mc\.setAttribute\('content', on \? '#1b1917' : '#f4f0e9'\)/i);
 });
 
 test('release: inactive views stay hidden and unrelated views are not rendered', () => {
@@ -1020,10 +1432,10 @@ test('release: frontend CSS avoids transition-all and restores suppressed outlin
 });
 
 test('release: redundant emoji is removed from tool labels backed by local icons', () => {
-  assert.match(APP_JS, /todayTxt:\s*'Hôm nay'/);
-  assert.match(APP_JS, /dataTitle:\s*'Dữ liệu của bạn'/);
-  assert.match(APP_JS, /remindTitle:\s*'Nhắc việc hằng ngày'/);
-  assert.doesNotMatch(APP_JS, /todayTxt:\s*'[📍]|dataTitle:\s*'[💾]|remindTitle:\s*'[🔔]/u);
+  assert.match(I18N_JS, /todayTxt:\s*'Hôm nay'/);
+  assert.match(I18N_JS, /dataTitle:\s*'Dữ liệu của bạn'/);
+  assert.match(I18N_JS, /remindTitle:\s*'Nhắc việc hằng ngày'/);
+  assert.doesNotMatch(I18N_JS, /todayTxt:\s*'[📍]|dataTitle:\s*'[💾]|remindTitle:\s*'[🔔]/u);
 });
 
 test('Phase 3: Today Dashboard is the default view with greeting, tasks, habits and focus', () => {
@@ -1064,12 +1476,21 @@ test('Phase 4: minimal task card with meta line and hover ⋯ menu', () => {
   // actions ẩn mặc định, hiện khi hover/focus
   assert.match(styles, /\.task-row-actions[^}]*opacity:\s*0/s);
   assert.match(styles, /\.task-row:hover \.task-row-actions[^}]*opacity:\s*1/s);
-  // menu dropdown ⋯ chứa duplicate/delete, giữ data-action cũ cho handler
+  // menu dropdown ⋯ chứa duplicate/delete/move, giữ data-action cũ cho handler
   assert.match(APP_JS, /data-action="task-menu"/);
   assert.match(APP_JS, /data-action="task-duplicate"/);
+  assert.match(APP_JS, /data-action="task-move"/);
   assert.match(APP_JS, /data-action="remind-task"/);
   assert.match(APP_JS, /data-action="repeat-edit"/);
   assert.match(APP_JS, /act === 'task-duplicate'/);
+  assert.match(APP_JS, /act === 'task-move'/);
+  assert.match(I18N_JS, /taskMove: 'Chuyển ngày'/);
+  assert.match(I18N_JS, /taskMove: 'Move date'/);
+  // completed task giảm emphasis: card mờ + text gạch nhẹ (giống upcoming/inbox)
+  assert.match(styles, /\.task-row\.done\s*{[^}]*opacity:\s*\.62/s);
+  assert.match(styles, /\.task-row\.done \.task-text[^}]*line-through/s);
+  // touch: nút xoá Today hiện luôn (không phụ thuộc hover)
+  assert.match(styles, /@media \(hover: none\), \(pointer: coarse\)[^{]*{[^}]*\}\s*\.today-task \.btn-del\s*{[^}]*opacity:\s*1/s);
   // editor inline chèn vào row (không vỡ khi nút nằm trong menu)
   assert.match(APP_JS, /insertBeforeTaskActions/);
   // icon repeat trong sprite
@@ -1116,10 +1537,10 @@ test('Phase 5: task detail drawer with fields, subtasks, and handlers', () => {
   assert.match(styles, /\.task-drawer\s*{[^}]*inset:\s*0\s+0\s+0\s+auto/s);
   assert.match(styles, /\.task-drawer-body\s*{[^}]*overflow-y:\s*auto/s);
   // i18n keys đầy đủ cho drawer
-  assert.match(APP_JS, /taskDetailTitle:/);
-  assert.match(APP_JS, /taskDetailSubtasks:/);
-  assert.match(APP_JS, /taskDetailNotes:/);
-  assert.match(APP_JS, /taskDetailDelete:/);
+  assert.match(I18N_JS, /taskDetailTitle:/);
+  assert.match(I18N_JS, /taskDetailSubtasks:/);
+  assert.match(I18N_JS, /taskDetailNotes:/);
+  assert.match(I18N_JS, /taskDetailDelete:/);
 });
 
 test('Phase 6: task-specific focus with timer and session log', () => {
@@ -1163,10 +1584,10 @@ test('Phase 6: task-specific focus with timer and session log', () => {
   assert.match(styles, /\.task-meta-focus\s*{/);
   assert.match(styles, /\.td-focus-row\s*{/);
   // i18n keys
-  assert.match(APP_JS, /focusShowAll:/);
-  assert.match(APP_JS, /focusLog:/);
-  assert.match(APP_JS, /focusDone:/);
-  assert.match(APP_JS, /focusTimer:/);
+  assert.match(I18N_JS, /focusShowAll:/);
+  assert.match(I18N_JS, /focusLog:/);
+  assert.match(I18N_JS, /focusDone:/);
+  assert.match(I18N_JS, /focusTimer:/);
 });
 
 test('Phase 7: focus time bar chart in week view and focus stats in reports', () => {
@@ -1199,10 +1620,10 @@ test('Phase 7: focus time bar chart in week view and focus stats in reports', ()
   assert.match(styles, /\.fc-bar\s*{[^}]*background:\s*linear-gradient/s);
   assert.match(styles, /\.report-focus-labels\s*{/);
   // i18n keys
-  assert.match(APP_JS, /focusChartTitle:/);
-  assert.match(APP_JS, /focusChartEmpty:/);
-  assert.match(APP_JS, /focusChartTop:/);
-  assert.match(APP_JS, /reportFocusBestDay:/);
+  assert.match(I18N_JS, /focusChartTitle:/);
+  assert.match(I18N_JS, /focusChartEmpty:/);
+  assert.match(I18N_JS, /focusChartTop:/);
+  assert.match(I18N_JS, /reportFocusBestDay:/);
 });
 
 test('Phase 8: year report focus stats, quarterly summary, and calendar focus pills', () => {
@@ -1228,9 +1649,9 @@ test('Phase 8: year report focus stats, quarterly summary, and calendar focus pi
   assert.match(styles, /\.report-quarters-grid\s*{/);
   assert.match(styles, /\.report-quarter\s*strong\s*{[^}]*color:\s*#C24E28/s);
   // i18n keys đủ vi+en
-  assert.match(APP_JS, /yearReportFocus:/);
-  assert.match(APP_JS, /quarterShort:/);
-  assert.match(APP_JS, /calFocusBestDay:/);
+  assert.match(I18N_JS, /yearReportFocus:/);
+  assert.match(I18N_JS, /quarterShort:/);
+  assert.match(I18N_JS, /calFocusBestDay:/);
 });
 
 test('Phase 9: focus × task correlation stats modal with range filter', () => {
@@ -1263,11 +1684,11 @@ test('Phase 9: focus × task correlation stats modal with range filter', () => {
   assert.match(styles, /\.stats-row\s*{/);
   assert.match(styles, /\.stats-dot-core\s*{/);
   // i18n keys đủ vi+en
-  assert.match(APP_JS, /statsRangeMonth:/);
-  assert.match(APP_JS, /statsRangeAll:/);
-  assert.match(APP_JS, /statsCorr:/);
-  assert.match(APP_JS, /statsNoData:/);
-  assert.match(APP_JS, /statsUnitWeek:/);
+  assert.match(I18N_JS, /statsRangeMonth:/);
+  assert.match(I18N_JS, /statsRangeAll:/);
+  assert.match(I18N_JS, /statsCorr:/);
+  assert.match(I18N_JS, /statsNoData:/);
+  assert.match(I18N_JS, /statsUnitWeek:/);
 });
 
 test('Phase 2: Upcoming view — nav item, view section, range filter and cross-month task access', () => {
@@ -1296,11 +1717,11 @@ test('Phase 2: Upcoming view — nav item, view section, range filter and cross-
   assert.match(APP_JS, /openTaskDetail\(\+el\.dataset\.week, \+el\.dataset\.day, \+el\.dataset\.task,/);
   assert.match(APP_JS, /saveMonthState\(tY, tM, st\)/);
   // 6. i18n keys đủ vi+en
-  assert.match(APP_JS, /tabUpcoming: 'Sắp tới'/);
-  assert.match(APP_JS, /tabUpcoming: 'Upcoming'/);
-  assert.match(APP_JS, /upcomingOverdue:/);
-  assert.match(APP_JS, /upcomingRange7:/);
-  assert.match(APP_JS, /upcomingEmpty:/);
+  assert.match(I18N_JS, /tabUpcoming: 'Sắp tới'/);
+  assert.match(I18N_JS, /tabUpcoming: 'Upcoming'/);
+  assert.match(I18N_JS, /upcomingOverdue:/);
+  assert.match(I18N_JS, /upcomingRange7:/);
+  assert.match(I18N_JS, /upcomingEmpty:/);
   // 7. deeplink chấp nhận view=upcoming
   const DEEPLINK = readFileSync(path.join(ROOT, 'js/deeplink.js'), 'utf8');
   assert.match(DEEPLINK, /view === 'upcoming'/);
@@ -1350,10 +1771,10 @@ test('Phase 3: Inbox — nav item, view section, capture flow and schedule keepi
   assert.match(APP_JS, /taskDetailRef\.scope === 'inbox'\) \{\s*inbox\.splice/s);
   assert.match(APP_JS, /focusTaskRef\.scope === 'inbox'/);
   // 7. i18n keys đủ vi+en
-  assert.match(APP_JS, /tabInbox: 'Inbox'/);
-  assert.match(APP_JS, /inboxEyebrow:/);
-  assert.match(APP_JS, /inboxEmpty:/);
-  assert.match(APP_JS, /inboxScheduleBtn:/);
+  assert.match(I18N_JS, /tabInbox: 'Inbox'/);
+  assert.match(I18N_JS, /inboxEyebrow:/);
+  assert.match(I18N_JS, /inboxEmpty:/);
+  assert.match(I18N_JS, /inboxScheduleBtn:/);
   // 8. sprite có icon inbox
   assert.match(readRequiredAsset('icons/ui-sprite.svg'), /<symbol id="inbox"/);
   // 9. CSS
@@ -1388,10 +1809,10 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
   assert.match(APP_JS, /tk\.inbox = true;/);
   assert.match(APP_JS, /renderCurrentView\(\);/);
   // 6. i18n keys đủ vi+en
-  assert.match(APP_JS, /quickAddTitle: 'Thêm công việc nhanh'/);
-  assert.match(APP_JS, /quickAddTitle: 'Quick Add'/);
-  assert.match(APP_JS, /quickAddPh:/);
-  assert.match(APP_JS, /quickAddInbox:/);
+  assert.match(I18N_JS, /quickAddTitle: 'Thêm công việc nhanh'/);
+  assert.match(I18N_JS, /quickAddTitle: 'Quick Add'/);
+  assert.match(I18N_JS, /quickAddPh:/);
+  assert.match(I18N_JS, /quickAddInbox:/);
   // 7. CSS
   const qaStyles = readRequiredAsset('css/styles.css');
   assert.match(qaStyles, /\.quickadd-card\s*{/);
@@ -1400,8 +1821,8 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
   assert.match(APP_JS, /quickAddTarget\.dt && localISODate\(quickAddTarget\.dt\) === localISODate\(new Date\(\)\)/);
   assert.match(qaStyles, /\.pop-field\[hidden\]\s*\{\s*display: none;?\s*}/);
   // P8: CTA "Tạo thói quen" từ empty states + handler focus input
-  assert.match(APP_JS, /emptyAddHabit: 'Tạo thói quen'/);
-  assert.match(APP_JS, /emptyAddHabit: 'Create a habit'/);
+  assert.match(I18N_JS, /emptyAddHabit: 'Tạo thói quen'/);
+  assert.match(I18N_JS, /emptyAddHabit: 'Create a habit'/);
   assert.match(APP_JS, /act === 'habit-focus'/);
   assert.ok(APP_JS.includes('[data-role="habit-name-input"]'), 'habit-focus targets habit input');
   // P8: inbox không còn duplicate CTA — nút ＋ Thêm việc chỉ render khi có list
@@ -1454,9 +1875,18 @@ test('Phase 10: a11y — focus-visible cho contenteditable + heading order year 
   const yearCardBody = APP_JS.match(/function yearCardHTML\(\) \{([\s\S]*?)\n\}/)?.[1] || '';
   assert.match(yearCardBody, /<h3 class="week-section-title">/);
   assert.doesNotMatch(yearCardBody, /<h2 class="week-section-title">/);
+  // P10: reflection widgets dùng h3 (hết skip h2→h4 ở week view); tất cả ref-title h3
+  assert.doesNotMatch(APP_JS, /<h[24] class="ref-title">\$\{t\('refTitle'\)\}/);
+  assert.match(APP_JS, /<h3 class="ref-title">\$\{t\('refTitle'\)\}<\/h3>/);
+  assert.doesNotMatch(APP_JS, /<h4 class="ref-title">/);
   // 3. Layer system đã có: Escape đóng + focus trap + toast aria-live (không hồi quy)
   assert.match(UI_JS, /key === 'Escape'/);
   assert.match(UI_JS, /setAttribute\('role', kindOk === 'error' \? 'alert' : 'status'\)/);
+  // P10: task menu ⋯ keyboard — mở bằng bàn phím focus menuitem đầu + Arrow điều hướng + Escape trả focus
+  assert.match(APP_JS, /if \(e\.detail === 0\)\s*\{[^}]*first\.focus\(\)/s);
+  assert.match(APP_JS, /e\.key === 'ArrowDown' \|\| e\.key === 'ArrowUp' \|\| e\.key === 'Home' \|\| e\.key === 'End'/);
+  assert.match(APP_JS, /items\[i\]\.focus\(\)/);
+  assert.match(APP_JS, /trigger\.focus\(\)/);
 });
 
 test('Phase 13: vercel.json security headers + CSP không chặn font/sync', () => {
@@ -1517,9 +1947,9 @@ test('Phase 18: reports — week vs last week comparison block', () => {
   assert.match(APP_JS, /report-vs-grid[\s\S]*?vsCell\(t\('reportVsGoal'\)/);
   assert.match(APP_JS, /vsCell\(t\('reportVsFocus'\)/);
   // 3. i18n cả 2 ngôn ngữ
-  assert.match(APP_JS, /reportVsTitle: 'So với tuần trước'/);
-  assert.match(APP_JS, /reportVsTitle: 'vs last week'/);
-  assert.ok((APP_JS.match(/reportVsGoal:/g) || []).length >= 2, 'reportVsGoal defined for VI+EN');
+  assert.match(I18N_JS, /reportVsTitle: 'So với tuần trước'/);
+  assert.match(I18N_JS, /reportVsTitle: 'vs last week'/);
+  assert.ok((I18N_JS.match(/reportVsGoal:/g) || []).length >= 2, 'reportVsGoal defined for VI+EN');
   // 4. CSS block + responsive 2 cột mobile
   const STYLES18 = readRequiredAsset('css/styles.css');
   assert.match(STYLES18, /\.report-vs \{[\s\S]*?border-radius: 14px;/);

@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 /* ============================ Dữ liệu ============================ */
 
@@ -140,32 +140,12 @@ function yearKey() {
 const YEAR_REFLECT_PROMPTS = () => [t('rm0'), t('rm1'), t('rm2'), t('rm3')];
 const QUARTER_REFLECT_PROMPTS = () => [t('rm0'), t('rm1'), t('rm2'), t('rq3')];
 
-const YEAR_GOAL_DEFS = [
-  ['Hoàn thành 4 video youtube', 'priority', true],
-  ['Hoàn thành 21 video ngắn', 'priority', true],
-  ['Học xong khóa luyện phát âm TA', 'priority', true],
-  ['Đọc 48 cuốn sách', 'priority', true],
-  ['Tiết kiệm được 20 triệu', 'priority', false],
-  ['Chạy bộ 150 buổi', 'priority', false],
-  ['Gọi điện về nhà 48 lần', 'regular', false],
-  ['Viết nhật ký 365 ngày', 'regular', false],
-  ['Đi xem phim 6 lần', 'regular', false],
-  ['Học tiếng Anh giao tiếp', 'regular', false],
-];
+// account & gamification core (hasAccount, year state, badges) được tách
+// sang js/account.js (window.TaskFlowAccount). Giữ alias để call-sites không đổi.
+if (!window.TaskFlowAccount) throw new Error('TaskFlowAccount missing — js/account.js failed to load');
+const { BADGES_KEY, hasAccount, defaultYearState, emptyYearState, loadBadges, saveBadges } = window.TaskFlowAccount;
 
 const MONTH_FRUITS = ['🍎', '🍎', '🍋', '🍎', '🍎', '🍋', '🍎', '🍎', '🍋', '🍎', '🍎', '🍋'];
-
-function defaultYearState() {
-  return {
-    year: PLAN_YEAR,
-    goals: YEAR_GOAL_DEFS.map(([text, kind, done], i) => ({ id: 'yg' + i, text, kind, done })),
-    reflections: {
-      year: ['', '', '', ''],
-      q1: ['', '', '', ''], q2: ['', '', '', ''], q3: ['', '', '', ''], q4: ['', '', '', ''],
-    },
-    monthNotes: Array.from({ length: 12 }, () => ''),
-  };
-}
 
 function capturePlan() {
   return { y: PLAN_YEAR, m: PLAN_MONTH, nd: NUM_DAYS, nw: NUM_WEEKS, ps: PLAN_START, pe: PLAN_END };
@@ -198,7 +178,7 @@ function loadYearState() {
     if (!raw) return null;
     const s = JSON.parse(raw);
     if (!s || !Array.isArray(s.goals) || s.year !== PLAN_YEAR) return null;
-    if (!s.reflections || typeof s.reflections !== 'object') s.reflections = defaultYearState().reflections;
+    if (!s.reflections || typeof s.reflections !== 'object') s.reflections = defaultYearState(PLAN_YEAR).reflections;
     if (!Array.isArray(s.reflections.year) || s.reflections.year.length !== 4) s.reflections.year = ['', '', '', ''];
     ['q1', 'q2', 'q3', 'q4'].forEach((q) => {
       if (!Array.isArray(s.reflections[q]) || s.reflections[q].length !== 4) s.reflections[q] = ['', '', '', ''];
@@ -223,40 +203,11 @@ function yearGoalStats() {
   return { done, inProg: total - done, total, pct: total ? Math.round((done / total) * 100) : 0 };
 }
 
-function monthPctOf(y, m) {
-  let raw = null;
-  try { raw = localStorage.getItem('planner-' + y + '-' + (m + 1)); } catch (e) { return hasAccount() ? 0 : defaultMonthPct(y, m); }
-  if (!raw) return hasAccount() ? 0 : defaultMonthPct(y, m);
-  try {
-    const s = JSON.parse(raw);
-    if (!Array.isArray(s.weeks) || !s.weeks.length) return hasAccount() ? 0 : defaultMonthPct(y, m);
-    // Hàm thuần trong PlanStats (unit-test trong tests/phase2.test.mjs)
-    return window.PlanStats ? window.PlanStats.weekGoalPct(s) : (() => {
-      const pcts = s.weeks.map((w) => {
-        const total = w.goals.length;
-        const done = w.goals.filter((g) => g.done).length;
-        return total ? Math.round((done / total) * 100) : 0;
-      });
-      return Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
-    })();
-  } catch (e) {
-    return hasAccount() ? 0 : defaultMonthPct(y, m);
-  }
-}
-
-function monthGoalsOf(y, m) {
-  let raw = null;
-  try { raw = localStorage.getItem('planner-' + y + '-' + (m + 1)); } catch (e) { /* ẩn */ }
-  if (raw) {
-    try {
-      const s = JSON.parse(raw);
-      if (Array.isArray(s.monthlyGoals)) return s.monthlyGoals;
-    } catch (e) { /* ẩn */ }
-  }
-  // Tài khoản đã đăng nhập: tháng không có dữ liệu → TRỐNG, không hiện dữ liệu mẫu
-  if (hasAccount()) return [];
-  return GOAL_DEFS.map(([text, kind, done], i) => ({ id: 'g' + i, text, kind, done }));
-}
+// monthPctOf/monthGoalsOf được tách sang js/goals.js (window.TaskFlowGoals) —
+// đổi signature: monthPctOf(y, m, defaultMonthPct) + monthGoalsOf(y, m, GOAL_DEFS);
+// hasAccount access qua globalThis.TaskFlowAccount trong module.
+if (!window.TaskFlowGoals) throw new Error('TaskFlowGoals missing — js/goals.js failed to load');
+const { monthPctOf, monthGoalsOf } = window.TaskFlowGoals;
 
 let yearMonthlyCache = null;
 function yearMonthlyData() {
@@ -268,12 +219,12 @@ function yearMonthlyData() {
         .map((md, m) => ({
           // Chỉ fallback demo khi tháng KHÔNG có dữ liệu; tháng có dữ liệu 0% phải giữ 0
           pct: rawStates[m] ? md.pct : (hasAccount() ? 0 : defaultMonthPct(PLAN_YEAR, m)),
-          goals: rawStates[m] ? md.goals : monthGoalsOf(PLAN_YEAR, m),
+          goals: rawStates[m] ? md.goals : monthGoalsOf(PLAN_YEAR, m, GOAL_DEFS),
         }));
     } else {
       yearMonthlyCache = Array.from({ length: 12 }, (_, m) => ({
-        pct: monthPctOf(PLAN_YEAR, m),
-        goals: monthGoalsOf(PLAN_YEAR, m),
+        pct: monthPctOf(PLAN_YEAR, m, defaultMonthPct),
+        goals: monthGoalsOf(PLAN_YEAR, m, GOAL_DEFS),
       }));
     }
   }
@@ -303,10 +254,10 @@ function loadMonthStateOrCreate(y, m) {
   return s;
 }
 
-function saveMonthState(y, m, s) {
-  try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(s)); } catch (e) { /* ẩn */ }
-  if (window.Sync) window.Sync.push('planner-' + y + '-' + (m + 1));
-}
+// storage core (saveMonthState, monthStateRaw, pomo log, backup key) được tách
+// sang js/storage.js (window.TaskFlowStorage). Giữ alias để call-sites không đổi.
+if (!window.TaskFlowStorage) throw new Error('TaskFlowStorage missing — js/storage.js failed to load');
+const { POMO_LOG_KEY, monthStateRaw, saveMonthState, loadPomoLog, savePomoLog, backupSlotKey } = window.TaskFlowStorage;
 
 function toggleMonthGoal(m, id) {
   const y = PLAN_YEAR;
@@ -354,7 +305,7 @@ function pullYearGoalsFromMonths() {
   const y = PLAN_YEAR;
   const seen = new Map();
   for (let m = 0; m < 12; m++) {
-    monthGoalsOf(y, m).forEach((g) => {
+    monthGoalsOf(y, m, GOAL_DEFS).forEach((g) => {
       const k = g.kind + '|' + g.text;
       const e = seen.get(k);
       if (!e) seen.set(k, { text: g.text, kind: g.kind, done: g.done, n: 1, d: g.done ? 1 : 0 });
@@ -391,29 +342,12 @@ function quarterStats() {
   });
 }
 
-function lineChartSVG(values, w = 480, h = 110) {
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * (w - 20) + 10;
-    const y = h - 18 - (Math.max(0, Math.min(100, v)) / 100) * (h - 34);
-    return x.toFixed(1) + ',' + y.toFixed(1);
-  });
-  const line = pts.join(' ');
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" role="img" aria-label="${t('lineAria')}">
-    <defs>
-      <linearGradient id="lgYearLine" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#F39A82" stop-opacity=".5"/>
-        <stop offset="100%" stop-color="#F39A82" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    <polygon points="${10},${h - 18} ${line} ${w - 10},${h - 18}" fill="url(#lgYearLine)"/>
-    <polyline points="${line}" fill="none" stroke="#C88570" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    ${values.map((v, i) => `<circle cx="${pts[i].split(',')[0]}" cy="${pts[i].split(',')[1]}" r="3" fill="#fff" stroke="#C88570" stroke-width="2"><title>${t('lineMonthT', { n: i + 1, p: v })}</title></circle>`).join('')}
-  </svg>`;
-}
+/* ============================ Tiện ích (tách js/util.js — P11) ============================ */
 
-/* ============================ Tiện ích ============================ */
-
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Các helper thuần (esc, localISODate, formatFocusTime, lineChartSVG) được tách sang
+// js/util.js (window.TaskFlowUtil). Giữ alias để call-sites trong file này không đổi.
+if (!window.TaskFlowUtil) throw new Error('js/util.js failed to load — app cannot boot');
+const { esc, localISODate, formatFocusTime, lineChartSVG } = window.TaskFlowUtil;
 
 /* ============================ Phase 8: Widget Dashboard System ============================ */
 
@@ -486,1371 +420,18 @@ function getVisibleWidgets(view) {
       var def = map[w.id];
       // Một số widget cần stats (goalsPanelHTML nhận monthStats, yearGoalsCardHTML nhận
       // yearGoalStats) — truyền đúng tham số, tránh TypeError "reading 'pct'".
-      var stats = view === 'year' ? yearGoalStats() : monthlyStats();
+      var stats = view === 'year' ? yearGoalStats() : monthlyStats(state);
       return { id: w.id, html: def.render(stats), label: t(def.labelKey) };
     });
 }
 
-/* ============================ i18n VI/EN ============================ */
-
-const MONTH_NAMES_VI = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
-
-const I18N = {
-  vi: {
-    navMonths: 'Chuyển tháng trong năm',
-    prevMonth: 'Tháng trước',
-    nextMonth: 'Tháng sau',
-    prevYear: 'Năm trước',
-    nextYear: 'Năm sau',
-    selectMonth: 'Chọn tháng',
-    navPlan: 'Điều hướng kế hoạch',
-    resetTitle: 'Xoá toàn bộ dữ liệu đã lưu',
-    resetTxt: '↺ Đặt lại',
-    todayTitle: 'Về hôm nay & tuần hiện tại',
-    todayTxt: 'Hôm nay',
-    navGroupMain: 'Chính',
-    navGroupPlan: 'Kế hoạch',
-    navGroupTrack: 'Theo dõi',
-    collapseSidebar: 'Thu gọn',
-    expandSidebar: 'Mở rộng',
-    moreNav: 'Thêm',
-    moreAdd: 'Thêm việc',
-    moreSheetTitle: 'Điều hướng',
-    moreSettings: 'Cài đặt',
-    todayGreetingMorning: 'Chào buổi sáng 👋',
-    todayGreetingAfternoon: 'Chào buổi chiều ☀️',
-    todayGreetingEvening: 'Chào buổi tối 🌙',
-    todayTasksTitle: 'Việc hôm nay',
-    todayCompleted: '{done}/{total} hoàn thành',
-    todayProgress: 'Tiến độ hôm nay',
-    todayHabitsTitle: 'Thói quen hôm nay',
-    todayHabitsEmpty: 'Chưa có thói quen nào. Tạo thói quen đầu tiên để bắt đầu!',
-    todayFocusTitle: 'Tập trung',
-    todayFocusStart: 'Bắt đầu Focus',
-    todayFocusTip: 'Mở chế độ Focus toàn màn hình để làm việc sâu.',
-    todayAddTask: 'Thêm việc',
-    todayEmpty: 'Không có việc gì hôm nay 🎯',
-    todayEmptySub: 'Một ngày khá nhẹ nhàng. Thêm việc để tận dụng thời gian!',
-    todayPriority: 'Ưu tiên',
-    tabUpcoming: 'Sắp tới',
-    upcomingEyebrow: 'Công việc sắp tới',
-    upcomingTitle: 'Sắp tới',
-    upcomingSubtitle: 'Nhìn trước các công việc trong những ngày tới — không cần mở lịch.',
-    upcomingOverdue: 'Quá hạn',
-    upcomingTodayLabel: 'Hôm nay',
-    upcomingTomorrowLabel: 'Ngày mai',
-    upcomingRange7: '7 ngày',
-    upcomingRange14: '14 ngày',
-    upcomingRange30: '30 ngày',
-    upcomingRangeAria: 'Khoảng thời gian: {n}',
-    upcomingEmpty: 'Chưa có công việc nào trong khoảng này.',
-    upcomingEmptySub: 'Lên kế hoạch tuần để xem việc sắp tới ở đây.',
-    upcomingOverdueAria: 'Công việc quá hạn',
-    upcomingDayAria: 'Công việc ngày {d}',
-    upcomingNoTime: '—',
-    tabInbox: 'Inbox',
-    inboxEyebrow: 'Bắt nhanh',
-    inboxTitle: 'Inbox',
-    inboxSubtitle: 'Ghi lại việc cần làm ngay — sắp xếp lịch sau.',
-    inboxEmpty: 'Inbox trống ✨',
-    inboxEmptySub: 'Mọi việc đã được sắp xếp.',
-    inboxAddTask: 'Thêm việc',
-    inboxScheduleBtn: 'Lên lịch',
-    inboxScheduleToday: 'Hôm nay',
-    inboxScheduleTomorrow: 'Ngày mai',
-    inboxScheduleDateLbl: 'Chọn ngày',
-    inboxScheduleToast: 'Đã chuyển vào lịch',
-    inboxScheduleError: 'Không thể lên lịch cho ngày này',
-    emptyAddToday: 'Thêm việc',
-    emptyGoUpcoming: 'Xem sắp tới',
-    emptyAddInbox: 'Thêm nhanh',
-    emptyPlanWeek: 'Lên kế hoạch tuần',
-    emptyAddHabit: 'Tạo thói quen',
-    taskDeletedToast: 'Đã xóa task',
-    undoBtnShort: 'Hoàn tác',
-    quickAddTitle: 'Thêm công việc nhanh',
-    quickAddPh: 'Bạn cần làm gì?',
-    quickAddBtn: 'Thêm việc',
-    quickAddToast: 'Đã thêm việc',
-    quickAddToday: 'Sẽ thêm vào hôm nay',
-    quickAddDay: 'Sẽ thêm vào ngày đã chọn',
-    quickAddInbox: 'Sẽ thêm vào Inbox',
-    quickAddEmpty: 'Hãy nhập nội dung công việc',
-    inboxDeleteAria: 'Xoá khỏi Inbox',
-    inboxScheduleAria: 'Lên lịch cho việc này',
-    inboxTodayAria: 'Chuyển sang hôm nay',
-    inboxTomorrowAria: 'Chuyển sang ngày mai',
-    viewInbox: 'Inbox',
-    viewToday: 'Hôm nay',
-    nowAria: 'Ngày giờ hiện tại',
-    tabOverview: 'Tổng quan tháng',
-    tabYear: 'Năm {y}',
-    weekN: 'Tuần {n}',
-    viewOverview: 'Tổng quan tháng',
-    overviewEyebrow: 'Không gian làm việc tháng',
-    overviewTitle: 'Tổng quan {m}',
-    overviewSubtitle: 'Theo dõi điều quan trọng, điều chỉnh nhịp độ và giữ đà mỗi ngày.',
-    overviewMetricWeek: 'Tiến độ tuần',
-    overviewMetricGoals: 'Mục tiêu hoàn thành',
-    overviewMetricHabits: 'Thói quen hôm nay',
-    overviewMetricStreak: 'Chuỗi hiện tại',
-    overviewMetricWeekMeta: 'Tuần {n}',
-    overviewMetricGoalsMeta: '{done}/{total} mục tiêu',
-    overviewMetricHabitsMeta: '{done}/{total} thói quen',
-    overviewMetricStreakMeta: 'ngày liên tiếp tốt nhất',
-    overviewFocusTitle: 'Ưu tiên tiếp theo',
-    overviewFocusEmpty: 'Chọn một mục tiêu quan trọng để bắt đầu.',
-    overviewOpenWeek: 'Mở kế hoạch tuần',
-    overviewHabitGridAria: 'Bảng theo dõi thói quen trong tháng',
-    viewYear: 'Kế hoạch năm',
-    viewWeek: 'Kế hoạch tuần',
-    yearWorkspaceEyebrow: 'Không gian làm việc năm',
-    yearPageTitle: 'Kế hoạch năm {y}',
-    yearPageSubtitle: 'Biến mục tiêu dài hạn thành nhịp tiến bộ có thể theo dõi mỗi tháng.',
-    yearSummaryGoals: 'Mục tiêu hoàn thành',
-    yearSummaryAverage: 'Tiến độ trung bình',
-    yearSummaryQuarter: 'Quý nổi bật',
-    yearSummaryHabit: 'Thói quen dẫn đầu',
-    weekWorkspaceEyebrow: 'Không gian làm việc tuần',
-    weekPageTitle: 'Kế hoạch Tuần {n}',
-    weekPageSubtitle: 'Chọn việc quan trọng, phân bổ theo ngày và giữ nhịp tập trung.',
-    weekGoalsSummaryAria: 'Tổng quan mục tiêu tuần',
-    weekProgressLabel: 'Tiến độ tuần',
-    weekGoalsHeading: 'Mục tiêu tuần',
-    weekHabitsHeading: 'Thói quen tuần',
-    weekHabitsMeta: '{done}/{total} lượt hoàn thành',
-    weekHabitsEmpty: 'Chưa có thói quen trong tháng này.',
-    weekDaySelectorAria: 'Chuyển nhanh đến ngày trong tuần',
-    weekJumpDay: 'Đi đến {day}',
-    weekDaysHeading: 'Kế hoạch theo ngày',
-    weekSupportAria: 'Công cụ và phản ánh tuần',
-    brandSub: 'Kế hoạch tháng {n} · {y}',
-    monthOption: 'Tháng {n} {y}',
-    selWeekAria: 'Chọn tuần hiện tại',
-    viewWeekT: 'Xem Tuần {n}',
-    chicks10Aria: '10 chú gà con',
-    goalsTitle: 'Mục tiêu tháng',
-    unitGoals: 'mục tiêu',
-    priLbl: 'Ưu tiên',
-    regLbl: 'Thường',
-    addGoal: '＋ Thêm mục tiêu',
-    goalPh: 'Nhập mục tiêu mới...',
-    goalNameAria: 'Tên mục tiêu mới {label}',
-    editGoalAria: 'Sửa mục tiêu',
-    delGoalAria: 'Xoá mục tiêu',
-    noGoals: 'Chưa có mục tiêu nào',
-    addTxt: 'Thêm',
-    habitTitle: 'Thói quen',
-    legendDone: 'Hoàn thành',
-    legendNotDone: 'Chưa',
-    statsDone: 'Hoàn thành',
-    statsInProg: 'Đang thực hiện',
-    statsTotal: 'Tổng cộng',
-    yGoalsTitle: 'Mục tiêu năm {y}',
-    weekBanner: '🌸 Mục tiêu & công việc tuần',
-    habitPh: 'Tên thói quen mới...',
-    habitNameAria: 'Tên thói quen mới',
-    addHabitTxt: '＋ Thêm thói quen',
-    renameAria: 'Đổi tên',
-    delAria: 'Xoá',
-    noHabits: 'Chưa có thói quen nào, thêm một thói quen mới nhé 🐥',
-    habitCol: 'Thói quen',
-    refTitle: 'Phản ánh',
-    writeHere: 'Viết ở đây...',
-    qEditPh: 'Sửa câu hỏi...',
-    refQAria: 'Sửa câu hỏi phản ánh {n}',
-    refAria: 'Viết phản ánh {n}',
-    hmTitle: '🔥 Streak &amp; Heatmap',
-    hmNoData: 'Chưa đủ dữ liệu tuần để so sánh 🐥',
-    hmThis: 'Tuần này',
-    hmLast: 'Tuần trước',
-    hmCur: 'Chuỗi hiện tại',
-    hmBest: 'Chuỗi dài nhất',
-    hmLess: 'Ít',
-    hmMore: 'Nhiều',
-    hmDayFullT: '{m} {d}: {p}% hoàn thành',
-    hmNoHabits: 'Chưa có thói quen nào',
-    hmHeroDays: 'ngày liên tiếp',
-    hmHeroRecLbl: 'kỷ lục',
-    hmHeroNew: 'Kỷ lục mới! 🎉',
-    hmHeroRec: 'còn {n} ngày để phá kỷ lục',
-    hmHeroStart: 'Tick thói quen hôm nay để bắt đầu chuỗi 🔥',
-    hmMiniT: '14 ngày gần nhất',
-    yearTh: 'Năm',
-    curMonthTh: 'Tháng hiện tại',
-    monthTh: 'Tháng',
-    curWeekTh: 'Tuần hiện tại',
-    weeklyProg: 'Tiến độ tuần',
-    motto: '4 điều bạn sẽ không bao giờ hối tiếc:<br>🌱 Sống kín đáo<br>📚 Sống kỷ luật<br>💼 Chăm lo chuyện của mình<br>💛 Yêu thương bản thân',
-    chicks12Aria: '12 chú gà con',
-    pullBtn: '📥 Lấy dữ liệu từ 12 tháng từ Dashboard',
-    yGoalPh: 'Viết mục tiêu...',
-    yGoalAria: 'Mục tiêu năm',
-    addPriGoalAria: 'Thêm mục tiêu ưu tiên',
-    addRegGoalAria: 'Thêm mục tiêu thường',
-    progressYear: 'Tiến độ cả năm',
-    quarterT: 'Quý',
-    m12: '12 tháng',
-    progress12: 'Tiến độ 12 tháng',
-    qOverview: 'Tổng quan theo quý',
-    mCardT: '12 Tháng · Mục tiêu &amp; ghi chú theo tháng',
-    openMonthT: 'Mở kế hoạch tháng {n}',
-    monthT: 'Tháng {n}',
-    nowTag: ' · nay',
-    writePh: 'Viết...',
-    mGoalAria: 'Mục tiêu tháng {n}',
-    noteBanner: 'Ghi chú',
-    mNoteAria: 'Ghi chú tháng {n}',
-    refQ: 'Phản ánh Q{n}',
-    refQuarterAria: 'Viết phản ánh quý {n} mục {m}',
-    refYearAria: 'Viết phản ánh năm mục {n}',
-    refQuarters: 'Phản ánh quý',
-    weekRange: 'Hôm nay ({a}) nằm ngoài phạm vi kế hoạch ({b} - {c})',
-    prevWeek: '‹ Tuần trước',
-    nextWeek: 'Tuần sau ›',
-    priGoalsSub: 'Mục tiêu ưu tiên',
-    regGoalsSub: 'Mục tiêu thường',
-    wGoalAria: 'Mục tiêu tuần {n}',
-    todayBadge: 'Hôm nay',
-    taskPriSub: 'Task ưu tiên',
-    taskRegSub: 'Task thường',
-    taskPh: 'Viết task...',
-    taskAria: 'Task {n}',
-    delTaskAria: 'Xoá task {n}',
-    taskMenu: 'Thao tác task',
-    taskDetail: 'Chi tiết task',
-    taskDetailOpen: 'Mở chi tiết task',
-    taskDetailTitle: 'Chi tiết task',
-    taskDetailDate: 'Ngày',
-    taskDetailDeadline: 'Hạn chót',
-    taskDetailTime: 'Giờ',
-    taskDetailDuration: 'Độ dài (phút)',
-    taskDetailPriority: 'Ưu tiên',
-    taskDetailRepeat: 'Lặp lại',
-    taskDetailTags: 'Tag',
-    taskDetailNotes: 'Ghi chú',
-    taskDetailSubtasks: 'Việc nhỏ',
-    taskDetailAddSubtask: '＋ Thêm việc nhỏ',
-    taskDetailSubtaskPh: 'Việc nhỏ mới...',
-    taskDetailDelete: 'Xoá task',
-    taskDetailDone: 'Đã lưu',
-    taskDetailClose: 'Đóng chi tiết task',
-    taskDuplicate: 'Nhân bản',
-    taskDuplicateDone: 'Đã nhân bản task',
-    taskFocusBtn: 'Tập trung vào task này',
-    taskMetaTime: '{t}',
-    taskMetaRepeat: 'Lặp lại',
-    taskPriorityLabel: 'Ưu tiên',
-    repeatTitle: 'Lặp lại',
-    repeatOff: 'Không lặp',
-    repeatDaily: 'Hằng ngày',
-    repeatWeekly: 'Hằng tuần',
-    repeatMonthly: 'Hằng tháng',
-    addPriTaskAria: 'Thêm task ưu tiên',
-    addRegTaskAria: 'Thêm task thường',
-    noteAria: 'Ghi chú {name}',
-    dayNames: ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'],
-    doneAria: '{p}% hoàn thành',
-    lineAria: 'Biểu đồ tiến độ 12 tháng',
-    lineMonthT: 'Tháng {n}: {p}%',
-    resetConfirm: 'Xoá toàn bộ dữ liệu đã lưu của 12 tháng và đặt lại mặc định?',
-    dataTitle: 'Dữ liệu của bạn',
-    exportJson: '📤 Xuất JSON (sao lưu)',
-    importJson: '📥 Nhập JSON (khôi phục)',
-    exportCsv: '📊 Xuất CSV (Google Sheets)',
-    exportIcs: '📅 Xuất lịch (.ics)',
-    xpTitle: 'Điểm kinh nghiệm',
-    xpLevel: 'Cấp {lv}',
-    xpNote: 'Hoàn thành task, thói quen và mục tiêu để tích XP và tăng cấp. 🚀',
-    levelUp: '🎉 Chúc mừng! Lên cấp {lv}! ⭐',
-    carriedFrom: 'Dồn từ ngày {date} — task lặp bị lỡ',
-    dayOpenT: 'Xem ngày này',
-    dayViewEyebrow: 'Xem ngày',
-    dayViewTitle: 'Xem ngày',
-    dayViewSubtitle: 'Chi tiết nhiệm vụ, thói quen, tâm trạng và ghi chú của ngày.',
-    prevDay: 'Ngày trước',
-    nextDay: 'Ngày sau',
-    backToWeek: 'Về tuần',
-    viewDay: 'Xem ngày',
-    habitSkipped: 'Thói quen “{name}” bị bỏ qua hôm nay',
-    csvNote: 'Sheet chia nhỏ theo Section để lọc trong Google Sheets',
-    printTitle: 'In / Lưu PDF',
-    remindTitle: 'Nhắc việc hằng ngày',
-    remindTimeLbl: 'Giờ nhắc',
-    remindOn: 'Bật nhắc',
-    remindOff: 'Tắt nhắc',
-    remindNote: 'Trình duyệt sẽ nhắc bạn một lần mỗi ngày để điểm danh thói quen.',
-    remindEnabled: 'Đã bật nhắc việc hằng ngày lúc {t}.',
-    remindDisabled: 'Đã tắt nhắc việc.',
-    remindDenied: 'Trình duyệt đang chặn thông báo. Hãy cho phép thông báo để nhận nhắc việc.',
-    remindBody: 'Hôm nay bạn đã hoàn thành những mục tiêu nào? Vào điểm danh thói quen nhé! 🐥',
-    importConfirm: 'Nhập file sẽ GHI ĐÈ dữ liệu hiện tại. Bạn chắc chắn muốn tiếp tục?',
-    importError: 'File không hợp lệ: không phải file sao lưu TaskFlow.',
-    importOk: 'Đã nhập dữ liệu thành công! Trang sẽ tải lại.',
-    rm0: 'Điều gì tôi đã làm tốt và muốn tiếp tục phát huy?',
-    rm1: 'Bài học quan trọng nhất tôi rút ra được là gì?',
-    rm2: 'Tôi biết ơn về việc ...',
-    rm3: 'Ba mục tiêu tôi cần tập trung trong năm tiếp theo là?',
-    rw3: 'Ba mục tiêu tôi cần tập trung trong tuần tiếp theo là?',
-    rq3: 'Ba mục tiêu tôi cần tập trung trong quý tới là?',
-    closeBtn: 'Đóng',
-    syncTitle: 'Đồng bộ đám mây',
-    syncDesc: 'Đăng nhập để đồng bộ dữ liệu giữa các thiết bị. Dữ liệu hiện tại sẽ tự động được nâng cấp lên đám mây.',
-    syncLogin: 'Đăng nhập',
-    syncSignup: 'Tạo tài khoản',
-    syncLogout: 'Đăng xuất',
-    syncStatusOff: 'Chưa kích hoạt đồng bộ đám mây',
-    syncStatusConnecting: 'Đang kết nối...',
-    syncStatusSyncing: 'Đang đồng bộ...',
-    syncStatusReady: 'Đã đồng bộ ✓',
-    syncStatusSignedOut: 'Chưa đăng nhập',
-    syncStatusError: 'Lỗi đồng bộ',
-    syncNeedEmail: 'Vui lòng nhập tên người dùng và mật khẩu',
-    syncNeedUser: 'Vui lòng nhập tên người dùng và mật khẩu',
-    syncUserInvalid: 'Tên người dùng gồm 3-30 ký tự chữ/số/_ . -',
-    syncPassShort: 'Mật khẩu phải có ít nhất 6 ký tự',
-    syncPassMismatch: 'Xác nhận mật khẩu không khớp',
-    syncLoginErr: 'Đăng nhập thất bại, kiểm tra lại tên người dùng/mật khẩu',
-    syncSignupOk: 'Đã tạo tài khoản! Đồng bộ tự động bắt đầu ✓',
-    syncSignupErr: 'Tạo tài khoản thất bại, tên người dùng có thể đã tồn tại.',
-    syncUserPh: 'Tên người dùng',
-    syncPassPh: 'Mật khẩu',
-    syncPass2Ph: 'Xác nhận mật khẩu',
-    syncNoAccount: 'Chưa có tài khoản? Tạo ngay',
-    syncHaveAccount: 'Đã có tài khoản? Đăng nhập',
-    syncGoogle: 'Tiếp tục với Google',
-    syncOr: 'hoặc bằng tài khoản',
-    syncGoogleErr: 'Không mở được Google. Kiểm tra lại cấu hình OAuth trên backend (GOOGLE_CLIENT_ID/SECRET).',
-    syncNeedConfig: 'Chưa cấu hình backend, điền URL API trong js/api-config.js',
-    syncErrUsernameTaken: 'Tên người dùng đã tồn tại, thử tên khác.',
-    syncErrBadCredentials: 'Sai tên người dùng hoặc mật khẩu.',
-    syncErrNetwork: 'Không kết nối được máy chủ, kiểm tra lại URL trong js/api-config.js.',
-    syncErrServer: 'Máy chủ báo lỗi, thử lại sau.',
-    syncErrRateLimited: 'Quá nhiều lần thử đăng nhập. Đợi 15 phút rồi thử lại.',
-    homeTitle: 'Về trang giới thiệu',
-    installTitle: 'Cài đặt ứng dụng',
-    targetAria: 'Mục tiêu {n}% — chỉnh số ngày cần đạt mỗi tháng',
-    copyHabitsTxt: 'Sao chép sang tháng sau',
-    copyHabitsDone: 'Đã sao chép {n} thói quen sang tháng sau (giữ streak 🔥, tick mới để lại trống).',
-    reportTitle: 'Báo cáo tháng',
-    reportGoalPct: 'Mục tiêu tháng',
-    reportGoalsDone: 'Mục tiêu đã xong',
-    reportHabitAvg: 'Thói quen trung bình',
-    reportTopHabit: 'Chuỗi tốt nhất',
-    reportRecord: 'Kỷ lục',
-    reportActive: 'Ngày đã điểm danh',
-    reportShare: 'Chia sẻ ảnh',
-    reportCardTitle: 'Báo cáo {m} · {y}',
-    badgesTitle: 'Huy hiệu',
-    badge7: '🔥 7 ngày liên tiếp',
-    badge30: '🔥🔥 30 ngày liên tiếp',
-    badgeBest14: '🏆 Kỷ lục 14 ngày',
-    badgeGoals100: '🎯 Hoàn thành mọi mục tiêu tháng',
-    badgeHabit100: '💯 Mọi thói quen đạt mục tiêu',
-    badgeActive15: '📅 Điểm danh 15 ngày',
-    badgeNew: '🎖️ Huy hiệu mới: {b}!',
-    badgeEarned: 'Đạt được tháng {m} · {y}',
-    badgeHint7: 'Cần chuỗi 7 ngày liên tiếp',
-    badgeHint30: 'Cần chuỗi 30 ngày liên tiếp',
-    badgeHintBest14: 'Cần kỷ lục chuỗi 14 ngày',
-    badgeHintGoals100: 'Cần 100% mục tiêu tháng',
-    badgeHintHabit100: 'Cần mọi thói quen đạt mục tiêu',
-    badgeHintActive15: 'Cần điểm danh ít nhất 15 ngày trong tháng',
-    shareTitle: 'Chia sẻ streak 🔥',
-    shareNamePrompt: 'Tên hiển thị trên tấm ảnh (bỏ trống = "Tôi")?',
-    meName: 'Tôi',
-    shareNoStreak: 'Tích thói quen hôm nay để có streak 🔥 rồi mới chia sẻ được nhé!',
-    shareDone: 'Đã tải ảnh chia sẻ: taskflow-streak.png',
-    shareFail: 'Không tạo được ảnh chia sẻ.',
-    shareFooter: 'Kế hoạch năm 2026 · 100% offline',
-    fbTitle: 'Góp ý / phản hồi',
-    fbForm: '📝 Góp ý qua Google Form',
-    fbMail: '📧 Gửi email',
-    mailSubj: 'TaskFlow phản hồi',
-    fbNoForm: 'Chưa có link Google Form, điền FB_FORM_URL trong js/app.js',
-    obGoalTitle: 'Mục tiêu số 1 của năm nay là gì?',
-    obGoalSub: 'Gợi ý nhanh: chọn một mục tiêu, hoặc tự gõ ở dưới:',
-    obGoalPh: 'VD: Tiết kiệm 20 triệu',
-    obNext: 'Tiếp tục →',
-    obHabitTitle: '2 thói quen muốn xây dựng?',
-    obHabitSub: 'Mỗi ngày tích ✓ một ô, app tự tính %, streak 🔥 và heatmap.',
-    obHabitPh1: 'Thói quen 1, VD: Dậy lúc 5H sáng',
-    obHabitPh2: 'Thói quen 2, VD: Đọc sách 30 phút',
-    obThemeTitle: 'Chọn chủ đề màu cho kế hoạch',
-    obThemeSub: 'Đổi bất cứ lúc nào bằng 4 chấm màu trên thanh trên.',
-    themeLbl: 'Chọn chủ đề màu',
-    themeCream: 'Chủ đề kem',
-    themeMint: 'Chủ đề bạc hà',
-    themeLavender: 'Chủ đề oải hương',
-    themePeach: 'Chủ đề đào',
-    darkTitle: 'Bật/tắt chế độ tối',
-    langTitle: 'Đổi ngôn ngữ',
-    landTitle: 'Lên kế hoạch năm, tháng &amp; tuần <em>theo cách dễ thương</em>',
-    landSub: 'Chốt mục tiêu, điểm danh thói quen và ghi nhật ký reflection. Dữ liệu nằm ngay trong trình duyệt của bạn, miễn phí và riêng tư.',
-    landCta: 'Khám phá kế hoạch',
-    obDone: 'Bắt đầu kế hoạch 🚀',
-    obSkip: 'Bỏ qua phần giới thiệu',
-    obSugg1: 'Tiết kiệm 20 triệu',
-    obSugg2: 'Đọc 24 cuốn sách',
-    obSugg3: 'Chạy bộ 100 buổi',
-    obSugg4: 'Học tiếng Anh giao tiếp',
-    emptyGoalsT: 'Chưa có mục tiêu nào',
-    emptyGoalsH: 'Bấm "+ Thêm mục tiêu" phía dưới để bắt đầu.',
-    emptyHabitsT: 'Chưa có thói quen nào',
-    emptyHabitsH: 'Nhập tên thói quen ở ô bên trên rồi bấm "+ Thêm thói quen".',
-    /* ===== Phase 2: Tìm kiếm, Tag, Lịch, Template, Dashboard, Pomodoro ===== */
-    searchTitle: 'Tìm kiếm xuyên tháng',
-    searchPh: 'Nhập từ khoá...',
-    searchEmpty: 'Gõ ít nhất 2 ký tự để tìm kiếm.',
-    searchEmptySub: 'Tìm theo tên task, ghi chú, tag hoặc mục tiêu.',
-    searchNoResults: 'Không tìm thấy kết quả nào 🐥',
-    searchNoResultsSub: 'Thử từ khóa khác hoặc kiểm tra chính tả.',
-    searchGoal: 'Mục tiêu',
-    searchHabit: 'Thói quen',
-    searchTask: 'Task',
-    searchNote: 'Ghi chú',
-    searchReflect: 'Phản ánh',
-    searchMonth: 'Tháng {n}',
-    searchYear: 'Năm {y}',
-    searchInbox: 'Inbox',
-    searchAll: 'Tất cả',
-    searchOpenAria: 'Tìm kiếm xuyên tháng',
-    tagLbl: 'Tag',
-    tagAdd: '🏷️ Thêm tag',
-    tagDelAria: 'Xoá tag {tag}',
-    tagLimit: 'Tối đa 8 tag cho 1 task',
-    tagPh: 'Nhập tag rồi Enter (phân cách bằng dấu phẩy)',
-    tagFilter: 'Lọc theo tag',
-    tagAll: 'Tất cả',
-    tagNoTags: 'Chưa có tag nào',
-    tagAria: 'Thêm tag cho task',
-    tabCalendar: 'Lịch',
-    viewCalendar: 'Lịch tháng',
-    calendarWorkspaceEyebrow: 'Lịch công việc',
-    calendarPageTitle: 'Lịch {m} {y}',
-    calendarPageSubtitle: 'Xem khối lượng theo ngày và lọc nhanh theo ngữ cảnh công việc.',
-    calendarFilterAria: 'Lọc lịch theo tag',
-    calendarAgendaTitle: 'Lịch trình trong tháng',
-    calendarAgendaEmpty: 'Không có công việc phù hợp với bộ lọc hiện tại.',
-    calendarTaskCount: '{n} công việc',
-    calEmpty: 'Chưa có công việc',
-    templateTitle: 'Sao chép cấu trúc tháng',
-    templateDesc: 'Sao chép mục tiêu, thói quen & cấu trúc tuần (bỏ ô tick ✓) sang tháng khác.',
-    templateSrc: 'Tháng nguồn',
-    templateDst: 'Tháng đích',
-    templateDo: '📋 Sao chép',
-    templateDone: 'Đã sao chép cấu trúc tháng {src} sang {dst} (bỏ tick ✓).',
-    templateNoData: 'Tháng nguồn chưa có dữ liệu.',
-    templateSame: 'Chọn tháng đích khác tháng nguồn.',
-    templateOpenT: 'Sao chép cấu trúc tháng',
-    dashTitle: '📊 Dashboard',
-    dashBestHabit: 'Thói quen tốt nhất',
-    dashBestHabitSub: '{n} ngày tích',
-    dashProdDay: 'Ngày năng suất nhất',
-    dashProdDaySub: '{n} task xong',
-    dashQuarter: 'Tỉ lệ theo quý',
-    dashBestQuarter: 'Quý tốt nhất: Q{n} ({p}%)',
-    dashGoalTotal: 'Mục tiêu năm',
-    dashGoalDone: '{d}/{t} xong',
-    pomoTitle: '🍅 Pomodoro',
-    pomoStart: '▶ Bắt đầu',
-    pomoPause: '⏸ Tạm dừng',
-    pomoReset: '↺',
-    pomoWork: 'Tập trung',
-    pomoBreak: 'Nghỉ ngơi',
-    pomoMin: '{n} phút',
-    pomoDoneWork: 'Xong phiên tập trung! Nghỉ 5 phút nhé 🍅',
-    pomoDoneBreak: 'Hết giờ nghỉ! Bắt đầu phiên mới 🍅',
-    /* Phase 4 — Nhắc việc habit/task */
-    remindHabitAria: 'Đặt nhắc việc cho thói quen',
-    remindTaskAria: 'Đặt nhắc việc cho task',
-    remindAdd: '＋ Thêm nhắc',
-    remindPickKind: 'Loại',
-    remindKindHabit: 'Thói quen',
-    remindKindTask: 'Task',
-    remindPickTarget: 'Chọn mục',
-    remindPickTime: 'Giờ nhắc',
-    remindSave: 'Lưu',
-    remindListEmpty: 'Chưa có nhắc việc nào cho habit/task.',
-    remindOffItem: 'Tắt nhắc này',
-    remindSetDone: 'Đã đặt nhắc {kind} lúc {t} 🔔',
-    remindItemBody: '🔔 {kind}: {name}',
-    /* Phase 4 — Báo cáo tuần */
-    weekReportTitle: 'Báo cáo tuần',
-    weekReportGoalPct: 'Mục tiêu tuần',
-    weekReportDone: 'Xong',
-    weekReportInProg: 'Đang làm',
-    weekReportTotal: 'Tổng',
-    weekReportTopHabit: 'Thói quen nổi bật',
-    weekReportBestDay: 'Ngày tốt nhất',
-    weekReportClose: 'Đóng',
-    weekReportShare: 'Chia sẻ',
-    weekReportCardTitle: 'Báo cáo Tuần {n}',
-    weekReportShareTxt: 'Tuần {n} · {p}%',
-    weekReportDayT: 'Ngày {d}',
-    /* Phase 18 — So sánh tuần trước */
-    reportVsTitle: 'So với tuần trước',
-    reportVsGoal: 'Mục tiêu',
-    reportVsTasks: 'Task',
-    reportVsHabit: 'Thói quen',
-    reportVsFocus: 'Tập trung',
-    /* Phase 4 — Widget Pomodoro */
-    pomoWidgetTitle: '🍅 Pomodoro',
-    pomoToday: 'Hôm nay',
-    pomoWeek: 'Tuần này',
-    pomoMinShort: '{n}p',
-    pomoWidgetStats: '{today} · {week}',
-    pomoWorkDoneTxt: 'Xong phiên tập trung! Nghỉ 5 phút nhé 🍅',
-    pomoBreakDoneTxt: 'Hết giờ nghỉ! Bắt đầu phiên mới 🍅',
-    pomoTomatoCounter: '🍅 {n}/{total}',
-    pomoLongBreak: 'Nghỉ dài 🧘',
-    pomoLongBreakDone: 'Hết giờ nghỉ dài! Bắt đầu chu kỳ mới 🍅',
-    pomoSessionCount: 'Đã tập trung {n} lần',
-    fabDragHint: 'Kéo để di chuyển · Nhấp đúp để về vị trí mặc định',
-    fabDragReset: 'Đã đưa về vị trí mặc định',
-    chatTitle: '🤖 Trợ lý học tập',
-    chatWelcome: '👋 Chào bạn! Tôi là trợ lý học tập. Bạn cần hỗ trợ gì?',
-    chatPh: 'Nhập câu hỏi của bạn...',
-    chatSend: 'Gửi',
-    helpTitle: 'Hướng dẫn sử dụng',
-    helpContent: '<h3>📋 Các chức năng của TaskFlow</h3><ul><li><b>📅 Tổng quan tháng:</b> Xem mục tiêu, thói quen và tiến độ tháng.</li><li><b>🗓️ Kế hoạch năm:</b> Mục tiêu năm, biểu đồ 12 tháng, phản ánh quý/năm.</li><li><b>📋 Kế hoạch tuần:</b> Mục tiêu & task theo ngày, thói quen, phản ánh, Pomodoro.</li><li><b>🎯 Mục tiêu:</b> Thêm/sửa/xoá mục tiêu ưu tiên và thường. Tick ✓ để đánh dấu hoàn thành.</li><li><b>🔥 Thói quen:</b> Theo dõi thói quen 31 ngày, tính % hoàn thành, streak và heatmap.</li><li><b>🍅 Pomodoro:</b> Timer tập trung 25 phút. Sau 4 lần tập trung sẽ được nghỉ dài 25 phút.</li><li><b>📝 Phản ánh:</b> Viết nhật ký reflection theo tuần, tháng, quý, năm.</li><li><b>🏷️ Tag:</b> Gắn tag cho task để lọc và tìm kiếm.</li><li><b>🔍 Tìm kiếm:</b> Tìm kiếm xuyên tháng (Ctrl+K).</li><li><b>📊 Dashboard:</b> Thống kê tổng quan năm.</li><li><b>🌙 Chế độ tối:</b> Bật/tắt giao diện tối.</li><li><b>🌐 Ngôn ngữ:</b> Chuyển đổi VI/EN.</li><li><b>🎯 Chế độ Tập trung:</b> Xem task & thói quen hôm nay trong giao diện tối giản.</li><li><b>↩️ Hoàn tác/Làm lại:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Dữ liệu:</b> Xuất/nhập JSON, CSV, sao lưu tự động, khôi phục.</li><li><b>☁️ Đồng bộ:</b> Đăng nhập để đồng bộ dữ liệu giữa các thiết bị.</li><li><b>📅 Lịch:</b> Xem task theo lịch tháng.</li><li><b>📋 Templates:</b> Sao chép cấu trúc tháng.</li><li><b>🎨 Chủ đề:</b> 4 chủ đề màu kem/bạc hà/oải hương/đào.</li><li><b>🤖 Trợ lý học tập:</b> Chatbot hỗ trợ lên kế hoạch học tập và trả lời câu hỏi.</li></ul><p>💡 <b>Mẹo:</b> Phím số <b>1-5</b> chuyển nhanh giữa các view · <b>Q</b> thêm việc nhanh · <b>Ctrl+K</b> tìm kiếm.</p>',
-    profileTitle: 'Tài khoản',
-    profileUser: 'Tên người dùng: {u}',
-    pwTitle: 'Đổi mật khẩu',
-    pwCurrentPh: 'Mật khẩu hiện tại',
-    pwNewPh: 'Mật khẩu mới',
-    pwBtn: 'Đổi mật khẩu',
-    pwOk: 'Đã đổi mật khẩu ✓',
-    pwErr: 'Đổi mật khẩu thất bại. Kiểm tra mật khẩu hiện tại.',
-    pwNeedLogin: 'Cần đăng nhập để đổi mật khẩu.',
-    acctDeleteTitle: 'Xoá tài khoản',
-    acctDeleteBtn: '🗑 Xoá tài khoản',
-    acctDeleteConfirm: 'Xoá tài khoản sẽ xoá vĩnh viễn toàn bộ dữ liệu đám mây. Bạn chắc chắn?',
-    acctDeleted: 'Đã xoá tài khoản.',
-    acctDeleteErr: 'Không xoá được tài khoản, thử lại sau.',
-    profileOpen: '👤 Tài khoản',
-    /* ===== Phase 5 — Trải nghiệm & an toàn dữ liệu ===== */
-    undoBtn: '↩️ Hoàn tác (Ctrl+Z)',
-    redoBtn: '↪️ Làm lại (Ctrl+Shift+Z)',
-    undoDone: 'Đã hoàn tác',
-    redoDone: 'Đã làm lại',
-    noUndo: 'Không có gì để hoàn tác',
-    dragHint: 'Kéo để sắp xếp lại',
-    reorderDone: 'Đã sắp xếp lại',
-    shortcutHint: 'Phím tắt: Ctrl+K tìm kiếm · Q thêm việc nhanh · 1-5 chuyển view',
-    backupRestore: 'Khôi phục bản sao lưu tự động',
-    backupEmpty: 'Chưa có bản sao lưu nào. Bản sao lưu tự lưu sau mỗi lần bạn thay đổi dữ liệu.',
-    backupRestoreDone: 'Đã khôi phục bản sao lưu! Trang sẽ tải lại.',
-    backupRestoreConfirm: 'Khôi phục bản sao lưu sẽ GHI ĐÈ dữ liệu hiện tại. Tiếp tục?',
-    backupSlot: '{n} key dữ liệu',
-    focusTitle: '🎯 Chế độ Tập trung',
-    focusToday: 'Task hôm nay',
-    focusHabits: 'Thói quen hôm nay',
-    focusClose: 'Đóng chế độ tập trung (Esc)',
-    focusOpen: 'Chế độ Tập trung',
-    focusNoTask: 'Hôm nay chưa có task nào 🐥',
-    focusHabitDone: 'Đã xong hết thói quen hôm nay! 🎉',
-    focusShowAll: 'Tất cả việc hôm nay',
-    focusFocusing: 'Đang tập trung vào',
-    focusTimer: 'Bộ đếm thời gian',
-    focusReset: 'Đặt lại',
-    focusDone: 'Phiên tập trung hoàn thành 🎉',
-    focusLog: 'Nhật ký phiên',
-    focusLogToday: 'Hôm nay: {n}p · {c} phiên',
-    focusLogTotal: 'Tổng: {n}p',
-    focusNoSessions: 'Chưa có phiên nào',
-    focusChartTitle: 'Thời gian tập trung',
-    focusChartWeekTotal: 'Tuần này: {n}p',
-    focusChartEmpty: 'Chưa có phiên tập trung nào trong tuần này',
-    focusChartTop: 'Tập trung nhiều nhất',
-    focusChartBarAria: 'Ngày {day}: {n} phút',
-    reportFocusWeek: 'Phút tập trung (tuần)',
-    reportFocusMonth: 'Phút tập trung (tháng)',
-    reportFocusTop: 'Task tập trung nhất',
-    reportFocusBestDay: 'Ngày tập trung nhất',
-    yearReportFocus: 'Phút tập trung (năm)',
-    yearReportTopTask: 'Task tập trung nhất',
-    yearReportQuarter: 'Tổng kết theo quý',
-    quarterShort: 'Quý {n}',
-    calFocusMonth: 'Focus tháng: {n}p',
-    calFocusBestDay: 'Ngày tập trung nhất: {d} ({n}p)',
-    calFocusAria: 'Ngày {d}: {n} phút tập trung',
-    feedbackBtn: '💬 Góp ý / phản hồi',
-    /* ===== Phase 9 — Thống kê tương quan focus × task ===== */
-    statsTitle: 'Thống kê',
-    statsRangeMonth: 'Tháng này',
-    statsRangeQuarter: 'Quý này',
-    statsRangeYear: 'Năm nay',
-    statsRangeAll: 'Toàn bộ',
-    statsFocusAxis: 'Tập trung (phút)',
-    statsDoneAxis: 'Task hoàn thành',
-    statsTotalFocus: 'Tổng focus',
-    statsTotalDone: 'Task đã làm',
-    statsAvgFocus: 'TB focus/{unit}',
-    statsBest: 'Tốt nhất',
-    statsCorr: 'Tương quan r',
-    statsCorrNote: 'Mỗi chấm là một {unit}: trục ngang = thời gian tập trung, trục dọc = số task hoàn thành. r càng gần 1, càng tập trung càng hoàn thành nhiều việc.',
-    statsNoData: 'Chưa đủ dữ liệu để vẽ biểu đồ (cần ít nhất 2 khoảng thời gian).',
-    statsPointAria: '{label}: {done} task · {focus}p',
-    statsUnitWeek: 'tuần',
-    statsUnitMonth: 'tháng',
-    /* ===== Phase 6 — Cá nhân hoá & dữ liệu thông minh ===== */
-    templatesTitle: '✨ Thói quen mẫu',
-    templatesHint: 'Chọn nhanh một thói quen để thêm vào tháng này:',
-    demoData: '✨ Tạo dữ liệu mẫu',
-    demoDataDone: 'Đã tạo dữ liệu mẫu! Dùng Ctrl+Z nếu muốn hoàn tác.',
-    moodTitle: 'Tâm trạng tháng',
-    moodHint: 'Chạm emoji để ghi tâm trạng mỗi ngày',
-    mood0: 'Rất buồn',
-    mood1: 'Buồn',
-    mood2: 'Bình thường',
-    mood3: 'Vui',
-    mood4: 'Tuyệt vời',
-    moodInsight: 'Ngày vui có habit {g}% — cao hơn ngày buồn {d}% 🐥',
-    moodInsightNone: 'Ghi vài ngày tâm trạng để xem insight của bạn.',
-    moodPickAria: 'Chọn tâm trạng ngày {d}',
-    moodPickTitle: 'Tâm trạng ngày {d}',
-    moodClear: 'Xoá tâm trạng',
-    yearReportTitle: 'Báo cáo năm',
-    yearReportGoalPct: 'Mục tiêu năm',
-    yearReportTopMonth: 'Tháng đỉnh cao',
-    yearReportBestHabit: 'Habit nổi bật',
-    yearReportProdDay: 'Ngày năng suất',
-    yearReportShare: 'Chia sẻ ảnh',
-    yearReportCardTitle: 'Tổng kết năm {y}',
-    yearReportDaySub: 'tháng {m}',
-    importCsv: '📥 Nhập CSV (khôi phục)',
-    importCsvConfirm: 'Nhập CSV sẽ GỘP dữ liệu (không ghi đè mục trùng tên). Bạn chắc chắn muốn tiếp tục?',
-    importCsvDone: 'Đã nhập CSV!',
-    importCsvError: 'Không đọc được CSV. Đảm bảo file là bản xuất từ TaskFlow.',
-    digestNone: 'Hôm qua bạn điểm danh đủ thói quen! 🎉',
-    /* ===== Phase 8: Widget Dashboard ===== */
-    widgetSettings: 'Tuỳ chỉnh Widget',
-    widgetSave: 'Lưu',
-    widgetHide: 'Ẩn widget này',
-    widgetShow: 'Hiện widget này',
-    'widgetLabel_date-card': 'Ngày tháng',
-    'widgetLabel_weekly-chart': 'Tiến độ tuần',
-    'widgetLabel_scene-card': 'Ưu tiên tiếp theo',
-    widgetLabel_goals: 'Mục tiêu tháng',
-    widgetLabel_habits: 'Thói quen',
-    'widgetLabel_streak-heatmap': 'Streak & Heatmap',
-    widgetLabel_mood: 'Tâm trạng',
-    widgetLabel_badges: 'Huy hiệu',
-    'widgetLabel_year-dashboard': 'Dashboard',
-    'widgetLabel_year-card': 'Thông tin năm',
-    'widgetLabel_year-charts': 'Biểu đồ 12 tháng',
-    'widgetLabel_year-goals': 'Mục tiêu năm',
-    'widgetLabel_year-overview-ref': 'Tổng quan năm',
-    'widgetLabel_year-quarters': 'Quý',
-    'widgetLabel_year-months': '12 tháng',
-    'widgetLabel_year-reflections': 'Phản ánh quý',
-    'widgetLabel_year-heatmap': 'Habit Heatmap',
-    digestBody: 'Hôm qua chưa điểm danh: {names}',
-  },
-  en: {
-    navMonths: 'Navigate months',
-    prevMonth: 'Previous month',
-    nextMonth: 'Next month',
-    prevYear: 'Previous year',
-    nextYear: 'Next year',
-    selectMonth: 'Select month',
-    navPlan: 'Plan navigation',
-    resetTitle: 'Clear all saved data',
-    resetTxt: '↺ Reset',
-    todayTitle: 'Go to today & current week',
-    todayTxt: 'Today',
-    navGroupMain: 'Main',
-    navGroupPlan: 'Plan',
-    navGroupTrack: 'Track',
-    collapseSidebar: 'Collapse',
-    expandSidebar: 'Expand',
-    moreNav: 'More',
-    moreAdd: 'Add',
-    moreSheetTitle: 'More',
-    moreSettings: 'Settings',
-    todayGreetingMorning: 'Good morning 👋',
-    todayGreetingAfternoon: 'Good afternoon ☀️',
-    todayGreetingEvening: 'Good evening 🌙',
-    todayTasksTitle: 'Today\u2019s tasks',
-    todayCompleted: '{done}/{total} completed',
-    todayProgress: 'Daily progress',
-    todayHabitsTitle: 'Habits today',
-    todayHabitsEmpty: 'No habits yet. Create your first habit to get started!',
-    todayFocusTitle: 'Focus',
-    todayFocusStart: 'Start Focus',
-    todayFocusTip: 'Open full-screen Focus mode to do deep work.',
-    todayAddTask: 'Add task',
-    todayEmpty: 'Nothing scheduled today 🎯',
-    todayEmptySub: 'A pretty light day. Add a task to make the most of it!',
-    todayPriority: 'Priority',
-    tabUpcoming: 'Upcoming',
-    upcomingEyebrow: 'Coming up',
-    upcomingTitle: 'Upcoming',
-    upcomingSubtitle: 'See your tasks for the days ahead — no calendar needed.',
-    upcomingOverdue: 'Overdue',
-    upcomingTodayLabel: 'Today',
-    upcomingTomorrowLabel: 'Tomorrow',
-    upcomingRange7: '7 days',
-    upcomingRange14: '14 days',
-    upcomingRange30: '30 days',
-    upcomingRangeAria: 'Time range: {n}',
-    upcomingEmpty: 'No tasks in this range yet.',
-    upcomingEmptySub: 'Plan your week and upcoming tasks will show here.',
-    upcomingOverdueAria: 'Overdue tasks',
-    upcomingDayAria: 'Tasks on {d}',
-    upcomingNoTime: '—',
-    tabInbox: 'Inbox',
-    inboxEyebrow: 'Capture',
-    inboxTitle: 'Inbox',
-    inboxSubtitle: 'Jot it down now — schedule it later.',
-    inboxEmpty: 'Inbox is empty ✨',
-    inboxEmptySub: 'Everything is already scheduled.',
-    inboxAddTask: 'Add task',
-    inboxScheduleBtn: 'Schedule',
-    inboxScheduleToday: 'Today',
-    inboxScheduleTomorrow: 'Tomorrow',
-    inboxScheduleDateLbl: 'Pick a date',
-    inboxScheduleToast: 'Moved to the calendar',
-    inboxScheduleError: 'Cannot schedule for this date',
-    emptyAddToday: 'Add task',
-    emptyGoUpcoming: 'See upcoming',
-    emptyAddInbox: 'Quick add',
-    emptyPlanWeek: 'Plan the week',
-    emptyAddHabit: 'Create a habit',
-    taskDeletedToast: 'Task deleted',
-    undoBtnShort: 'Undo',
-    quickAddTitle: 'Quick Add',
-    quickAddPh: 'What do you need to do?',
-    quickAddBtn: 'Add task',
-    quickAddToast: 'Task added',
-    quickAddToday: 'Will be added to today',
-    quickAddDay: 'Will be added to the chosen date',
-    quickAddInbox: 'Will be added to Inbox',
-    quickAddEmpty: 'Type a task first',
-    inboxDeleteAria: 'Remove from Inbox',
-    inboxScheduleAria: 'Schedule this task',
-    inboxTodayAria: 'Move to today',
-    inboxTomorrowAria: 'Move to tomorrow',
-    viewInbox: 'Inbox',
-    viewToday: 'Today',
-    nowAria: 'Current date & time',
-    tabOverview: 'Overview',
-    tabYear: 'Year {y}',
-    weekN: 'Week {n}',
-    viewOverview: 'Month overview',
-    overviewEyebrow: 'Monthly workspace',
-    overviewTitle: '{m} overview',
-    overviewSubtitle: 'Track what matters, adjust your pace, and keep momentum each day.',
-    overviewMetricWeek: 'Weekly progress',
-    overviewMetricGoals: 'Goals completed',
-    overviewMetricHabits: 'Habits today',
-    overviewMetricStreak: 'Current streak',
-    overviewMetricWeekMeta: 'Week {n}',
-    overviewMetricGoalsMeta: '{done}/{total} goals',
-    overviewMetricHabitsMeta: '{done}/{total} habits',
-    overviewMetricStreakMeta: 'best active run in days',
-    overviewFocusTitle: 'Next priority',
-    overviewFocusEmpty: 'Choose one important goal to get started.',
-    overviewOpenWeek: 'Open weekly plan',
-    overviewHabitGridAria: 'Monthly habit tracking table',
-    viewYear: 'Year plan',
-    viewWeek: 'Week plan',
-    yearWorkspaceEyebrow: 'Annual workspace',
-    yearPageTitle: '{y} plan',
-    yearPageSubtitle: 'Turn long-term goals into a monthly rhythm you can review and improve.',
-    yearSummaryGoals: 'Goals completed',
-    yearSummaryAverage: 'Average progress',
-    yearSummaryQuarter: 'Best quarter',
-    yearSummaryHabit: 'Leading habit',
-    weekWorkspaceEyebrow: 'Weekly workspace',
-    weekPageTitle: 'Week {n} plan',
-    weekPageSubtitle: 'Choose what matters, distribute the work, and protect your focus.',
-    weekGoalsSummaryAria: 'Weekly goals overview',
-    weekProgressLabel: 'Weekly progress',
-    weekGoalsHeading: 'Weekly goals',
-    weekHabitsHeading: 'Weekly habits',
-    weekHabitsMeta: '{done}/{total} completions',
-    weekHabitsEmpty: 'No habits in this month yet.',
-    weekDaySelectorAria: 'Jump to a day in this week',
-    weekJumpDay: 'Go to {day}',
-    weekDaysHeading: 'Daily plan',
-    weekSupportAria: 'Weekly tools and reflection',
-    brandSub: '{m} {y}',
-    monthOption: '{m} {y}',
-    selWeekAria: 'Select current week',
-    viewWeekT: 'View Week {n}',
-    chicks10Aria: '10 little chicks',
-    goalsTitle: 'Monthly Goals',
-    unitGoals: 'goals',
-    priLbl: 'Priority',
-    regLbl: 'Regular',
-    addGoal: '＋ Add goal',
-    goalPh: 'Type a new goal...',
-    goalNameAria: 'New {label} goal name',
-    editGoalAria: 'Edit goal',
-    delGoalAria: 'Delete goal',
-    noGoals: 'No goals yet',
-    addTxt: 'Add',
-    habitTitle: 'Habits',
-    legendDone: 'Done',
-    legendNotDone: 'Not yet',
-    statsDone: 'Completed',
-    statsInProg: 'In Progress',
-    statsTotal: 'Total',
-    yGoalsTitle: '{y} goals',
-    weekBanner: '🌸 Week goals & tasks',
-    habitPh: 'New habit name...',
-    habitNameAria: 'New habit name',
-    addHabitTxt: '＋ Add habit',
-    renameAria: 'Rename',
-    delAria: 'Delete',
-    noHabits: 'No habits yet, add one 🐥',
-    habitCol: 'Habit',
-    refTitle: 'Reflection',
-    writeHere: 'Write here...',
-    qEditPh: 'Edit question...',
-    refQAria: 'Edit reflection question {n}',
-    refAria: 'Reflection {n}',
-    hmTitle: '🔥 Streak &amp; Heatmap',
-    hmNoData: 'Not enough week data to compare 🐥',
-    hmThis: 'This week',
-    hmLast: 'Last week',
-    hmCur: 'Current streak',
-    hmBest: 'Best streak',
-    hmLess: 'Less',
-    hmMore: 'More',
-    hmDayFullT: '{m} {d}: {p}% completed',
-    hmNoHabits: 'No habits yet',
-    hmHeroDays: 'day streak',
-    hmHeroRecLbl: 'record',
-    hmHeroNew: 'New record! 🎉',
-    hmHeroRec: '{n} days to beat the record',
-    hmHeroStart: 'Tick a habit today to start a streak 🔥',
-    hmMiniT: 'Last 14 days',
-    yearTh: 'Year',
-    curMonthTh: 'Current Month',
-    monthTh: 'Month',
-    curWeekTh: 'Current Week',
-    weeklyProg: 'Weekly Progress',
-    motto: '4 things you will never regret:<br>🌱 Live quietly<br>📚 Live disciplined<br>💼 Mind your own business<br>💛 Love yourself',
-    chicks12Aria: '12 little chicks',
-    pullBtn: '📥 Pull goals from 12-month dashboard',
-    yGoalPh: 'Type a goal...',
-    yGoalAria: 'Year goal',
-    addPriGoalAria: 'Add priority goal',
-    addRegGoalAria: 'Add regular goal',
-    progressYear: 'Yearly progress',
-    quarterT: 'Quarter',
-    m12: '12 months',
-    progress12: '12-month progress',
-    qOverview: 'Quarterly overview',
-    mCardT: '12 Months · Goals &amp; notes by month',
-    openMonthT: 'Open month {n} plan',
-    monthT: 'Month {n}',
-    nowTag: ' · now',
-    writePh: 'Type...',
-    mGoalAria: 'Month {n} goal',
-    noteBanner: 'Note',
-    mNoteAria: 'Month {n} note',
-    refQ: 'Reflection Q{n}',
-    refQuarterAria: 'Quarter {n} reflection {m}',
-    refYearAria: 'Year reflection {n}',
-    refQuarters: 'Quarterly reflections',
-    weekRange: 'Today ({a}) is outside the plan range ({b} - {c})',
-    prevWeek: '‹ Previous week',
-    nextWeek: 'Next week ›',
-    priGoalsSub: 'Priority goals',
-    regGoalsSub: 'Regular goals',
-    wGoalAria: 'Week goal {n}',
-    todayBadge: 'Today',
-    taskPriSub: 'Priority tasks',
-    taskRegSub: 'Regular tasks',
-    taskPh: 'Type a task...',
-    taskAria: 'Task {n}',
-    delTaskAria: 'Delete task {n}',
-    taskMenu: 'Task actions',
-    taskDetail: 'Task details',
-    taskDetailOpen: 'Open task details',
-    taskDetailTitle: 'Task details',
-    taskDetailDate: 'Date',
-    taskDetailDeadline: 'Deadline',
-    taskDetailTime: 'Time',
-    taskDetailDuration: 'Duration (min)',
-    taskDetailPriority: 'Priority',
-    taskDetailRepeat: 'Repeat',
-    taskDetailTags: 'Tags',
-    taskDetailNotes: 'Notes',
-    taskDetailSubtasks: 'Subtasks',
-    taskDetailAddSubtask: '＋ Add subtask',
-    taskDetailSubtaskPh: 'New subtask...',
-    taskDetailDelete: 'Delete task',
-    taskDetailDone: 'Saved',
-    taskDetailClose: 'Close task details',
-    taskDuplicate: 'Duplicate',
-    taskDuplicateDone: 'Task duplicated',
-    taskFocusBtn: 'Focus on this task',
-    taskMetaTime: '{t}',
-    taskMetaRepeat: 'Repeat',
-    taskPriorityLabel: 'Priority',
-    repeatTitle: 'Repeat',
-    repeatOff: 'No repeat',
-    repeatDaily: 'Daily',
-    repeatWeekly: 'Weekly',
-    repeatMonthly: 'Monthly',
-    addPriTaskAria: 'Add priority task',
-    addRegTaskAria: 'Add regular task',
-    noteAria: '{name} note',
-    dayNames: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-    doneAria: '{p}% completed',
-    lineAria: '12-month progress chart',
-    lineMonthT: 'Month {n}: {p}%',
-    resetConfirm: 'Delete all saved data for 12 months and reset to defaults?',
-    dataTitle: 'Your data',
-    exportJson: '📤 Export JSON (backup)',
-    importJson: '📥 Import JSON (restore)',
-    exportCsv: '📊 Export CSV (Google Sheets)',
-    exportIcs: '📅 Export calendar (.ics)',
-    xpTitle: 'Experience points',
-    xpLevel: 'Level {lv}',
-    xpNote: 'Complete tasks, habits and goals to earn XP and level up. 🚀',
-    levelUp: '🎉 Congrats! Level {lv}! ⭐',
-    carriedFrom: 'Carried over from {date} — missed repeating task',
-    dayOpenT: 'Open this day',
-    dayViewEyebrow: 'Day view',
-    dayViewTitle: 'Day view',
-    dayViewSubtitle: 'Tasks, habits, mood and notes for this day.',
-    prevDay: 'Prev day',
-    nextDay: 'Next day',
-    backToWeek: 'Back to week',
-    viewDay: 'Day view',
-    habitSkipped: 'Habit “{name}” is skipped today',
-    csvNote: 'Sheet split into sections, filter in Google Sheets',
-    printTitle: 'Print / Save PDF',
-    remindTitle: 'Daily reminder',
-    remindTimeLbl: 'Remind at',
-    remindOn: 'Turn on',
-    remindOff: 'Turn off',
-    remindNote: 'Your browser will remind you once a day to check in on your habits.',
-    remindEnabled: 'Daily reminder enabled at {t}.',
-    remindDisabled: 'Daily reminder turned off.',
-    remindDenied: 'Your browser blocks notifications. Allow them to get reminders.',
-    remindBody: 'What goals did you complete today? Time to check in on your habits! 🐥',
-    importConfirm: 'Importing will OVERWRITE your current data. Continue?',
-    importError: 'Invalid file: not a TaskFlow backup.',
-    importOk: 'Data imported successfully! The page will reload.',
-    rm0: 'What did I do well that I want to keep doing?',
-    rm1: 'What is the most important lesson I learned?',
-    rm2: 'I am grateful for ...',
-    rm3: 'Three goals I should focus on next year?',
-    rw3: 'Three goals I should focus on next week?',
-    rq3: 'Three goals I should focus on next quarter?',
-    closeBtn: 'Close',
-    syncTitle: 'Cloud sync',
-    syncDesc: 'Sign in to sync data across devices. Your existing data will be automatically upgraded to the cloud.',
-    syncLogin: 'Sign in',
-    syncSignup: 'Create account',
-    syncLogout: 'Sign out',
-    syncStatusOff: 'Cloud sync not configured',
-    syncStatusConnecting: 'Connecting...',
-    syncStatusSyncing: 'Syncing...',
-    syncStatusReady: 'Synced ✓',
-    syncStatusSignedOut: 'Signed out',
-    syncStatusError: 'Sync error',
-    syncNeedEmail: 'Please enter username and password',
-    syncNeedUser: 'Please enter username and password',
-    syncUserInvalid: 'Username: 3-30 characters (letters, numbers, _ . -)',
-    syncPassShort: 'Password must be at least 6 characters',
-    syncPassMismatch: 'Passwords do not match',
-    syncLoginErr: 'Sign in failed, check username/password',
-    syncSignupOk: 'Account created! Sync started automatically ✓',
-    syncSignupErr: 'Sign up failed, the username may already be taken.',
-    syncUserPh: 'Username',
-    syncPassPh: 'Password',
-    syncPass2Ph: 'Confirm password',
-    syncNoAccount: 'No account? Create one',
-    syncHaveAccount: 'Have an account? Sign in',
-    syncGoogle: 'Continue with Google',
-    syncOr: 'or use an account',
-    syncGoogleErr: 'Could not open Google. Check OAuth config on the backend (GOOGLE_CLIENT_ID/SECRET).',
-    syncNeedConfig: 'Backend not configured, fill in the API URL in js/api-config.js',
-    syncErrUsernameTaken: 'Username already taken, try another one.',
-    syncErrBadCredentials: 'Wrong username or password.',
-    syncErrNetwork: 'Cannot reach the server, check the URL in js/api-config.js.',
-    syncErrServer: 'Server error, please try again later.',
-    syncErrRateLimited: 'Too many login attempts. Try again in 15 minutes.',
-    homeTitle: 'Back to the intro page',
-    installTitle: 'Install app',
-    targetAria: 'Target {n}% — adjust the days to reach each month',
-    copyHabitsTxt: 'Copy to next month',
-    copyHabitsDone: 'Copied {n} habits to next month (streak kept 🔥, ticks left blank).',
-    reportTitle: 'Monthly report',
-    reportGoalPct: 'Monthly goals',
-    reportGoalsDone: 'Goals done',
-    reportHabitAvg: 'Average habits',
-    reportTopHabit: 'Best streak',
-    reportRecord: 'Record',
-    reportActive: 'Active days',
-    reportShare: 'Share image',
-    reportCardTitle: 'Report {m} · {y}',
-    badgesTitle: 'Badges',
-    badge7: '🔥 7-day streak',
-    badge30: '🔥🔥 30-day streak',
-    badgeBest14: '🏆 14-day record',
-    badgeGoals100: '🎯 All monthly goals done',
-    badgeHabit100: '💯 Every habit on target',
-    badgeActive15: '📅 15 active days',
-    badgeNew: '🎖️ New badge: {b}!',
-    badgeEarned: 'Earned in {m} · {y}',
-    badgeHint7: 'Reach a 7-day streak',
-    badgeHint30: 'Reach a 30-day streak',
-    badgeHintBest14: 'Reach a 14-day best streak',
-    badgeHintGoals100: 'Complete 100% of monthly goals',
-    badgeHintHabit100: 'Get every habit to its target',
-    badgeHintActive15: 'Tick at least 15 days in a month',
-    shareTitle: 'Share streak 🔥',
-    shareNamePrompt: 'Name shown on the card (empty = "Me")?',
-    meName: 'Me',
-    shareNoStreak: 'Tick a habit today to build a streak 🔥 before sharing!',
-    shareDone: 'Saved share image: taskflow-streak.png',
-    shareFail: 'Could not create share image.',
-    shareFooter: '2026 plan · 100% offline',
-    fbTitle: 'Feedback',
-    fbForm: '📝 Feedback via Google Form',
-    fbMail: '📧 Send email',
-    mailSubj: 'TaskFlow feedback',
-    fbNoForm: 'No Google Form link yet, fill FB_FORM_URL in js/app.js',
-    obGoalTitle: 'What is your #1 goal this year?',
-    obGoalSub: 'Quick picks: choose one, or type your own below:',
-    obGoalPh: 'e.g. Save 20 million VND',
-    obNext: 'Continue →',
-    obHabitTitle: '2 habits you want to build?',
-    obHabitSub: 'Tick ✓ one cell every day, app tracks %, streak 🔥 and heatmap.',
-    obHabitPh1: 'Habit 1, e.g. Wake up at 5AM',
-    obHabitPh2: 'Habit 2, e.g. Read 30 minutes',
-    obThemeTitle: 'Pick a color theme',
-    obThemeSub: 'Change anytime via the 4 color dots up top.',
-    themeLbl: 'Choose color theme',
-    themeCream: 'Cream theme',
-    themeMint: 'Mint theme',
-    themeLavender: 'Lavender theme',
-    themePeach: 'Peach theme',
-    darkTitle: 'Toggle dark mode',
-    langTitle: 'Switch language',
-    landTitle: 'Plan your year, month &amp; week <em>in an adorable way</em>',
-    landSub: 'Set goals, check off daily habits and keep a reflection journal. Your data lives right in your browser, free and private.',
-    landCta: 'Explore your plan',
-    obDone: 'Start planning 🚀',
-    obSkip: 'Skip intro',
-    obSugg1: 'Save 20 million VND',
-    obSugg2: 'Read 24 books',
-    obSugg3: 'Run 100 times',
-    obSugg4: 'Speak English fluently',
-    emptyGoalsT: 'No goals yet',
-    emptyGoalsH: 'Tap "+ Add goal" below to get started.',
-    emptyHabitsT: 'No habits yet',
-    emptyHabitsH: 'Type a habit in the box above, then tap "+ Add habit".',
-    /* ===== Phase 2: Search, Tags, Calendar, Template, Dashboard, Pomodoro ===== */
-    searchTitle: 'Search across months',
-    searchPh: 'Type to search...',
-    searchEmpty: 'Type at least 2 characters to search.',
-    searchEmptySub: 'Search task titles, notes, tags, or goals.',
-    searchNoResults: 'No results found 🐥',
-    searchNoResultsSub: 'Try another keyword or check your spelling.',
-    searchGoal: 'Goal',
-    searchHabit: 'Habit',
-    searchTask: 'Task',
-    searchNote: 'Note',
-    searchReflect: 'Reflection',
-    searchMonth: 'Month {n}',
-    searchYear: 'Year {y}',
-    searchInbox: 'Inbox',
-    searchAll: 'All',
-    searchOpenAria: 'Search across months',
-    tagLbl: 'Tag',
-    tagAdd: '🏷️ Add tag',
-    tagDelAria: 'Remove tag {tag}',
-    tagLimit: 'Max 8 tags per task',
-    tagPh: 'Type a tag then Enter (comma-separated)',
-    tagFilter: 'Filter by tag',
-    tagAll: 'All',
-    tagNoTags: 'No tags yet',
-    tagAria: 'Add tag to task',
-    tabCalendar: 'Calendar',
-    viewCalendar: 'Month calendar',
-    calendarWorkspaceEyebrow: 'Work calendar',
-    calendarPageTitle: '{m} {y} calendar',
-    calendarPageSubtitle: 'See daily workload and filter the month by work context.',
-    calendarFilterAria: 'Filter calendar by tag',
-    calendarAgendaTitle: 'Monthly agenda',
-    calendarAgendaEmpty: 'No tasks match the current filters.',
-    calendarTaskCount: '{n} tasks',
-    calEmpty: 'No tasks',
-    templateTitle: 'Copy month structure',
-    templateDesc: 'Copy goals, habits & week structure (without ✓ ticks) to another month.',
-    templateSrc: 'Source month',
-    templateDst: 'Target month',
-    templateDo: '📋 Copy',
-    templateDone: 'Copied {src} structure to {dst} (ticks cleared).',
-    templateNoData: 'Source month has no data yet.',
-    templateSame: 'Pick a target month different from the source.',
-    templateOpenT: 'Copy month structure',
-    dashTitle: '📊 Dashboard',
-    dashBestHabit: 'Best habit',
-    dashBestHabitSub: '{n} days checked',
-    dashProdDay: 'Most productive day',
-    dashProdDaySub: '{n} tasks done',
-    dashQuarter: 'Quarterly ratio',
-    dashBestQuarter: 'Best quarter: Q{n} ({p}%)',
-    dashGoalTotal: 'Year goals',
-    dashGoalDone: '{d}/{t} done',
-    pomoTitle: '🍅 Pomodoro',
-    pomoStart: '▶ Start',
-    pomoPause: '⏸ Pause',
-    pomoReset: '↺',
-    pomoWork: 'Focus',
-    pomoBreak: 'Break',
-    pomoMin: '{n} min',
-    pomoDoneWork: 'Focus session done! Take a 5-min break 🍅',
-    pomoDoneBreak: 'Break over! Start a new session 🍅',
-    pomoWorkDoneTxt: 'Focus session done! Take a 5-min break 🍅',
-    pomoBreakDoneTxt: 'Break over! Start a new session 🍅',
-    pomoTomatoCounter: '🍅 {n}/{total}',
-    pomoLongBreak: 'Long break 🧘',
-    pomoLongBreakDone: 'Long break done! Start a new cycle 🍅',
-    pomoSessionCount: 'Focused {n} times',
-    fabDragHint: 'Drag to move · Double-click to reset position',
-    fabDragReset: 'Back to default position',
-    chatTitle: '🤖 Study Assistant',
-    chatWelcome: '👋 Hi! I am your study assistant. How can I help you?',
-    chatPh: 'Type your question...',
-    chatSend: 'Send',
-    helpTitle: 'User Guide',
-    helpContent: '<h3>📋 TaskFlow Features</h3><ul><li><b>📅 Month Overview:</b> View monthly goals, habits and progress.</li><li><b>🗓️ Year Plan:</b> Year goals, 12-month chart, quarter/year reflections.</li><li><b>📋 Week Plan:</b> Daily goals & tasks, habits, reflections, Pomodoro.</li><li><b>🎯 Goals:</b> Add/edit/delete priority & regular goals. Tick ✓ to mark done.</li><li><b>🔥 Habits:</b> Track 31-day habits, calculate %, streak and heatmap.</li><li><b>🍅 Pomodoro:</b> 25-min focus timer. After 4 focus sessions, take a 25-min long break.</li><li><b>📝 Reflection:</b> Write reflection journals by week, month, quarter, year.</li><li><b>🏷️ Tags:</b> Tag tasks for filtering and searching.</li><li><b>🔍 Search:</b> Search across months (Ctrl+K).</li><li><b>📊 Dashboard:</b> Year overview statistics.</li><li><b>🌙 Dark Mode:</b> Toggle dark interface.</li><li><b>🌐 Language:</b> Switch VI/EN.</li><li><b>🎯 Focus Mode:</b> View today tasks & habits in a minimalist interface.</li><li><b>↩️ Undo/Redo:</b> Ctrl+Z / Ctrl+Shift+Z.</li><li><b>💾 Data:</b> Export/import JSON, CSV, auto backup, restore.</li><li><b>☁️ Sync:</b> Sign in to sync data across devices.</li><li><b>📅 Calendar:</b> View tasks in monthly calendar.</li><li><b>📋 Templates:</b> Copy month structure.</li><li><b>🎨 Themes:</b> 4 color themes: cream/mint/lavender/peach.</li><li><b>🤖 Study Assistant:</b> Chatbot for study planning and answering questions.</li></ul><p>💡 <b>Tip:</b> Number keys <b>1-5</b> switch views · <b>Q</b> quick add · <b>Ctrl+K</b> search.</p>',
-    /* Phase 4 — habit/task reminders */
-    remindHabitAria: 'Set reminder for habit',
-    remindTaskAria: 'Set reminder for task',
-    remindAdd: '＋ Add reminder',
-    remindPickKind: 'Type',
-    remindKindHabit: 'Habit',
-    remindKindTask: 'Task',
-    remindPickTarget: 'Pick item',
-    remindPickTime: 'Remind at',
-    remindSave: 'Save',
-    remindListEmpty: 'No habit/task reminders yet.',
-    remindOffItem: 'Turn off this reminder',
-    remindSetDone: 'Reminder set for {kind} at {t} 🔔',
-    remindItemBody: '🔔 {kind}: {name}',
-    /* Phase 4 — Weekly report */
-    weekReportTitle: 'Weekly report',
-    weekReportGoalPct: 'Week goals',
-    weekReportDone: 'Done',
-    weekReportInProg: 'In progress',
-    weekReportTotal: 'Total',
-    weekReportTopHabit: 'Top habit',
-    weekReportBestDay: 'Best day',
-    weekReportClose: 'Close',
-    weekReportShare: 'Share',
-    weekReportCardTitle: 'Week {n} report',
-    weekReportShareTxt: 'Week {n} · {p}%',
-    weekReportDayT: 'Day {d}',
-    /* Phase 18 — vs last week */
-    reportVsTitle: 'vs last week',
-    reportVsGoal: 'Goals',
-    reportVsTasks: 'Tasks',
-    reportVsHabit: 'Habits',
-    reportVsFocus: 'Focus',
-    /* Phase 4 — Pomodoro widget */
-    pomoWidgetTitle: '🍅 Pomodoro',
-    pomoToday: 'Today',
-    pomoWeek: 'This week',
-    pomoMinShort: '{n} min',
-    pomoWidgetStats: '{today} · {week}',
-    profileTitle: 'Account',
-    profileUser: 'Username: {u}',
-    pwTitle: 'Change password',
-    pwCurrentPh: 'Current password',
-    pwNewPh: 'New password',
-    pwBtn: 'Change password',
-    pwOk: 'Password changed ✓',
-    pwErr: 'Could not change password. Check your current password.',
-    pwNeedLogin: 'Sign in to change your password.',
-    acctDeleteTitle: 'Delete account',
-    acctDeleteBtn: '🗑 Delete account',
-    acctDeleteConfirm: 'Deleting your account permanently removes all cloud data. Are you sure?',
-    acctDeleted: 'Account deleted.',
-    acctDeleteErr: 'Could not delete the account, try again later.',
-    profileOpen: '👤 Account',
-    /* ===== Phase 5 — UX & data safety ===== */
-    undoBtn: '↩️ Undo (Ctrl+Z)',
-    redoBtn: '↪️ Redo (Ctrl+Shift+Z)',
-    undoDone: 'Undone',
-    redoDone: 'Redone',
-    noUndo: 'Nothing to undo',
-    dragHint: 'Drag to reorder',
-    reorderDone: 'Reordered',
-    shortcutHint: 'Shortcuts: Ctrl+K search · Q quick add · 1-5 switch view',
-    backupRestore: 'Restore auto backup',
-    backupEmpty: 'No backups yet. Backups are saved automatically after each change.',
-    backupRestoreDone: 'Backup restored! The page will reload.',
-    backupRestoreConfirm: 'Restoring a backup will OVERWRITE current data. Continue?',
-    backupSlot: '{n} data keys',
-    focusTitle: '🎯 Focus Mode',
-    focusToday: "Today's tasks",
-    focusHabits: "Today's habits",
-    focusClose: 'Close focus mode (Esc)',
-    focusOpen: 'Focus Mode',
-    focusNoTask: 'No tasks today 🐥',
-    focusHabitDone: 'All habits done today! 🎉',
-    focusShowAll: "All of today's tasks",
-    focusFocusing: 'Focusing on',
-    focusTimer: 'Timer',
-    focusReset: 'Reset',
-    focusDone: 'Focus session complete 🎉',
-    focusLog: 'Session log',
-    focusLogToday: 'Today: {n}m · {c} sessions',
-    focusLogTotal: 'Total: {n}m',
-    focusNoSessions: 'No sessions yet',
-    focusChartTitle: 'Focus time',
-    focusChartWeekTotal: 'This week: {n}m',
-    focusChartEmpty: 'No focus sessions this week',
-    focusChartTop: 'Most focused',
-    focusChartBarAria: '{day}: {n} min',
-    reportFocusWeek: 'Focus minutes (week)',
-    reportFocusMonth: 'Focus minutes (month)',
-    reportFocusTop: 'Top focused task',
-    reportFocusBestDay: 'Best focus day',
-    yearReportFocus: 'Focus minutes (year)',
-    yearReportTopTask: 'Top focused task',
-    yearReportQuarter: 'Quarterly summary',
-    quarterShort: 'Q{n}',
-    calFocusMonth: 'Month focus: {n}m',
-    calFocusBestDay: 'Best focus day: {d} ({n}m)',
-    calFocusAria: '{d}: {n} focus min',
-    feedbackBtn: '💬 Feedback',
-    /* ===== Phase 9 — Focus × task correlation stats ===== */
-    statsTitle: 'Statistics',
-    statsRangeMonth: 'This month',
-    statsRangeQuarter: 'This quarter',
-    statsRangeYear: 'This year',
-    statsRangeAll: 'All time',
-    statsFocusAxis: 'Focus (min)',
-    statsDoneAxis: 'Tasks done',
-    statsTotalFocus: 'Total focus',
-    statsTotalDone: 'Tasks done',
-    statsAvgFocus: 'Avg focus/{unit}',
-    statsBest: 'Best',
-    statsCorr: 'Correlation r',
-    statsCorrNote: 'Each dot is a {unit}: X = focus time, Y = tasks completed. The closer r is to 1, the more focus leads to getting things done.',
-    statsNoData: 'Not enough data to chart (need at least 2 periods).',
-    statsPointAria: '{label}: {done} tasks · {focus}m',
-    statsUnitWeek: 'week',
-    statsUnitMonth: 'month',
-    /* ===== Phase 6 — Personalization & insights ===== */
-    templatesTitle: '✨ Habit ideas',
-    templatesHint: 'Pick a habit idea to add to this month:',
-    demoData: '✨ Add sample data',
-    demoDataDone: 'Sample data added! Press Ctrl+Z to undo.',
-    moodTitle: 'Monthly mood',
-    moodHint: 'Tap an emoji to log your daily mood',
-    mood0: 'Very low',
-    mood1: 'Low',
-    mood2: 'Okay',
-    mood3: 'Happy',
-    mood4: 'Amazing',
-    moodInsight: 'Happy days score {g}% habits — {d}% higher than low days 🐥',
-    moodInsightNone: 'Log a few moods to see your insights.',
-    moodPickAria: 'Pick mood for day {d}',
-    moodPickTitle: 'Mood for day {d}',
-    moodClear: 'Clear mood',
-    yearReportTitle: 'Year report',
-    yearReportGoalPct: 'Year goals',
-    yearReportTopMonth: 'Peak month',
-    yearReportBestHabit: 'Top habit',
-    yearReportProdDay: 'Most productive day',
-    yearReportShare: 'Share image',
-    yearReportCardTitle: 'Year {y} in review',
-    yearReportDaySub: 'month {m}',
-    importCsv: '📥 Import CSV (restore)',
-    importCsvConfirm: 'Importing CSV will MERGE data (duplicates by name will not overwrite). Continue?',
-    importCsvDone: 'CSV imported!',
-    importCsvError: 'Could not read CSV. Make sure it is a TaskFlow export.',
-    digestNone: 'All habits ticked yesterday! 🎉',
-    /* ===== Phase 8: Widget Dashboard ===== */
-    widgetSettings: 'Customize Widgets',
-    widgetSave: 'Save',
-    widgetHide: 'Hide this widget',
-    widgetShow: 'Show this widget',
-    'widgetLabel_date-card': 'Date card',
-    'widgetLabel_weekly-chart': 'Weekly progress',
-    'widgetLabel_scene-card': 'Next priority',
-    widgetLabel_goals: 'Monthly goals',
-    widgetLabel_habits: 'Habits',
-    'widgetLabel_streak-heatmap': 'Streak & Heatmap',
-    widgetLabel_mood: 'Mood',
-    widgetLabel_badges: 'Badges',
-    'widgetLabel_year-dashboard': 'Dashboard',
-    'widgetLabel_year-card': 'Year info',
-    'widgetLabel_year-charts': '12-month chart',
-    'widgetLabel_year-goals': 'Year goals',
-    'widgetLabel_year-overview-ref': 'Year overview',
-    'widgetLabel_year-quarters': 'Quarters',
-    'widgetLabel_year-months': '12 months',
-    'widgetLabel_year-reflections': 'Quarterly reflections',
-    'widgetLabel_year-heatmap': 'Habit Heatmap',
-    digestBody: 'Missed yesterday: {names}',
-  },
-};
-
-let LANG = 'vi';
-try { LANG = localStorage.getItem('planner-lang') || 'vi'; } catch (e) { /* ẩn */ }
-if (LANG !== 'vi' && LANG !== 'en') LANG = 'vi';
-
-function t(key, vars) {
-  const dict = I18N[LANG] || I18N.vi;
-  let s = dict[key] != null ? dict[key] : I18N.vi[key] != null ? I18N.vi[key] : key;
-  if (vars) Object.keys(vars).forEach((k) => { s = s.split('{' + k + '}').join(String(vars[k])); });
-  return s;
-}
-
-function monthLabel(m) {
-  return LANG === 'vi' ? MONTH_NAMES_VI[m] : MONTH_NAMES[m];
-}
-function dayLabel(d) {
-  const names = t('dayNames');
-  return Array.isArray(names) ? names[d] : DAYS[d].name;
-}
-
-// Hạn chót dạng 'YYYY-MM-DD' → nhãn ngắn gọn ('3/8' hoặc '03/08').
-function fmtDeadline(iso) {
-  if (!iso) return '';
-  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return String(iso);
-  const dt = new Date(+m[1], +m[2] - 1, +m[3]);
-  if (Number.isNaN(dt.getTime())) return String(iso);
-  return dt.toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' });
-}
-function dateLocale() { return LANG === 'vi' ? 'vi-VN' : 'en-GB'; }
-
-function applyStaticI18N() {
-  document.documentElement.lang = LANG;
-  document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
-  document.querySelectorAll('[data-i18n-html]').forEach((el) => { el.innerHTML = t(el.dataset.i18nHtml); });
-  document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
-  document.querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
-  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
-  const b = document.getElementById('langBtn');
-  if (b) {
-    const label = b.querySelector('span:last-child');
-    if (label) label.textContent = LANG === 'vi' ? 'EN' : 'VI';
-    else b.textContent = LANG === 'vi' ? 'EN' : 'VI';
-  }
-}
+// i18n core (I18N dictionary, LANG state, t(), label helpers, applyStaticI18N) được tách
+// sang js/i18n.js (window.TaskFlowI18N). Giữ alias để call-sites không đổi.
+if (!window.TaskFlowI18N) throw new Error('TaskFlowI18N missing — js/i18n.js failed to load');
+const { I18N, t, monthLabel, dayLabel, fmtDeadline, dateLocale, getLang, setLangCore, applyStaticI18N } = window.TaskFlowI18N;
 
 function setLang(l) {
-  if (l !== 'vi' && l !== 'en') l = 'vi';
-  LANG = l;
-  try { localStorage.setItem('planner-lang', l); } catch (e) { /* ẩn */ }
+  setLangCore(l);
   if (window.Sync) window.Sync.push('planner-lang');
   applyStaticI18N();
   applySidebarCollapse();
@@ -1889,43 +470,23 @@ let DARK = null; // null = theo hệ thống (prefers-color-scheme)
 try { DARK = localStorage.getItem('planner-dark'); } catch (e) { /* ẩn */ }
 DARK = DARK === '1' ? true : DARK === '0' ? false : null;
 
-function systemPrefersDark() {
-  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-}
-
 function prefersReducedMotion(matchMedia = window.matchMedia) {
   return Boolean(matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 }
 
-function darkIsOn() { return DARK === null ? systemPrefersDark() : DARK; }
-
-function applyDark() {
-  const on = darkIsOn();
-  document.documentElement.dataset.dark = on ? 'true' : 'false';
-  const btn = document.getElementById('btnDark');
-  if (btn) btn.textContent = on ? '☀️' : '🌙';
-  const mc = document.querySelector('meta[name="theme-color"]');
-  if (mc) mc.setAttribute('content', on ? '#1b1917' : '#f4f0e9');
-}
-
-function toggleDark() {
-  DARK = !darkIsOn();
-  try { localStorage.setItem('planner-dark', DARK ? '1' : '0'); } catch (e) { /* ẩn */ }
-  applyDark();
-}
+// dark mode helpers (systemPrefersDark, darkIsOn, applyDark, toggleDark) được tách
+// sang js/theme.js (window.TaskFlowTheme). darkIsOn/applyDark/toggleDark nhận `dark`
+// tham số thay vì đọc DARK global — call-sites truyền DARK.
+if (!window.TaskFlowTheme) throw new Error('TaskFlowTheme missing — js/theme.js failed to load');
+const { systemPrefersDark, darkIsOn, applyDark, toggleDark } = window.TaskFlowTheme;
 
 if (window.matchMedia) {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (DARK === null) applyDark();
+    if (DARK === null) applyDark(DARK);
   });
 }
 
 /* ============================ Analytics (GA4) ============================ */
-
-// 👉 Thay 'G-XXXXXXXXXX' bằng Measurement ID của bạn:
-// Google Analytics → Quản trị → Luồng dữ liệu → Web → đo ID (định dạng G-XXXXXXXXXX)
-const GA4_ID = 'G-XXXXXXXXXX';
-const GA4_ENABLED = !!(GA4_ID && !GA4_ID.startsWith('G-XXXX'));
 
 // 👉 Link Google Form nhận góp ý (Giai đoạn 5 — Feedback):
 // Tạo form tại https://forms.google.com rồi dán link dạng .../viewform vào đây
@@ -1933,37 +494,11 @@ const FB_FORM_URL = '';
 // 👉 Email nhận góp ý (dự phòng khi chưa có form)
 const FB_EMAIL = '';
 
-function initAnalytics() {
-  if (!GA4_ENABLED) return;
-  window.dataLayer = window.dataLayer || [];
-  window.gtag = function () { dataLayer.push(arguments); };
-  const s = document.createElement('script');
-  s.async = true;
-  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA4_ID;
-  document.head.appendChild(s);
-  gtag('js', new Date());
-  gtag('config', GA4_ID, { anonymize_ip: true });
-  try {
-    const now = Date.now();
-    if (!localStorage.getItem('planner-ga-first')) {
-      localStorage.setItem('planner-ga-first', '1');
-      gtag('event', 'first_visit');
-    } else {
-      const last = localStorage.getItem('planner-ga-last');
-      if (last) {
-        gtag('event', 'return_visit', {
-          days_since: Math.max(0, Math.floor((now - new Date(last).getTime()) / 86400000)),
-        });
-      }
-    }
-    localStorage.setItem('planner-ga-last', new Date().toISOString());
-  } catch (e) { /* ẩn */ }
-}
-
-function trackEvent(name, params) {
-  if (!GA4_ENABLED || !window.gtag) return;
-  try { gtag('event', name, params || {}); } catch (e) { /* ẩn */ }
-}
+// analytics helpers (GA4_ID, GA4_ENABLED, initAnalytics, trackEvent) được tách
+// sang js/analytics.js (window.TaskFlowAnalytics). Giữ alias — signature không đổi,
+// 82 call-sites trackEvent giữ nguyên.
+if (!window.TaskFlowAnalytics) throw new Error('TaskFlowAnalytics missing — js/analytics.js failed to load');
+const { GA4_ID, GA4_ENABLED, initAnalytics, trackEvent } = window.TaskFlowAnalytics;
 
 /* ============================ PWA ============================ */
 
@@ -1992,32 +527,11 @@ window.addEventListener('appinstalled', () => {
 
 /* ---------- Nhắc việc hằng ngày ---------- */
 
-function getRemindTime() {
-  try { return localStorage.getItem('planner-remind'); } catch (e) { return null; }
-}
-function setRemindTime(v) {
-  try { if (v) localStorage.setItem('planner-remind', v); else localStorage.removeItem('planner-remind'); } catch (e) { /* ẩn */ }
-}
-
-function requestRemindPermission() {
-  if (!('Notification' in window)) return Promise.resolve(true);
-  if (Notification.permission === 'granted') return Promise.resolve(true);
-  const p = Notification.requestPermission();
-  if (p && typeof p.then === 'function') return p.then((v) => v === 'granted');
-  return Promise.resolve(true);
-}
-
-function registerPeriodicReminder() {
-  if (!('serviceWorker' in navigator) || !('periodicSync' in navigator.serviceWorker)) return;
-  navigator.serviceWorker.ready.then((reg) => {
-    if (!('periodicSync' in reg)) return;
-    navigator.permissions.query({ name: 'periodic-background-sync' }).then((status) => {
-      if (status.state !== 'granted') return;
-      const res = reg.periodicSync.register('daily-reminder', { minInterval: 24 * 60 * 60 * 1000 });
-      if (res && typeof res.catch === 'function') res.catch(() => { /* ẩn */ });
-    }).catch(() => { /* ẩn */ });
-  }).catch(() => { /* ẩn */ });
-}
+// reminder helpers (getRemindTime, setRemindTime, requestRemindPermission,
+// registerPeriodicReminder) được tách sang js/remind.js (window.TaskFlowRemind).
+// Giữ alias — signature không đổi, call-sites giữ nguyên.
+if (!window.TaskFlowRemind) throw new Error('TaskFlowRemind missing — js/remind.js failed to load');
+const { getRemindTime, setRemindTime, requestRemindPermission, registerPeriodicReminder } = window.TaskFlowRemind;
 
 function enableReminder() {
   const input = document.getElementById('remindTime');
@@ -2240,33 +754,11 @@ function applyRecurrence() {
 
 /* ============================ Xuất / Nhập dữ liệu ============================ */
 
-function collectAllData() {
-  const out = { app: 'taskflow-todoist', version: 1, exportedAt: new Date().toISOString(), keys: {} };
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k.startsWith('planner-') || k === LEGACY_KEY) out.keys[k] = localStorage.getItem(k);
-    }
-  } catch (e) { /* ẩn */ }
-  return out;
-}
-
-function downloadFile(name, content, mime) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
-}
-
-function exportJSON() {
-  const date = new Date().toISOString().slice(0, 10);
-  downloadFile('taskflow-todoist-backup-' + date + '.json', JSON.stringify(collectAllData(), null, 2), 'application/json');
-  trackEvent('export_json');
-}
+// export helpers (downloadFile, collectAllData, exportJSON) được tách sang
+// js/export.js (window.TaskFlowExport). collectAllData/exportJSON nhận LEGACY_KEY
+// tham số — downloadFile giữ signature. exportCSV/legacyCSVRows ở lại app.js.
+if (!window.TaskFlowExport) throw new Error('TaskFlowExport missing — js/export.js failed to load');
+const { downloadFile, collectAllData, exportJSON } = window.TaskFlowExport;
 
 function csvRow(row) {
   return row.map((c) => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(',');
@@ -2402,7 +894,7 @@ function importJSONFile(file) {
       if (!data || data.app !== 'taskflow-todoist' || !data.keys || typeof data.keys !== 'object') throw new Error('bad');
       if (!confirm(t('importConfirm'))) return;
       // Phase 5: chốt bản sao lưu dữ liệu hiện tại trước khi ghi đè (an toàn dữ liệu)
-      try { rotateBackup(collectAllData()); } catch (e) { /* ẩn */ }
+      try { rotateBackup(collectAllData(LEGACY_KEY)); } catch (e) { /* ẩn */ }
       Object.keys(data.keys).forEach((k) => {
         try { localStorage.setItem(k, data.keys[k]); } catch (e) { /* ẩn */ }
       });
@@ -2524,7 +1016,7 @@ function templatesPopHTML() {
     <strong class="templates-title">${t('templatesTitle')}</strong>
     <p class="templates-hint">${t('templatesHint')}</p>
     <div class="templates-list">
-      ${HABIT_TEMPLATES.map((h) => `<button type="button" class="template-chip" data-action="template-add" data-name="${esc(h[LANG])}">${h.icon} ${esc(h[LANG])}</button>`).join('')}
+      ${HABIT_TEMPLATES.map((h) => `<button type="button" class="template-chip" data-action="template-add" data-name="${esc(h[getLang()])}">${h.icon} ${esc(h[getLang()])}</button>`).join('')}
     </div>
   </div>`;
 }
@@ -2535,7 +1027,7 @@ function demoPlan() {
   const now = new Date();
   const ti = nowInfo();
   const today = now.getDate() - 1;
-  const isEn = LANG === 'en';
+  const isEn = getLang() === 'en';
   if (!state.monthlyGoals.length) {
     state.monthlyGoals.push(
       { id: 'dg' + Date.now(), text: isEn ? 'Finish the biggest project' : 'Hoàn thành dự án lớn nhất', kind: 'priority', done: false },
@@ -2591,12 +1083,11 @@ function saveMood() {
   if (window.Sync) window.Sync.push(MOOD_KEY);
 }
 
-function moodDateKey(d) {
-  // d có thể là số (ngày trong tháng) hoặc label "DD/MM" (tuần cắt ngang tháng)
-  if (typeof d === 'number') return PLAN_YEAR + '-' + (PLAN_MONTH + 1) + '-' + d;
-  const parts = String(d).split('/');
-  return PLAN_YEAR + '-' + parts[1] + '-' + parts[0];
-}
+// date key generators (pomoDateKey, moodDateKey) được tách sang js/keys.js
+// (window.TaskFlowKeys). pomoDateKey giữ signature; moodDateKey nhận (d, y, m) —
+// call-sites truyền PLAN_YEAR/PLAN_MONTH.
+if (!window.TaskFlowKeys) throw new Error('TaskFlowKeys missing — js/keys.js failed to load');
+const { pomoDateKey, moodDateKey } = window.TaskFlowKeys;
 
 function moodCardHTML() {
   const cells = [];
@@ -2604,15 +1095,15 @@ function moodCardHTML() {
   const today = new Date();
   const todayDay = (today.getFullYear() === PLAN_YEAR && today.getMonth() === PLAN_MONTH) ? today.getDate() : -1;
   for (let d = 1; d <= NUM_DAYS; d++) {
-    const m = moodMap[moodDateKey(d)];
+    const m = moodMap[moodDateKey(d, PLAN_YEAR, PLAN_MONTH)];
     if (m !== undefined && MOODS[m]) logged++;
     const set = m !== undefined && MOODS[m];
     cells.push(`<button type="button" class="mood-cell${set ? ' has l' + m : ''}${d === todayDay ? ' today' : ''}" data-action="mood-pick" data-day="${d}" title="${t('moodPickTitle', { d })}" aria-label="${t('moodPickAria', { d })}">${set ? MOODS[m].icon : `<span class="mood-day">${d}</span>`}</button>`);
   }
   const pairs = [];
   for (let d = 0; d < NUM_DAYS; d++) {
-    const m = moodMap[moodDateKey(d + 1)];
-    if (m !== undefined) pairs.push({ mood: m, pct: dayAggregate(d) });
+    const m = moodMap[moodDateKey(d + 1, PLAN_YEAR, PLAN_MONTH)];
+    if (m !== undefined) pairs.push({ mood: m, pct: dayAggregate(state, d) });
   }
   const s = window.PlanStats ? window.PlanStats.moodSummary(pairs) : null;
   let insight = '';
@@ -2636,7 +1127,7 @@ function moodCardHTML() {
 function openMoodPicker(day) {
   const pk = document.getElementById('moodPicker');
   if (!pk) return;
-  const cur = moodMap[moodDateKey(day)];
+  const cur = moodMap[moodDateKey(day, PLAN_YEAR, PLAN_MONTH)];
   pk.innerHTML = `<div class="mood-picker-title" id="moodPickerTitle">${t('moodPickTitle', { d: day })}</div>
     <div class="mood-picker-opts">
       ${MOODS.map((m, i) => `<button type="button" class="mood-btn${cur === i ? ' on' : ''}" data-action="mood-set" data-day="${day}" data-mood="${i}" title="${t(m.labelKey)}" aria-label="${t(m.labelKey)}">${m.icon}</button>`).join('')}
@@ -2943,17 +1434,15 @@ function importCSVFile(file) {
 }
 
 
-function habitDaysElapsed() {
-  // Số ngày ĐÃ TRÔI QUA tính đến hôm nay (tháng hiện tại) — hoặc cả tháng nếu xem tháng khác.
-  const now = new Date();
-  const inRange = now.getFullYear() === PLAN_YEAR && now.getMonth() === PLAN_MONTH;
-  return inRange ? Math.min(now.getDate(), NUM_DAYS) : NUM_DAYS;
-}
+// habit day helpers (habitDaysElapsed, dayAggregate, heatLevel) được tách sang js/habits.js
+// (window.TaskFlowHabits). Giữ alias để call-sites không đổi.
+if (!window.TaskFlowHabits) throw new Error('TaskFlowHabits missing — js/habits.js failed to load');
+const { habitDaysElapsed, dayAggregate, heatLevel } = window.TaskFlowHabits;
 
 function seedHabitDays(targetPct) {
   // Chỉ tick những ngày đã trôi qua đến hôm nay — KHÔNG bao giờ tick ngày tương lai.
   // Nhờ đó streak/record/% phản ánh đúng số ô ✓ thực tế, không "tính từ ngày tạo thói quen".
-  const elapsed = habitDaysElapsed();
+  const elapsed = habitDaysElapsed(PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
   const n = Math.max(0, Math.round((elapsed * targetPct) / 100));
   const start = Math.max(0, elapsed - n);
   return Array.from({ length: NUM_DAYS }, (_, i) => i >= start && i < elapsed);
@@ -3067,10 +1556,6 @@ initPlan(new Date());
 // Đã đăng nhập tài khoản? (có token đăng nhập) — dùng để phân biệt:
 //   · Khách vãng lai (chưa có tài khoản, chưa có dữ liệu) → hiện dữ liệu mẫu (demo)
 //   · Đã đăng nhập + chưa có dữ liệu → hiện state TRỐNG (tài khoản mới = dữ liệu mới, không demo)
-function hasAccount() {
-  try { return !!localStorage.getItem('planner-token'); } catch (e) { return false; }
-}
-
 function emptyState() {
   const ti = nowInfo();
   return {
@@ -3112,20 +1597,8 @@ function emptyState() {
   };
 }
 
-function emptyYearState() {
-  return {
-    year: PLAN_YEAR,
-    goals: [],
-    reflections: {
-      year: ['', '', '', ''],
-      q1: ['', '', '', ''], q2: ['', '', '', ''], q3: ['', '', '', ''], q4: ['', '', '', ''],
-    },
-    monthNotes: Array.from({ length: 12 }, () => ''),
-  };
-}
-
 function bootState() { return loadState() || (hasAccount() ? emptyState() : defaultState()); }
-function bootYearState() { return loadYearState() || (hasAccount() ? emptyYearState() : defaultYearState()); }
+function bootYearState() { return loadYearState() || (hasAccount() ? emptyYearState(PLAN_YEAR) : defaultYearState(PLAN_YEAR)); }
 
 // Nạp lại state từ localStorage sau khi đổi tài khoản (login/signup/Google OAuth).
 // QUAN TRỌNG: phải gọi sau khi Sync đã xoá local + pull remote — nếu không UI vẫn
@@ -3239,28 +1712,16 @@ function renderXP() {
 
 function habitPct(h) {
   const days = Array.isArray(h.days) ? h.days : [];
-  return window.PlanMath ? window.PlanMath.habitPctFrom(days, habitDaysElapsed(), h.target) : 0;
+  return window.PlanMath ? window.PlanMath.habitPctFrom(days, habitDaysElapsed(PLAN_YEAR, PLAN_MONTH, NUM_DAYS), h.target) : 0;
 }
 function dayPct(day) {
   const tasks = Array.isArray(day.tasks) ? day.tasks : [];
   return tasks.length ? Math.round((tasks.filter((task) => task.done).length / tasks.length) * 100) : 0;
 }
-function monthlyStats() {
-  const total = state.monthlyGoals.length;
-  const done = state.monthlyGoals.filter((g) => g.done).length;
-  return { done, inProg: total - done, total, pct: total ? Math.round((done / total) * 100) : 0 };
-}
-function weekStats(w) {
-  const total = w.goals.length;
-  const done = w.goals.filter((g) => g.done).length;
-  return { done, inProg: total - done, total, pct: total ? Math.round((done / total) * 100) : 0 };
-}
-function dayAggregate(d) {
-  if (!state.habits.length) return 0;
-  let sum = 0;
-  state.habits.forEach((h) => { if (h.days[d]) sum++; });
-  return Math.round((sum / state.habits.length) * 100);
-}
+// goal stats core (weekStats, monthlyStats) được tách sang js/stats.js
+// (window.TaskFlowStats). Giữ alias để call-sites không đổi.
+if (!window.TaskFlowStats) throw new Error('TaskFlowStats missing — js/stats.js failed to load');
+const { weekStats, monthlyStats } = window.TaskFlowStats;
 
 function donutSVG(pct, size = 140, stroke = 18, color = '#F39A82') {
   const r = (size - stroke) / 2;
@@ -3299,7 +1760,7 @@ function saveRefQuestion(scope, i, text) {
 
 function reflectionHTML(key, prompts) {
   const refs = key === 'ov' ? state.reflections.overview : state.reflections.weeks[state.currentWeek - 1];
-  return `<h4 class="ref-title">${t('refTitle')}</h4>
+  return `<h3 class="ref-title">${t('refTitle')}</h3>
     ${prompts.map((p, i) => `<div class="ref-item">
       <div class="ref-question" contenteditable="true" spellcheck="false" data-singleline="1" data-reflect-q="${key}-${i}" data-placeholder="${t('qEditPh')}" aria-label="${t('refQAria', { n: i + 1 })}">${esc(getRefQuestion(key, i, p))}</div>
       <div class="ref-line" contenteditable="true" spellcheck="false" data-reflect="${key}-${i}" data-placeholder="${t('writeHere')}" aria-label="${t('refAria', { n: i + 1 })}">${esc(refs[i])}</div>
@@ -3309,7 +1770,7 @@ function reflectionHTML(key, prompts) {
 /* ---------- Tổng quan tháng ---------- */
 
 function overviewMetricSnapshot() {
-  const ms = monthlyStats();
+  const ms = monthlyStats(state);
   const selectedWeek = state.weeks[state.currentWeek - 1] || state.weeks[0];
   const now = new Date();
   const todayIndex = now.getFullYear() === PLAN_YEAR && now.getMonth() === PLAN_MONTH ? now.getDate() - 1 : -1;
@@ -3318,7 +1779,7 @@ function overviewMetricSnapshot() {
     : 0;
   clearStreakCache();
   const activeStreak = state.habits.reduce(function (best, habit) {
-    return Math.max(best, habitStreakCached(habit).cur);
+    return Math.max(best, habitStreakCached(habit, PLAN_YEAR, PLAN_MONTH, NUM_DAYS).cur);
   }, 0);
   return {
     ms,
@@ -3587,7 +2048,7 @@ function goalBlockHTML(kind, goals) {
 }
 
 function habitPanelHTML() {
-  const dayBars = Array.from({ length: NUM_DAYS }, (_, d) => dayAggregate(d));
+  const dayBars = Array.from({ length: NUM_DAYS }, (_, d) => dayAggregate(state, d));
   const n = new Date();
   const habitToday = (n.getMonth() === PLAN_MONTH && n.getFullYear() === PLAN_YEAR) ? n.getDate() - 1 : -1;
   return `<div class="card habit-panel">
@@ -3665,83 +2126,13 @@ function habitPanelHTML() {
 
 /* ---------- Streak & Heatmap (Giai đoạn 2) ---------- */
 
-function heatLevel(pct) {
-  if (pct >= 100) return 5;
-  if (pct >= 75) return 4;
-  if (pct >= 50) return 3;
-  if (pct >= 25) return 2;
-  if (pct > 0) return 1;
-  return 0;
-}
 
-/* ---- Đa tháng: đọc dữ liệu tháng khác (read-only) để nối streak xuyên tháng ---- */
-function monthStateRaw(y, m) {
-  try {
-    const raw = localStorage.getItem('planner-' + y + '-' + (m + 1));
-    if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (!s || !Array.isArray(s.habits)) return null;
-    return s;
-  } catch (e) { return null; }
-}
 
-// Tìm thói quen trong state của tháng bất kỳ theo id (ưu tiên) rồi theo tên.
-function habitInMonthState(s, h) {
-  if (!s || !Array.isArray(s.habits)) return null;
-  return s.habits.find((x) => x.id === h.id) || s.habits.find((x) => x.name === h.name) || null;
-}
-
-// Lấy mảng days[] của thói quen ở tháng (y,m) — null nếu tháng đó chưa có dữ liệu.
-function habitDaysAt(y, m, h) {
-  if (y === PLAN_YEAR && m === PLAN_MONTH) return Array.isArray(h.days) ? h.days : null;
-  const s = monthStateRaw(y, m);
-  const hh = habitInMonthState(s, h);
-  return hh && Array.isArray(hh.days) ? hh.days : null;
-}
-
-// Ngày đánh dấu "hôm nay" (index 0-based) của tháng đang xem: hôm nay nếu đang xem tháng hiện tại, ngày cuối nếu xem tháng khác.
-function streakAnchorDay() {
-  const now = new Date();
-  const inRange = now.getFullYear() === PLAN_YEAR && now.getMonth() === PLAN_MONTH;
-  return inRange ? Math.min(now.getDate() - 1, NUM_DAYS - 1) : NUM_DAYS - 1;
-}
-
-// Dựng mảng boolean liên tục theo thứ tự thời gian: từ N-1 tháng trước → hôm nay của tháng đang xem.
-function habitTimeline(h, months = 3) {
-  const out = [];
-  const anchor = streakAnchorDay();
-  for (let back = months - 1; back >= 0; back--) {
-    let y = PLAN_YEAR, m = PLAN_MONTH - back;
-    while (m < 0) { m += 12; y--; }
-    const nd = new Date(y, m + 1, 0).getDate();
-    const days = habitDaysAt(y, m, h);
-    const upto = (back === 0) ? anchor : nd - 1;
-    for (let d = 0; d <= upto; d++) out.push(!!(days && days[d]));
-  }
-  return out;
-}
-
-function habitStreakOf(h) {
-  // Streak ĐA THÁNG: 🔥 đếm lùi từ hôm nay xuyên qua ranh giới tháng;
-  // 🏆 chuỗi dài nhất trong cửa sổ 12 tháng. Dùng MỘT timeline duy nhất.
-  const tl = habitTimeline(h, 12);
-  let cur = 0;
-  for (let i = tl.length - 1; i >= 0 && tl[i]; i--) cur++;
-  let best = 0, run = 0;
-  for (let i = 0; i < tl.length; i++) {
-    if (tl[i]) { run++; if (run > best) best = run; }
-    else run = 0;
-  }
-  return { cur, best };
-}
-
-// Cache streak theo habit trong một lần render (tránh dựng timeline 12 tháng nhiều lần).
-let hmStreakCache = new Map();
-function clearStreakCache() { hmStreakCache = new Map(); }
-function habitStreakCached(h) {
-  if (!hmStreakCache.has(h.id)) hmStreakCache.set(h.id, habitStreakOf(h));
-  return hmStreakCache.get(h.id);
-}
+/* ---- Đa tháng: streak xuyên tháng (habitInMonthState, habitDaysAt, streakAnchorDay,
+     habitTimeline, habitStreakOf, habitStreakCached, clearStreakCache) được tách sang
+     js/streak.js (window.TaskFlowStreak). Các hàm nhận PLAN_YEAR/PLAN_MONTH/NUM_DAYS tham số. ---- */
+if (!window.TaskFlowStreak) throw new Error('TaskFlowStreak missing — js/streak.js failed to load');
+const { habitInMonthState, habitDaysAt, streakAnchorDay, habitTimeline, habitStreakOf, habitStreakCached, clearStreakCache } = window.TaskFlowStreak;
 
 function weekHabitPct(wk) {
   if (wk < 1) return null;
@@ -3749,7 +2140,7 @@ function weekHabitPct(wk) {
   const dow0 = (first.getDay() + 6) % 7;
   let sum = 0, n = 0;
   for (let d = 0; d < NUM_DAYS; d++) {
-    if (Math.floor((dow0 + d) / 7) + 1 === wk) { sum += dayAggregate(d); n++; }
+    if (Math.floor((dow0 + d) / 7) + 1 === wk) { sum += dayAggregate(state, d); n++; }
   }
   return n ? Math.round(sum / n) : null;
 }
@@ -3787,14 +2178,14 @@ function dayAggregateAt(y, m, d) {
 }
 
 function shortMonth(m) {
-  return LANG === 'vi' ? 'T' + (m + 1) : MONTH_NAMES[m].slice(0, 3).toUpperCase();
+  return getLang() === 'vi' ? 'T' + (m + 1) : MONTH_NAMES[m].slice(0, 3).toUpperCase();
 }
 
 // Hero: thói quen có chuỗi 🔥 dài nhất + thanh tiến tới kỷ lục 🏆
 function heatHeroHTML() {
   let top = null;
   state.habits.forEach((h) => {
-    const s = habitStreakCached(h);
+    const s = habitStreakCached(h, PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
     if (!top || s.cur > top.s.cur) top = { h, s };
   });
   if (!top) return '';
@@ -3826,12 +2217,12 @@ function heatHeroHTML() {
 function heatRibbonHTML() {
   const now = new Date();
   const inRange = now.getFullYear() === PLAN_YEAR && now.getMonth() === PLAN_MONTH;
-  const anchor = streakAnchorDay();
+  const anchor = streakAnchorDay(PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
   const anchorDate = new Date(PLAN_YEAR, PLAN_MONTH, anchor + 1);
   const start = new Date(anchorDate.getTime() - 89 * 86400000);
   const monday = new Date(start);
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  const dayNames = LANG === 'vi' ? ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] : ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+  const dayNames = getLang() === 'vi' ? ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] : ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
   const cols = [];
   const tags = [];
   let prevMonthKey = null;
@@ -3876,12 +2267,12 @@ function heatRibbonHTML() {
 
 // Vệt 14 ngày gần nhất của một thói quen (cho hàng streak).
 function habitMiniHTML(h) {
-  const anchor = streakAnchorDay();
+  const anchor = streakAnchorDay(PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
   const cells = [];
   for (let back = 13; back >= 0; back--) {
     const dt = new Date(PLAN_YEAR, PLAN_MONTH, anchor + 1 - back);
     const y = dt.getFullYear(), m = dt.getMonth(), d = dt.getDate() - 1;
-    const days = habitDaysAt(y, m, h);
+    const days = habitDaysAt(y, m, h, PLAN_YEAR, PLAN_MONTH);
     cells.push(`<i class="hm-mini-cell${days && days[d] ? ' on' : ''}"></i>`);
   }
   return cells.join('');
@@ -3890,7 +2281,7 @@ function habitMiniHTML(h) {
 function habitHeatCardHTML() {
   clearStreakCache();
   const streaks = state.habits.map((h) => {
-    const s = habitStreakCached(h);
+    const s = habitStreakCached(h, PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
     return `<div class="hm-streak-row">
       <div class="hm-streak-top">
         <span class="hm-streak-name" title="${esc(h.name)}">${esc(h.name)}</span>
@@ -3928,7 +2319,7 @@ function habitHeatCardHTML() {
 function shareTopInfo() {
   let top = null;
   state.habits.forEach((h) => {
-    const s = habitStreakCached(h);
+    const s = habitStreakCached(h, PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
     if (!top || s.cur > top.s.cur) top = { h, s };
   });
   return top;
@@ -3998,7 +2389,7 @@ function streakCardBlob(name, habitName, cur, best) {
       g.fillText('🏆 ' + best + ' · ' + t('hmHeroRecLbl'), W / 2, 636);
 
       // Heatmap: 16 tuần × 7 ngày
-      const anchor = streakAnchorDay();
+      const anchor = streakAnchorDay(PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
       const anchorDate = new Date(PLAN_YEAR, PLAN_MONTH, anchor + 1);
       const start = new Date(anchorDate.getTime() - (16 * 7 - 1) * 86400000);
       const monday = new Date(start);
@@ -4079,17 +2470,17 @@ async function doShareStreak() {
 
 /* ---------- Báo cáo tháng 📊 ---------- */
 function monthlyReportData() {
-  const ms = monthlyStats();
+  const ms = monthlyStats(state);
   const pcts = state.habits.map((h) => habitPct(h));
   const habitAvg = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
   let top = null, rec = null;
   state.habits.forEach((h) => {
-    const s = habitStreakCached(h);
+    const s = habitStreakCached(h, PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
     if (!top || s.cur > top.s.cur) top = { h, s };
     if (!rec || s.best > rec.s.best) rec = { h, s };
   });
   let activeDays = 0;
-  for (let d = 0; d < NUM_DAYS; d++) if (dayAggregate(d) > 0) activeDays++;
+  for (let d = 0; d < NUM_DAYS; d++) if (dayAggregate(state, d) > 0) activeDays++;
   // Phase 7: thống kê focus của tháng (phút/ngày gộp theo tuần + top task)
   const focusTotal = focusMonthMinutes();
   const focusByWeek = state.weeks.map((w) => focusWeekMinutes(w.n).reduce((a, b) => a + b, 0));
@@ -4258,7 +2649,7 @@ function weeklyReportData(w) {
   const habitByDay = [];
   for (let di = 0; di < 7; di++) {
     const gi = (w.n - 1) * 7 + di; // chỉ số ngày toàn tháng tương ứng
-    habitByDay.push(gi < NUM_DAYS ? dayAggregate(gi) : 0);
+    habitByDay.push(gi < NUM_DAYS ? dayAggregate(state, gi) : 0);
   }
   let top = null, topN = 0;
   state.habits.forEach((h) => {
@@ -4301,7 +2692,7 @@ function lastWeekReportData() {
   for (let di = 0; di < 7; di++) {
     const gi = (pw.n - 1) * 7 + di;
     if (gi < monthDays) {
-      habitSum += (srcState === state) ? dayAggregate(gi) : dayAggregateAt(srcY, srcM, gi);
+      habitSum += (srcState === state) ? dayAggregate(state, gi) : dayAggregateAt(srcY, srcM, gi);
       habitN++;
     }
   }
@@ -4523,7 +2914,6 @@ async function doShareWeekReport() {
 }
 
 /* ---------- Huy hiệu 🎖️ ---------- */
-const BADGES_KEY = 'planner-badges';
 const BADGE_DEFS = [
   { id: 'b7', icon: '🔥', nameKey: 'badge7', hintKey: 'badgeHint7' },
   { id: 'b30', icon: '🔥🔥', nameKey: 'badge30', hintKey: 'badgeHint30' },
@@ -4533,24 +2923,11 @@ const BADGE_DEFS = [
   { id: 'active15', icon: '📅', nameKey: 'badgeActive15', hintKey: 'badgeHintActive15' },
 ];
 
-function loadBadges() {
-  try {
-    const raw = localStorage.getItem(BADGES_KEY);
-    const b = raw ? JSON.parse(raw) : null;
-    return b && typeof b.earned === 'object' ? b : { earned: {} };
-  } catch (e) { return { earned: {} }; }
-}
-
-function saveBadges(badges) {
-  try { localStorage.setItem(BADGES_KEY, JSON.stringify(badges)); } catch (e) { /* ẩn */ }
-  if (window.Sync) window.Sync.push(BADGES_KEY);
-}
-
 let badgesStore = loadBadges();
 
 function countActiveDays() {
   let n = 0;
-  for (let d = 0; d < NUM_DAYS; d++) if (dayAggregate(d) > 0) n++;
+  for (let d = 0; d < NUM_DAYS; d++) if (dayAggregate(state, d) > 0) n++;
   return n;
 }
 
@@ -4559,8 +2936,8 @@ function evaluateMonthBadges() {
   const now = new Date();
   if (now.getFullYear() !== PLAN_YEAR || now.getMonth() !== PLAN_MONTH) return 0;
   const streaks = {};
-  state.habits.forEach((h) => { streaks[h.id] = habitStreakCached(h); });
-  const ms = monthlyStats();
+  state.habits.forEach((h) => { streaks[h.id] = habitStreakCached(h, PLAN_YEAR, PLAN_MONTH, NUM_DAYS); });
+  const ms = monthlyStats(state);
   const earned = window.PlanMath ? window.PlanMath.evaluateBadges({
     streaks,
     goalPct: ms.pct,
@@ -4615,7 +2992,7 @@ function refreshHeatCard() {
   // Hero
   let top = null;
   state.habits.forEach((h) => {
-    const s = habitStreakCached(h);
+    const s = habitStreakCached(h, PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
     if (!top || s.cur > top.s.cur) top = { h, s };
   });
   if (top) {
@@ -4633,7 +3010,7 @@ function refreshHeatCard() {
       : t('hmHeroRec', { n: top.s.best - top.s.cur });
   }
   state.habits.forEach((h) => {
-    const s = habitStreakCached(h);
+    const s = habitStreakCached(h, PLAN_YEAR, PLAN_MONTH, NUM_DAYS);
     const curEl = document.querySelector(`[data-role="hm-streak-cur"][data-id="${h.id}"]`);
     if (curEl) curEl.textContent = s.cur;
     const bestEl = document.querySelector(`[data-role="hm-streak-best"][data-id="${h.id}"]`);
@@ -4950,14 +3327,14 @@ function yearOverviewReflectionHTML() {
   return `<div class="card year-mid-card">
     <div class="year-mid-grid">
       <div class="reflection sub">
-        <h4 class="ref-title">${t('refTitle')}</h4>
+        <h3 class="ref-title">${t('refTitle')}</h3>
         ${YEAR_REFLECT_PROMPTS().map((p, i) => `<div class="ref-item">
           <div class="ref-question" contenteditable="true" spellcheck="false" data-singleline="1" data-reflect-q="yr-${i}" data-placeholder="${t('qEditPh')}" aria-label="${t('refQAria', { n: i + 1 })}">${esc(getRefQuestion('yr', i, p))}</div>
           <div class="ref-line" contenteditable="true" spellcheck="false" data-reflect="yr-${i}" data-placeholder="${t('writeHere')}" aria-label="${t('refYearAria', { n: i + 1 })}">${esc(refs[i])}</div>
         </div>`).join('')}
       </div>
       <div class="sub year-line-card">
-        <h4 class="ref-title">${t('progress12')}</h4>
+        <h3 class="ref-title">${t('progress12')}</h3>
         ${lineChartSVG(vals)}
         <div class="line-labels">${Array.from({ length: 12 }, (_, i) => `<span>${i + 1}</span>`).join('')}</div>
       </div>
@@ -5052,7 +3429,7 @@ function yearMonthsHTML() {
 
 function yearReflectionHTML(qn) {
   const refs = yearState.reflections['q' + qn];
-  return `<h4 class="ref-title">${t('refQ', { n: qn })}</h4>
+  return `<h3 class="ref-title">${t('refQ', { n: qn })}</h3>
     ${QUARTER_REFLECT_PROMPTS().map((p, i) => `<div class="ref-item">
       <div class="ref-question" contenteditable="true" spellcheck="false" data-singleline="1" data-reflect-q="yq${qn}-${i}" data-placeholder="${t('qEditPh')}" aria-label="${t('refQAria', { n: i + 1 })}">${esc(getRefQuestion('yq' + qn, i, p))}</div>
       <div class="ref-line" contenteditable="true" spellcheck="false" data-reflect="yq${qn}-${i}" data-placeholder="${t('writeHere')}" aria-label="${t('refQuarterAria', { n: qn, m: i + 1 })}">${esc(refs[i])}</div>
@@ -5252,7 +3629,7 @@ function dayColumnHTML(w, di, isToday, inDayView) {
     <div class="week-day-progress" data-role="day-progress" data-day="${di}" role="progressbar" aria-label="${dayLabel(di)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}"><span data-role="day-progress-fill" style="width:${p}%"></span></div>
     ${d.sticky ? `<div class="sticky-note-box"><span>${esc(d.sticky)}</span></div>` : ''}
     <div class="mood-row" role="group" aria-label="${t('moodTitle')}" data-i18n-aria="moodTitle">
-      ${MOODS.map((m, i) => `<button type="button" class="mood-btn${moodMap[moodDateKey(d.date)] === i ? ' on' : ''}" data-action="mood" data-day-key="${moodDateKey(d.date)}" data-mood="${i}" title="${t(m.labelKey)}" aria-label="${t(m.labelKey)}">${m.icon}</button>`).join('')}
+      ${MOODS.map((m, i) => `<button type="button" class="mood-btn${moodMap[moodDateKey(d.date, PLAN_YEAR, PLAN_MONTH)] === i ? ' on' : ''}" data-action="mood" data-day-key="${moodDateKey(d.date, PLAN_YEAR, PLAN_MONTH)}" data-mood="${i}" title="${t(m.labelKey)}" aria-label="${t(m.labelKey)}">${m.icon}</button>`).join('')}
     </div>
     <div class="day-tasks">
       <div class="task-group">
@@ -5460,14 +3837,6 @@ function totalFocusMinutesToday() {
   return entry && typeof entry.secs === 'number' ? Math.round(entry.secs / 60) : 0;
 }
 
-function formatFocusTime(min) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  if (h && m) return `${h}h ${m}m`;
-  if (h) return `${h}h`;
-  return `${m}m`;
-}
-
 function taskRowHTML(wn, di, ti, mod, task, pos) {
   const tags = Array.isArray(task.tags) ? task.tags : [];
   const timed = task.remind && task.remind.enabled && task.remind.time;
@@ -5480,7 +3849,7 @@ function taskRowHTML(wn, di, ti, mod, task, pos) {
   if (task.deadline) metaBits.push(`<span class="task-meta-deadline" title="${esc(fmtDeadline(task.deadline))}">${window.TaskFlowUI.icon('calendar')}<span>${esc(fmtDeadline(task.deadline))}</span></span>`);
   if (taskFocusSecs(task) > 0) metaBits.push(`<span class="task-meta-focus" title="${t('focusLogTotal', { n: Math.round(taskFocusSecs(task) / 60) })}">${window.TaskFlowUI.icon('focus')}<span>${esc(formatFocusTime(Math.round(taskFocusSecs(task) / 60)))}</span></span>`);
   const meta = metaBits.length ? `<span class="task-meta">${metaBits.join('')}</span>` : '';
-  return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}${task.carriedFrom ? ' carried' : ''}" data-testid="task-row" draggable="true" data-drag="task" data-week="${wn}" data-day="${di}" data-task="${ti}" data-kind="${task.kind}" data-pos="${pos ?? 0}" title="${t('dragHint')}" aria-label="${t('dragHint')}">
+  return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}${task.carriedFrom ? ' carried' : ''}${task.done ? ' done' : ''}" data-testid="task-row" draggable="true" data-drag="task" data-week="${wn}" data-day="${di}" data-task="${ti}" data-kind="${task.kind}" data-pos="${pos ?? 0}" title="${t('dragHint')}" aria-label="${t('dragHint')}">
     ${checkboxHTML(mod, task.done, `data-action="task" data-week="${wn}" data-day="${di}" data-task="${ti}"`, window.TaskFlowUI.checkboxLabel('task', task.text, `${t('weekN', { n: wn })}, ${dayLabel(di)}`))}
     ${task.carriedFrom ? `<span class="carried-badge" title="${t('carriedFrom', { date: carriedDateLabel(task.carriedFrom) })}" aria-label="${t('carriedFrom', { date: carriedDateLabel(task.carriedFrom) })}">↳</span>` : ''}
     <span class="task-main">
@@ -5493,6 +3862,7 @@ function taskRowHTML(wn, di, ti, mod, task, pos) {
       <button type="button" class="task-menu-open" data-action="task-menu" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('taskMenu')}" aria-label="${t('taskMenu')}" aria-haspopup="menu" aria-expanded="false">${window.TaskFlowUI.icon('more')}</button>
       <span class="task-menu" role="menu" hidden>
         <button type="button" role="menuitem" data-action="task-detail" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('data')} <span>${t('taskDetail')}</span></button>
+        <button type="button" role="menuitem" data-action="task-move" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('calendar')} <span>${t('taskMove')}</span></button>
         <button type="button" role="menuitem" data-action="remind-task" data-week="${wn}" data-day="${di}" data-task="${ti}">🔔 <span>${t('remindTitle')}</span>${task.remind && task.remind.enabled ? ' <span class="task-menu-on" aria-hidden="true">●</span>' : ''}</button>
         <button type="button" role="menuitem" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">🏷️ <span>${t('tagAdd')}</span></button>
         <button type="button" role="menuitem" data-action="repeat-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">🔁 <span>${t('repeatTitle')}</span>${repeated ? ' <span class="task-menu-on" aria-hidden="true">●</span>' : ''}</button>
@@ -5900,13 +4270,6 @@ function calendarDayEntries() {
   }));
 }
 
-function localISODate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function calendarTaskMatches(task) {
   if (!calendarTagFilters.length) return true;
   const tags = Array.isArray(task.tags) ? task.tags : [];
@@ -6201,18 +4564,6 @@ function togglePomoPanel() {
 
 /* ---------- Pomodoro widget trong tuần view (Phase 4) ---------- */
 
-const POMO_LOG_KEY = 'planner-pomo-log';
-
-function loadPomoLog() {
-  try { return JSON.parse(localStorage.getItem(POMO_LOG_KEY) || '{}') || {}; } catch (e) { return {}; }
-}
-function savePomoLog(log) {
-  try { localStorage.setItem(POMO_LOG_KEY, JSON.stringify(log)); } catch (e) { /* ẩn */ }
-  if (window.Sync) window.Sync.push(POMO_LOG_KEY);
-}
-function pomoDateKey(d) {
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
 function pomoAddSession(secs) {
   const log = loadPomoLog();
   const k = pomoDateKey(new Date());
@@ -6520,11 +4871,10 @@ function closeStatsModal() {
   TaskFlowUI.closeDialog('statsModal');
 }
 
-// Nhãn ngày ngắn cho biểu đồ cột (VI: T2…T7, CN · EN: Mon, Tue…).
-function dayLabelShort(di) {
-  if (LANG === 'vi') return di === 6 ? 'CN' : 'T' + (di + 2);
-  return dayLabel(di).slice(0, 3);
-}
+// date helpers (fmtDate, isDayToday, dayLabelShort) được tách sang js/dates.js
+// (window.TaskFlowDates). Giữ alias để call-sites không đổi.
+if (!window.TaskFlowDates) throw new Error('TaskFlowDates missing — js/dates.js failed to load');
+const { fmtDate, isDayToday, dayLabelShort } = window.TaskFlowDates;
 
 // Card biểu đồ cột thời gian tập trung theo ngày trong tuần (full-width trong week-support-grid).
 function focusChartCardHTML(w) {
@@ -7484,10 +5834,6 @@ function closeQuickAdd() {
 }
 
 // ISO local (tránh lệch UTC của toISOString)
-function localISODate(dt) {
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-}
-
 function submitQuickAdd() {
   const inp = document.getElementById('quickAddInput');
   const text = (inp && inp.value || '').trim();
@@ -7590,6 +5936,22 @@ function setView(view, week) {
     yr.setAttribute('aria-labelledby', 'tab-year');
     renderYear();
   }
+  // P12 (perf): DOM của view inactive là stale thuần — setView luôn re-render view đích
+  // mỗi lần chuyển, nên xoá content các section ẩn để giảm memory/parse (trước đây
+  // calendar giữ ~6.000 node ẩn chiếm RAM + chậm re-parse). Giữ attributes của section
+  // (aria-labelledby, data-testid) — chỉ xoá children.
+  const activeSectionId = 'view-' + view;
+  [td, upc, ibx, ov, wk, yr, cal, dy].forEach((s) => {
+    if (!s || s.id === activeSectionId) return;
+    // Overview render vào #ov-content (div con của section) — phải giữ container đó,
+    // nếu xoá cả section thì renderOverview không tìm thấy #ov-content.
+    if (s.id === 'view-overview') {
+      const oc = document.getElementById('ov-content');
+      if (oc) oc.innerHTML = '';
+    } else {
+      s.innerHTML = '';
+    }
+  });
   window.TaskFlowUI.syncUrl({
     view,
     year: PLAN_YEAR,
@@ -7923,7 +6285,6 @@ document.addEventListener('contextmenu', (e) => {
 /* ---------- Sao lưu tự động (Phase 5.4) ---------- */
 
 const BACKUP_SLOTS = 7;
-function backupSlotKey(i) { return 'planner-backup-' + i; }
 function rotateBackup(data) {
   try {
     let idx = 0;
@@ -7945,7 +6306,7 @@ function maybeAutoBackup() {
   const now = Date.now();
   if (now - lastBackupTs < 60000) return; // tối đa 1 lần/phút — tránh ghi đè liên tục khi gõ text
   lastBackupTs = now;
-  try { rotateBackup(collectAllData()); } catch (e) { /* ẩn */ }
+  try { rotateBackup(collectAllData(LEGACY_KEY)); } catch (e) { /* ẩn */ }
 }
 function listBackups() {
   const out = [];
@@ -8387,7 +6748,7 @@ document.addEventListener('click', (e) => {
   }
   else if (act === 'goal') {
     const g = state.monthlyGoals.find((x) => x.id === el.dataset.id);
-    if (g) { g.done = !g.done; if (g.done) addXP(20); else removeXP(20); afterGoalToggle(g); if (g.done && monthlyStats().pct === 100) confettiBurst(); }
+    if (g) { g.done = !g.done; if (g.done) addXP(20); else removeXP(20); afterGoalToggle(g); if (g.done && monthlyStats(state).pct === 100) confettiBurst(); }
   } else if (act === 'ygoal') {
     const g = yearState.goals.find((x) => x.id === el.dataset.id);
     if (g) { g.done = !g.done; if (g.done) addXP(30); else removeXP(30); afterYearGoalToggle(); }
@@ -8568,6 +6929,12 @@ document.addEventListener('click', (e) => {
       }
     });
     if (open && menuEl) {
+      // Mở bằng bàn phím (Enter/Space → click detail 0): đưa focus vào menuitem đầu
+      // để ArrowUp/Down điều hướng được ngay (APG menu button pattern).
+      if (e.detail === 0) {
+        const first = menuEl.querySelector('[role="menuitem"]');
+        if (first) requestAnimationFrame(() => first.focus());
+      }
       // Menu dropdown bị panel (overflow:hidden) cắt khi task gần đáy → lật lên trên
       requestAnimationFrame(() => {
         const pr = row.closest('.week-day-panel');
@@ -8579,6 +6946,16 @@ document.addEventListener('click', (e) => {
     } else if (!open) {
       row.classList.remove('menu-up');
     }
+  } else if (act === 'task-move') {
+    const week = +el.dataset.week;
+    const day = +el.dataset.day;
+    const task = +el.dataset.task;
+    openTaskDetail(week, day, task);
+    // Focus vào select ngày để chuyển task sang ngày khác nhanh
+    requestAnimationFrame(() => {
+      const sel = document.querySelector('[data-action="td-date"]');
+      if (sel) sel.focus();
+    });
   } else if (act === 'task-duplicate') {
     const w = state.weeks[+el.dataset.week - 1];
     const d = w.days[+el.dataset.day];
@@ -8887,13 +7264,13 @@ document.addEventListener('click', (e) => {
   } else if (act === 'mood-pick') {
     openMoodPicker(+el.dataset.day);
   } else if (act === 'mood-set') {
-    moodMap[moodDateKey(+el.dataset.day)] = +el.dataset.mood;
+    moodMap[moodDateKey(+el.dataset.day, PLAN_YEAR, PLAN_MONTH)] = +el.dataset.mood;
     saveMood();
     trackEvent('mood_set', { level: +el.dataset.mood });
     closeMoodPicker();
     rerenderMoodCard();
   } else if (act === 'mood-clear') {
-    delete moodMap[moodDateKey(+el.dataset.day)];
+    delete moodMap[moodDateKey(+el.dataset.day, PLAN_YEAR, PLAN_MONTH)];
     saveMood();
     trackEvent('mood_clear', { day: +el.dataset.day });
     closeMoodPicker();
@@ -8911,9 +7288,9 @@ document.addEventListener('click', (e) => {
   } else if (act === 'theme') {
     setTheme(el.dataset.theme);
   } else if (act === 'dark') {
-    toggleDark();
+    DARK = toggleDark(DARK);
   } else if (act === 'lang') {
-    setLang(LANG === 'vi' ? 'en' : 'vi');
+    setLang(getLang() === 'vi' ? 'en' : 'vi');
   } else if (act === 'remind-toggle') {
     togglePop('remindPop');
   } else if (act === 'remind-on') {
@@ -8930,7 +7307,7 @@ document.addEventListener('click', (e) => {
     togglePop('dataPop');
   } else if (act === 'export-json') {
     togglePop('dataPop');
-    exportJSON();
+    exportJSON(LEGACY_KEY);
   } else if (act === 'import-json') {
     togglePop('dataPop');
     const fi = document.getElementById('importFile');
@@ -8991,7 +7368,7 @@ document.addEventListener('click', (e) => {
         localStorage.removeItem(yearKey());
       } catch (err) { /* ẩn */ }
       if (window.Sync && window.Sync.clearAll) window.Sync.clearAll();
-      yearState = hasAccount() ? emptyYearState() : defaultYearState();
+      yearState = hasAccount() ? emptyYearState(PLAN_YEAR) : defaultYearState(PLAN_YEAR);
       state = hasAccount() ? emptyState() : defaultState();
       setView(state.view, state.currentWeek);
     }
@@ -9121,9 +7498,10 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape') {
-    // Phase 4: Escape đóng menu task ⋯ đang mở
+    // Phase 4: Escape đóng menu task ⋯ đang mở + trả focus về nút ⋯ (APG menu button)
     const openRows = document.querySelectorAll('.task-row.menu-open');
     if (openRows.length) {
+      const activeRow = Array.from(openRows).find((r) => r.contains(document.activeElement)) || openRows[0];
       openRows.forEach((r) => {
         r.classList.remove('menu-open', 'menu-up');
         const b = r.querySelector('[data-action="task-menu"]');
@@ -9131,6 +7509,8 @@ document.addEventListener('keydown', (e) => {
         const m = r.querySelector('.task-menu');
         if (m) m.hidden = true;
       });
+      const trigger = activeRow.querySelector('[data-action="task-menu"]');
+      if (trigger && typeof trigger.focus === 'function') trigger.focus();
       return;
     }
   }
@@ -9151,6 +7531,26 @@ document.addEventListener('keydown', (e) => {
   if (searchOpen && e.key === 'Enter' && document.activeElement === searchModalEl.querySelector('#searchInput')) {
     const firstHit = searchModalEl.querySelector('.search-hit');
     if (firstHit) { e.preventDefault(); firstHit.click(); return; }
+  }
+  // Task menu ⋯ mở: ArrowUp/Down di chuyển focus giữa các menuitem (roving tabindex style).
+  // Chỉ kích hoạt khi focus đang TRONG menu (hoặc trên nút ⋯ khi mở bằng chuột) — không nuốt
+  // phím Arrow khi focus ở task text/ô nhập khác, và không chặn tổ hợp Ctrl/Shift+Arrow.
+  const menuRow = document.querySelector('.task-row.menu-open');
+  const menuFocused = menuRow && (menuRow.contains(document.activeElement)
+    || (document.activeElement && document.activeElement.matches('[data-action="task-menu"]')));
+  if (menuFocused && !e.ctrlKey && !e.metaKey && !e.altKey
+      && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End')) {
+    const items = Array.from(menuRow.querySelectorAll('.task-menu [role="menuitem"]')).filter((it) => !it.hidden);
+    if (items.length) {
+      e.preventDefault();
+      let i = items.indexOf(document.activeElement);
+      if (e.key === 'Home') i = 0;
+      else if (e.key === 'End') i = items.length - 1;
+      else i = e.key === 'ArrowDown' ? (i + 1) % items.length : (i - 1 + items.length) % items.length;
+      if (i < 0) i = 0;
+      items[i].focus();
+      return;
+    }
   }
   if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
   // P2: More sheet đang mở → chặn phím tắt chuyển view/quick-add (sheet đang chiếm màn hình)
@@ -9223,7 +7623,7 @@ document.addEventListener('keydown', (e) => {
 /* ============================ Cập nhật sau khi tích ============================ */
 
 function afterGoalToggle(g) {
-  const ms = monthlyStats();
+  const ms = monthlyStats(state);
   const cb = document.querySelector(`[data-action="goal"][data-id="${g.id}"]`);
   if (cb) {
     cb.setAttribute('aria-checked', g.done);
@@ -9283,7 +7683,7 @@ function afterHabitToggle() {
   });
   for (let d = 0; d < NUM_DAYS; d++) {
     const m = document.querySelector(`[data-role="day-mini"][data-day="${d}"]`);
-    if (m) m.style.height = Math.max(dayAggregate(d), 4) + '%';
+    if (m) m.style.height = Math.max(dayAggregate(state, d), 4) + '%';
   }
   refreshHeatCard();
   syncOverviewMetrics();
@@ -9384,12 +7784,6 @@ function syncCarriedDone(wi, di, ti, t) {
 
 /* ============================ Đồng bộ thời gian thực ============================ */
 
-const fmtDate = (d) => d.toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-function isDayToday(d) {
-  const now = new Date();
-  return d.date === `${now.getDate()}/${now.getMonth() + 1}` && d.yy === now.getFullYear() % 100;
-}
 
 // Khi mở view Tuần, tự cuộn xuống ngày hôm nay (nếu nằm trong tuần đang xem)
 // để người dùng không phải kéo tay. Chỉ cuộn khi panel chưa nằm trong viewport
@@ -9685,7 +8079,7 @@ function handleSyncChange(keys) {
   // Áp dụng ngôn ngữ/chủ đề sau khi đã nạp lại state (an toàn với save() bên trong setLang)
   if (keys.indexOf('planner-lang') >= 0) {
     const l = localStorage.getItem('planner-lang');
-    if (l && l !== LANG) setLang(l);
+    if (l && l !== getLang()) setLang(l);
   }
   if (keys.indexOf('planner-theme') >= 0) {
     const th = localStorage.getItem('planner-theme');
@@ -9830,7 +8224,7 @@ if (window.DeepLink) {
 }
 
 setTheme(THEME);
-applyDark();
+applyDark(DARK);
 applyStaticI18N();
 applySidebarCollapse();
 updateBrand();
@@ -9866,244 +8260,11 @@ if (window.Sync) {
   window.Sync.init();
 }
 
-/* ---------- FAB kéo-thả (Pomodoro 🍅 + Chat 🤖) ---------- */
-
-const FAB_POS_KEYS = { pomo: 'planner-fab-pomo', chat: 'planner-fab-chat' };
-const FAB_MARGIN = 8; // lề tối thiểu so với mép viewport
-
-function loadFabPos(key) {
-  try { return JSON.parse(localStorage.getItem(key)) || null; } catch (e) { return null; }
-}
-function saveFabPos(key, x, y) {
-  try { localStorage.setItem(key, JSON.stringify({ x, y })); } catch (e) { /* ẩn */ }
-}
-function clearFabPos(key) {
-  try { localStorage.removeItem(key); } catch (e) { /* ẩn */ }
-}
-
-// Chặn click sau khi vừa kéo thả (tránh mở panel do click phát sinh)
-let fabDragJustMoved = false;
-document.addEventListener('click', (e) => {
-  if (fabDragJustMoved) {
-    fabDragJustMoved = false;
-    e.stopPropagation();
-    e.preventDefault();
-  }
-}, true);
-
-function clampFabPos(x, y, w, h) {
-  // Mobile có bottom nav cố định (~82px) → chặn FAB kéo xuống dưới nav
-  const bottomPad = window.innerWidth <= 767 ? 82 : FAB_MARGIN;
-  return {
-    x: Math.min(Math.max(x, FAB_MARGIN), window.innerWidth - w - FAB_MARGIN),
-    y: Math.min(Math.max(y, FAB_MARGIN), window.innerHeight - h - bottomPad),
-  };
-}
-
-function initFabDrag(wrap, fab, key) {
-  const applyPos = (x, y) => {
-    const r = fab.getBoundingClientRect();
-    const c = clampFabPos(x, y, r.width, r.height);
-    wrap.style.left = c.x + 'px';
-    wrap.style.top = c.y + 'px';
-    wrap.style.right = 'auto';
-    wrap.style.bottom = 'auto';
-  };
-  const resetPos = () => {
-    wrap.style.left = '';
-    wrap.style.top = '';
-    wrap.style.right = '';
-    wrap.style.bottom = '';
-  };
-  // Áp vị trí đã lưu (nếu có) — dùng khi khởi động / đổi kích thước
-  const saved = loadFabPos(key);
-  if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') {
-    applyPos(saved.x, saved.y);
-  }
-  window.addEventListener('resize', () => {
-    const s = loadFabPos(key);
-    if (s) applyPos(s.x, s.y);
-  });
-  // Nhấp đúp → về vị trí mặc định (CSS)
-  fab.addEventListener('dblclick', (e) => {
-    e.preventDefault();
-    clearFabPos(key);
-    resetPos();
-    TaskFlowUI.toast(t('fabDragReset'), 'success');
-  });
-  // Kéo thả bằng pointer events (hợp cả chuột + cảm ứng)
-  let drag = null;
-  fab.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-    const r = wrap.getBoundingClientRect();
-    drag = {
-      startX: e.clientX,
-      startY: e.clientY,
-      origX: r.left,
-      origY: r.top,
-      moved: false,
-    };
-    try { fab.setPointerCapture(e.pointerId); }
-    catch (_) {
-      // pointer không active (edge case): không thể theo dõi cử chỉ —
-      // hủy drag để không kẹt class/trạng thái.
-      drag = null;
-      return;
-    }
-    fab.classList.add('fab-dragging');
-    e.preventDefault();
-  });
-  fab.addEventListener('pointermove', (e) => {
-    if (!drag) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    if (!drag.moved && Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
-    if (!drag.moved) return;
-    applyPos(drag.origX + dx, drag.origY + dy);
-  });
-  const endDrag = (e) => {
-    if (!drag) return;
-    const wasMoved = drag.moved;
-    const r = wrap.getBoundingClientRect();
-    drag = null;
-    fab.classList.remove('fab-dragging');
-    if (wasMoved) {
-      saveFabPos(key, r.left, r.top);
-      fabDragJustMoved = true; // chặn click phát sinh sau khi kéo
-      // An toàn: nếu không có click nào phát sinh (vd pointercancel),
-      // tự xoá cờ ở sự kiện kế — tránh nuốt click không liên quan sau đó.
-      setTimeout(() => { fabDragJustMoved = false; }, 0);
-    }
-  };
-  fab.addEventListener('pointerup', endDrag);
-  fab.addEventListener('pointercancel', endDrag);
-}
-
-function initFabDrags() {
-  const pomoWrap = document.querySelector('.pomo-fab-wrap');
-  if (pomoWrap) {
-    const fab = pomoWrap.querySelector('.pomo-fab');
-    // initFabTuck TRƯỚC initFabDrag: pointerdown untuck phải chạy trước khi drag đọc rect
-    initFabTuck(pomoWrap, fab, FAB_POS_KEYS.pomo);
-    if (fab) initFabDrag(pomoWrap, fab, FAB_POS_KEYS.pomo);
-  }
-  const chatWrap = document.getElementById('chatFabWrap');
-  if (chatWrap) {
-    const fab = chatWrap.querySelector('.fb-fab');
-    initFabTuck(chatWrap, fab, FAB_POS_KEYS.chat);
-    if (fab) initFabDrag(chatWrap, fab, FAB_POS_KEYS.chat);
-  }
-}
-
-// ---------- Auto-tuck: FAB tự thu về mép màn hình khi rảnh ----------
-// Sau ~2.2s không tương tác (và panel đóng), FAB trượt về mép gần nhất,
-// chỉ chừa 1 tab nhỏ ~14px — không che nội dung (vd ô Lịch). Hover/focus
-// hoặc kéo sẽ kéo FAB trở ra đầy đủ. Vị trí kéo-thả vẫn được tôn trọng.
-const FAB_TUCK_MS = 2200;
-const FAB_TUCK_SLIVER = 14;
-
-function fabTuckAllowed(wrap) {
-  // Không thu FAB khi panel/chat đang mở — cần nhìn thấy timer/nội dung
-  const panel = wrap.querySelector('.pomo-panel, .chat-pop');
-  if (panel && !panel.hidden) return false;
-  return true;
-}
-
-function nearestTuckEdge(wrap) {
-  const r = wrap.getBoundingClientRect();
-  const mobile = window.innerWidth <= 767;
-  const d = {
-    left: r.left,
-    right: window.innerWidth - r.right,
-    top: r.top,
-    // Mobile: tránh tuck xuống mép dưới (bị bottom-nav che mất tab) → chỉ trái/phải/trên
-    bottom: mobile ? Infinity : Math.max(0, window.innerHeight - r.bottom - FAB_MARGIN),
-  };
-  return Object.keys(d).reduce((a, b) => (d[b] < d[a] ? b : a));
-}
-
-function tuckOffset(wrap, edge) {
-  // Tính translate (px) đưa FAB sát mép, chỉ chừa 1 tab ~FAB_TUCK_SLIVER hiển thị:
-  //   bottom → trượt xuống, chừa s px ĐỈNH FAB ở mép dưới màn hình
-  //   top    → trượt lên, chừa s px ĐÁY FAB ở mép trên
-  //   right  → trượt phải, chừa s px TRÁI FAB ở mép phải
-  //   left   → trượt trái, chừa s px PHẢI FAB ở mép trái
-  const r = wrap.getBoundingClientRect();
-  const s = FAB_TUCK_SLIVER;
-  if (edge === 'bottom') return { x: 0, y: (window.innerHeight - s) - r.top };
-  if (edge === 'top') return { x: 0, y: (s - r.height) - r.top };
-  if (edge === 'right') return { x: (window.innerWidth - s) - r.left, y: 0 };
-  return { x: (s - r.width) - r.left, y: 0 }; // left
-}
-
-function initFabTuck(wrap, fab, key) {
-  if (!wrap || !fab) return;
-  let timer = null;
-  // Chỉ auto-tuck khi FAB đang ở vị trí MẶC ĐỊNH (chưa từng kéo đi nơi khác).
-  // User đã kéo để đặt chỗ riêng → tôn trọng vị trí tuỳ chỉnh, không tuck nữa.
-  const hasCustomPos = () => !!loadFabPos(key);
-  const untuck = (instant) => {
-    clearTimeout(timer);
-    if (instant) {
-      // Bỏ transition ngay để drag đọc đúng vị trí mới (không bị rect giữa chừng)
-      wrap.style.transition = 'none';
-      wrap.classList.remove('fab-tucked');
-      requestAnimationFrame(() => requestAnimationFrame(() => { wrap.style.transition = ''; }));
-    } else {
-      wrap.classList.remove('fab-tucked');
-    }
-  };
-  const applyTuck = () => {
-    if (!fabTuckAllowed(wrap)) return;
-    if (hasCustomPos()) { wrap.classList.remove('fab-tucked'); return; }
-    // Quan trọng: nếu đang tuck (vd sau resize), phải bỏ transform TRƯỚC khi đo
-    // rect — nếu không getBoundingClientRect trả về vị trí đã dịch, offset mới sai.
-    const wasTucked = wrap.classList.contains('fab-tucked');
-    if (wasTucked) wrap.style.transition = 'none';
-    wrap.classList.remove('fab-tucked');
-    const edge = nearestTuckEdge(wrap);
-    const o = tuckOffset(wrap, edge);
-    wrap.style.setProperty('--tuck-x', o.x + 'px');
-    wrap.style.setProperty('--tuck-y', o.y + 'px');
-    wrap.setAttribute('data-tuck-edge', edge);
-    wrap.classList.add('fab-tucked');
-    if (wasTucked) requestAnimationFrame(() => requestAnimationFrame(() => { wrap.style.transition = ''; }));
-  };
-  const schedule = () => {
-    clearTimeout(timer);
-    if (!fabTuckAllowed(wrap)) { wrap.classList.remove('fab-tucked'); return; }
-    timer = setTimeout(applyTuck, FAB_TUCK_MS);
-  };
-  // pointerdown phải đăng ký TRƯỚC initFabDrag để untuck chạy trước khi drag đọc rect
-  fab.addEventListener('pointerdown', () => untuck(true));
-  wrap.addEventListener('pointerleave', (e) => {
-    if (!fab.classList.contains('fab-dragging')) schedule();
-  });
-  // Sau khi tuck, nếu user hover trở lại → kéo FAB ra đầy đủ
-  wrap.addEventListener('pointerenter', () => untuck(false));
-  fab.addEventListener('focus', () => untuck(false));
-  fab.addEventListener('blur', () => schedule());
-  fab.addEventListener('pointerup', () => schedule());
-  // Viewport đổi kích thước khi đang tuck → tính lại offset cho viewport mới,
-  // tránh FAB trôi khỏi màn hình (mất hẳn tab 14px).
-  window.addEventListener('resize', () => {
-    if (wrap.classList.contains('fab-tucked')) applyTuck();
-  });
-  // Panel đóng qua đường khác (view switch / Escape / ✕) → đăng ký lại tuck.
-  // MutationObserver bắt mọi đường đóng panel, không chỉ click.
-  const panel = wrap.querySelector('.pomo-panel, .chat-pop');
-  if (panel) {
-    new MutationObserver(() => {
-      if (panel.hidden) schedule();
-      else untuck(false);
-    }).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
-  }
-  // Tuck ban đầu: nếu không ai động tới trong FAB_TUCK_MS thì thu về mép
-  // (kể cả lúc vừa mở trang — FAB không nằm chình ình che nội dung).
-  // Chỉ áp dụng khi FAB chưa được kéo tuỳ chỉnh.
-  schedule();
-}
-
+// FAB kéo-thả + auto-tuck được tách sang js/fab.js (window.TaskFlowFab) —
+// giữ signature: initFabDrags() boot call không đổi; t()/toast access qua
+// globalThis.TaskFlowI18N / TaskFlowUI trong module.
+if (!window.TaskFlowFab) throw new Error('TaskFlowFab missing — js/fab.js failed to load');
+const { loadFabPos, saveFabPos, clearFabPos, clampFabPos, initFabDrag, initFabDrags, fabTuckAllowed, nearestTuckEdge, tuckOffset, initFabTuck } = window.TaskFlowFab;
 /* ---------- Khởi động phụ trợ (PWA, Analytics, Nhắc việc, Import) ---------- */
 
 initAnalytics();

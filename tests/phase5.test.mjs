@@ -4,9 +4,25 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import PlanMath from '../js/plan-math.js';
+import Util from '../js/util.js';
+import I18N from '../js/i18n.js';
+import Storage from '../js/storage.js';
+import Account from '../js/account.js';
+import Dates from '../js/dates.js';
+import Stats from '../js/stats.js';
+import Habits from '../js/habits.js';
+import Keys from '../js/keys.js';
+import Remind from '../js/remind.js';
+import Theme from '../js/theme.js';
+import Analytics from '../js/analytics.js';
+import Export from '../js/export.js';
+import Streak from '../js/streak.js';
+import Goals from '../js/goals.js';
+import Fab from '../js/fab.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
 const APP_HTML = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 const CSS = readFileSync(path.join(ROOT, 'css/styles.css'), 'utf8');
 
@@ -67,8 +83,8 @@ test('5.1: undo/redo UI + nút header + Ctrl+Z', () => {
 });
 
 test('5.1: i18n undo/redo keys đủ vi+en', () => {
-  assert.ok(APP_JS.includes("undoBtn: '↩️ Hoàn tác (Ctrl+Z)'") && APP_JS.includes("undoBtn: '↩️ Undo (Ctrl+Z)'"), 'thiếu undoBtn');
-  assert.ok(APP_JS.includes("redoBtn: '↪️ Làm lại (Ctrl+Shift+Z)'") && APP_JS.includes("redoBtn: '↪️ Redo (Ctrl+Shift+Z)'"), 'thiếu redoBtn');
+  assert.ok(I18N_JS.includes("undoBtn: '↩️ Hoàn tác (Ctrl+Z)'") && I18N_JS.includes("undoBtn: '↩️ Undo (Ctrl+Z)'"), 'thiếu undoBtn');
+  assert.ok(I18N_JS.includes("redoBtn: '↪️ Làm lại (Ctrl+Shift+Z)'") && I18N_JS.includes("redoBtn: '↪️ Redo (Ctrl+Shift+Z)'"), 'thiếu redoBtn');
 });
 
 /* ============================================================
@@ -91,7 +107,7 @@ test('5.2: draggable trên task/goal/habit + drag events', () => {
 });
 
 test('5.2: i18n dragHint đủ vi+en', () => {
-  assert.ok(APP_JS.includes("dragHint: 'Kéo để sắp xếp lại'") && APP_JS.includes("dragHint: 'Drag to reorder'"), 'thiếu dragHint');
+  assert.ok(I18N_JS.includes("dragHint: 'Kéo để sắp xếp lại'") && I18N_JS.includes("dragHint: 'Drag to reorder'"), 'thiếu dragHint');
 });
 
 /* ============================================================
@@ -183,7 +199,7 @@ test('5.3: Ctrl+K search + số 1-5 view + / thêm task', () => {
 });
 
 test('5.3: i18n shortcutHint đủ vi+en', () => {
-  assert.ok(APP_JS.includes("shortcutHint: 'Phím tắt: Ctrl+K tìm kiếm") && APP_JS.includes("shortcutHint: 'Shortcuts: Ctrl+K search"), 'thiếu shortcutHint');
+  assert.ok(I18N_JS.includes("shortcutHint: 'Phím tắt: Ctrl+K tìm kiếm") && I18N_JS.includes("shortcutHint: 'Shortcuts: Ctrl+K search"), 'thiếu shortcutHint');
 });
 
 /* ============================================================
@@ -203,8 +219,8 @@ test('5.4: ring buffer backup + modal khôi phục', () => {
 });
 
 test('5.4: i18n backup keys đủ vi+en', () => {
-  assert.ok(APP_JS.includes("backupRestore: 'Khôi phục bản sao lưu tự động'") && APP_JS.includes("backupRestore: 'Restore auto backup'"), 'thiếu backupRestore');
-  assert.ok(APP_JS.includes("backupEmpty: 'Chưa có bản sao lưu nào") && APP_JS.includes("backupEmpty: 'No backups yet"), 'thiếu backupEmpty');
+  assert.ok(I18N_JS.includes("backupRestore: 'Khôi phục bản sao lưu tự động'") && I18N_JS.includes("backupRestore: 'Restore auto backup'"), 'thiếu backupRestore');
+  assert.ok(I18N_JS.includes("backupEmpty: 'Chưa có bản sao lưu nào") && I18N_JS.includes("backupEmpty: 'No backups yet"), 'thiếu backupEmpty');
 });
 
 /* ============================================================
@@ -235,8 +251,8 @@ test('5.6: focus overlay + open/close + body.focus-mode', () => {
 });
 
 test('5.6: i18n focus keys đủ vi+en', () => {
-  assert.ok(APP_JS.includes("focusTitle: '🎯 Chế độ Tập trung'") && APP_JS.includes("focusTitle: '🎯 Focus Mode'"), 'thiếu focusTitle');
-  assert.ok(APP_JS.includes("focusToday: 'Task hôm nay'") && APP_JS.includes("focusToday: \"Today's tasks\""), 'thiếu focusToday');
+  assert.ok(I18N_JS.includes("focusTitle: '🎯 Chế độ Tập trung'") && I18N_JS.includes("focusTitle: '🎯 Focus Mode'"), 'thiếu focusTitle');
+  assert.ok(I18N_JS.includes("focusToday: 'Task hôm nay'") && I18N_JS.includes("focusToday: \"Today's tasks\""), 'thiếu focusToday');
 });
 
 /* ============================================================
@@ -440,19 +456,19 @@ test('8.4: widget settings modal trong HTML', () => {
 });
 
 test('8.5: i18n widget keys đủ vi+en', () => {
-  assert.ok(APP_JS.includes("widgetSettings: 'Tuỳ chỉnh Widget'") && APP_JS.includes("widgetSettings: 'Customize Widgets'"), 'thiếu widgetSettings');
-  assert.ok(APP_JS.includes("widgetSave: 'Lưu'") && APP_JS.includes("widgetSave: 'Save'"), 'thiếu widgetSave');
-  assert.ok(APP_JS.includes("widgetHide: 'Ẩn widget này'") && APP_JS.includes("widgetHide: 'Hide this widget'"), 'thiếu widgetHide');
-  assert.ok(APP_JS.includes("widgetShow: 'Hiện widget này'") && APP_JS.includes("widgetShow: 'Show this widget'"), 'thiếu widgetShow');
+  assert.ok(I18N_JS.includes("widgetSettings: 'Tuỳ chỉnh Widget'") && I18N_JS.includes("widgetSettings: 'Customize Widgets'"), 'thiếu widgetSettings');
+  assert.ok(I18N_JS.includes("widgetSave: 'Lưu'") && I18N_JS.includes("widgetSave: 'Save'"), 'thiếu widgetSave');
+  assert.ok(I18N_JS.includes("widgetHide: 'Ẩn widget này'") && I18N_JS.includes("widgetHide: 'Hide this widget'"), 'thiếu widgetHide');
+  assert.ok(I18N_JS.includes("widgetShow: 'Hiện widget này'") && I18N_JS.includes("widgetShow: 'Show this widget'"), 'thiếu widgetShow');
   // Kiểm tra widgetLabel overview
-  assert.ok(APP_JS.includes("'widgetLabel_date-card': 'Ngày tháng'") && APP_JS.includes("'widgetLabel_date-card': 'Date card'"), 'thiếu widgetLabel_date-card');
-  assert.ok(APP_JS.includes("widgetLabel_goals: 'Mục tiêu tháng'") && APP_JS.includes("widgetLabel_goals: 'Monthly goals'"), 'thiếu widgetLabel_goals');
-  assert.ok(APP_JS.includes("widgetLabel_mood: 'Tâm trạng'") && APP_JS.includes("widgetLabel_mood: 'Mood'"), 'thiếu widgetLabel_mood');
+  assert.ok(I18N_JS.includes("'widgetLabel_date-card': 'Ngày tháng'") && I18N_JS.includes("'widgetLabel_date-card': 'Date card'"), 'thiếu widgetLabel_date-card');
+  assert.ok(I18N_JS.includes("widgetLabel_goals: 'Mục tiêu tháng'") && I18N_JS.includes("widgetLabel_goals: 'Monthly goals'"), 'thiếu widgetLabel_goals');
+  assert.ok(I18N_JS.includes("widgetLabel_mood: 'Tâm trạng'") && I18N_JS.includes("widgetLabel_mood: 'Mood'"), 'thiếu widgetLabel_mood');
   // Kiểm tra widgetLabel year
-  assert.ok(APP_JS.includes("'widgetLabel_year-card': 'Thông tin năm'") && APP_JS.includes("'widgetLabel_year-card': 'Year info'"), 'thiếu widgetLabel_year-card');
-  assert.ok(APP_JS.includes("'widgetLabel_year-charts': 'Biểu đồ 12 tháng'") && APP_JS.includes("'widgetLabel_year-charts': '12-month chart'"), 'thiếu widgetLabel_year-charts');
-  assert.ok(APP_JS.includes("'widgetLabel_year-heatmap': 'Habit Heatmap'") && APP_JS.includes("'widgetLabel_year-heatmap': 'Habit Heatmap'"), 'thiếu widgetLabel_year-heatmap');
-  assert.ok(APP_JS.includes("'widgetLabel_year-reflections': 'Phản ánh quý'") && APP_JS.includes("'widgetLabel_year-reflections': 'Quarterly reflections'"), 'thiếu widgetLabel_year-reflections');
+  assert.ok(I18N_JS.includes("'widgetLabel_year-card': 'Thông tin năm'") && I18N_JS.includes("'widgetLabel_year-card': 'Year info'"), 'thiếu widgetLabel_year-card');
+  assert.ok(I18N_JS.includes("'widgetLabel_year-charts': 'Biểu đồ 12 tháng'") && I18N_JS.includes("'widgetLabel_year-charts': '12-month chart'"), 'thiếu widgetLabel_year-charts');
+  assert.ok(I18N_JS.includes("'widgetLabel_year-heatmap': 'Habit Heatmap'") && I18N_JS.includes("'widgetLabel_year-heatmap': 'Habit Heatmap'"), 'thiếu widgetLabel_year-heatmap');
+  assert.ok(I18N_JS.includes("'widgetLabel_year-reflections': 'Phản ánh quý'") && I18N_JS.includes("'widgetLabel_year-reflections': 'Quarterly reflections'"), 'thiếu widgetLabel_year-reflections');
 });
 
 test('8.6: CSS widget modal', () => {
@@ -477,4 +493,421 @@ test('Phase 5: version bumps app.js>=38 styles.css>=44 plan-math>=2 sw cache>=v3
   const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const m = /const CACHE = 'taskflow-v(\d+)';/.exec(SW);
   assert.ok(Number(m[1]) >= 33);
+});
+
+test('P11: i18n.js helpers giữ nguyên behavior sau khi tách', () => {
+  // t(): tra dictionary vi/en + fallback về key + biến {var}
+  assert.ok(I18N.t('todayTitle').length > 0, 't() vi hoạt động');
+  assert.equal(I18N.t('no_such_key_xyz'), 'no_such_key_xyz', 'fallback về key khi thiếu');
+  assert.equal(I18N.t('weekN', { n: 7 }), I18N.I18N[I18N.getLang()].weekN.split('{n}').join('7'), 'thay thế {var}');
+  // setLangCore + getLang: đổi ngôn ngữ và persist (localStorage không tồn tại ở Node → silent)
+  const before = I18N.getLang();
+  I18N.setLangCore('en');
+  assert.equal(I18N.getLang(), 'en', 'setLangCore("en") cập nhật LANG');
+  assert.ok(I18N.t('todayTitle').length > 0, 't() en hoạt động');
+  I18N.setLangCore('vi');
+  assert.equal(I18N.getLang(), 'vi', 'setLangCore("vi") phục hồi');
+  assert.ok(before === 'vi' || before === 'en', 'LANG ban đầu hợp lệ');
+  // monthLabel/dayLabel: label tháng + ngày theo LANG
+  I18N.setLangCore('vi');
+  assert.ok(I18N.monthLabel(0).length > 0, 'monthLabel vi');
+  assert.ok(I18N.dayLabel(0).length > 0, 'dayLabel vi');
+  I18N.setLangCore('en');
+  assert.ok(I18N.monthLabel(0).length > 0, 'monthLabel en');
+  assert.ok(I18N.dayLabel(0).length > 0, 'dayLabel en');
+  // fmtDeadline: iso → nhãn ngắn; null/chuỗi lạ → fallback
+  assert.equal(I18N.fmtDeadline(null), '');
+  assert.equal(I18N.fmtDeadline('abc'), 'abc');
+  assert.ok(I18N.fmtDeadline('2026-08-09').includes('08') || I18N.fmtDeadline('2026-08-09').includes('8'), 'fmtDeadline định dạng ngày');
+  // dateLocale: vi → vi-VN, en → en-GB
+  I18N.setLangCore('vi');
+  assert.equal(I18N.dateLocale(), 'vi-VN');
+  I18N.setLangCore('en');
+  assert.equal(I18N.dateLocale(), 'en-GB');
+  // dictionary đủ 2 ngôn ngữ cho key chính
+  assert.ok(I18N.I18N.vi.todayTitle && I18N.I18N.en.todayTitle, 'I18N có vi+en');
+});
+
+test('P11: storage.js helpers giữ nguyên behavior sau khi tách', () => {
+  // backupSlotKey: prefix đúng
+  assert.equal(Storage.backupSlotKey(0), 'planner-backup-0');
+  assert.equal(Storage.backupSlotKey(3), 'planner-backup-3');
+  // POMO_LOG_KEY export đúng
+  assert.equal(Storage.POMO_LOG_KEY, 'planner-pomo-log');
+  // monthStateRaw: không có data → null; data hợp lệ → trả state
+  const store = {};
+  const origLS = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; },
+  };
+  try {
+    assert.equal(Storage.monthStateRaw(2026, 7), null, 'chưa có data → null');
+    const st = { habits: [], monthlyGoals: [], weeks: [] };
+    store['planner-2026-8'] = JSON.stringify(st);
+    assert.deepEqual(Storage.monthStateRaw(2026, 7), st, 'data hợp lệ → trả về');
+    store['planner-2026-8'] = JSON.stringify({ noHabits: true });
+    assert.equal(Storage.monthStateRaw(2026, 7), null, 'thiếu habits → null');
+    store['planner-2026-8'] = 'not json{{';
+    assert.equal(Storage.monthStateRaw(2026, 7), null, 'JSON lỗi → null (catch)');
+    // saveMonthState: ghi key đúng 'planner-y-(m+1)' + không throw khi window.Sync thiếu
+    Storage.saveMonthState(2026, 0, { habits: [] });
+    assert.ok(store['planner-2026-1'], 'saveMonthState ghi đúng key');
+    assert.deepEqual(JSON.parse(store['planner-2026-1']), { habits: [] });
+    // loadPomoLog/savePomoLog round-trip
+    Storage.savePomoLog({ '2026-08-09': { work: 1 } });
+    assert.deepEqual(Storage.loadPomoLog(), { '2026-08-09': { work: 1 } }, 'pomo log round-trip');
+  } finally {
+    globalThis.localStorage = origLS;
+  }
+});
+
+test('P11: account.js helpers giữ nguyên behavior sau khi tách', () => {
+  // hasAccount: đọc planner-token (mock localStorage)
+  const store = {};
+  const origLS = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (k) => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; },
+  };
+  try {
+    assert.equal(Account.hasAccount(), false, 'chưa có token → false');
+    store['planner-token'] = 'abc';
+    assert.equal(Account.hasAccount(), true, 'có token → true');
+    // defaultYearState/emptyYearState: year theo tham số + cấu trúc đúng
+    const dy = Account.defaultYearState(2026);
+    assert.equal(dy.year, 2026, 'defaultYearState nhận year tham số');
+    assert.ok(dy.goals.length >= 8, 'default year có mục tiêu mẫu');
+    assert.equal(dy.reflections.q1.length, 4);
+    assert.equal(dy.monthNotes.length, 12);
+    const ey = Account.emptyYearState(2027);
+    assert.equal(ey.year, 2027);
+    assert.equal(ey.goals.length, 0, 'empty year không có mục tiêu');
+    // loadBadges/saveBadges round-trip
+    assert.deepEqual(Account.loadBadges(), { earned: {} }, 'chưa có badges → rỗng');
+    Account.saveBadges({ earned: { b7: true } });
+    assert.deepEqual(Account.loadBadges(), { earned: { b7: true } }, 'badges round-trip');
+    assert.equal(Account.BADGES_KEY, 'planner-badges');
+  } finally {
+    globalThis.localStorage = origLS;
+  }
+});
+
+test('P11: dates.js helpers giữ nguyên behavior sau khi tách', () => {
+  // isDayToday: thuần, so sánh d.date + d.yy với hôm nay
+  const now = new Date();
+  const today = { date: `${now.getDate()}/${now.getMonth() + 1}`, yy: now.getFullYear() % 100 };
+  assert.equal(Dates.isDayToday(today), true, 'hôm nay → true');
+  assert.equal(Dates.isDayToday({ date: '1/1', yy: 99 }), false, 'ngày khác → false');
+  // fmtDate: format theo locale (mock TaskFlowI18N.dateLocale)
+  const origI18N = globalThis.TaskFlowI18N;
+  globalThis.TaskFlowI18N = { dateLocale: () => 'en-GB', getLang: () => 'en', dayLabel: (d) => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d] };
+  try {
+    const f = Dates.fmtDate(new Date(2026, 7, 9));
+    assert.ok(f.includes('2026'), 'fmtDate chứa năm');
+    assert.ok(f.includes('09') || f.includes('9'), 'fmtDate chứa ngày');
+    // dayLabelShort: EN → 3 chữ cái đầu; VI → T2…T7/CN
+    assert.equal(Dates.dayLabelShort(0), 'Mon');
+    globalThis.TaskFlowI18N = { dateLocale: () => 'vi-VN', getLang: () => 'vi', dayLabel: () => ['Thứ hai','Thứ ba','Thứ tư','Thứ năm','Thứ sáu','Thứ bảy','Chủ nhật'] };
+    assert.equal(Dates.dayLabelShort(0), 'T2');
+    assert.equal(Dates.dayLabelShort(5), 'T7');
+    assert.equal(Dates.dayLabelShort(6), 'CN');
+  } finally {
+    globalThis.TaskFlowI18N = origI18N;
+  }
+});
+
+test('P11: stats.js helpers giữ nguyên behavior sau khi tách', () => {
+  // weekStats(w): goals week — done/inProg/total/pct
+  assert.deepEqual(Stats.weekStats({ goals: [] }), { done: 0, inProg: 0, total: 0, pct: 0 });
+  assert.deepEqual(Stats.weekStats({ goals: [{ done: true }, { done: false }] }), { done: 1, inProg: 1, total: 2, pct: 50 });
+  assert.deepEqual(Stats.weekStats({ goals: [{ done: true }, { done: true }] }), { done: 2, inProg: 0, total: 2, pct: 100 });
+  // monthlyStats(st): nhận state tham số — cùng logic weekStats
+  assert.deepEqual(Stats.monthlyStats({ monthlyGoals: [] }), { done: 0, inProg: 0, total: 0, pct: 0 });
+  assert.deepEqual(Stats.monthlyStats({ monthlyGoals: [{ done: true }] }), { done: 1, inProg: 0, total: 1, pct: 100 });
+  // pct round (3/4 → 75, 2/3 → 67)
+  assert.equal(Stats.monthlyStats({ monthlyGoals: [{ done: true }, { done: true }, { done: false }] }).pct, 67);
+});
+
+test('P11: habits.js helpers giữ nguyên behavior sau khi tách', () => {
+  // habitDaysElapsed(y, m, numDays): tháng khác → cả tháng; tháng hiện tại → min(hôm nay, numDays)
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  assert.equal(Habits.habitDaysElapsed(y, m, 31), Math.min(now.getDate(), 31));
+  assert.equal(Habits.habitDaysElapsed(y, (m + 11) % 12, 30), 30);
+  // dayAggregate(state, d): % habit tick trong ngày d
+  const state = { habits: [{ days: { 0: true, 1: true } }, { days: { 0: true } }, { days: {} }] };
+  assert.equal(Habits.dayAggregate(state, 0), 67);
+  assert.equal(Habits.dayAggregate(state, 1), 33);
+  assert.equal(Habits.dayAggregate(state, 2), 0);
+  assert.equal(Habits.dayAggregate({ habits: [] }, 0), 0);
+  // heatLevel(pct): 5 mức + 0
+  assert.equal(Habits.heatLevel(100), 5);
+  assert.equal(Habits.heatLevel(80), 4);
+  assert.equal(Habits.heatLevel(50), 3);
+  assert.equal(Habits.heatLevel(30), 2);
+  assert.equal(Habits.heatLevel(10), 1);
+  assert.equal(Habits.heatLevel(0), 0);
+});
+
+test('P11: keys.js helpers giữ nguyên behavior sau khi tách', () => {
+  // pomoDateKey(d): YYYY-MM-DD local không lệch UTC
+  assert.equal(Keys.pomoDateKey(new Date(2026, 0, 5)), '2026-01-05');
+  assert.equal(Keys.pomoDateKey(new Date(2026, 11, 31)), '2026-12-31');
+  assert.equal(Keys.pomoDateKey(new Date(2024, 1, 9)), '2024-02-09');
+  // moodDateKey(d, y, m): số ngày trong tháng + label DD/MM (tuần cắt ngang tháng)
+  assert.equal(Keys.moodDateKey(15, 2026, 7), '2026-8-15');
+  assert.equal(Keys.moodDateKey('03/08', 2026, 7), '2026-08-03');
+  assert.equal(Keys.moodDateKey('30/09', 2026, 8), '2026-09-30');
+});
+
+test('P11: remind.js helpers giữ nguyên behavior sau khi tách', () => {
+  // getRemindTime/setRemindTime: localStorage 'planner-remind' round-trip
+  const hadLS = typeof globalThis.localStorage !== 'undefined';
+  const saved = hadLS ? globalThis.localStorage.getItem('planner-remind') : null;
+  try {
+    globalThis.localStorage = {
+      _m: {},
+      getItem(k) { return this._m[k] ?? null; },
+      setItem(k, v) { this._m[k] = String(v); },
+      removeItem(k) { delete this._m[k]; },
+    };
+    assert.equal(Remind.getRemindTime(), null);
+    Remind.setRemindTime('20:00');
+    assert.equal(Remind.getRemindTime(), '20:00');
+    Remind.setRemindTime(null);
+    assert.equal(Remind.getRemindTime(), null);
+  } finally {
+    if (hadLS) globalThis.localStorage = saved;
+    else delete globalThis.localStorage;
+  }
+});
+
+test('P11: theme.js helpers giữ nguyên behavior sau khi tách', () => {
+  // darkIsOn(dark): null → theo hệ thống (mock matchMedia dark), true/false trực tiếp
+  const hadWindow = typeof globalThis.window !== 'undefined';
+  const savedMM = hadWindow ? globalThis.window.matchMedia : undefined;
+  try {
+    globalThis.window = { matchMedia: () => ({ matches: true }) };
+    assert.equal(Theme.darkIsOn(null), true);
+    assert.equal(Theme.darkIsOn(true), true);
+    assert.equal(Theme.darkIsOn(false), false);
+    globalThis.window = { matchMedia: () => ({ matches: false }) };
+    assert.equal(Theme.darkIsOn(null), false);
+  } finally {
+    if (hadWindow) globalThis.window = savedMM;
+    else delete globalThis.window;
+  }
+});
+
+test('P11: analytics.js helpers giữ nguyên behavior sau khi tách', () => {
+  // GA4 placeholder -> GA4_ENABLED = false (không tải tracking khi chưa cấu hình)
+  assert.equal(Analytics.GA4_ENABLED, false);
+  assert.equal(Analytics.GA4_ID, 'G-XXXXXXXXXX');
+  // trackEvent là no-op khi disabled (không throw dù window.gtag thiếu)
+  assert.doesNotThrow(() => Analytics.trackEvent('demo_data'));
+});
+
+test('P11: export.js helpers giữ nguyên behavior sau khi tách', () => {
+  // collectAllData(legacyKey): gom keys planner-* + legacyKey từ localStorage
+  const hadLS = typeof globalThis.localStorage !== 'undefined';
+  const saved = hadLS ? globalThis.localStorage : null;
+  try {
+    globalThis.localStorage = {
+      _m: { 'planner-x': '1', 'planner-y': '2', 'other': '3', 'january-planner-2026': '4' },
+      length: 4,
+      key(i) { return Object.keys(this._m)[i]; },
+      getItem(k) { return this._m[k] ?? null; },
+      setItem(k, v) { this._m[k] = String(v); },
+      removeItem(k) { delete this._m[k]; },
+    };
+    const out = Export.collectAllData('january-planner-2026');
+    assert.equal(out.app, 'taskflow-todoist');
+    assert.equal(out.version, 1);
+    assert.ok(out.exportedAt);
+    // chỉ planner-* + legacyKey, không lấy key lạ
+    assert.ok('planner-x' in out.keys && 'planner-y' in out.keys);
+    assert.ok('january-planner-2026' in out.keys);
+    assert.ok(!('other' in out.keys));
+  } finally {
+    if (hadLS) globalThis.localStorage = saved;
+    else delete globalThis.localStorage;
+  }
+  // exportJSON(legacyKey): chạy được với Blob/document/URL mock (trackEvent no-op)
+  const savedBlob = globalThis.Blob;
+  const savedURL = globalThis.URL;
+  const savedDoc = globalThis.document;
+  try {
+    globalThis.Blob = class { constructor(parts, opts) { this.parts = parts; this.opts = opts; } };
+    globalThis.URL = { createObjectURL: () => 'blob:mock', revokeObjectURL: () => {} }; // revoke no-op: timer 500ms không chạm global thật
+    globalThis.document = {
+      createElement: () => ({ click() {}, remove() {}, href: '', download: '' }),
+      body: { appendChild() {} },
+    };
+    assert.doesNotThrow(() => Export.exportJSON('january-planner-2026'));
+  } finally {
+    if (savedBlob === undefined) delete globalThis.Blob; else globalThis.Blob = savedBlob;
+    if (savedURL === undefined) delete globalThis.URL; else globalThis.URL = savedURL;
+    if (savedDoc === undefined) delete globalThis.document; else globalThis.document = savedDoc;
+  }
+});
+
+test('P11: streak.js helpers giữ nguyên behavior sau khi tách', () => {
+  // habitInMonthState: tìm theo id rồi tên
+  const s = { habits: [{ id: 'a', name: 'X', days: [true] }, { id: 'b', name: 'Y', days: [false] }] };
+  assert.equal(Streak.habitInMonthState(s, { id: 'b', name: 'Y' }).id, 'b');
+  assert.equal(Streak.habitInMonthState(s, { id: 'zz', name: 'X' }).id, 'a');
+  assert.equal(Streak.habitInMonthState(null, { id: 'a' }), null);
+  // habitDaysAt: tháng hiện tại (y,m khớp) → days trực tiếp; khác tháng → monthStateRaw
+  const hadLS = typeof globalThis.localStorage !== 'undefined';
+  const savedLS = hadLS ? globalThis.localStorage : null;
+  const savedStorage = globalThis.TaskFlowStorage;
+  try {
+    globalThis.localStorage = {
+      _m: { 'planner-2026-8': JSON.stringify({ habits: [{ id: 'a', name: 'X', days: [true, false, true] }] }) },
+      length: 1, key(i) { return Object.keys(this._m)[i]; },
+      getItem(k) { return this._m[k] ?? null; },
+      setItem(k, v) { this._m[k] = String(v); },
+      removeItem(k) { delete this._m[k]; },
+    };
+    globalThis.TaskFlowStorage = { monthStateRaw: (y, m) => JSON.parse(globalThis.localStorage.getItem('planner-' + y + '-' + (m + 1))) };
+    const h = { id: 'a', name: 'X', days: [true] };
+    // cùng tháng → h.days trực tiếp
+    assert.deepEqual(Streak.habitDaysAt(2026, 7, h, 2026, 7), h.days);
+    // khác tháng → đọc từ monthStateRaw
+    const cross = Streak.habitDaysAt(2026, 7, h, 2026, 8);
+    assert.deepEqual(cross, [true, false, true]);
+  } finally {
+    if (hadLS) globalThis.localStorage = savedLS; else delete globalThis.localStorage;
+    if (savedStorage === undefined) delete globalThis.TaskFlowStorage; else globalThis.TaskFlowStorage = savedStorage;
+  }
+  // streakAnchorDay: tháng hiện tại → min(hôm nay-1, numDays-1); khác tháng → numDays-1
+  const now = new Date();
+  const anchor = Streak.streakAnchorDay(now.getFullYear(), now.getMonth(), 31);
+  assert.equal(anchor, Math.min(now.getDate() - 1, 30));
+  assert.equal(Streak.streakAnchorDay(1999, 0, 31), 30);
+  // habitStreakCached: cache nội bộ + cur/best. Dùng days DẠNG MẢNG (same-month path
+  // trong habitDaysAt check Array.isArray) — tick tất cả ngày đã trôi qua → cur > 0.
+  const h2 = { id: 'c', name: 'Z', days: Array.from({ length: 31 }, (_, i) => i <= now.getDate() - 1) };
+  Streak.clearStreakCache();
+  const r1 = Streak.habitStreakCached(h2, now.getFullYear(), now.getMonth(), 31);
+  assert.ok(r1.cur > 0 && r1.best > 0, 'streak dương khi tick mọi ngày đã trôi qua: ' + JSON.stringify(r1));
+  assert.ok(r1.best >= r1.cur, 'best >= cur');
+  const r2 = Streak.habitStreakCached(h2, now.getFullYear(), now.getMonth(), 31);
+  assert.deepEqual(r1, r2, 'cache trả cùng giá trị');
+  Streak.clearStreakCache();
+  const r3 = Streak.habitStreakCached(h2, now.getFullYear(), now.getMonth(), 31);
+  assert.deepEqual(r1, r3, 'sau clearStreakCache vẫn tính đúng');
+});
+
+test('P11: goals.js monthPctOf/monthGoalsOf giữ nguyên behavior sau khi tách', () => {
+  // Setup: mock localStorage với state tháng có weeks (cho monthPctOf) + monthlyGoals (cho monthGoalsOf)
+  const hadLS = typeof globalThis.localStorage !== 'undefined';
+  const savedLS = hadLS ? globalThis.localStorage : null;
+  const savedAcc = globalThis.TaskFlowAccount;
+  const savedPlanStats = globalThis.window ? globalThis.window.PlanStats : undefined;
+  const hadWindow = typeof globalThis.window !== 'undefined';
+  const savedWindow = hadWindow ? globalThis.window : null;
+  const defaultPct = (y, m) => 42; // fake defaultMonthPct
+  const goalDefs = [['G1', 'goal', false], ['G2', 'habit', true]];
+  try {
+    globalThis.localStorage = {
+      _m: {
+        'planner-2026-8': JSON.stringify({
+          weeks: [{ goals: [{ done: true }, { done: true }] }, { goals: [{ done: false }] }],
+          monthlyGoals: [{ id: 's1', text: 'Lưu', kind: 'goal', done: false }],
+        }),
+      },
+      length: 1, key(i) { return Object.keys(this._m)[i]; },
+      getItem(k) { return this._m[k] ?? null; },
+      setItem(k, v) { this._m[k] = String(v); },
+      removeItem(k) { delete this._m[k]; },
+    };
+    globalThis.TaskFlowAccount = { hasAccount: () => false };
+    globalThis.window = { PlanStats: null };
+    // monthPctOf: có dữ liệu → dùng PlanStats fallback (weekGoalPct null → tính inline)
+    // weeks: 2/2 + 0/1 → 100% + 0% → 50
+    assert.equal(Goals.monthPctOf(2026, 7, defaultPct), 50);
+    // monthPctOf: có PlanStats.weekGoalPct → dùng hàm thuần (path browser chính)
+    globalThis.window = { PlanStats: { weekGoalPct: (s) => 77 } };
+    assert.equal(Goals.monthPctOf(2026, 7, defaultPct), 77);
+    globalThis.window = { PlanStats: null };
+    // monthPctOf: không có dữ liệu + chưa đăng nhập → defaultPct
+    assert.equal(Goals.monthPctOf(2026, 1, defaultPct), 42);
+    // monthGoalsOf: có monthlyGoals → trả dữ liệu đã lưu
+    assert.deepEqual(Goals.monthGoalsOf(2026, 7, goalDefs), [{ id: 's1', text: 'Lưu', kind: 'goal', done: false }]);
+    // monthGoalsOf: không có dữ liệu + chưa đăng nhập → goalDefs mẫu
+    const demo = Goals.monthGoalsOf(2026, 1, goalDefs);
+    assert.equal(demo.length, 2);
+    assert.equal(demo[0].text, 'G1');
+    // đã đăng nhập + không có dữ liệu → TRỐNG (không hiện mẫu)
+    globalThis.TaskFlowAccount = { hasAccount: () => true };
+    assert.deepEqual(Goals.monthGoalsOf(2026, 1, goalDefs), []);
+    assert.equal(Goals.monthPctOf(2026, 1, defaultPct), 0);
+  } finally {
+    if (hadLS) globalThis.localStorage = savedLS; else delete globalThis.localStorage;
+    if (savedAcc === undefined) delete globalThis.TaskFlowAccount; else globalThis.TaskFlowAccount = savedAcc;
+    if (hadWindow) globalThis.window = savedWindow; else delete globalThis.window;
+  }
+});
+
+test('P11: fab.js drag/tuck helpers giữ nguyên behavior sau khi tách', () => {
+  // loadFabPos/saveFabPos/clearFabPos: localStorage round-trip + null/exception
+  const hadLS = typeof globalThis.localStorage !== 'undefined';
+  const savedLS = hadLS ? globalThis.localStorage : null;
+  const hadWindow = typeof globalThis.window !== 'undefined';
+  const savedWindow = hadWindow ? globalThis.window : null;
+  try {
+    globalThis.localStorage = {
+      _m: {}, length: 0, key(i) { return Object.keys(this._m)[i]; },
+      getItem(k) { return this._m[k] ?? null; },
+      setItem(k, v) { this._m[k] = String(v); },
+      removeItem(k) { delete this._m[k]; },
+    };
+    globalThis.window = { innerWidth: 1440, innerHeight: 900 };
+    // save → load round-trip
+    Fab.saveFabPos('planner-fab-test', 120, 300);
+    assert.deepEqual(Fab.loadFabPos('planner-fab-test'), { x: 120, y: 300 });
+    // clear → null
+    Fab.clearFabPos('planner-fab-test');
+    assert.equal(Fab.loadFabPos('planner-fab-test'), null);
+    // dữ liệu hỏng → null (không throw)
+    globalThis.localStorage.setItem('planner-fab-test', '{bad json');
+    assert.equal(Fab.loadFabPos('planner-fab-test'), null);
+    // clampFabPos: giới hạn trong viewport + lề FAB_MARGIN=8
+    const c1 = Fab.clampFabPos(0, 0, 60, 60);
+    assert.equal(c1.x, 8); assert.equal(c1.y, 8);
+    const c2 = Fab.clampFabPos(5000, 5000, 60, 60);
+    assert.equal(c2.x, 1440 - 60 - 8); assert.equal(c2.y, 900 - 60 - 8);
+    // Mobile: chặn kéo xuống dưới bottom-nav (~82px)
+    globalThis.window = { innerWidth: 390, innerHeight: 844 };
+    const cm = Fab.clampFabPos(0, 9999, 56, 56);
+    assert.equal(cm.y, 844 - 56 - 82);
+  } finally {
+    if (hadLS) globalThis.localStorage = savedLS; else delete globalThis.localStorage;
+    if (hadWindow) globalThis.window = savedWindow; else delete globalThis.window;
+  }
+});
+
+test('P11: util.js helpers giữ nguyên behavior sau khi tách', () => {
+  // esc: escape HTML
+  assert.equal(Util.esc('<b>x</b> & "q"'), '&lt;b&gt;x&lt;/b&gt; &amp; &quot;q&quot;');
+  assert.equal(Util.esc(null), '');
+  assert.equal(Util.esc(undefined), '');
+  // localISODate: local YYYY-MM-DD không lệch UTC
+  assert.equal(Util.localISODate(new Date(2026, 0, 5)), '2026-01-05');
+  assert.equal(Util.localISODate(new Date(2026, 11, 31)), '2026-12-31');
+  // formatFocusTime: h/m
+  assert.equal(Util.formatFocusTime(0), '0m');
+  assert.equal(Util.formatFocusTime(20), '20m');
+  assert.equal(Util.formatFocusTime(60), '1h');
+  assert.equal(Util.formatFocusTime(380), '6h 20m');
+  // lineChartSVG: sinh svg với điểm + polyline
+  const svg = Util.lineChartSVG([0, 50, 100], 480, 110, (k) => k);
+  assert.match(svg, /<svg/);
+  assert.match(svg, /<polyline/);
+  assert.match(svg, /lineAria/);
 });

@@ -8,6 +8,8 @@ import DeepLink from '../js/deeplink.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const STORAGE_JS = readFileSync(path.join(ROOT, 'js/storage.js'), 'utf8');
+const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
 const APP_HTML = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 const SYNC_JS = readFileSync(path.join(ROOT, 'js/sync.js'), 'utf8');
 const AUTH_JS = readFileSync(path.join(ROOT, 'server/auth.js'), 'utf8');
@@ -101,7 +103,7 @@ test('2.1: search mở rộng — tags + subtasks + Inbox (m=-2)', () => {
   assert.match(APP_JS, /push\(-2, 'inbox'/);
   assert.match(APP_JS, /if \(m === -2\) \{ setView\('inbox'\); return; \}/);
   // i18n nhóm Inbox + keyboard nav ↑/↓ trong kết quả
-  assert.match(APP_JS, /searchInbox: 'Inbox'/);
+  assert.match(I18N_JS, /searchInbox: 'Inbox'/);
   assert.match(APP_JS, /e\.key === 'ArrowDown' \|\| e\.key === 'ArrowUp'/);
 });
 
@@ -247,9 +249,9 @@ test('4.1: nút 🔔 + syncReminderTimers + renderRemindList + turnOffRemind', (
 
 test('4.1: app.html có remindList + i18n remind keys đủ vi+en', () => {
   assert.match(APP_HTML, /id="remindList"/);
-  const vi = APP_JS.match(/const I18N = \{\s*vi: \{[\s\S]*?remindHabitAria: 'Đặt nhắc việc cho thói quen'[\s\S]*?remindSetDone: 'Đã đặt nhắc \{kind\} lúc \{t\} 🔔'/);
+  const vi = I18N_JS.match(/const I18N = \{\s*vi: \{[\s\S]*?remindHabitAria: 'Đặt nhắc việc cho thói quen'[\s\S]*?remindSetDone: 'Đã đặt nhắc \{kind\} lúc \{t\} 🔔'/);
   assert.ok(vi, 'thiếu vi keys remindHabitAria/remindSetDone');
-  assert.ok(APP_JS.includes('remindSetDone: \'Reminder set for {kind} at {t} 🔔\''), 'thiếu en keys');
+  assert.ok(I18N_JS.includes('remindSetDone: \'Reminder set for {kind} at {t} 🔔\''), 'thiếu en keys');
 });
 
 /* ============================================================
@@ -270,8 +272,8 @@ test('4.2: weekReportModal + weeklyReportData + weekReportCardBlob + doShareWeek
 });
 
 test('4.2: i18n week report keys đủ vi+en', () => {
-  assert.ok(APP_JS.includes('weekReportTitle: \'Báo cáo tuần\'') && APP_JS.includes("weekReportTitle: 'Weekly report'"), 'thiếu weekReportTitle');
-  assert.ok(APP_JS.includes("weekReportCardTitle: 'Báo cáo Tuần {n}'") && APP_JS.includes("weekReportCardTitle: 'Week {n} report'"), 'thiếu weekReportCardTitle');
+  assert.ok(I18N_JS.includes('weekReportTitle: \'Báo cáo tuần\'') && I18N_JS.includes("weekReportTitle: 'Weekly report'"), 'thiếu weekReportTitle');
+  assert.ok(I18N_JS.includes("weekReportCardTitle: 'Báo cáo Tuần {n}'") && I18N_JS.includes("weekReportCardTitle: 'Week {n} report'"), 'thiếu weekReportCardTitle');
 });
 
 /* ============================================================
@@ -284,15 +286,15 @@ test('4.3: pomo widget trong renderWeek + planner-pomo-log + pomoSetMode', () =>
   assert.match(APP_JS, /pomoWidgetStart/);
   assert.match(APP_JS, /data-action="pomo-mode"/);
   assert.match(APP_JS, /function pomoSetMode\(/);
-  assert.match(APP_JS, /POMO_LOG_KEY = 'planner-pomo-log'/);
+  assert.match(STORAGE_JS, /POMO_LOG_KEY = 'planner-pomo-log'/);
   assert.match(APP_JS, /function pomoAddSession\(/);
   assert.match(APP_JS, /function renderPomoWidgetStats\(/);
   assert.match(APP_JS, /pomoAddSession\(POMO_WORK\)/);
 });
 
 test('4.3: i18n pomo widget keys đủ vi+en', () => {
-  assert.ok(APP_JS.includes("pomoWidgetTitle: '🍅 Pomodoro'"), 'thiếu vi pomoWidgetTitle');
-  assert.ok(APP_JS.includes("pomoToday: 'Hôm nay'") && APP_JS.includes("pomoToday: 'Today'"), 'thiếu pomoToday');
+  assert.ok(I18N_JS.includes("pomoWidgetTitle: '🍅 Pomodoro'"), 'thiếu vi pomoWidgetTitle');
+  assert.ok(I18N_JS.includes("pomoToday: 'Hôm nay'") && I18N_JS.includes("pomoToday: 'Today'"), 'thiếu pomoToday');
 });
 
 test('Phase 4: version bumps app.js>=36 styles.css>=37 sw cache>=v27', () => {

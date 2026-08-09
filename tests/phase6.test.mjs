@@ -7,6 +7,7 @@ import PlanStats from '../js/plan-stats.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
 const APP_HTML = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 const CSS = readFileSync(path.join(ROOT, 'css/styles.css'), 'utf8');
 const SW_JS = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
@@ -131,8 +132,8 @@ test('6.7: import CSV — parser + handler + routing', () => {
 
 test('6.8: i18n Phase 6 có ở cả vi + en', () => {
   ['templatesTitle', 'moodTitle', 'yearReportTitle', 'importCsv', 'importCsvConfirm', 'digestBody', 'digestNone'].forEach((k) => {
-    assert.ok(APP_JS.includes(k + ": '"), `thiếu key ${k} (vi/en)`);
-    const viCount = (APP_JS.match(new RegExp(k + ": '" , 'g')) || []).length;
+    assert.ok(I18N_JS.includes(k + ": '"), `thiếu key ${k} (vi/en)`);
+    const viCount = (I18N_JS.match(new RegExp(k + ": '" , 'g')) || []).length;
     assert.equal(viCount, 2, `key ${k} phải có ở cả vi + en (đếm được ${viCount})`);
   });
 });
@@ -160,7 +161,7 @@ test('6.10: heatmap mood tương tác — cell là button + picker + set/clear',
 
 test('6.11: i18n mood picker keys đủ vi + en', () => {
   ['moodPickAria', 'moodPickTitle', 'moodClear'].forEach((k) => {
-    const viCount = (APP_JS.match(new RegExp(k + ": '" , 'g')) || []).length;
+    const viCount = (I18N_JS.match(new RegExp(k + ": '" , 'g')) || []).length;
     assert.equal(viCount, 2, `key ${k} phải có ở cả vi + en (đếm được ${viCount})`);
   });
 });

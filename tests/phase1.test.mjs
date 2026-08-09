@@ -7,6 +7,7 @@ import PlanMath from '../js/plan-math.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const ACCOUNT_JS = readFileSync(path.join(ROOT, 'js/account.js'), 'utf8');
 const APP_HTML = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 
 /* ---------- PlanMath: ngày / elapsed ---------- */
@@ -179,7 +180,7 @@ test('Task5: hàm monthlyReportData + reportCardBlob + sự kiện share_report'
 /* ---------- Textual: Task 6 — huy hiệu ---------- */
 
 test('Task6: lưu planner-badges + evaluateBadges + badgePanelHTML', () => {
-  assert.match(APP_JS, /planner-badges/);
+  assert.match(ACCOUNT_JS, /planner-badges/);
   assert.match(APP_JS, /PlanMath\.evaluateBadges/);
   assert.match(APP_JS, /function badgePanelHTML/);
 });

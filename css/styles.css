@@ -1181,6 +1181,10 @@ textarea:focus-visible,
     opacity: 1;
     pointer-events: auto;
   }
+  .today-task .btn-del {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 .task-focus-btn,
 .task-menu-open {
@@ -3186,6 +3190,14 @@ sup.remind-dot {
   cursor: default;
 }
 .task-row.filtered-out { display: none; }
+
+/* Completed task: giảm emphasis — text gạch nhẹ + muted, card mờ nhẹ */
+.task-row.done { opacity: .62; }
+.task-row.done .task-text {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
 
 /* Tag dài không tràn khung: thu hẹp chuỗi flex và cắt chip bằng dấu “…” */
 .task-group,
