@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-09T16:28:49",
+  "generated": "2026-08-09T19:15:29",
   "results": {
     "landing-desktop": {
       "scores": {
@@ -9,11 +9,11 @@
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 648,
-        "largest-contentful-paint": 648,
-        "speed-index": 648,
+        "first-contentful-paint": 578,
+        "largest-contentful-paint": 578,
+        "speed-index": 578,
         "total-blocking-time": 0,
-        "interactive": 648,
+        "interactive": 578,
         "cumulative-layout-shift": 0.068
       }
     },
@@ -25,11 +25,11 @@
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 3060,
-        "largest-contentful-paint": 3060,
-        "speed-index": 3060,
+        "first-contentful-paint": 3066,
+        "largest-contentful-paint": 3066,
+        "speed-index": 3067,
         "total-blocking-time": 0,
-        "interactive": 3060,
+        "interactive": 3066,
         "cumulative-layout-shift": 0
       }
     },
@@ -41,27 +41,27 @@
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 731,
-        "largest-contentful-paint": 1227,
-        "speed-index": 908,
+        "first-contentful-paint": 668,
+        "largest-contentful-paint": 1259,
+        "speed-index": 866,
         "total-blocking-time": 0,
-        "interactive": 1227,
+        "interactive": 1260,
         "cumulative-layout-shift": 0.001
       }
     },
     "app-mobile": {
       "scores": {
-        "performance": 68,
+        "performance": 70,
         "accessibility": 87,
         "best-practices": 100,
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 3486,
-        "largest-contentful-paint": 5795,
-        "speed-index": 3852,
-        "total-blocking-time": 172,
-        "interactive": 5812,
+        "first-contentful-paint": 3498,
+        "largest-contentful-paint": 5714,
+        "speed-index": 3877,
+        "total-blocking-time": 72,
+        "interactive": 5723,
         "cumulative-layout-shift": 0
       }
     }
