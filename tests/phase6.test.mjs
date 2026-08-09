@@ -95,29 +95,41 @@ test('6.3: demo data (demoPlan + nút)', () => {
   assert.match(APP_JS, /trackEvent\('demo_data'\)/);
 });
 
-test('6.4: app.js có mood tracker (state + UI + insight)', () => {
+test('6.4: mood tracker (state + UI + insight)', () => {
+  // P11 extraction 24: MOOD_KEY/MOODS/moodMap + dispatcher mood-* + day-view buttons ở
+  // app.js; loadMood/saveMood/moodCardHTML/openMoodPicker/closeMoodPicker/
+  // rerenderMoodCard nằm trong js/mood.js (window.TaskFlowMood).
+  const MOOD_JS = readFileSync(path.join(ROOT, 'js/mood.js'), 'utf8');
   assert.match(APP_JS, /const MOOD_KEY = 'planner-mood'/);
   assert.match(APP_JS, /data-action="mood"/);
-  assert.match(APP_JS, /moodCardHTML\(\)/);
-  assert.match(APP_JS, /moodSummary\(pairs\)/);
-  assert.match(APP_JS, /window\.Sync\.push\(MOOD_KEY\)/);
+  assert.match(APP_JS, /const \{ loadMood, saveMood, moodCardHTML, openMoodPicker, closeMoodPicker, rerenderMoodCard \} = window\.TaskFlowMood;/);
+  assert.match(MOOD_JS, /moodCardHTML\(\)/);
+  assert.match(MOOD_JS, /moodSummary\(pairs\)/);
+  assert.match(MOOD_JS, /window\.Sync\.push\(MOOD_KEY\)/);
   assert.match(APP_JS, /keys\.indexOf\('planner-mood'\)/);
 });
 
-test('6.5: app.js + app.html có báo cáo năm', () => {
+test('6.5: app.html có báo cáo năm + logic nằm trong js/year-report.js (P11 extraction 25)', () => {
   assert.match(APP_HTML, /id="yearReportModal"/);
   assert.match(APP_HTML, /data-action="close-year-report"/);
   assert.match(APP_HTML, /data-action="share-year-report"/);
-  assert.match(APP_JS, /function yearlyReportData\(\)/);
-  assert.match(APP_JS, /function yearReportCardBlob\(r\)/);
-  assert.match(APP_JS, /trackEvent\('share_year_report'/);
+  // app.js giữ alias destructure + dispatcher; logic trong module
+  assert.match(APP_JS, /const \{ openYearReportModal, closeYearReportModal, doShareYearReport \} = window\.TaskFlowYearReport;/);
   assert.match(APP_JS, /data-action="year-report"/);
+  const YR_JS = readFileSync(path.join(ROOT, 'js/year-report.js'), 'utf8');
+  assert.match(YR_JS, /function yearlyReportData\(\)/);
+  assert.match(YR_JS, /function yearReportCardBlob\(r\)/);
+  assert.match(YR_JS, /trackEvent\('share_year_report'/);
 });
 
-test('6.6: weekly digest — app ghi cache, SW đọc', () => {
-  assert.match(APP_JS, /function computeDigest\(\)/);
-  assert.match(APP_JS, /function updateDigestCache\(\)/);
-  assert.match(APP_JS, /caches\.open\('taskflow-digest'\)/);
+test('6.6: weekly digest — app ghi cache, SW đọc (logic trong js/digest.js, P11 extraction 26)', () => {
+  const DIGEST_JS = readFileSync(path.join(ROOT, 'js/digest.js'), 'utf8');
+  assert.match(DIGEST_JS, /function computeDigest\(\)/);
+  assert.match(DIGEST_JS, /function updateDigestCache\(\)/);
+  assert.match(DIGEST_JS, /caches\.open\('taskflow-digest'\)/);
+  // app.js giữ alias destructure + call-sites (afterHabitToggle/refreshToday/boot setTimeout)
+  assert.match(APP_JS, /const \{ updateDigestCache \} = window\.TaskFlowDigest;/);
+  assert.match(APP_JS, /updateDigestCache\(\);/);
   assert.match(SW_JS, /digest\.json/);
   assert.match(SW_JS, /'taskflow-digest'/);
 });
@@ -146,14 +158,20 @@ test('6.9: CSS Phase 6 tồn tại', () => {
 });
 
 test('6.10: heatmap mood tương tác — cell là button + picker + set/clear', () => {
-  assert.match(APP_JS, /data-action="mood-pick"/);
-  assert.match(APP_JS, /data-action="mood-set"/);
-  assert.match(APP_JS, /data-action="mood-clear"/);
-  assert.match(APP_JS, /function openMoodPicker\(/);
-  assert.match(APP_JS, /function closeMoodPicker\(\)/);
-  assert.match(APP_JS, /function rerenderMoodCard\(\)/);
-  assert.match(APP_JS, /id="moodCard"/);
-  assert.match(APP_JS, /id="moodPicker"/);
+  // P11 extraction 24: HTML generators (moodCardHTML/openMoodPicker) nằm trong js/mood.js
+  const MOOD_JS = readFileSync(path.join(ROOT, 'js/mood.js'), 'utf8');
+  assert.match(MOOD_JS, /data-action="mood-pick"/);
+  assert.match(MOOD_JS, /data-action="mood-set"/);
+  assert.match(MOOD_JS, /data-action="mood-clear"/);
+  assert.match(MOOD_JS, /function openMoodPicker\(/);
+  assert.match(MOOD_JS, /function closeMoodPicker\(\)/);
+  assert.match(MOOD_JS, /function rerenderMoodCard\(\)/);
+  assert.match(MOOD_JS, /id="moodCard"/);
+  assert.match(MOOD_JS, /id="moodPicker"/);
+  // app.js giữ dispatcher mood-* (mood-set/mood-clear/mood-pick) + alias destructure
+  assert.match(APP_JS, /act === 'mood-set'/);
+  assert.match(APP_JS, /act === 'mood-clear'/);
+  assert.match(APP_JS, /act === 'mood-pick'/);
   assert.match(CSS, /\.mood-picker/);
   assert.match(CSS, /\.mood-cell\.today/);
   assert.match(CSS, /\.mood-day/);

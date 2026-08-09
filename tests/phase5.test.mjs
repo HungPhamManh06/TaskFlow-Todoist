@@ -488,12 +488,13 @@ test('8.6: CSS widget modal', () => {
    Phase 5 — Version bumps
    ============================================================ */
 
-test('Phase 5: version bumps app.js>=38 styles.css>=44 plan-math>=2 sw cache>=v33', () => {
-  const am = /js\/app\.js\?v=(\d{2,3})/.exec(APP_HTML);
-  assert.ok(am && Number(am[1]) >= 38, `app.js version phải >= 38 (thấy ${am && am[1]})`);
-  const cm = /css\/styles\.css\?v=(\d{2,3})/.exec(APP_HTML);
-  assert.ok(cm && Number(cm[1]) >= 44, `styles.css version phải >= 44 (thấy ${cm && cm[1]})`);
-  assert.match(APP_HTML, /js\/plan-math\.js\?v=([2-9]|\d{2})/);
+test('Phase 5: version bumps app.min.js>=38 styles.min.css>=44 plan-math.min.js>=2 sw cache>=v33', () => {
+  // P1.2 opt#1: app.html trỏ js/*.min.js + css/*.min.css
+  const am = /js\/app\.min\.js\?v=(\d{2,3})/.exec(APP_HTML);
+  assert.ok(am && Number(am[1]) >= 38, `app.min.js version phải >= 38 (thấy ${am && am[1]})`);
+  const cm = /css\/styles\.min\.css\?v=(\d{2,3})/.exec(APP_HTML);
+  assert.ok(cm && Number(cm[1]) >= 44, `styles.min.css version phải >= 44 (thấy ${cm && cm[1]})`);
+  assert.match(APP_HTML, /js\/plan-math\.min\.js\?v=([2-9]|\d{2})/);
   const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const m = /const CACHE = 'taskflow-v(\d+)';/.exec(SW);
   assert.ok(Number(m[1]) >= 33);

@@ -77,8 +77,8 @@ test('sw.js: cache version bump lên >= v20', () => {
   assert.ok(Number(m[1]) >= 20, `cache version ${m[1]} < 20`);
 });
 
-test('sw.js: APP_SHELL đủ js bắt buộc', () => {
-  for (const f of ['./js/app.js', './js/sync.js', './js/api-config.js', './js/deeplink.js', './js/ui.js']) {
+test('sw.js: APP_SHELL đủ js bắt buộc (P1.2 opt#1: bản min)', () => {
+  for (const f of ['./js/app.min.js', './js/sync.min.js', './js/api-config.min.js', './js/deeplink.min.js', './js/ui.min.js']) {
     assert.ok(SW.includes(f), `thiếu ${f} trong APP_SHELL`);
   }
 });

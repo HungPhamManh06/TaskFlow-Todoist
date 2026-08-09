@@ -8,6 +8,7 @@ import DeepLink from '../js/deeplink.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const SEARCH_JS = readFileSync(path.join(ROOT, 'js/search.js'), 'utf8');
 const STORAGE_JS = readFileSync(path.join(ROOT, 'js/storage.js'), 'utf8');
 const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
 const APP_HTML = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
@@ -86,23 +87,25 @@ test('2.1: modal tìm kiếm + đọc chéo monthStateRaw', () => {
   assert.match(APP_HTML, /id="searchModal"/);
   assert.match(APP_HTML, /data-action="search-toggle"/);
   assert.match(APP_JS, /act === 'search-toggle'/);
-  assert.match(APP_JS, /function runSearch/);
-  assert.match(APP_JS, /monthStateRaw\(/);
+  // P11 extraction 22: logic search tách sang js/search.js — app.js giữ alias
+  assert.match(SEARCH_JS, /function runSearch/);
+  assert.match(SEARCH_JS, /monthStateRaw\(/);
 });
 
 test('2.1: nhấn kết quả → mở tháng đúng', () => {
   assert.match(APP_JS, /act === 'search-go'/);
-  assert.match(APP_JS, /function goSearchResult/);
+  assert.match(APP_JS, /goSearchResult\(el\)/); // call-site qua alias
+  assert.match(SEARCH_JS, /function goSearchResult/);
 });
 
 test('2.1: search mở rộng — tags + subtasks + Inbox (m=-2)', () => {
-  // Task tìm thêm qua tags + subtasks (needles)
-  assert.match(APP_JS, /const taskNeedles = \(tk\) =>/);
-  assert.match(APP_JS, /tk\.subtasks\.map\(\(s\) => s && s\.text\)/);
+  // Task tìm thêm qua tags + subtasks (needles) — logic trong js/search.js
+  assert.match(SEARCH_JS, /const taskNeedles = \(tk\) =>/);
+  assert.match(SEARCH_JS, /tk\.subtasks\.map\(\(s\) => s && s\.text\)/);
   // Inbox được đánh index với m = -2 → goSearchResult mở view Inbox
-  assert.match(APP_JS, /push\(-2, 'inbox'/);
-  assert.match(APP_JS, /if \(m === -2\) \{ setView\('inbox'\); return; \}/);
-  // i18n nhóm Inbox + keyboard nav ↑/↓ trong kết quả
+  assert.match(SEARCH_JS, /push\(-2, 'inbox'/);
+  assert.match(SEARCH_JS, /if \(m === -2\) \{ setView\('inbox'\); return; \}/);
+  // i18n nhóm Inbox + keyboard nav ↑/↓ trong kết quả (nav giữ ở app.js)
   assert.match(I18N_JS, /searchInbox: 'Inbox'/);
   assert.match(APP_JS, /e\.key === 'ArrowDown' \|\| e\.key === 'ArrowUp'/);
 });
@@ -212,15 +215,15 @@ test('3.2: express-rate-limit cho login/signup', () => {
    Version bumps
    ============================================================ */
 
-test('app.html: plan-stats.js được nạp trước app.js', () => {
-  const iPlan = APP_HTML.indexOf('js/plan-stats.js');
-  const iApp = APP_HTML.indexOf('js/app.js');
-  assert.ok(iPlan >= 0 && iApp > iPlan, 'plan-stats.js phải nạp trước app.js');
+test('app.html: plan-stats.min.js được nạp trước app.min.js (P1.2 opt#1 min siblings)', () => {
+  const iPlan = APP_HTML.indexOf('js/plan-stats.min.js');
+  const iApp = APP_HTML.indexOf('js/app.min.js');
+  assert.ok(iPlan >= 0 && iApp > iPlan, 'plan-stats.min.js phải nạp trước app.min.js');
 });
 
-test('sw.js: APP_SHELL có plan-stats.js + cache >= v26', () => {
+test('sw.js: APP_SHELL có plan-stats.min.js + cache >= v26', () => {
   const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
-  assert.ok(SW.includes('./js/plan-stats.js'));
+  assert.ok(SW.includes('./js/plan-stats.min.js'));
   const m = /const CACHE = 'taskflow-v(\d+)';/.exec(SW);
   assert.ok(Number(m[1]) >= 26);
 });
@@ -236,15 +239,18 @@ test('4.1: habit/task có field remind + migration', () => {
 });
 
 test('4.1: nút 🔔 + syncReminderTimers + renderRemindList + turnOffRemind', () => {
+  // P11 extraction 27: logic nhắc nằm trong js/remind-ui.js; app.js giữ alias + dispatcher
+  const REMIND_JS = readFileSync(path.join(ROOT, 'js/remind-ui.js'), 'utf8');
   assert.match(APP_JS, /data-action="remind-habit"/);
   assert.match(APP_JS, /data-action="remind-task"/);
-  assert.match(APP_JS, /data-action="remind-off-item"/);
-  assert.match(APP_JS, /function syncReminderTimers\(/);
-  assert.match(APP_JS, /function renderRemindList\(/);
-  assert.match(APP_JS, /function beginRemindEdit\(/);
-  assert.match(APP_JS, /function turnOffRemind\(/);
-  assert.match(APP_JS, /reminder_item_set/);
-  assert.match(APP_JS, /reminder_show/);
+  assert.match(REMIND_JS, /data-action="remind-off-item"/);
+  assert.match(REMIND_JS, /function syncReminderTimers\(/);
+  assert.match(REMIND_JS, /function renderRemindList\(/);
+  assert.match(REMIND_JS, /function beginRemindEdit\(/);
+  assert.match(REMIND_JS, /function turnOffRemind\(/);
+  assert.match(APP_JS, /const \{ syncReminderTimers, renderRemindList, insertBeforeTaskActions, beginRemindEdit, turnOffRemind \} = window\.TaskFlowRemindUI;/);
+  assert.match(REMIND_JS, /reminder_item_set/);
+  assert.match(REMIND_JS, /reminder_show/);
 });
 
 test('4.1: app.html có remindList + i18n remind keys đủ vi+en', () => {
@@ -297,11 +303,12 @@ test('4.3: i18n pomo widget keys đủ vi+en', () => {
   assert.ok(I18N_JS.includes("pomoToday: 'Hôm nay'") && I18N_JS.includes("pomoToday: 'Today'"), 'thiếu pomoToday');
 });
 
-test('Phase 4: version bumps app.js>=36 styles.css>=37 sw cache>=v27', () => {
-  const am = /js\/app\.js\?v=(\d{2,3})/.exec(APP_HTML);
-  assert.ok(am && Number(am[1]) >= 36, `app.js version phải >= 36 (thấy ${am && am[1]})`);
-  const cm = /css\/styles\.css\?v=(\d{2,3})/.exec(APP_HTML);
-  assert.ok(cm && Number(cm[1]) >= 37, `styles.css version phải >= 37 (thấy ${cm && cm[1]})`);
+test('Phase 4: version bumps app.min.js>=36 styles.min.css>=37 sw cache>=v27', () => {
+  // P1.2 opt#1: app.html trỏ js/*.min.js + css/*.min.css
+  const am = /js\/app\.min\.js\?v=(\d{2,3})/.exec(APP_HTML);
+  assert.ok(am && Number(am[1]) >= 36, `app.min.js version phải >= 36 (thấy ${am && am[1]})`);
+  const cm = /css\/styles\.min\.css\?v=(\d{2,3})/.exec(APP_HTML);
+  assert.ok(cm && Number(cm[1]) >= 37, `styles.min.css version phải >= 37 (thấy ${cm && cm[1]})`);
   const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const m = /const CACHE = 'taskflow-v(\d+)';/.exec(SW);
   assert.ok(Number(m[1]) >= 27);

@@ -543,8 +543,10 @@ test('Phase 7: unified empty states with CTA actions and dedup toasts', () => {
   assert.match(APP_JS, /emptyStateHTML\('🎯', 'todayEmpty', 'todayEmptySub'/);
   assert.match(INBOX_JS, /emptyStateHTML\('📥', 'inboxEmpty', 'inboxEmptySub'/);
   assert.match(APP_JS, /emptyStateHTML\('🗓️', 'upcomingEmpty', 'upcomingEmptySub'/);
-  assert.match(APP_JS, /emptyStateHTML\('🔍', 'searchEmpty', 'searchEmptySub'\)/);
-  assert.match(APP_JS, /emptyStateHTML\('🐥', 'searchNoResults', 'searchNoResultsSub'\)/);
+  // P11 extraction 22: empty states của search nằm trong js/search.js
+  const SEARCH_JS = readRequiredAsset('js/search.js');
+  assert.match(SEARCH_JS, /emptyStateHTML\('🔍', 'searchEmpty', 'searchEmptySub'\)/);
+  assert.match(SEARCH_JS, /emptyStateHTML\('🐥', 'searchNoResults', 'searchNoResultsSub'\)/);
   // toast dedup + action button + max-4 cap
   assert.match(ui, /toast\(message, kind = 'info', duration = 4200, actions\)/);
   assert.match(ui, /dataset\.toastKey === message/);
@@ -623,6 +625,25 @@ test('Phase 8: privacy and terms pages exist with code-accurate claims', () => {
   assert.match(privacy, /planner-dark/);
   assert.match(terms, /data-t-en/);
   assert.match(terms, /planner-dark/);
+
+  // P0.1 — legal pages must not contain JS-style escapes inside HTML attributes:
+  //   * `\"` (escaped quotes) terminate the attribute early and leak text onto the page
+  //   * `\uXXXX` are not HTML escapes and render as literal text via innerHTML
+  const dataSec = readRequiredAsset('data-and-security.html');
+  for (const page of [privacy, terms, dataSec]) {
+    // escaped-quote href (\") and literal \\uXXXX unicode escapes are JS-style backslash
+    // sequences that HTML does not interpret — legal pages must contain no backslashes at all
+    assert.ok(!page.includes('\\'), 'no backslashes (JS-style escapes) in legal pages');
+    // a translated attribute must not wrap an anchor (link has to be a real DOM element)
+    assert.doesNotMatch(page, /data-t-(en|vi)="[^"]*<a /, 'translated attribute must not wrap an anchor');
+  }
+  // Fixed paragraphs use the span + standalone anchor split (link is a real DOM element,
+  // attributes hold plain text only), and links stay clickable with both languages present.
+  assert.match(privacy, /<span data-t-vi="Nếu bạn có câu hỏi về quyền riêng tư hoặc dữ liệu của mình, hãy mở một issue trên "/);
+  assert.match(terms, /<span data-t-vi="Bạn sở hữu dữ liệu bạn nhập vào TaskFlow\./);
+  assert.match(terms, /<span data-t-vi="Câu hỏi về các điều khoản này: mở issue trên "/);
+  assert.match(terms, /<a href="privacy\.html" data-t-vi="Chính sách bảo mật" data-t-en="Privacy Policy">/);
+  assert.match(privacy, /<a href="https:\/\/github\.com\/HungPhamManh06\/Todoist" rel="noopener noreferrer">GitHub<\/a>\./);
 });
 
 test('onboarding Escape follows the persisted skip action', () => {
@@ -742,12 +763,12 @@ test('day view: section + renderDay + open/close/prev/next wired', () => {
 test('P11: util.js module extracted — helpers live there, app.js keeps aliases', () => {
   const UTIL = readRequiredAsset('js/util.js');
   // app.html loads util.js before app.js
-  assert.match(APP, /src="js\/util\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const utilIdx = APP.indexOf('js/util.js?v=');
+  assert.match(APP, /src="js\/util.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const utilIdx = APP.indexOf('js/util.min.js?v=');
   assert.ok(utilIdx >= 0 && utilIdx < appIdx, 'util.js phải load trước app.js');
   // sw.js precache util.js
-  assert.ok(SW.includes("'./js/util.js'"), 'sw.js phải precache js/util.js');
+  assert.ok(SW.includes("\'./js/util.min.js\'"), 'sw.js phải precache js/util.js');
   // app.js dùng alias destructure thay vì định nghĩa lại
   assert.match(APP_JS, /const \{ esc, localISODate, formatFocusTime, lineChartSVG \} = window\.TaskFlowUtil;/);
   assert.doesNotMatch(APP_JS, /const esc = \(s\) => String/);
@@ -762,12 +783,12 @@ test('P11: util.js module extracted — helpers live there, app.js keeps aliases
 
 test('P11: i18n core extracted — helpers live in js/i18n.js, app.js keeps aliases', () => {
   // app.html loads i18n.js before app.js
-  assert.match(APP, /src="js\/i18n\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const i18nIdx = APP.indexOf('js/i18n.js?v=');
+  assert.match(APP, /src="js\/i18n.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const i18nIdx = APP.indexOf('js/i18n.min.js?v=');
   assert.ok(i18nIdx >= 0 && i18nIdx < appIdx, 'i18n.js phải load trước app.js');
   // sw.js precache i18n.js
-  assert.ok(SW.includes("'./js/i18n.js'"), 'sw.js phải precache js/i18n.js');
+  assert.ok(SW.includes("\'./js/i18n.min.js\'"), 'sw.js phải precache js/i18n.js');
   // app.js dùng alias destructure thay vì định nghĩa lại dictionary (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowI18N\) throw new Error\('TaskFlowI18N missing/);
   assert.match(APP_JS, /const \{ I18N, t, monthLabel, dayLabel, fmtDeadline, dateLocale, getLang, setLangCore, applyStaticI18N \} = window\.TaskFlowI18N;/);
@@ -792,19 +813,19 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   assert.match(source, /if \(!s \|\| s\.id === activeSectionId\) return;/);
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
-  // Version bumps: app.js + sw cache
-  assert.match(APP, /js\/app\.js\?v=130/);
-  assert.match(SW, /const CACHE = 'taskflow-v145';/);
+  // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
+  assert.match(APP, /js\/app\.min\.js\?v=141/);
+  assert.match(SW, /const CACHE = 'taskflow-v158';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
   // app.html loads stats.js before app.js
-  assert.match(APP, /src="js\/stats\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const stIdx = APP.indexOf('js/stats.js?v=');
+  assert.match(APP, /src="js\/stats.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const stIdx = APP.indexOf('js/stats.min.js?v=');
   assert.ok(stIdx >= 0 && stIdx < appIdx, 'stats.js phải load trước app.js');
   // sw.js precache stats.js
-  assert.ok(SW.includes("'./js/stats.js'"), 'sw.js phải precache js/stats.js');
+  assert.ok(SW.includes("\'./js/stats.min.js\'"), 'sw.js phải precache js/stats.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowStats\) throw new Error\('TaskFlowStats missing/);
   assert.match(APP_JS, /const \{ weekStats, monthlyStats \} = window\.TaskFlowStats;/);
@@ -821,12 +842,12 @@ test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js',
 
 test('P11: date helpers extracted — fmtDate/isDayToday/dayLabelShort live in js/dates.js', () => {
   // app.html loads dates.js before app.js
-  assert.match(APP, /src="js\/dates\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const dtIdx = APP.indexOf('js/dates.js?v=');
+  assert.match(APP, /src="js\/dates.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const dtIdx = APP.indexOf('js/dates.min.js?v=');
   assert.ok(dtIdx >= 0 && dtIdx < appIdx, 'dates.js phải load trước app.js');
   // sw.js precache dates.js
-  assert.ok(SW.includes("'./js/dates.js'"), 'sw.js phải precache js/dates.js');
+  assert.ok(SW.includes("\'./js/dates.min.js\'"), 'sw.js phải precache js/dates.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowDates\) throw new Error\('TaskFlowDates missing/);
   assert.match(APP_JS, /const \{ fmtDate, isDayToday, dayLabelShort \} = window\.TaskFlowDates;/);
@@ -844,12 +865,12 @@ test('P11: date helpers extracted — fmtDate/isDayToday/dayLabelShort live in j
 
 test('P11: sync UI helpers extracted — syncStatusText/updateSyncStatus/syncFormValues/syncErrorText live in js/syncui.js', () => {
   // app.html loads syncui.js before app.js
-  assert.match(APP, /src="js\/syncui\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const sIdx = APP.indexOf('js/syncui.js?v=');
+  assert.match(APP, /src="js\/syncui.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const sIdx = APP.indexOf('js/syncui.min.js?v=');
   assert.ok(sIdx >= 0 && sIdx < appIdx, 'syncui.js phải load trước app.js');
   // sw.js precache syncui.js
-  assert.ok(SW.includes("'./js/syncui.js'"), 'sw.js phải precache js/syncui.js');
+  assert.ok(SW.includes("\'./js/syncui.min.js\'"), 'sw.js phải precache js/syncui.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowSyncUI\) throw new Error\('TaskFlowSyncUI missing/);
   assert.match(APP_JS, /const \{ syncStatusText, updateSyncStatus, syncFormValues, syncErrorText \} = window\.TaskFlowSyncUI;/);
@@ -875,21 +896,24 @@ test('P11: sync UI helpers extracted — syncStatusText/updateSyncStatus/syncFor
 
 test('P11: mini plan/report helpers extracted — psStart/shortMonth live in js/planmini.js', () => {
   // app.html loads planmini.js before app.js
-  assert.match(APP, /src="js\/planmini\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const pmIdx = APP.indexOf('js/planmini.js?v=');
+  assert.match(APP, /src="js\/planmini.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const pmIdx = APP.indexOf('js/planmini.min.js?v=');
   assert.ok(pmIdx >= 0 && pmIdx < appIdx, 'planmini.js phải load trước app.js');
   // sw.js precache planmini.js
-  assert.ok(SW.includes("'./js/planmini.js'"), 'sw.js phải precache js/planmini.js');
+  assert.ok(SW.includes("\'./js/planmini.min.js\'"), 'sw.js phải precache js/planmini.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowPlanMini\) throw new Error\('TaskFlowPlanMini missing/);
   assert.match(APP_JS, /const \{ psStart, shortMonth \} = window\.TaskFlowPlanMini;/);
   assert.doesNotMatch(APP_JS, /^function psStart\(/m);
   assert.doesNotMatch(APP_JS, /^function shortMonth\(/m);
-  // call-sites giữ nguyên trong app.js (qua alias)
+  // call-sites giữ nguyên trong app.js (qua alias); shortMonth(r.topMonth) +
+  // focusReportBars(...) thuộc renderYearReportModal đã sang js/year-report.js
+  // (P11 extraction 25) — kiểm tra ở module.
   assert.match(APP_JS, /new Date\(psStart\(srcState, srcY, srcM\)\)/);
-  assert.match(APP_JS, /shortMonth\(r\.topMonth\)/);
-  assert.match(APP_JS, /focusReportBars\(r\.focusByMonth, \(i\) => shortMonth\(i\)\)/);
+  const yrmod_pm = readRequiredAsset('js/year-report.js');
+  assert.match(yrmod_pm, /shortMonth\(r\.topMonth\)/);
+  assert.match(yrmod_pm, /focusReportBars\(r\.focusByMonth, \(i\) => shortMonth\(i\)\)/);
   // module export đủ API + accessor pattern
   const mod = readRequiredAsset('js/planmini.js');
   assert.match(mod, /return \{ psStart, shortMonth \}/);
@@ -899,12 +923,12 @@ test('P11: mini plan/report helpers extracted — psStart/shortMonth live in js/
 
 test('P11: now/clock helpers extracted — nowInfo/renderClock live in js/clock.js', () => {
   // app.html loads clock.js before app.js
-  assert.match(APP, /src="js\/clock\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const cIdx = APP.indexOf('js/clock.js?v=');
+  assert.match(APP, /src="js\/clock.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const cIdx = APP.indexOf('js/clock.min.js?v=');
   assert.ok(cIdx >= 0 && cIdx < appIdx, 'clock.js phải load trước app.js');
   // sw.js precache clock.js
-  assert.ok(SW.includes("'./js/clock.js'"), 'sw.js phải precache js/clock.js');
+  assert.ok(SW.includes("\'./js/clock.min.js\'"), 'sw.js phải precache js/clock.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowClock\) throw new Error\('TaskFlowClock missing/);
   assert.match(APP_JS, /const \{ nowInfo, renderClock \} = window\.TaskFlowClock;/);
@@ -927,12 +951,12 @@ test('P11: now/clock helpers extracted — nowInfo/renderClock live in js/clock.
 
 test('P11: plan shell helpers extracted — monthKey/updateBrand/buildMonthNav live in js/shell.js', () => {
   // app.html loads shell.js before app.js
-  assert.match(APP, /src="js\/shell\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const shIdx = APP.indexOf('js/shell.js?v=');
+  assert.match(APP, /src="js\/shell.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const shIdx = APP.indexOf('js/shell.min.js?v=');
   assert.ok(shIdx >= 0 && shIdx < appIdx, 'shell.js phải load trước app.js');
   // sw.js precache shell.js
-  assert.ok(SW.includes("'./js/shell.js'"), 'sw.js phải precache js/shell.js');
+  assert.ok(SW.includes("\'./js/shell.min.js\'"), 'sw.js phải precache js/shell.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowShell\) throw new Error\('TaskFlowShell missing/);
   assert.match(APP_JS, /const \{ monthKey, updateBrand, buildMonthNav \} = window\.TaskFlowShell;/);
@@ -955,12 +979,12 @@ test('P11: plan shell helpers extracted — monthKey/updateBrand/buildMonthNav l
 
 test('P11: inbox view extracted — loadInbox/saveInbox/renderInbox/schedule flow live in js/inbox.js', () => {
   // app.html loads inbox.js before app.js
-  assert.match(APP, /src="js\/inbox\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const ibIdx = APP.indexOf('js/inbox.js?v=');
+  assert.match(APP, /src="js\/inbox.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const ibIdx = APP.indexOf('js/inbox.min.js?v=');
   assert.ok(ibIdx >= 0 && ibIdx < appIdx, 'inbox.js phải load trước app.js');
   // sw.js precache inbox.js
-  assert.ok(SW.includes("'./js/inbox.js'"), 'sw.js phải precache js/inbox.js');
+  assert.ok(SW.includes("\'./js/inbox.min.js\'"), 'sw.js phải precache js/inbox.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowInbox\) throw new Error\('TaskFlowInbox missing/);
   assert.match(APP_JS, /const \{ loadInbox, saveInbox, renderInbox, inboxTargetForDate, handleInboxAction \} = window\.TaskFlowInbox;/);
@@ -987,14 +1011,280 @@ test('P11: inbox view extracted — loadInbox/saveInbox/renderInbox/schedule flo
   assert.match(APP_JS, /^function pushTaskToDate\(/m);
 });
 
+test('P11: chat helpers extracted — CHAT_RESPONSES/doChatSend/doChatSuggest/chatBotReply live in js/chat.js', () => {
+  // app.html loads chat.js before app.js
+  assert.match(APP, /src="js\/chat.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const chIdx = APP.indexOf('js/chat.min.js?v=');
+  assert.ok(chIdx >= 0 && chIdx < appIdx, 'chat.js phải load trước app.js');
+  // sw.js precache chat.js
+  assert.ok(SW.includes("\'./js/chat.min.js\'"), 'sw.js phải precache js/chat.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowChat\) throw new Error\('TaskFlowChat missing/);
+  assert.match(APP_JS, /const \{ doChatSend, doChatSuggest \} = window\.TaskFlowChat;/);
+  assert.doesNotMatch(APP_JS, /^const CHAT_RESPONSES = \{/m);
+  assert.doesNotMatch(APP_JS, /^function doChatSend\(/m);
+  assert.doesNotMatch(APP_JS, /^function doChatSuggest\(/m);
+  assert.doesNotMatch(APP_JS, /^function chatBotReply\(/m);
+  // call-sites giữ nguyên trong app.js (qua alias) — dispatcher + Enter key trong chat input
+  assert.match(APP_JS, /act === 'chat-send'[\s\S]{0,80}doChatSend\(\);/);
+  assert.match(APP_JS, /act === 'chat-suggest'[\s\S]{0,80}doChatSuggest\(el\.dataset\.topic\);/);
+  assert.match(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,80}doChatSend\(\)/);
+  // module export đủ API + accessor pattern
+  const mod = readRequiredAsset('js/chat.js');
+  assert.match(mod, /return \{ CHAT_RESPONSES, doChatSend, doChatSuggest, chatBotReply \}/);
+  assert.match(mod, /module\.exports/);
+  assert.match(mod, /CHAT_RESPONSES\['study-plan'\]/);
+});
+
+test('P11: search extracted — openSearchModal/closeSearchModal/runSearch/renderSearchResults/goSearchResult live in js/search.js', () => {
+  // app.html loads search.js before app.js
+  assert.match(APP, /src="js\/search.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const srIdx = APP.indexOf('js/search.min.js?v=');
+  assert.ok(srIdx >= 0 && srIdx < appIdx, 'search.js phải load trước app.js');
+  // sw.js precache search.js
+  assert.ok(SW.includes("\'./js/search.min.js\'"), 'sw.js phải precache js/search.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowSearch\) throw new Error\('TaskFlowSearch missing/);
+  assert.match(APP_JS, /const \{ openSearchModal, closeSearchModal, renderSearchResults, goSearchResult \} = window\.TaskFlowSearch;/);
+  assert.doesNotMatch(APP_JS, /^function openSearchModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function closeSearchModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function runSearch\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderSearchResults\(/m);
+  assert.doesNotMatch(APP_JS, /^function goSearchResult\(/m);
+  // call-sites giữ nguyên trong app.js (qua alias): dispatcher + toggle + debounce + backdrop
+  assert.match(APP_JS, /act === 'search-toggle'[\s\S]{0,80}openSearchModal\(\);/);
+  assert.match(APP_JS, /act === 'search-close'[\s\S]{0,120}closeSearchModal\(\);/);
+  assert.match(APP_JS, /act === 'search-go'[\s\S]{0,80}goSearchResult\(el\);/);
+  assert.match(APP_JS, /if \(m\.hidden\) openSearchModal\(\); else closeSearchModal\(\);/);
+  assert.match(APP_JS, /setTimeout\(\(\) => renderSearchResults\(t\.value\), 200\)/);
+  assert.match(APP_JS, /e\.target === s\) closeSearchModal\(\);/);
+  // module export đủ API + accessor pattern
+  const mod = readRequiredAsset('js/search.js');
+  assert.match(mod, /return \{ openSearchModal, closeSearchModal, runSearch, renderSearchResults, goSearchResult \}/);
+  assert.match(mod, /module\.exports/);
+  assert.match(mod, /emptyStateHTML\('🔍', 'searchEmpty', 'searchEmptySub'\)/);
+  assert.match(mod, /emptyStateHTML\('🐥', 'searchNoResults', 'searchNoResultsSub'\)/);
+  assert.match(mod, /monthStateRaw\(y, m\)/);
+  assert.match(mod, /search-hit/);
+});
+
+test('P11: quick-add extracted — openQuickAdd/closeQuickAdd/submitQuickAdd/quickAddDefaultTarget live in js/quick-add.js', () => {
+  // app.html loads quick-add.js before app.js
+  assert.match(APP, /src="js\/quick-add.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const qaIdx = APP.indexOf('js/quick-add.min.js?v=');
+  assert.ok(qaIdx >= 0 && qaIdx < appIdx, 'quick-add.js phải load trước app.js');
+  // sw.js precache quick-add.js
+  assert.ok(SW.includes("\'./js/quick-add.min.js\'"), 'sw.js phải precache js/quick-add.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowQuickAdd\) throw new Error\('TaskFlowQuickAdd missing/);
+  assert.match(APP_JS, /const \{ openQuickAdd, closeQuickAdd, submitQuickAdd \} = window\.TaskFlowQuickAdd;/);
+  assert.doesNotMatch(APP_JS, /^function openQuickAdd\(/m);
+  assert.doesNotMatch(APP_JS, /^function closeQuickAdd\(/m);
+  assert.doesNotMatch(APP_JS, /^function submitQuickAdd\(/m);
+  assert.doesNotMatch(APP_JS, /^function quickAddDefaultTarget\(/m);
+  // call-sites giữ nguyên trong app.js (qua alias): phím tắt + dispatcher + boot ?quick=1
+  assert.match(APP_JS, /id === 'quickAddInput'/);
+  assert.match(APP_JS, /act === 'quickadd-do'/);
+  assert.match(APP_JS, /act === 'quickadd-close'/);
+  assert.match(APP_JS, /act === 'shell-add-task'[\s\S]{0,80}openQuickAdd\(\);/);
+  assert.match(APP_JS, /setTimeout\(\(\) => \{ openQuickAdd\(\); \}, 350\)/);
+  // module export đủ API + logic giữ nguyên (target context, inbox scope, pushTaskToDate dùng chung)
+  const qamod = readRequiredAsset('js/quick-add.js');
+  assert.match(qamod, /return \{ openQuickAdd, closeQuickAdd, submitQuickAdd \}/);
+  assert.match(qamod, /module\.exports/);
+  assert.match(qamod, /state\.view === 'inbox'/);
+  assert.match(qamod, /state\.view === 'day'/);
+  assert.match(qamod, /state\.view === 'week'/);
+  assert.match(qamod, /tk\.inbox = true;/);
+  assert.match(qamod, /pushTaskToDate\(tk, dt\)/);
+  assert.match(qamod, /newTaskUid\(\)/);
+  assert.match(qamod, /TaskFlowUI\.openDialog\('quickAddModal'\)/);
+});
+
+test('P11: mood extracted — loadMood/saveMood/moodCardHTML/openMoodPicker/closeMoodPicker/rerenderMoodCard live in js/mood.js', () => {
+  // app.html loads mood.js before app.js
+  assert.match(APP, /src="js\/mood.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const moIdx = APP.indexOf('js/mood.min.js?v=');
+  assert.ok(moIdx >= 0 && moIdx < appIdx, 'mood.js phải load trước app.js');
+  // sw.js precache mood.js
+  assert.ok(SW.includes("\'./js/mood.min.js\'"), 'sw.js phải precache js/mood.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowMood\) throw new Error\('TaskFlowMood missing/);
+  assert.match(APP_JS, /const \{ loadMood, saveMood, moodCardHTML, openMoodPicker, closeMoodPicker, rerenderMoodCard \} = window\.TaskFlowMood;/);
+  assert.doesNotMatch(APP_JS, /^function loadMood\(/m);
+  assert.doesNotMatch(APP_JS, /^function saveMood\(/m);
+  assert.doesNotMatch(APP_JS, /^function moodCardHTML\(/m);
+  assert.doesNotMatch(APP_JS, /^function openMoodPicker\(/m);
+  // MOOD_KEY/MOODS/moodMap vẫn ở app.js (dispatcher mood-* + day-view + undo snapshot)
+  assert.match(APP_JS, /const MOOD_KEY = 'planner-mood'/);
+  assert.match(APP_JS, /let moodMap = \{\};/);
+  assert.match(APP_JS, /data-action="mood"/);
+  assert.match(APP_JS, /snap\.mood/);
+  // module export đủ API + logic giữ nguyên
+  const momod = readRequiredAsset('js/mood.js');
+  assert.match(momod, /return \{ loadMood, saveMood, moodCardHTML, openMoodPicker, closeMoodPicker, rerenderMoodCard \}/);
+  assert.match(momod, /module\.exports/);
+  assert.match(momod, /MOOD_KEY/);
+  assert.match(momod, /moodMap\[moodDateKey\(d, PLAN_YEAR, PLAN_MONTH\)\]/);
+  assert.match(momod, /moodSummary\(pairs\)/);
+  assert.match(momod, /TaskFlowUI\.openDialog\('moodPicker'\)/);
+  assert.match(momod, /dayAggregate\(state, d\)/);
+});
+
+test('P11: year-report extracted — yearlyReportData/renderYearReportModal/openYearReportModal/closeYearReportModal/yearReportCardBlob/doShareYearReport live in js/year-report.js', () => {
+  // app.html loads year-report.js before app.js
+  assert.match(APP, /src="js\/year-report.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const yrIdx = APP.indexOf('js/year-report.min.js?v=');
+  assert.ok(yrIdx >= 0 && yrIdx < appIdx, 'year-report.js phải load trước app.js');
+  // sw.js precache year-report.js
+  assert.ok(SW.includes("\'./js/year-report.min.js\'"), 'sw.js phải precache js/year-report.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowYearReport\) throw new Error\('TaskFlowYearReport missing/);
+  assert.match(APP_JS, /const \{ openYearReportModal, closeYearReportModal, doShareYearReport \} = window\.TaskFlowYearReport;/);
+  assert.doesNotMatch(APP_JS, /^function yearlyReportData\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderYearReportModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function openYearReportModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function yearReportCardBlob\(/m);
+  // call-sites giữ nguyên trong app.js (qua alias): dispatcher + outside-click
+  assert.match(APP_JS, /act === 'year-report'[\s\S]{0,80}openYearReportModal\(\);/);
+  assert.match(APP_JS, /act === 'close-year-report'[\s\S]{0,80}closeYearReportModal\(\);/);
+  assert.match(APP_JS, /act === 'share-year-report'[\s\S]{0,80}doShareYearReport\(\);/);
+  // module export đủ API + logic giữ nguyên
+  const yrmod = readRequiredAsset('js/year-report.js');
+  assert.match(yrmod, /return \{ yearlyReportData, renderYearReportModal, openYearReportModal, closeYearReportModal, yearReportCardBlob, doShareYearReport \}/);
+  assert.match(yrmod, /module\.exports/);
+  assert.match(yrmod, /yearGoalStats\(\)/);
+  assert.match(yrmod, /focusYearByMonth\(\)/);
+  assert.match(yrmod, /taskFocusMinLabel\(r\.topTask\.secs\)/);
+  assert.match(yrmod, /navigator\.share/);
+  assert.match(yrmod, /c\.toBlob/);
+});
+
+test('P11: digest extracted — computeDigest/updateDigestCache live in js/digest.js', () => {
+  // app.html loads digest.js before app.js
+  assert.match(APP, /src="js\/digest.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const dgIdx = APP.indexOf('js/digest.min.js?v=');
+  assert.ok(dgIdx >= 0 && dgIdx < appIdx, 'digest.js phải load trước app.js');
+  // sw.js precache digest.js
+  assert.ok(SW.includes("\'./js/digest.min.js\'"), 'sw.js phải precache js/digest.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowDigest\) throw new Error\('TaskFlowDigest missing/);
+  assert.match(APP_JS, /const \{ updateDigestCache \} = window\.TaskFlowDigest;/);
+  assert.doesNotMatch(APP_JS, /^function computeDigest\(/m);
+  assert.doesNotMatch(APP_JS, /^function updateDigestCache\(/m);
+  assert.doesNotMatch(APP_JS, /let digestCacheTs = 0;/m);
+  // call-sites giữ nguyên trong app.js (qua alias): afterHabitToggle + refreshToday + boot
+  assert.match(APP_JS, /function afterHabitToggle\(\)[\s\S]{0,80}updateDigestCache\(\);/);
+  assert.match(APP_JS, /function refreshToday\(\)[\s\S]{0,80}updateDigestCache\(\);/);
+  assert.match(APP_JS, /setTimeout\(updateDigestCache, 2000\)/);
+  // module export đủ API + logic giữ nguyên
+  const dgmod = readRequiredAsset('js/digest.js');
+  assert.match(dgmod, /return \{ computeDigest, updateDigestCache \}/);
+  assert.match(dgmod, /module\.exports/);
+  assert.match(dgmod, /digestCacheTs/);
+  assert.match(dgmod, /caches\.open\('taskflow-digest'\)/);
+  assert.match(dgmod, /digestBody\', \{ names \}\)/);
+});
+
+test('P11: remind-ui extracted — scheduleItemReminder/syncReminderTimers/renderRemindList/insertBeforeTaskActions/beginRemindEdit/turnOffRemind live in js/remind-ui.js', () => {
+  // app.html loads remind-ui.js before app.js
+  assert.match(APP, /src="js\/remind-ui.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const ruIdx = APP.indexOf('js/remind-ui.min.js?v=');
+  assert.ok(ruIdx >= 0 && ruIdx < appIdx, 'remind-ui.js phải load trước app.js');
+  // sw.js precache remind-ui.js
+  assert.ok(SW.includes("\'./js/remind-ui.min.js\'"), 'sw.js phải precache js/remind-ui.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowRemindUI\) throw new Error\('TaskFlowRemindUI missing/);
+  assert.match(APP_JS, /const \{ syncReminderTimers, renderRemindList, insertBeforeTaskActions, beginRemindEdit, turnOffRemind \} = window\.TaskFlowRemindUI;/);
+  assert.doesNotMatch(APP_JS, /^function scheduleItemReminder\(/m);
+  assert.doesNotMatch(APP_JS, /^function syncReminderTimers\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderRemindList\(/m);
+  assert.doesNotMatch(APP_JS, /^function beginRemindEdit\(/m);
+  assert.doesNotMatch(APP_JS, /^function turnOffRemind\(/m);
+  assert.doesNotMatch(APP_JS, /let itemRemindTimers = \[\];/m);
+  // call-sites giữ nguyên trong app.js: insertBeforeTaskActions dùng chung beginRepeatEdit/beginTagEdit
+  assert.match(APP_JS, /insertBeforeTaskActions\(btn, wrap\);/);
+  assert.match(APP_JS, /insertBeforeTaskActions\(btn, input\);/);
+  assert.match(APP_JS, /setTimeout\(syncReminderTimers, 1000\)/);
+  // module export đủ API + logic giữ nguyên
+  const rumod = readRequiredAsset('js/remind-ui.js');
+  assert.match(rumod, /return \{ scheduleItemReminder, syncReminderTimers, renderRemindList, insertBeforeTaskActions, beginRemindEdit, turnOffRemind \}/);
+  assert.match(rumod, /module\.exports/);
+  assert.match(rumod, /itemRemindTimers/);
+  assert.match(rumod, /new Notification\('TaskFlow/);
+  assert.match(rumod, /remindSetDone/);
+  assert.match(rumod, /remind-off-item/);
+});
+
+test('Mobile bottom-nav redesign: Today/Upcoming/FAB/Habits/More + sheet chứa week/inbox/overview/year/calendar', () => {
+  // buildNav mobile: 5 mục đúng thứ tự Hôm nay / Sắp tới / + (FAB action) / Thói quen / Thêm
+  assert.match(APP_JS, /mobileItem\(byView\.today\) \+/);
+  assert.match(APP_JS, /mobileItem\(byView\.upcoming\) \+/);
+  assert.match(APP_JS, /app-mobile-nav-fab" data-action="shell-add-task"/);
+  assert.match(APP_JS, /data-action="habits"/);
+  assert.match(APP_JS, /data-action="more" aria-controls="moreSheet"/);
+  // FAB là ACTION: không data-nav-view → updateNav không bao giờ active (chỉ 1 tab active)
+  assert.match(APP_JS, /app-mobile-nav-fab/);
+  assert.doesNotMatch(APP_JS, /app-mobile-nav-fab[\s\S]{0,80}data-nav-view/);
+  // More sheet: Inbox, Tuần, Tổng quan, Năm, Lịch + Focus, Báo cáo, Cài đặt (Upcoming đã là tab chính)
+  assert.match(APP_JS, /MORE_SHEET_VIEWS\.map\(\(v\) => byView\[v\]\)/);
+  assert.match(APP_JS, /actionBtn\('focus'/);
+  assert.match(APP_JS, /actionBtn\('report'/);
+  assert.match(APP_JS, /actionBtn\('tools-open', 'settings'/);
+  // Week không còn là tab chính mobile
+  assert.doesNotMatch(APP_JS, /mobileItem\(byView\.week\)/);
+  // View trong More sheet → highlight nút Thêm (luôn ĐÚNG MỘT active trên mobile)
+  assert.match(APP_JS, /const MORE_SHEET_VIEWS = \['inbox', 'week', 'overview', 'year', 'calendar'\]/);
+  assert.match(APP_JS, /moreBtn\.classList\.toggle\('active', moreActive\)/);
+  // CSS: thanh 64px, active chỉ 1 tab với accent bg nhẹ (10%), hover chỉ khi hover-capable
+  const shell = readRequiredAsset('css/app-shell.css');
+  assert.match(shell, /\.app-mobile-nav\s*{[^}]*height:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/s);
+  assert.match(shell, /@media \(hover: hover\)/);
+  assert.match(shell, /\.app-mobile-nav-item\.active\s*{[^}]*color-mix\(in srgb, var\(--color-accent\) 10%/s);
+  assert.match(shell, /\.app-mobile-nav-fab\s*{[^}]*width:\s*54px[^}]*border-radius:\s*999px/s);
+  assert.match(shell, /\.app-mobile-nav-add-label/);
+  // drag handle bottom sheet
+  assert.match(APP, /more-sheet-grip/);
+  assert.match(shell, /\.more-sheet-grip/);
+});
+
+test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source giữ readable', () => {
+  // harness tồn tại + có --check
+  const MIN = readRequiredAsset('scripts/minify.py');
+  assert.match(MIN, /terser/);
+  assert.match(MIN, /csso/);
+  assert.match(MIN, /--check/);
+  // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
+  assert.match(APP, /js\/app\.min\.js\?v=141/);
+  assert.match(APP, /css\/styles\.min\.css\?v=97/);
+  assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
+  assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
+  // sw.js precache .min + CACHE bump
+  assert.match(SW, /const CACHE = 'taskflow-v158';/);
+  assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
+  assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
+  // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
+  const src = readRequiredAsset('js/app.js');
+  const min = readRequiredAsset('js/app.min.js');
+  assert.ok(src.length > min.length, 'app.min.js phải nhỏ hơn app.js');
+  assert.ok(src.length > 100000, 'app.js readable vẫn giữ nội dung đầy đủ');
+});
+
 test('P11: account core extracted — helpers live in js/account.js, app.js keeps aliases', () => {
   // app.html loads account.js before app.js
-  assert.match(APP, /src="js\/account\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const acIdx = APP.indexOf('js/account.js?v=');
+  assert.match(APP, /src="js\/account.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const acIdx = APP.indexOf('js/account.min.js?v=');
   assert.ok(acIdx >= 0 && acIdx < appIdx, 'account.js phải load trước app.js');
   // sw.js precache account.js
-  assert.ok(SW.includes("'./js/account.js'"), 'sw.js phải precache js/account.js');
+  assert.ok(SW.includes("\'./js/account.min.js\'"), 'sw.js phải precache js/account.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowAccount\) throw new Error\('TaskFlowAccount missing/);
   assert.match(APP_JS, /const \{ BADGES_KEY, hasAccount, defaultYearState, emptyYearState, loadBadges, saveBadges \} = window\.TaskFlowAccount;/);
@@ -1018,12 +1308,12 @@ test('P11: account core extracted — helpers live in js/account.js, app.js keep
 
 test('P11: habit day helpers extracted — habitDaysElapsed/dayAggregate/heatLevel live in js/habits.js', () => {
   // app.html loads habits.js before app.js
-  assert.match(APP, /src="js\/habits\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const hbIdx = APP.indexOf('js/habits.js?v=');
+  assert.match(APP, /src="js\/habits.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const hbIdx = APP.indexOf('js/habits.min.js?v=');
   assert.ok(hbIdx >= 0 && hbIdx < appIdx, 'habits.js phải load trước app.js');
   // sw.js precache habits.js
-  assert.ok(SW.includes("'./js/habits.js'"), 'sw.js phải precache js/habits.js');
+  assert.ok(SW.includes("\'./js/habits.min.js\'"), 'sw.js phải precache js/habits.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowHabits\) throw new Error\('TaskFlowHabits missing/);
   assert.match(APP_JS, /const \{ habitDaysElapsed, dayAggregate, heatLevel \} = window\.TaskFlowHabits;/);
@@ -1043,22 +1333,26 @@ test('P11: habit day helpers extracted — habitDaysElapsed/dayAggregate/heatLev
 
 test('P11: date key generators extracted — pomoDateKey/moodDateKey live in js/keys.js', () => {
   // app.html loads keys.js before app.js
-  assert.match(APP, /src="js\/keys\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const kIdx = APP.indexOf('js/keys.js?v=');
+  assert.match(APP, /src="js\/keys.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const kIdx = APP.indexOf('js/keys.min.js?v=');
   assert.ok(kIdx >= 0 && kIdx < appIdx, 'keys.js phải load trước app.js');
   // sw.js precache keys.js
-  assert.ok(SW.includes("'./js/keys.js'"), 'sw.js phải precache js/keys.js');
+  assert.ok(SW.includes("\'./js/keys.min.js\'"), 'sw.js phải precache js/keys.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowKeys\) throw new Error\('TaskFlowKeys missing/);
   assert.match(APP_JS, /const \{ pomoDateKey, moodDateKey \} = window\.TaskFlowKeys;/);
   assert.doesNotMatch(APP_JS, /^function moodDateKey\(/m);
   assert.doesNotMatch(APP_JS, /^function pomoDateKey\(/m);
-  // call-sites giữ nguyên: moodDateKey nhận (d, PLAN_YEAR, PLAN_MONTH), pomoDateKey giữ signature
-  assert.match(APP_JS, /moodDateKey\(d, PLAN_YEAR, PLAN_MONTH\)/);
-  assert.match(APP_JS, /moodDateKey\(d \+ 1, PLAN_YEAR, PLAN_MONTH\)/);
+  // call-sites giữ nguyên: day-view dùng moodDateKey(d.date, PLAN_YEAR, PLAN_MONTH),
+  // pomoDateKey giữ signature. Các call-site (d, ...) và (d + 1, ...) thuộc moodCardHTML
+  // đã sang js/mood.js (P11 extraction 24) — kiểm tra ở module.
+  assert.match(APP_JS, /moodDateKey\(d\.date, PLAN_YEAR, PLAN_MONTH\)/);
   assert.match(APP_JS, /pomoDateKey\(new Date\(\)\)/);
   assert.doesNotMatch(APP_JS, /moodDateKey\(d\)/);
+  const momod2 = readRequiredAsset('js/mood.js');
+  assert.match(momod2, /moodDateKey\(d, PLAN_YEAR, PLAN_MONTH\)/);
+  assert.match(momod2, /moodDateKey\(d \+ 1, PLAN_YEAR, PLAN_MONTH\)/);
   // module export đủ API
   const mod = readRequiredAsset('js/keys.js');
   assert.match(mod, /return \{ pomoDateKey, moodDateKey \}/);
@@ -1067,12 +1361,12 @@ test('P11: date key generators extracted — pomoDateKey/moodDateKey live in js/
 
 test('P11: reminder helpers extracted — remind core lives in js/remind.js', () => {
   // app.html loads remind.js before app.js
-  assert.match(APP, /src="js\/remind\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const rmIdx = APP.indexOf('js/remind.js?v=');
+  assert.match(APP, /src="js\/remind.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const rmIdx = APP.indexOf('js/remind.min.js?v=');
   assert.ok(rmIdx >= 0 && rmIdx < appIdx, 'remind.js phải load trước app.js');
   // sw.js precache remind.js
-  assert.ok(SW.includes("'./js/remind.js'"), 'sw.js phải precache js/remind.js');
+  assert.ok(SW.includes("\'./js/remind.min.js\'"), 'sw.js phải precache js/remind.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowRemind\) throw new Error\('TaskFlowRemind missing/);
   assert.match(APP_JS, /const \{ getRemindTime, setRemindTime, requestRemindPermission, registerPeriodicReminder \} = window\.TaskFlowRemind;/);
@@ -1092,12 +1386,12 @@ test('P11: reminder helpers extracted — remind core lives in js/remind.js', ()
 
 test('P11: dark mode helpers extracted — theme core lives in js/theme.js', () => {
   // app.html loads theme.js before app.js
-  assert.match(APP, /src="js\/theme\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const thIdx = APP.indexOf('js/theme.js?v=');
+  assert.match(APP, /src="js\/theme.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const thIdx = APP.indexOf('js/theme.min.js?v=');
   assert.ok(thIdx >= 0 && thIdx < appIdx, 'theme.js phải load trước app.js');
   // sw.js precache theme.js
-  assert.ok(SW.includes("'./js/theme.js'"), 'sw.js phải precache js/theme.js');
+  assert.ok(SW.includes("\'./js/theme.min.js\'"), 'sw.js phải precache js/theme.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowTheme\) throw new Error\('TaskFlowTheme missing/);
   assert.match(APP_JS, /const \{ systemPrefersDark, darkIsOn, applyDark, toggleDark \} = window\.TaskFlowTheme;/);
@@ -1119,23 +1413,24 @@ test('P11: dark mode helpers extracted — theme core lives in js/theme.js', () 
 
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
   // app.html loads analytics.js before app.js
-  assert.match(APP, /src="js\/analytics\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const anIdx = APP.indexOf('js/analytics.js?v=');
+  assert.match(APP, /src="js\/analytics.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const anIdx = APP.indexOf('js/analytics.min.js?v=');
   assert.ok(anIdx >= 0 && anIdx < appIdx, 'analytics.js phải load trước app.js');
   // sw.js precache analytics.js
-  assert.ok(SW.includes("'./js/analytics.js'"), 'sw.js phải precache js/analytics.js');
+  assert.ok(SW.includes("\'./js/analytics.min.js\'"), 'sw.js phải precache js/analytics.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowAnalytics\) throw new Error\('TaskFlowAnalytics missing/);
   assert.match(APP_JS, /const \{ GA4_ID, GA4_ENABLED, initAnalytics, trackEvent \} = window\.TaskFlowAnalytics;/);
   assert.doesNotMatch(APP_JS, /^const GA4_ID = /m);
   assert.doesNotMatch(APP_JS, /^function initAnalytics\(/m);
   assert.doesNotMatch(APP_JS, /^function trackEvent\(/m);
-  // call-sites giữ nguyên: trackEvent(...) khắp app.js + boot initAnalytics()
+  // call-sites giữ nguyên: trackEvent(...) khắp app.js + boot initAnalytics();
+  // trackEvent('share_year_report') thuộc doShareYearReport đã sang js/year-report.js
   assert.match(APP_JS, /trackEvent\('demo_data'\)/);
-  assert.match(APP_JS, /trackEvent\('share_year_report'/);
   assert.match(APP_JS, /trackEvent\('import_csv'\)/);
   assert.match(APP_JS, /initAnalytics\(\)/);
+  assert.match(readRequiredAsset('js/year-report.js'), /trackEvent\('share_year_report'/);
   // module export đủ API + GA4 placeholder tự tắt
   const mod = readRequiredAsset('js/analytics.js');
   assert.match(mod, /return \{ GA4_ID, GA4_ENABLED, initAnalytics, trackEvent \}/);
@@ -1145,12 +1440,12 @@ test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', (
 
 test('P11: export helpers extracted — downloadFile/collectAllData/exportJSON live in js/export.js', () => {
   // app.html loads export.js before app.js
-  assert.match(APP, /src="js\/export\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const exIdx = APP.indexOf('js/export.js?v=');
+  assert.match(APP, /src="js\/export.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const exIdx = APP.indexOf('js/export.min.js?v=');
   assert.ok(exIdx >= 0 && exIdx < appIdx, 'export.js phải load trước app.js');
   // sw.js precache export.js
-  assert.ok(SW.includes("'./js/export.js'"), 'sw.js phải precache js/export.js');
+  assert.ok(SW.includes("\'./js/export.min.js\'"), 'sw.js phải precache js/export.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowExport\) throw new Error\('TaskFlowExport missing/);
   assert.match(APP_JS, /const \{ downloadFile, collectAllData, exportJSON \} = window\.TaskFlowExport;/);
@@ -1174,12 +1469,12 @@ test('P11: export helpers extracted — downloadFile/collectAllData/exportJSON l
 
 test('P11: habit streak helpers extracted — streak core lives in js/streak.js', () => {
   // app.html loads streak.js before app.js
-  assert.match(APP, /src="js\/streak\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const stIdx = APP.indexOf('js/streak.js?v=');
+  assert.match(APP, /src="js\/streak.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const stIdx = APP.indexOf('js/streak.min.js?v=');
   assert.ok(stIdx >= 0 && stIdx < appIdx, 'streak.js phải load trước app.js');
   // sw.js precache streak.js
-  assert.ok(SW.includes("'./js/streak.js'"), 'sw.js phải precache js/streak.js');
+  assert.ok(SW.includes("\'./js/streak.min.js\'"), 'sw.js phải precache js/streak.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowStreak\) throw new Error\('TaskFlowStreak missing/);
   assert.match(APP_JS, /const \{ habitInMonthState, habitDaysAt, streakAnchorDay, habitTimeline, habitStreakOf, habitStreakCached, clearStreakCache \} = window\.TaskFlowStreak;/);
@@ -1207,12 +1502,12 @@ test('P11: habit streak helpers extracted — streak core lives in js/streak.js'
 
 test('P11: month goal helpers extracted — monthPctOf/monthGoalsOf live in js/goals.js', () => {
   // app.html loads goals.js before app.js
-  assert.match(APP, /src="js\/goals\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const gIdx = APP.indexOf('js/goals.js?v=');
+  assert.match(APP, /src="js\/goals.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const gIdx = APP.indexOf('js/goals.min.js?v=');
   assert.ok(gIdx >= 0 && gIdx < appIdx, 'goals.js phải load trước app.js');
   // sw.js precache goals.js
-  assert.ok(SW.includes("'./js/goals.js'"), 'sw.js phải precache js/goals.js');
+  assert.ok(SW.includes("\'./js/goals.min.js\'"), 'sw.js phải precache js/goals.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowGoals\) throw new Error\('TaskFlowGoals missing/);
   assert.match(APP_JS, /const \{ monthPctOf, monthGoalsOf \} = window\.TaskFlowGoals;/);
@@ -1234,12 +1529,12 @@ test('P11: month goal helpers extracted — monthPctOf/monthGoalsOf live in js/g
 
 test('P11: FAB drag/tuck helpers extracted — FAB core lives in js/fab.js', () => {
   // app.html loads fab.js before app.js
-  assert.match(APP, /src="js\/fab\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const fIdx = APP.indexOf('js/fab.js?v=');
+  assert.match(APP, /src="js\/fab.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const fIdx = APP.indexOf('js/fab.min.js?v=');
   assert.ok(fIdx >= 0 && fIdx < appIdx, 'fab.js phải load trước app.js');
   // sw.js precache fab.js
-  assert.ok(SW.includes("'./js/fab.js'"), 'sw.js phải precache js/fab.js');
+  assert.ok(SW.includes("\'./js/fab.min.js\'"), 'sw.js phải precache js/fab.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowFab\) throw new Error\('TaskFlowFab missing/);
   assert.match(APP_JS, /const \{ loadFabPos, saveFabPos, clearFabPos, clampFabPos, initFabDrag, initFabDrags, fabTuckAllowed, nearestTuckEdge, tuckOffset, initFabTuck \} = window\.TaskFlowFab;/);
@@ -1270,12 +1565,12 @@ test('P11: FAB drag/tuck helpers extracted — FAB core lives in js/fab.js', () 
 
 test('P11: storage core extracted — helpers live in js/storage.js, app.js keeps aliases', () => {
   // app.html loads storage.js before app.js
-  assert.match(APP, /src="js\/storage\.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.js?v=');
-  const stIdx = APP.indexOf('js/storage.js?v=');
+  assert.match(APP, /src="js\/storage.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const stIdx = APP.indexOf('js/storage.min.js?v=');
   assert.ok(stIdx >= 0 && stIdx < appIdx, 'storage.js phải load trước app.js');
   // sw.js precache storage.js
-  assert.ok(SW.includes("'./js/storage.js'"), 'sw.js phải precache js/storage.js');
+  assert.ok(SW.includes("\'./js/storage.min.js\'"), 'sw.js phải precache js/storage.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowStorage\) throw new Error\('TaskFlowStorage missing/);
   assert.match(APP_JS, /const \{ POMO_LOG_KEY, monthStateRaw, saveMonthState, loadPomoLog, savePomoLog, backupSlotKey \} = window\.TaskFlowStorage;/);
@@ -1294,15 +1589,15 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
   assert.match(APP_JS, /backupSlotKey\(/);
 });
 
-test('service worker caches the UI helper with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v145';/);
-  assert.match(SW, /['"]\.\/js\/ui\.js['"]/);
+test('service worker caches the UI helper (min) with the reviewed cache version', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v158';/);
+  assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
 test('design system assets load before legacy styles and expose stable shell roots', () => {
   assert.match(
     APP,
-    /css\/tokens\.css[^]*css\/components\.css[^]*css\/app-shell\.css[^]*css\/styles\.css/
+    /css\/tokens\.min\.css[^]*css\/components\.min\.css[^]*css\/app-shell\.min\.css[^]*css\/styles\.min\.css/
   );
 
   const shell = readRequiredAsset('css/app-shell.css');
@@ -1372,11 +1667,13 @@ test('design system local sprite provides the complete currentColor icon set', (
   assert.match(sprite, /stroke-width=["'](?:1\.75|1\.8|2)["']/);
 });
 
-test('design system and landing assets are available in the v64 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v145';/);
+test('design system and landing assets are available in the v154 offline shell', () => {
+  assert.match(SW, /const CACHE = 'taskflow-v158';/);
+  // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
-    './css/tokens.css', './css/components.css', './css/app-shell.css',
-    './css/landing.css', './icons/ui-sprite.svg', './js/ui.js', './index.html',
+    './css/tokens.css', './css/landing.css', './css/legal.css',
+    './css/tokens.min.css', './css/components.min.css', './css/app-shell.min.css',
+    './css/styles.min.css', './icons/ui-sprite.svg', './js/ui.min.js', './index.html',
   ].forEach((asset) => assert.match(SW, new RegExp(`["']${asset.replaceAll('.', '\\.')}["']`)));
 });
 
@@ -1780,11 +2077,12 @@ test('Phase 8: year report focus stats, quarterly summary, and calendar focus pi
   assert.match(APP_JS, /function focusMonthMinutesFor\(y, m\)/);
   assert.match(APP_JS, /function focusYearByMonth\(\)/);
   assert.match(APP_JS, /function topFocusTasksInYear\(y, n\)/);
-  // year report data + render
-  assert.match(APP_JS, /focusByMonth, focusTotal, focusByQuarter, topTask/);
-  assert.match(APP_JS, /focusByQuarter\.map/);
-  assert.match(APP_JS, /report-quarters-grid/);
-  assert.match(APP_JS, /yearReportQuarter/);
+  // year report data + render — năm trong js/year-report.js (P11 extraction 25)
+  const yrmod_p8 = readRequiredAsset('js/year-report.js');
+  assert.match(yrmod_p8, /focusByMonth, focusTotal, focusByQuarter, topTask/);
+  assert.match(yrmod_p8, /focusByQuarter\.map/);
+  assert.match(yrmod_p8, /report-quarters-grid/);
+  assert.match(yrmod_p8, /yearReportQuarter/);
   // calendar focus: pill mỗi ngày + header summary
   assert.match(APP_JS, /cal-focus-summary/);
   assert.match(APP_JS, /data-role="cal-focus-summary"/);
@@ -1888,12 +2186,13 @@ test('Phase 3: Inbox — nav item, view section, capture flow and schedule keepi
   assert.match(APP_JS, /view: 'inbox', icon: 'inbox'/);
   assert.match(APP_JS, /inbox: 'data-nav-view=\"inbox\" data-view=\"inbox\"'/);
   assert.match(APP_JS, /byView\.today, byView\.inbox, byView\.upcoming/);
-  // P2: inbox nằm trong More sheet (bottom nav mobile tối đa 5 mục Today/Week/+/Habits/More)
-  assert.match(APP_JS, /\[byView\.inbox, byView\.upcoming, byView\.overview, byView\.year, byView\.calendar\]/);
+  // P2 redesign: bottom nav mobile = Today/Upcoming/+/Habits/More; inbox + week nằm trong
+  // More sheet (Upcoming là tab chính — không còn trong sheet)
+  assert.match(APP_JS, /MORE_SHEET_VIEWS\.map\(\(v\) => byView\[v\]\)/);
   // 2. View section trong app.html + Inbox reachable qua sidebar (JS) và More sheet mobile (P2/P4)
   assert.match(APP, /id="view-inbox"/);
   assert.match(APP, /data-i18n-aria=\"viewInbox\"/);
-  assert.match(APP_JS, /\[byView\.inbox, byView\.upcoming, byView\.overview, byView\.year, byView\.calendar\]/);
+  assert.match(APP_JS, /MORE_SHEET_VIEWS\.map\(\(v\) => byView\[v\]\)/);
   // 3. setView dispatch có nhánh inbox + deeplink chấp nhận
   assert.match(APP_JS, /view === 'inbox'/);
   assert.match(APP_JS, /renderInbox\(inbox\)/);
@@ -1941,24 +2240,28 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
   assert.match(APP, /id="quickAddInput"/);
   assert.match(APP, /id="quickAddDate"/);
   assert.match(APP, /data-action="quickadd-do"/);
-  // 2. Mở/đóng + Enter submit + Escape (dialog layer tự đóng)
-  assert.match(APP_JS, /function openQuickAdd\(\)/);
-  assert.match(APP_JS, /function closeQuickAdd\(\)/);
-  assert.match(APP_JS, /function submitQuickAdd\(\)/);
+  // 2. Mở/đóng + Enter submit + Escape (dialog layer tự đóng) — P11 extraction 23:
+  // openQuickAdd/closeQuickAdd/submitQuickAdd nằm trong js/quick-add.js, app.js giữ
+  // call-sites (keydown Enter, dispatcher quickadd-*, phím tắt q, outside-click).
+  const QA_JS = readRequiredAsset('js/quick-add.js');
+  assert.match(QA_JS, /function openQuickAdd\(\)/);
+  assert.match(QA_JS, /function closeQuickAdd\(\)/);
+  assert.match(QA_JS, /function submitQuickAdd\(\)/);
   assert.match(APP_JS, /id === 'quickAddInput'/);
   assert.match(APP_JS, /act === 'quickadd-close'/);
+  assert.match(APP_JS, /act === 'quickadd-do'/);
   // 3. Target theo ngữ cảnh view: inbox/day/week/today
-  assert.match(APP_JS, /function quickAddDefaultTarget\(\)/);
-  assert.match(APP_JS, /state\.view === 'inbox'/);
-  assert.match(APP_JS, /state\.view === 'day'/);
-  assert.match(APP_JS, /state\.view === 'week'/);
+  assert.match(QA_JS, /function quickAddDefaultTarget\(\)/);
+  assert.match(QA_JS, /state\.view === 'inbox'/);
+  assert.match(QA_JS, /state\.view === 'day'/);
+  assert.match(QA_JS, /state\.view === 'week'/);
   // 4. Nút Thêm công việc (shell-add-task) mở Quick Add — KHÔNG còn chuyển sang Week
   assert.match(APP_JS, /act === 'shell-add-task'\).*openQuickAdd\(\)/s);
   assert.match(APP_JS, /if \(k === 'q'\)\s*\{\s*e\.preventDefault\(\);\s*openQuickAdd\(\)/s);
   // 5. Dùng chung logic đặt task: pushTaskToDate (không duplicate) + inbox scope
   assert.match(APP_JS, /function pushTaskToDate\(tk, dt\)/);
-  assert.match(APP_JS, /tk\.inbox = true;/);
-  assert.match(APP_JS, /renderCurrentView\(\);/);
+  assert.match(QA_JS, /tk\.inbox = true;/);
+  assert.match(QA_JS, /renderCurrentView\(\);/);
   // 6. i18n keys đủ vi+en
   assert.match(I18N_JS, /quickAddTitle: 'Thêm công việc nhanh'/);
   assert.match(I18N_JS, /quickAddTitle: 'Quick Add'/);
@@ -1969,7 +2272,7 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
   assert.match(qaStyles, /\.quickadd-card\s*{/);
   assert.match(qaStyles, /\.quickadd-fields\s*{/);
   // P8: note theo context date (day/week view ngày khác → "ngày đã chọn") + hidden field thật sự ẩn
-  assert.match(APP_JS, /quickAddTarget\.dt && localISODate\(quickAddTarget\.dt\) === localISODate\(new Date\(\)\)/);
+  assert.match(QA_JS, /quickAddTarget\.dt && localISODate\(quickAddTarget\.dt\) === localISODate\(new Date\(\)\)/);
   assert.match(qaStyles, /\.pop-field\[hidden\]\s*\{\s*display: none;?\s*}/);
   // P8: CTA "Tạo thói quen" từ empty states + handler focus input
   assert.match(I18N_JS, /emptyAddHabit: 'Tạo thói quen'/);
@@ -2192,4 +2495,30 @@ test('Phase 21: inbox e2e data-testid hooks + notification deep-link routing', (
   // 5. Deep-link parser chấp nhận inbox + quick=1 (shortcut "Thêm việc")
   assert.match(DEEPLINK_JS, /view === 'inbox'/);
   assert.match(DEEPLINK_JS, /out\.quick = url\.searchParams\.get\('quick'\) === '1'/);
+});
+
+test('Phase 22: P0.2 e2e hardening — task-detail flow, extended viewports, real bug fixes', () => {
+  const FRONT22 = readRequiredAsset('scripts/e2e-frontend.py');
+  // 1. Task-detail scenario exists and is wired into the --all matrix + --view CLI
+  assert.match(FRONT22, /def taskdetail_checks\(/);
+  assert.match(FRONT22, /\("taskdetail", taskdetail_checks\)/);
+  assert.match(FRONT22, /"taskdetail"/); // --view choice
+  assert.match(FRONT22, /taskdetail_checks\(browser, base, 1440, 900, errors, shots\["desktop"\]\)/);
+  // 2. Viewport matrix covers small mobile 360x800 and desktop large 1920x1080
+  assert.match(FRONT22, /\(360, 800\), \(390, 844\), \(768, 1024\), \(1440, 900\), \(1920, 1080\)/);
+  // 3. Stable hooks the scenario drives exist (data-action fields in the drawer)
+  assert.match(FRONT22, /data-action="td-prio"/);
+  assert.match(FRONT22, /data-action="td-duration"/);
+  assert.match(FRONT22, /data-action="td-repeat"/);
+  assert.match(FRONT22, /data-role="td-subtask-input"/);
+  assert.match(FRONT22, /data-role="td-tag-input"/);
+  assert.match(FRONT22, /expect_download\(\)/);
+  assert.match(FRONT22, /taskflow-todoist-backup-/);
+  // 4. P0.2 bug fix 1: td-prio now has a dispatcher handler (priority edit persisted)
+  assert.match(APP_JS, /} else if \(act === 'td-prio'\) \{/);
+  assert.match(APP_JS, /g\.tk\.kind = el\.checked \? 'priority' : 'regular';/);
+  assert.match(APP_JS, /'td-prio'\]/); // in UNDOABLE_ACTS
+  // 5. P0.2 bug fix 2: delete-toast Undo button must be clickable (pointer-events auto)
+  const COMPONENTS_CSS = readRequiredAsset('css/components.css');
+  assert.match(COMPONENTS_CSS, /\.toast \{[\s\S]*?pointer-events: auto;/);
 });
