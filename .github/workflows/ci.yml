@@ -25,7 +25,14 @@ jobs:
           for f in js/app.js js/sync.js js/plan-math.js js/plan-stats.js js/deeplink.js js/api-config.js; do
             node --check "$f"
           done
+          for f in js/*.min.js; do node --check "$f"; done
           cd server && node --check index.js && node --check auth.js && node --check sync.js && node --check db.js
+
+      - name: Minified assets up to date (P1.2 opt#1)
+        run: |
+          npx --yes terser@5 --version >/dev/null 2>&1
+          npx --yes csso-cli@4 --version >/dev/null 2>&1
+          python scripts/minify.py --check
 
       - name: Unit tests (phase0 + phase1 + phase2)
         run: node --test tests/*.test.mjs

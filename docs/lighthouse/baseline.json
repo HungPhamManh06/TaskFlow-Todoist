@@ -1,0 +1,69 @@
+{
+  "generated": "2026-08-09T16:28:49",
+  "results": {
+    "landing-desktop": {
+      "scores": {
+        "performance": 99,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "cwv": {
+        "first-contentful-paint": 648,
+        "largest-contentful-paint": 648,
+        "speed-index": 648,
+        "total-blocking-time": 0,
+        "interactive": 648,
+        "cumulative-layout-shift": 0.068
+      }
+    },
+    "landing-mobile": {
+      "scores": {
+        "performance": 88,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "cwv": {
+        "first-contentful-paint": 3060,
+        "largest-contentful-paint": 3060,
+        "speed-index": 3060,
+        "total-blocking-time": 0,
+        "interactive": 3060,
+        "cumulative-layout-shift": 0
+      }
+    },
+    "app-desktop": {
+      "scores": {
+        "performance": 97,
+        "accessibility": 92,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "cwv": {
+        "first-contentful-paint": 731,
+        "largest-contentful-paint": 1227,
+        "speed-index": 908,
+        "total-blocking-time": 0,
+        "interactive": 1227,
+        "cumulative-layout-shift": 0.001
+      }
+    },
+    "app-mobile": {
+      "scores": {
+        "performance": 68,
+        "accessibility": 87,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "cwv": {
+        "first-contentful-paint": 3486,
+        "largest-contentful-paint": 5795,
+        "speed-index": 3852,
+        "total-blocking-time": 172,
+        "interactive": 5812,
+        "cumulative-layout-shift": 0
+      }
+    }
+  }
+}
