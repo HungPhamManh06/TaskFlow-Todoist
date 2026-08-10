@@ -529,7 +529,7 @@ test('authentication forms expose inline error containers', () => {
 test('routine completion feedback uses non-blocking toasts', () => {
   assert.match(readRequiredAsset('js/report-ui.js'), /TaskFlowUI\.toast\(t\('shareDone'\)/);
   assert.match(APP_JS, /TaskFlowUI\.toast\(t\('templateDone'/);
-  assert.match(APP_JS, /TaskFlowUI\.toast\(t\('pomoDoneWork'/);
+  assert.match(readRequiredAsset('js/pomo.js'), /TaskFlowUI\.toast\(t\('pomoDoneWork'/);
   assert.doesNotMatch(APP_JS, /alert\(t\('shareDone'\)/);
 });
 
@@ -817,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=155/);
-  assert.match(SW, /const CACHE = 'taskflow-v174';/);
+  assert.match(APP, /js\/app\.min\.js\?v=156/);
+  assert.match(SW, /const CACHE = 'taskflow-v175';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1271,12 +1271,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=155/);
+  assert.match(APP, /js\/app\.min\.js\?v=156/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v174';/);
+  assert.match(SW, /const CACHE = 'taskflow-v175';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1674,6 +1674,45 @@ test('P11: focus mode extracted — overlay + timer state machine live in js/foc
   assert.match(mod, /function focusTimerComplete\(\)/);
 });
 
+test('P11: pomodoro timer extracted — pomo state machine lives in js/pomo.js', () => {
+  // app.html loads pomo.js before app.js
+  assert.match(APP, /src="js\/pomo\.min\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const pIdx = APP.indexOf('js/pomo.min.js?v=');
+  assert.ok(pIdx >= 0 && pIdx < appIdx, 'pomo.js phải load trước app.js');
+  // sw.js precache pomo.js
+  assert.ok(SW.includes("'./js/pomo.min.js'"), 'sw.js phải precache js/pomo.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowPomo\) throw new Error\('TaskFlowPomo missing/);
+  assert.match(APP_JS, /const \{ renderPomo, pomoSync, pomoStart, pomoReset, pomoSetMode, togglePomoPanel, pomoAddSession, pomoWeekSecs \} = window\.TaskFlowPomo;/);
+  assert.doesNotMatch(APP_JS, /^function renderPomo\(/m);
+  assert.doesNotMatch(APP_JS, /^function pomoSync\(/m);
+  assert.doesNotMatch(APP_JS, /^function pomoStart\(/m);
+  assert.doesNotMatch(APP_JS, /^function pomoReset\(/m);
+  assert.doesNotMatch(APP_JS, /^function pomoSetMode\(/m);
+  assert.doesNotMatch(APP_JS, /^function togglePomoPanel\(/m);
+  assert.doesNotMatch(APP_JS, /^function pomoAddSession\(/m);
+  assert.doesNotMatch(APP_JS, /^function pomoWeekSecs\(/m);
+  assert.doesNotMatch(APP_JS, /^function pomoDuration\(/m);
+  assert.doesNotMatch(APP_JS, /^function pomoComplete\(/m);
+  // call-sites giữ nguyên: week render, dispatcher pomo-*, visibilitychange/focus
+  assert.match(APP_JS, /renderPomo\(\)/);
+  assert.match(APP_JS, /act === 'pomo-toggle'/);
+  assert.match(APP_JS, /act === 'pomo-start'/);
+  assert.match(APP_JS, /pomoSync\(\)/);
+  // markup widget tuần view vẫn ở app.js (renderWeek), renderPomoWidgetStats/…TomatoCounter vẫn ở app.js
+  assert.match(APP_JS, /pomo-widget/);
+  assert.match(APP_JS, /function renderPomoWidgetStats\(/);
+  assert.match(APP_JS, /function renderPomoTomatoCounter\(/);
+  // focus.js (extraction 39) gọi pomoAddSession qua global lexical
+  assert.match(readRequiredAsset('js/focus.js'), /pomoAddSession\(secs\)/);
+  // module export đủ API (POMO_* + pomo/pomoEndAt là state riêng — không export)
+  const mod = readRequiredAsset('js/pomo.js');
+  assert.match(mod, /return \{\s*renderPomo, pomoSync, pomoStart, pomoReset, pomoSetMode, togglePomoPanel,\s*pomoAddSession, pomoWeekSecs,/);
+  assert.match(mod, /let pomo = \{ mode: 'work', left: POMO_WORK/);
+  assert.match(mod, /function pomoComplete\(\)/);
+});
+
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
   // app.html loads analytics.js before app.js
   assert.match(APP, /src="js\/analytics.min.js\?v=\d+"[^>]*>/);
@@ -1883,7 +1922,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v174';/);
+  assert.match(SW, /const CACHE = 'taskflow-v175';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1961,7 +2000,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v174';/);
+  assert.match(SW, /const CACHE = 'taskflow-v175';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',

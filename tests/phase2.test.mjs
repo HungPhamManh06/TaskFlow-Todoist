@@ -173,9 +173,9 @@ test('2.5: year view có dashboard (best habit, ngày năng suất, quý)', () =
 test('2.6: overlay pomodoro 25/5 + trackEvent', () => {
   assert.match(APP_HTML, /class="pomo-fab"/);
   assert.match(APP_HTML, /data-action="pomo-toggle"/);
-  assert.match(APP_JS, /POMO_WORK = 25 \* 60/);
-  assert.match(APP_JS, /POMO_BREAK = 5 \* 60/);
-  assert.match(APP_JS, /'pomodoro_complete'/);
+  assert.match(readFileSync(path.join(ROOT, 'js/pomo.js'), 'utf8'), /POMO_WORK = 25 \* 60/);
+  assert.match(readFileSync(path.join(ROOT, 'js/pomo.js'), 'utf8'), /POMO_BREAK = 5 \* 60/);
+  assert.match(readFileSync(path.join(ROOT, 'js/pomo.js'), 'utf8'), /'pomodoro_complete'/);
 });
 
 /* ============================================================
@@ -291,11 +291,11 @@ test('4.3: pomo widget trong renderWeek + planner-pomo-log + pomoSetMode', () =>
   assert.match(APP_JS, /pomoWidgetTime/);
   assert.match(APP_JS, /pomoWidgetStart/);
   assert.match(APP_JS, /data-action="pomo-mode"/);
-  assert.match(APP_JS, /function pomoSetMode\(/);
+  assert.match(readFileSync(path.join(ROOT, 'js/pomo.js'), 'utf8'), /function pomoSetMode\(/);
   assert.match(STORAGE_JS, /POMO_LOG_KEY = 'planner-pomo-log'/);
-  assert.match(APP_JS, /function pomoAddSession\(/);
+  assert.match(readFileSync(path.join(ROOT, 'js/pomo.js'), 'utf8'), /function pomoAddSession\(/);
   assert.match(APP_JS, /function renderPomoWidgetStats\(/);
-  assert.match(APP_JS, /pomoAddSession\(POMO_WORK\)/);
+  assert.match(readFileSync(path.join(ROOT, 'js/pomo.js'), 'utf8'), /pomoAddSession\(POMO_WORK\)/);
 });
 
 test('4.3: i18n pomo widget keys đủ vi+en', () => {
