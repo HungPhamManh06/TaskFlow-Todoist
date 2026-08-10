@@ -542,7 +542,7 @@ test('Phase 7: unified empty states with CTA actions and dedup toasts', () => {
   // Today / Inbox / Upcoming / Search all route through the shared helper (Today sang js/today.js)
   assert.match(readRequiredAsset('js/today.js'), /emptyStateHTML\('🎯', 'todayEmpty', 'todayEmptySub'/);
   assert.match(INBOX_JS, /emptyStateHTML\('📥', 'inboxEmpty', 'inboxEmptySub'/);
-  assert.match(APP_JS, /emptyStateHTML\('🗓️', 'upcomingEmpty', 'upcomingEmptySub'/);
+  assert.match(readRequiredAsset('js/upcoming.js'), /emptyStateHTML\('🗓️', 'upcomingEmpty', 'upcomingEmptySub'/);
   // P11 extraction 22: empty states của search nằm trong js/search.js
   const SEARCH_JS = readRequiredAsset('js/search.js');
   assert.match(SEARCH_JS, /emptyStateHTML\('🔍', 'searchEmpty', 'searchEmptySub'\)/);
@@ -817,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=152/);
-  assert.match(SW, /const CACHE = 'taskflow-v171';/);
+  assert.match(APP, /js\/app\.min\.js\?v=153/);
+  assert.match(SW, /const CACHE = 'taskflow-v172';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1002,7 +1002,8 @@ test('P11: inbox view extracted — loadInbox/saveInbox/renderInbox/schedule flo
   assert.match(APP_JS, /let inbox = loadInbox\(\);/);
   assert.match(APP_JS, /renderInbox\(inbox\)/);
   assert.match(APP_JS, /saveInbox\(inbox\)/);
-  assert.match(APP_JS, /inboxTargetForDate\(dt\)/);
+  // caller duy nhất inboxTargetForDate(dt) là pushTaskToDate — đã sang js/upcoming.js (extraction 36)
+  assert.match(readRequiredAsset('js/upcoming.js'), /inboxTargetForDate\(dt\)/);
   // REGRESSION GUARD: destructure phải TRƯỚC top-level `let inbox = loadInbox()` (TDZ loadInbox)
   assert.ok(APP_JS.indexOf('window.TaskFlowInbox') < APP_JS.indexOf('let inbox = loadInbox()'),
     'inbox destructure phải TRƯỚC top-level loadInbox() — tránh TDZ loadInbox');
@@ -1011,8 +1012,9 @@ test('P11: inbox view extracted — loadInbox/saveInbox/renderInbox/schedule flo
   assert.match(mod, /return \{[\s\S]*loadInbox,[\s\S]*saveInbox,[\s\S]*renderInbox,[\s\S]*inboxTargetForDate,[\s\S]*scheduleInboxTask,[\s\S]*addInboxTask,[\s\S]*handleInboxAction,[\s\S]*\};/);
   assert.match(mod, /window\.Sync/);
   assert.match(mod, /module\.exports/);
-  // pushTaskToDate vẫn ở app.js (dùng chung Quick Add + Inbox)
-  assert.match(APP_JS, /^function pushTaskToDate\(/m);
+  // pushTaskToDate sang js/upcoming.js (extraction 36) — vẫn dùng chung Quick Add + Inbox qua alias
+  assert.doesNotMatch(APP_JS, /^function pushTaskToDate\(/m);
+  assert.match(readRequiredAsset('js/upcoming.js'), /function pushTaskToDate\(tk, dt\)/);
 });
 
 test('P11: chat helpers extracted — CHAT_RESPONSES/doChatSend/doChatSuggest/chatBotReply live in js/chat.js', () => {
@@ -1269,12 +1271,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=152/);
+  assert.match(APP, /js\/app\.min\.js\?v=153/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v171';/);
+  assert.match(SW, /const CACHE = 'taskflow-v172';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1570,6 +1572,37 @@ test('P11: month/week report UI extracted — R15 lives in js/report-ui.js', () 
   assert.match(mod, /return \{ monthlyReportData, renderReportModal, openReportModal, closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, openWeekReportModal, closeWeekReportModal, weekReportCardBlob, doShareWeekReport \}/);
 });
 
+test('P11: Upcoming view extracted — R25 lives in js/upcoming.js', () => {
+  // app.html loads upcoming.js before app.js
+  assert.match(APP, /src="js\/upcoming\.min\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const uIdx = APP.indexOf('js/upcoming.min.js?v=');
+  assert.ok(uIdx >= 0 && uIdx < appIdx, 'upcoming.js phải load trước app.js');
+  // sw.js precache upcoming.js
+  assert.ok(SW.includes("\'./js/upcoming.min.js\'"), 'sw.js phải precache js/upcoming.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowUpcoming\) throw new Error\('TaskFlowUpcoming missing/);
+  assert.match(APP_JS, /const \{ setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate \} = window\.TaskFlowUpcoming;/);
+  assert.doesNotMatch(APP_JS, /^function setUpcomingRange\(/m);
+  assert.doesNotMatch(APP_JS, /^function tasksForDate\(/m);
+  assert.doesNotMatch(APP_JS, /^function upcomingOverdueTasks\(/m);
+  assert.doesNotMatch(APP_JS, /^function upcomingCollect\(/m);
+  assert.doesNotMatch(APP_JS, /^function upcomingDayHeader\(/m);
+  assert.doesNotMatch(APP_JS, /^function upcomingTaskMeta\(/m);
+  assert.doesNotMatch(APP_JS, /^function upcomingTaskRowHTML\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderUpcoming\(/m);
+  assert.doesNotMatch(APP_JS, /^function pushTaskToDate\(/m);
+  // call-sites giữ nguyên: setView/refresh renderUpcoming + dispatcher upcoming-range
+  assert.match(APP_JS, /view === 'upcoming'/);
+  assert.match(APP_JS, /act === 'upcoming-range'/);
+  // inbox.js + quick-add.js gọi pushTaskToDate qua global lexical (alias giữ)
+  assert.match(readRequiredAsset('js/inbox.js'), /pushTaskToDate\(moved, dt\)/);
+  assert.match(readRequiredAsset('js/quick-add.js'), /pushTaskToDate\(tk, dt\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/upcoming.js');
+  assert.match(mod, /return \{ setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate \}/);
+});
+
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
   // app.html loads analytics.js before app.js
   assert.match(APP, /src="js\/analytics.min.js\?v=\d+"[^>]*>/);
@@ -1779,7 +1812,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v171';/);
+  assert.match(SW, /const CACHE = 'taskflow-v172';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1857,7 +1890,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v171';/);
+  assert.match(SW, /const CACHE = 'taskflow-v172';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2343,17 +2376,18 @@ test('Phase 2: Upcoming view — nav item, view section, range filter and cross-
   // 3. setView dispatch có nhánh upcoming
   assert.match(APP_JS, /view === 'upcoming'/);
   assert.match(APP_JS, /renderUpcoming\(\)/);
-  // 4. Range 7/14/30 + localStorage
-  assert.match(APP_JS, /let upcomingRange = 14;/);
-  assert.match(APP_JS, /UPCOMING_RANGE_KEY = 'planner-upcoming-range'/);
-  assert.match(APP_JS, /r === 7 \|\| r === 14 \|\| r === 30/);
+  // 4. Range 7/14/30 + localStorage (R25 sang js/upcoming.js — extraction 36)
+  const upcomingMod = readRequiredAsset('js/upcoming.js');
+  assert.match(upcomingMod, /let upcomingRange = 14;/);
+  assert.match(upcomingMod, /UPCOMING_RANGE_KEY = 'planner-upcoming-range'/);
+  assert.match(upcomingMod, /r === 7 \|\| r === 14 \|\| r === 30/);
   assert.match(APP_JS, /act === 'upcoming-range'/);
   // 5. Đọc task xuyên tháng: monthStateRaw không tạo state mới; task tháng khác mở drawer được
-  assert.match(APP_JS, /function tasksForDate\(dt\)/);
+  assert.match(upcomingMod, /function tasksForDate\(dt\)/);
   assert.match(APP_JS, /monthStateRaw\(y, m\)/);
-  assert.match(APP_JS, /function upcomingCollect\(\)/);
-  assert.match(APP_JS, /function upcomingTaskRowHTML\(r\)/);
-  assert.match(APP_JS, /function renderUpcoming\(\)/);
+  assert.match(upcomingMod, /function upcomingCollect\(\)/);
+  assert.match(upcomingMod, /function upcomingTaskRowHTML\(r\)/);
+  assert.match(upcomingMod, /function renderUpcoming\(\)/);
   assert.match(APP_JS, /taskDetailRef = \{ y: y === undefined \? PLAN_YEAR : y,/);
   assert.match(APP_JS, /openTaskDetail\(\+el\.dataset\.week, \+el\.dataset\.day, \+el\.dataset\.task,/);
   assert.match(APP_JS, /saveMonthState\(tY, tM, st\)/);
@@ -2453,8 +2487,8 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
   // 4. Nút Thêm công việc (shell-add-task) mở Quick Add — KHÔNG còn chuyển sang Week (lazy qua runLazyModule)
   assert.match(APP_JS, /act === 'shell-add-task'\).*runLazyModule\('js\/quick-add\.min\.js', \(\) => window\.TaskFlowQuickAdd\.openQuickAdd\(\)\)/s);
   assert.match(APP_JS, /if \(k === 'q'\)\s*\{\s*e\.preventDefault\(\);\s*runLazyModule\('js\/quick-add\.min\.js', \(\) => window\.TaskFlowQuickAdd\.openQuickAdd\(\)\)/s);
-  // 5. Dùng chung logic đặt task: pushTaskToDate (không duplicate) + inbox scope
-  assert.match(APP_JS, /function pushTaskToDate\(tk, dt\)/);
+  // 5. Dùng chung logic đặt task: pushTaskToDate (không duplicate, js/upcoming.js) + inbox scope
+  assert.match(readRequiredAsset('js/upcoming.js'), /function pushTaskToDate\(tk, dt\)/);
   assert.match(QA_JS, /tk\.inbox = true;/);
   assert.match(QA_JS, /renderCurrentView\(\);/);
   // 6. i18n keys đủ vi+en
