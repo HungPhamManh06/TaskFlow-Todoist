@@ -13,7 +13,7 @@ Giao diện pastel kawaii · **Offline-first** — dùng được không cần t
 [![Offline](https://img.shields.io/badge/Offline-Ready-7FAFD3?style=flat-square)]()
 [![MIT License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-**🚀taskflow-todoist.vercel.app
+**🚀 [taskflow-todoist.vercel.app](https://taskflow-todoist.vercel.app/)**
 
 </div>
 
@@ -45,7 +45,7 @@ Giao diện pastel kawaii · **Offline-first** — dùng được không cần t
 - 📝 **Nhật ký Reflection** — tổng kết điều làm tốt, bài học, lòng biết ơn, mục tiêu tiếp theo
 - 🎨 **4 chủ đề màu pastel** (kem, bạc hà, oải hương, đào) + chuyển đổi ngôn ngữ **VI/EN**
 
-Tất cả dữ liệu được lưu an toàn trong **localStorage** của trình duyệt — bạn không cần tài khoản, không cần internet, không lo lộ dữ liệu.
+Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **localStorage** của trình duyệt — không cần tài khoản, không cần internet, không lo lộ dữ liệu. Đăng nhập chỉ để bật **đồng bộ đám mây tùy chọn** (xem [Offline-first & Sync](#-offline-first--sync)).
 
 ---
 
@@ -202,7 +202,7 @@ App hỗ trợ **đồng bộ dữ liệu đa thiết bị qua backend riêng** 
 ### ⚙️ Cách kích hoạt (khoảng 15 phút)
 
 1. **Deploy backend** trên [render.com](https://render.com) → **New → Blueprint** → chọn repo này.
-   Render đọc [`server/render.yaml`](server/render.yaml) tự tạo **Postgres** + **Web Service** (chạy `server/`, không cần cấu hình gì thêm — chưa kịp cấu hình Google thì bỏ qua biến `GOOGLE_CLIENT_ID/SECRET`, app vẫn dùng username/password bình thường).
+   Render đọc [`render.yaml`](render.yaml) ở gốc repo tự tạo **Postgres** + **Web Service** (chạy `server/`, không cần cấu hình gì thêm — chưa kịp cấu hình Google thì bỏ qua biến `GOOGLE_CLIENT_ID/SECRET`, app vẫn dùng username/password bình thường).
 2. **Dán URL vào config**: mở [`js/api-config.js`](js/api-config.js), sửa:
    ```js
    const API_CONFIG = {
@@ -270,44 +270,49 @@ vercel --prod     # deploy production
 
 ```
 TaskFlow/
-├── index.html          # Trang giới thiệu (landing, SEO tĩnh, OG image, JSON-LD, EN/VI)
-├── app.html            # Trang ứng dụng chính (app shell, onboarding 3 bước, modal sync)
-├── og-preview.html     # Nguồn tạo og-image.png (1200×630) — mở + chụp màn hình
-├── og-image.png        # Ảnh chia sẻ Facebook/Zalo (og:image)
-├── app-screenshot.png  # Ảnh chụp app hiển thị trên landing
+├── index.html              # Trang giới thiệu (landing, SEO tĩnh, OG image, JSON-LD, EN/VI)
+├── app.html                # Trang ứng dụng chính (app shell, onboarding 3 bước, modal sync)
+├── privacy.html            # Chính sách bảo mật
+├── terms.html              # Điều khoản sử dụng
+├── data-and-security.html  # Dữ liệu & Bảo mật
+├── manifest.json           # PWA manifest (offline-first + đồng bộ đám mây tùy chọn)
+├── sw.js                   # Service Worker (cache app shell, nhắc việc hằng ngày)
+├── og-preview.html         # Nguồn tạo og-image.png (1200×630) — mở + chụp màn hình
+├── og-image.png            # Ảnh chia sẻ Facebook/Zalo (og:image)
+├── app-screenshot.png      # Ảnh chụp app hiển thị trên landing (1200×900)
+├── app-screenshot-mobile.png  # Ảnh chụp app mobile (PWA screenshot, 390×844)
+├── vercel.json             # Triển khai Vercel (clean URLs + security headers)
+├── render.yaml             # Blueprint Render (Postgres + Web Service backend)
+├── robots.txt · sitemap.xml
 ├── css/
-│   ├── tokens.css      # Design tokens (màu, spacing, font)
-│   ├── components.css  # Component dùng chung (button, input, toast, drawer, tooltip)
-│   ├── app-shell.css   # App shell: sidebar, topbar, mobile bottom nav, More sheet
-│   ├── styles.css      # Giao diện pastel kawaii app + 4 chủ đề màu + onboarding/empty states
-│   ├── legal.css       # Trang pháp lý (privacy/terms/data-and-security)
-│   └── landing.css     # Giao diện trang giới thiệu
-├── js/
-│   ├── app.js          # Logic ứng dụng chính (vanilla JS, không framework)
-│   ├── inbox.js        # Inbox view (add/save/schedule/render)
-│   ├── search.js       # Tìm kiếm (open/close/run/render/go-result)
-│   ├── quick-add.js    # Quick Add (submit/chunk/target-date)
-│   ├── mood.js         # Mood tracker
-│   ├── year-report.js  # Báo cáo năm
-│   ├── digest.js       # Weekly digest cache
-│   ├── remind-ui.js    # UI nhắc việc
-│   ├── chat.js         # Trợ lý chat
-│   ├── sync.js         # Engine đồng bộ backend (pull/push/migrate, offline-first)
-│   ├── deeplink.js     # Parse ?view= & ?m=YYYY-M (manifest shortcuts) — module nhỏ, có unit test
-│   ├── plan-math.js    # Tính toán thuần: % theo mục tiêu habit, streak, huy hiệu — có unit test
-│   └── api-config.js   # Điền URL backend tại đây (js/api-config.js)
-│   (mỗi module có bản .min.js do scripts/minify.py tạo)
-├── server/
-│   ├── index.js        # Backend Express (auth JWT + sync API)
-│   ├── auth.js         # Đăng ký/đăng nhập username/password + Google OAuth
-│   ├── sync.js         # API đọc/ghi dữ liệu (planner_state)
-│   ├── db.js           # Kết nối Postgres (hoặc pg-mem khi chạy local)
-│   ├── schema.sql      # Bảng users + planner_state
-│   ├── package.json    # Dependencies + npm start
-│   └── render.yaml     # Blueprint Render (Postgres + Web Service)
-├── scripts/
-│   └── ocr-image.py    # OCR ảnh: tự chọn Windows OCR (vi-VN) → easyocr (py -3.12 scripts/ocr-image.py <ảnh>)
-├── vercel.json         # Cấu hình triển khai Vercel
+│   ├── tokens.css          # Design tokens (màu, spacing, font)
+│   ├── components.css      # Component dùng chung (button, input, toast, drawer, tooltip)
+│   ├── app-shell.css       # App shell: sidebar, topbar, mobile bottom nav, More sheet
+│   ├── styles.css          # Giao diện pastel kawaii app + 4 chủ đề màu + empty states
+│   ├── legal.css           # Trang pháp lý
+│   └── landing.css         # Giao diện trang giới thiệu
+│   (mỗi file có bản .min.css do scripts/minify.py tạo)
+├── js/                     # Các module tách dần từ app.js (P11 refactor) — mỗi module có bản .min.js
+│   ├── app.js              # Logic ứng dụng chính (vanilla JS, không framework)
+│   ├── ui.js · util.js · keys.js · theme.js · i18n.js · dates.js · storage.js · stats.js
+│   ├── inbox.js · search.js · quick-add.js · mood.js · year-report.js
+│   ├── sync.js · syncui.js · account.js · api-config.js
+│   ├── goals.js · habits.js · streak.js · remind.js · remind-ui.js · digest.js · chat.js
+│   ├── clock.js · shell.js · fab.js · export.js · analytics.js · planmini.js
+│   └── plan-math.js · plan-stats.js · plan-carry.js · deeplink.js
+├── icons/                   # PWA icons (192/512/maskable) + logo/SVG sprite
+├── server/                  # Backend Express (auth JWT + sync API, Postgres / pg-mem local)
+│   ├── index.js · auth.js · sync.js · db.js · schema.sql · package.json
+├── scripts/                 # QA & build tooling
+│   ├── e2e-smoke.py         # Smoke test Playwright (nav, drawer, add task, export, overflow)
+│   ├── e2e-frontend.py      # E2E frontend suite (landing/overview/week/year/calendar/dialogs/focus)
+│   ├── minify.py            # Sinh .min.js/.min.css (terser + csso) — chạy --check trong CI
+│   ├── measure-lighthouse.py# Đo Lighthouse baseline (trước/sau khi tối ưu)
+│   ├── measure-perf.py      # Playwright measurement harness
+│   └── ocr-image.py         # OCR ảnh: tự chọn Windows OCR (vi-VN) → easyocr
+├── tests/                    # Unit tests (node --test): phase0..phase10 + phase9-frontend
+├── .github/workflows/ci.yml  # CI: syntax check, minify check, unit tests, E2E
+├── docs/                     # Lighthouse baseline + superpowers plans/specs
 ├── README.md
 └── .gitignore
 ```
@@ -347,7 +352,6 @@ TaskFlow/
 - [x] **Empty states** có hướng dẫn cho từng panel (mục tiêu, thói quen)
 - [x] **Share streak 🔥** — ảnh card 1080×1080 (tên + streak + heatmap) tải về / chia sẻ native
 - [x] **Feedback FAB** 💬 — Google Form (`FB_FORM_URL`) + email (`FB_EMAIL`) + event GA4
-- [x] **Đăng ký/đăng nhập email đã chạy** — lỗi hiện đúng thông báo của server; cần xác nhận email (hoặc bật Anonymous)
 
 ---
 
