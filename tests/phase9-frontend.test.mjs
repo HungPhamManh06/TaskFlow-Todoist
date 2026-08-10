@@ -817,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=149/);
-  assert.match(SW, /const CACHE = 'taskflow-v168';/);
+  assert.match(APP, /js\/app\.min\.js\?v=150/);
+  assert.match(SW, /const CACHE = 'taskflow-v169';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1268,12 +1268,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=149/);
+  assert.match(APP, /js\/app\.min\.js\?v=150/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v168';/);
+  assert.match(SW, /const CACHE = 'taskflow-v169';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1475,6 +1475,37 @@ test('P11: XP + render helpers extracted — R11 lives in js/xp.js', () => {
   assert.match(mod, /return \{ loadXP, saveXP, xpLevelInfo, addXP, removeXP, renderXP, habitPct, dayPct, donutSVG, checkboxHTML \}/);
 });
 
+test('P11: streak/heatmap UI extracted — R14 lives in js/streak-ui.js', () => {
+  // app.html loads streak-ui.js before app.js
+  assert.match(APP, /src="js\/streak-ui\.min\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const sIdx = APP.indexOf('js/streak-ui.min.js?v=');
+  assert.ok(sIdx >= 0 && sIdx < appIdx, 'streak-ui.js phải load trước app.js');
+  // sw.js precache streak-ui.js
+  assert.ok(SW.includes("\'./js/streak-ui.min.js\'"), 'sw.js phải precache js/streak-ui.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowStreakUI\) throw new Error\('TaskFlowStreakUI missing/);
+  assert.match(APP_JS, /const \{ weekHabitPct, weekCompareHTML, dayAggregateAt, heatHeroHTML, heatRibbonHTML, habitMiniHTML, habitHeatCardHTML, shareTopInfo, canvasCircle, streakCardBlob, doShareStreak \} = window\.TaskFlowStreakUI;/);
+  assert.doesNotMatch(APP_JS, /^function weekHabitPct\(/m);
+  assert.doesNotMatch(APP_JS, /^function weekCompareHTML\(/m);
+  assert.doesNotMatch(APP_JS, /^function dayAggregateAt\(/m);
+  assert.doesNotMatch(APP_JS, /^function heatHeroHTML\(/m);
+  assert.doesNotMatch(APP_JS, /^function heatRibbonHTML\(/m);
+  assert.doesNotMatch(APP_JS, /^function habitMiniHTML\(/m);
+  assert.doesNotMatch(APP_JS, /^function habitHeatCardHTML\(/m);
+  assert.doesNotMatch(APP_JS, /^function shareTopInfo\(/m);
+  assert.doesNotMatch(APP_JS, /^function canvasCircle\(/m);
+  assert.doesNotMatch(APP_JS, /^function streakCardBlob\(/m);
+  assert.doesNotMatch(APP_JS, /^function doShareStreak\(/m);
+  // call-sites giữ nguyên: widget def streak-heatmap, share-streak dispatcher, ribbon refresh
+  assert.match(APP_JS, /'streak-heatmap'/);
+  assert.match(APP_JS, /act === 'share-streak'/);
+  assert.match(APP_JS, /wcEl\.outerHTML = weekCompareHTML\(\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/streak-ui.js');
+  assert.match(mod, /return \{ weekHabitPct, weekCompareHTML, dayAggregateAt, heatHeroHTML, heatRibbonHTML, habitMiniHTML, habitHeatCardHTML, shareTopInfo, canvasCircle, streakCardBlob, doShareStreak \}/);
+});
+
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
   // app.html loads analytics.js before app.js
   assert.match(APP, /src="js\/analytics.min.js\?v=\d+"[^>]*>/);
@@ -1561,8 +1592,9 @@ test('P11: habit streak helpers extracted — streak core lives in js/streak.js'
   // call-sites giữ nguyên: nhận PLAN_YEAR/PLAN_MONTH/NUM_DAYS tham số
   assert.match(APP_JS, /habitStreakCached\(h, PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
   assert.match(APP_JS, /habitStreakCached\(habit, PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
-  assert.match(APP_JS, /streakAnchorDay\(PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
-  assert.match(APP_JS, /habitDaysAt\(y, m, h, PLAN_YEAR, PLAN_MONTH\)/);
+  // callers streakAnchorDay(PLAN_YEAR,...)/habitDaysAt(y, m, h,...) đã sang js/streak-ui.js
+  assert.match(readRequiredAsset('js/streak-ui.js'), /streakAnchorDay\(PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
+  assert.match(readRequiredAsset('js/streak-ui.js'), /habitDaysAt\(y, m, h, PLAN_YEAR, PLAN_MONTH\)/);
   assert.doesNotMatch(APP_JS, /streakAnchorDay\(\)/);
   // module export đủ API + hmStreakCache nội bộ
   const mod = readRequiredAsset('js/streak.js');
@@ -1683,7 +1715,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v168';/);
+  assert.match(SW, /const CACHE = 'taskflow-v169';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1761,7 +1793,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v168';/);
+  assert.match(SW, /const CACHE = 'taskflow-v169';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',

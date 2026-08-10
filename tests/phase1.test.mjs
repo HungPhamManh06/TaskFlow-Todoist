@@ -169,7 +169,8 @@ test('Task4: nút prevyear/nextyear trong app.html', () => {
 
 test('Task5: modal reportModal + nút report', () => {
   assert.match(APP_HTML, /id="reportModal"/);
-  assert.match(APP_JS, /data-action="report"/);
+  // Nút report trong card streak/heatmap đã sang js/streak-ui.js (extraction 33)
+  assert.match(readFileSync(path.join(ROOT, 'js/streak-ui.js'), 'utf8'), /data-action="report"/);
 });
 
 test('Task5: hàm monthlyReportData + reportCardBlob + sự kiện share_report', () => {
