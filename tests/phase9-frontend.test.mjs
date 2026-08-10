@@ -814,8 +814,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=145/);
-  assert.match(SW, /const CACHE = 'taskflow-v164';/);
+  assert.match(APP, /js\/app\.min\.js\?v=146/);
+  assert.match(SW, /const CACHE = 'taskflow-v165';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1265,12 +1265,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=145/);
+  assert.match(APP, /js\/app\.min\.js\?v=146/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v164';/);
+  assert.match(SW, /const CACHE = 'taskflow-v165';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1521,14 +1521,36 @@ test('P11: month goal helpers extracted — monthPctOf/monthGoalsOf live in js/g
   assert.match(APP_JS, /monthPctOf\(PLAN_YEAR, m, defaultMonthPct\)/);
   assert.match(APP_JS, /monthGoalsOf\(PLAN_YEAR, m, GOAL_DEFS\)/);
   assert.match(APP_JS, /monthGoalsOf\(y, m, GOAL_DEFS\)/);
-  // defaultMonthPct + GOAL_DEFS vẫn sống trong app.js
+  // defaultMonthPct vẫn sống trong app.js; GOAL_DEFS đã sang js/config.js (extraction 29)
   assert.match(APP_JS, /^function defaultMonthPct\(/m);
-  assert.match(APP_JS, /^const GOAL_DEFS = /m);
+  assert.doesNotMatch(APP_JS, /^const GOAL_DEFS = /m);
+  assert.match(readRequiredAsset('js/config.js'), /const GOAL_DEFS = \[/);
   // module export đủ API + hasAccount access qua TaskFlowAccount
   const mod = readRequiredAsset('js/goals.js');
   assert.match(mod, /return \{ monthPctOf, monthGoalsOf \}/);
   assert.match(mod, /TaskFlowAccount/);
   assert.match(mod, /localStorage\.getItem\('planner-' \+ y \+ '-' \+ \(m \+ 1\)\)/);
+});
+
+test('P11: config constants extracted — seed data lives in js/config.js (extraction 29)', () => {
+  // app.html loads config.js before app.js
+  assert.match(APP, /src="js\/config.min.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const cIdx = APP.indexOf('js/config.min.js?v=');
+  assert.ok(cIdx >= 0 && cIdx < appIdx, 'config.js phải load trước app.js');
+  // sw.js precache config.js
+  assert.ok(SW.includes("\'./js/config.min.js\'"), 'sw.js phải precache js/config.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowConfig\) throw new Error\('TaskFlowConfig missing/);
+  assert.match(APP_JS, /const \{ HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK \} = window\.TaskFlowConfig;/);
+  assert.doesNotMatch(APP_JS, /^const HABIT_DEFS = /m);
+  assert.doesNotMatch(APP_JS, /^const WEEK_PATTERNS = /m);
+  assert.doesNotMatch(APP_JS, /^const DAYS = /m);
+  // module export đủ API
+  const mod = readRequiredAsset('js/config.js');
+  assert.match(mod, /const HABIT_DEFS = \[/);
+  assert.match(mod, /const WEEK_PATTERNS = \[/);
+  assert.match(mod, /return \{ HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK \}/);
 });
 
 test('P11: FAB drag/tuck helpers extracted — FAB core lives in js/fab.js', () => {
@@ -1594,7 +1616,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v164';/);
+  assert.match(SW, /const CACHE = 'taskflow-v165';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1672,7 +1694,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v164';/);
+  assert.match(SW, /const CACHE = 'taskflow-v165';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',

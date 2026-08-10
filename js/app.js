@@ -26,94 +26,11 @@ function runLazyModule(url, fn) {
   });
 }
 
-/* ============================ Dữ liệu ============================ */
-
-const DAYS = [
-  { name: 'Monday',    icon: '🍐' },
-  { name: 'Tuesday',   icon: '🍎' },
-  { name: 'Wednesday', icon: '🍐' },
-  { name: 'Thursday',  icon: '🍊' },
-  { name: 'Friday',    icon: '🍋' },
-  { name: 'Saturday',  icon: '🍉' },
-  { name: 'Sunday',    icon: '🍇' },
-];
-
-const HABIT_DEFS = [
-  ['Dậy lúc 5H sáng', 100],
-  ['1H đọc sách', 100],
-  ['Viết 1000 chữ', 100],
-  ['Workout', 87],
-  ['Thiền 1H', 100],
-  ['Viết nhật ký', 100],
-  ['Học Tiếng Anh', 77],
-  ['Học Tiếng Trung', 42],
-  ['Chạy bộ', 74],
-  ['Uống đủ nước', 77],
-];
-
-const GOAL_DEFS = [
-  ['Hoàn thành 4 video youtube', 'priority', true],
-  ['Hoàn thành 21 video ngắn', 'priority', true],
-  ['Học xong khóa luyện phát âm TA', 'priority', true],
-  ['Đọc 4 cuốn sách', 'priority', true],
-  ['Tiết kiệm được 20 triệu', 'priority', true],
-  ['Hoàn thành báo cáo công việc', 'priority', true],
-  ['Thói quen viết đạt 100%', 'regular', true],
-  ['Thói quen dậy sớm đạt 100%', 'regular', true],
-  ['Gọi điện về nhà 4 lần', 'regular', true],
-  ['Đi xem phim 1 lần', 'regular', false],
-];
-
-const WEEK_PATTERNS = [
-  {
-    pcts: [100, 60, 100, 60, 60, 60, 0],
-    goals: [
-      ['Đọc xong 2 cuốn sách', 'priority', true],
-      ['Chạy bộ 3 buổi', 'priority', true],
-    ],
-  },
-  {
-    pcts: [100, 100, 60, 60, 60, 100, 0],
-    goals: [
-      ['Hoàn thành 4 video youtube', 'priority', true],
-      ['Học 1H tiếng Anh mỗi ngày', 'priority', true],
-      ['Đi xem phim 1 lần', 'regular', false],
-    ],
-  },
-  {
-    pcts: [60, 0, 100, 60, 0, 60, 0],
-    stickyDay: 2,
-    stickyText: '📌 Nhớ chốt số liệu cuối tuần!',
-    goals: [
-      ['Workout 4 buổi', 'priority', true],
-      ['Gọi điện về nhà', 'regular', false],
-    ],
-  },
-  {
-    pcts: [60, 100, 60, 0, 60, 0, 100],
-    goals: [
-      ['Tiết kiệm được 5 triệu', 'priority', true],
-      ['Đọc 1 cuốn sách', 'regular', false],
-    ],
-  },
-  {
-    pcts: [100, 100, 100, 100, 100, 100, 100],
-    goals: [
-      ['Viết 1000 chữ mỗi ngày', 'priority', true],
-      ['Thiền mỗi sáng', 'priority', true],
-    ],
-  },
-  {
-    pcts: [0, 0, 0, 0, 0, 0, 0],
-    goals: [
-      ['Hoàn thành khóa phát âm', 'priority', false],
-      ['Chạy bộ 3 buổi', 'regular', false],
-    ],
-  },
-];
-
-const REFLECT_PROMPTS_MONTH = () => [t('rm0'), t('rm1'), t('rm2'), t('rm3')];
-const REFLECT_PROMPTS_WEEK = () => [t('rm0'), t('rm1'), t('rm2'), t('rw3')];
+// HABIT_DEFS/GOAL_DEFS/WEEK_PATTERNS/REFLECT_PROMPTS_MONTH/REFLECT_PROMPTS_WEEK được
+// tách sang js/config.js (window.TaskFlowConfig) — P11 extraction 29. DAYS là dead
+// code (day names thuộc js/i18n.js) — xoá luôn. Giữ alias để call-sites không đổi.
+if (!window.TaskFlowConfig) throw new Error('TaskFlowConfig missing — js/config.js failed to load');
+const { HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK } = window.TaskFlowConfig;
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const LEGACY_KEY = 'january-planner-2026';
