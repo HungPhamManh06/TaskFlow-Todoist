@@ -17,19 +17,40 @@ Giao diện pastel kawaii · **Offline-first** — dùng được không cần t
 
 </div>
 
-**TaskFlow là personal productivity system offline-first** — một nơi duy nhất cho việc lập kế hoạch và điều hành hằng ngày:
+**TaskFlow là hệ thống quản lý năng suất cá nhân offline-first** — một nơi duy nhất cho việc lập kế hoạch và điều hành hằng ngày.
 
-- 🗓️ **Today** — việc cần làm hôm nay: tiến độ, thói quen, Focus
+> TaskFlow is an offline-first personal productivity system that connects long-term goals with weekly planning, daily tasks, habits and focused work.
+
+---
+
+## ✨ Tính năng chính (Core Features)
+
+- 🗓️ **Today Dashboard** — việc cần làm hôm nay: task, tiến độ, thói quen, Focus
 - 📥 **Inbox** — bắt nhanh mọi ý tưởng, lên lịch sau
-- 🔭 **Upcoming** — nhìn trước công việc những ngày tới
-- 📅 **Week · Month · Year** — kế hoạch tuần, tổng quan tháng, mục tiêu năm
-- ✅ **Tasks** — ưu tiên, subtask, lặp lại, nhắc việc
-- 🔁 **Habits** — streak & heatmap
-- 🍅 **Focus / Pomodoro**
-- 📊 **Calendar & Reports** — lịch, báo cáo tháng/tuần/năm
-- 🔍 **Search** + 📤 **Import/Export** (JSON · CSV · ICS)
+- 🔭 **Upcoming** — nhìn trước công việc những ngày tới (hôm nay / sắp tới / quá hạn)
+- ➕ **Quick Add** — thêm task nhanh từ mọi nơi (phím tắt, nút +)
+- 📋 **Task Detail** — deadline · giờ · thời lượng · ưu tiên · lặp lại · tags · ghi chú · subtasks · nhắc việc
+- 📅 **Week planning** — 7 ngày, task + ghi chú + mục tiêu tuần + Pomodoro
+- 📊 **Month planning** — mục tiêu tháng, habit tracker 31 ngày, reflection
+- 🎯 **Year goals** — mục tiêu năm, biểu đồ quý/tháng, line chart 12 tháng
+- 🗓️ **Calendar** — lịch task & focus theo ngày
+- 🔁 **Habit tracking** — streak 🔥 & heatmap kiểu GitHub, mục tiêu habit riêng
+- 🍅 **Focus / Pomodoro** — timer 25/5, thống kê phiên, chế độ tập trung
+- 📈 **Reports** — báo cáo tháng/tuần/năm, huy hiệu, chia sẻ ảnh 1080×1080
+- 🔍 **Search** — tìm kiếm xuyên tháng (`Ctrl+K`)
+- 📤 **Import / Export / Backup** — JSON · CSV · ICS, sao lưu tự động 7 bản
 - 📲 **PWA** — cài như app thật, chạy offline-first
 - ☁️ **Optional cloud sync** — đăng nhập để đồng bộ đa thiết bị
+- 🌙 **Dark mode** + 4 chủ đề màu pastel (kem · bạc hà · oải hương · đào)
+- 🌐 **Tiếng Việt / English**
+
+---
+
+## 📸 Ảnh chụp màn hình
+
+| Tổng quan tháng (Overview) — desktop | Today — mobile |
+|---|---|
+| ![TaskFlow desktop](app-screenshot.png) | ![TaskFlow mobile](app-screenshot-mobile.png) |
 
 ---
 
@@ -43,13 +64,13 @@ Giao diện pastel kawaii · **Offline-first** — dùng được không cần t
 - 🔥 **Streak & heatmap đa tháng** — chuỗi ngày liên tiếp kiểu GitHub, tính xuyên qua ranh giới tháng
 - ✅ **Checklist công việc** hằng ngày theo nhóm ưu tiên (Priority) và thường (Regular)
 - 📝 **Nhật ký Reflection** — tổng kết điều làm tốt, bài học, lòng biết ơn, mục tiêu tiếp theo
-- 🎨 **4 chủ đề màu pastel** (kem, bạc hà, oải hương, đào) + chuyển đổi ngôn ngữ **VI/EN**
+- 🎨 **4 chủ đề màu pastel** (kem, bạc hà, oải hương, đào) + **Dark mode** + chuyển đổi ngôn ngữ **VI/EN**
 
 Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **localStorage** của trình duyệt — không cần tài khoản, không cần internet, không lo lộ dữ liệu. Đăng nhập chỉ để bật **đồng bộ đám mây tùy chọn** (xem [Offline-first & Sync](#-offline-first--sync)).
 
 ---
 
-## ✨ Tính năng chính
+## 📚 Chi tiết tính năng
 
 ### 📅 Tổng quan tháng
 - Thẻ thông tin tháng/năm/tuần hiện tại + đồng hồ thời gian thực
@@ -90,7 +111,7 @@ Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **l
 - 📍 **Nút "Hôm nay"** — quay về tuần/tháng hiện tại ngay lập tức
 - 🧭 **Điều hướng bàn phím** trên tab (mũi tên / Home / End)
 - 🔄 **Nút "Quay lại tháng này"** khi bạn xem tháng khác
-- 🎨 **4 chủ đề màu** lưu lựa chọn + toggle ngôn ngữ **VI/EN**
+- 🎨 **4 chủ đề màu** + **Dark mode** lưu lựa chọn + toggle ngôn ngữ **VI/EN**
 - ♿ Hỗ trợ **aria-label**, `role=checkbox`, điều hướng bằng Tab
 - 📱 **Responsive** trên mobile, tablet và desktop
 
@@ -182,6 +203,16 @@ Mở trình duyệt tại `http://localhost:8080`.
 ## 🧊 Offline-first & Sync
 
 TaskFlow hoạt động **offline-first / local-first**:
+
+```
+Chưa đăng nhập:                Đã đăng nhập (cloud sync tùy chọn):
+
+  Browser                         Browser
+     │                                ↕
+     ▼                           TaskFlow API
+  Local storage                      ↕
+                                 Database
+```
 
 - **Không đăng nhập** → toàn bộ dữ liệu nằm ngay trong trình duyệt (localStorage). Mở app là dùng được, kể cả khi mất mạng.
 - **Đăng nhập** → **đồng bộ đám mây là tùy chọn**: dữ liệu được đồng bộ qua backend để dùng trên nhiều thiết bị.
@@ -360,7 +391,17 @@ TaskFlow/
 - Không đăng nhập → dữ liệu chỉ nằm trong trình duyệt của bạn.
 - Đăng nhập → đồng bộ đám mây tùy chọn; chi tiết ở các trang pháp lý:
 
-[Chính sách bảo mật](/privacy) · [Điều khoản sử dụng](/terms) · [Dữ liệu & Bảo mật](/data-and-security)
+[Chính sách bảo mật](https://taskflow-todoist.vercel.app/privacy) · [Điều khoản sử dụng](https://taskflow-todoist.vercel.app/terms) · [Dữ liệu & Bảo mật](https://taskflow-todoist.vercel.app/data-and-security)
+
+---
+
+## 👨‍💻 Dành cho nhà phát triển
+
+- 📍 **Bản đồ trách nhiệm `app.js`** — [`docs/appjs-responsibility-map.md`](docs/appjs-responsibility-map.md): 32 vùng trách nhiệm, phân loại rủi ro (LOW/MEDIUM/HIGH) và thứ tự đề xuất để tách module.
+- 🧪 **Unit tests** — `node --test tests/*.test.mjs`
+- 🌐 **E2E** — `python scripts/e2e-smoke.py --browser chromium|firefox|webkit` (smoke) · `python scripts/e2e-frontend.py --all` (full suite)
+- ⚙️ **Build** — `python scripts/minify.py` (tạo `.min.js`/`.min.css`, chạy `--check` trong CI)
+- 📊 **Lighthouse** — `python scripts/measure-lighthouse.py` (baseline trong `docs/lighthouse/`)
 
 ---
 
