@@ -43,7 +43,36 @@ jobs:
       - name: Server security test (JWT fail-fast, CORS allowlist, headers, rate limit)
         run: node test-server-security.js
 
-  e2e:
+  # Critical smoke suite runs on all three engines (P1.2). The suite is
+  # deterministic across engines: it emulates prefers-reduced-motion (the app
+  # honors it) so smooth-scroll timing can't race clicks, and measures geometry
+  # in single evaluates. fail-fast: false so one engine's failure doesn't mask
+  # the others' results.
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Playwright engine (${{ matrix.browser }})
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps ${{ matrix.browser }}
+
+      - name: "E2E smoke (${{ matrix.browser }}: load → toggle habit → switch view → export)"
+        run: python scripts/e2e-smoke.py --browser ${{ matrix.browser }}
+
+  # Full frontend suite stays Chromium-only (11 scenarios × 5 viewports); the
+  # cross-engine coverage lives in the smoke matrix above.
+  e2e-frontend:
     runs-on: ubuntu-latest
     needs: test
     steps:
@@ -53,13 +82,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Playwright (Python)
+      - name: Install Playwright (Python, Chromium)
         run: |
           pip install playwright
           python -m playwright install --with-deps chromium
-
-      - name: E2E smoke (load → toggle habit → switch view → export)
-        run: python scripts/e2e-smoke.py
 
       - name: E2E frontend suite (landing/overview/week/year/calendar/dialogs/focus × desktop/tablet/mobile)
         run: python scripts/e2e-frontend.py --all
