@@ -734,8 +734,9 @@ test('gamification XP, smart repeat carry-over and .ics export are wired end-to-
   assert.match(APP_JS, /function syncCarriedDone/);
   assert.match(APP_JS, /uid: newTaskUid\(\), kind/);
   // Export .ics
-  assert.match(APP_JS, /function exportICS/);
-  assert.match(APP_JS, /BEGIN:VCALENDAR/);
+  const icsMod = readRequiredAsset('js/export.js');
+  assert.match(icsMod, /function exportICS/);
+  assert.match(icsMod, /BEGIN:VCALENDAR/);
   assert.match(APP_JS, /act === 'export-ics'/);
   assert.match(APP, /data-action="export-ics"/);
 });
@@ -814,8 +815,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=146/);
-  assert.match(SW, /const CACHE = 'taskflow-v165';/);
+  assert.match(APP, /js\/app\.min\.js\?v=147/);
+  assert.match(SW, /const CACHE = 'taskflow-v166';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1265,12 +1266,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=146/);
+  assert.match(APP, /js\/app\.min\.js\?v=147/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v165';/);
+  assert.match(SW, /const CACHE = 'taskflow-v166';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1452,22 +1453,28 @@ test('P11: export helpers extracted — downloadFile/collectAllData/exportJSON l
   assert.ok(SW.includes("\'./js/export.min.js\'"), 'sw.js phải precache js/export.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowExport\) throw new Error\('TaskFlowExport missing/);
-  assert.match(APP_JS, /const \{ downloadFile, collectAllData, exportJSON \} = window\.TaskFlowExport;/);
+  assert.match(APP_JS, /const \{ downloadFile, collectAllData, exportJSON, exportCSV, exportICS \} = window\.TaskFlowExport;/);
   assert.doesNotMatch(APP_JS, /^function collectAllData\(/m);
   assert.doesNotMatch(APP_JS, /^function downloadFile\(/m);
   assert.doesNotMatch(APP_JS, /^function exportJSON\(/m);
+  assert.doesNotMatch(APP_JS, /^function exportCSV\(/m);
+  assert.doesNotMatch(APP_JS, /^function exportICS\(/m);
+  assert.doesNotMatch(APP_JS, /^function legacyCSVRows\(/m);
+  assert.doesNotMatch(APP_JS, /^function csvRow\(/m);
   // call-sites giữ nguyên: collectAllData(LEGACY_KEY)/exportJSON(LEGACY_KEY), downloadFile giữ signature
   assert.match(APP_JS, /rotateBackup\(collectAllData\(LEGACY_KEY\)\)/);
   assert.match(APP_JS, /exportJSON\(LEGACY_KEY\)/);
   assert.doesNotMatch(APP_JS, /collectAllData\(\)/);
   assert.doesNotMatch(APP_JS, /exportJSON\(\)/);
-  // exportCSV/legacyCSVRows/csvRow ở lại app.js (phụ thuộc nhiều global)
-  assert.match(APP_JS, /function exportCSV\(/);
-  assert.match(APP_JS, /function legacyCSVRows\(/);
-  assert.match(APP_JS, /function csvRow\(/);
-  // module export đủ API + trackEvent qua TaskFlowAnalytics
+  // exportCSV/legacyCSVRows/csvRow/ics* giờ nằm trong js/export.js (R8 extraction 30)
   const mod = readRequiredAsset('js/export.js');
-  assert.match(mod, /return \{ downloadFile, collectAllData, exportJSON \}/);
+  assert.match(mod, /function exportCSV\(/);
+  assert.match(mod, /function legacyCSVRows\(/);
+  assert.match(mod, /function csvRow\(/);
+  assert.match(mod, /function icsEscape\(/);
+  assert.match(mod, /function icsDayFromDay\(/);
+  // module export đủ API + trackEvent qua TaskFlowAnalytics
+  assert.match(mod, /return \{ downloadFile, collectAllData, exportJSON, exportCSV, exportICS \}/);
   assert.match(mod, /TaskFlowAnalytics/);
 });
 
@@ -1616,7 +1623,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v165';/);
+  assert.match(SW, /const CACHE = 'taskflow-v166';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1694,7 +1701,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v165';/);
+  assert.match(SW, /const CACHE = 'taskflow-v166';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
