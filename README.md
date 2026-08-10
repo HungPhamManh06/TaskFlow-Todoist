@@ -2,9 +2,9 @@
 
 # 🐥 TaskFlow
 
-**Ứng dụng lập kế hoạch cá nhân miễn phí — Quản lý mục tiêu năm · tháng · tuần, theo dõi thói quen, streak & heatmap, nhật ký reflection**
+**Ứng dụng lập kế hoạch cá nhân miễn phí — Today · Inbox · Upcoming · Mục tiêu năm/tháng/tuần · Thói quen & streak · Focus/Pomodoro · Lịch · Báo cáo**
 
-Giao diện pastel kawaii · Hoạt động **100% offline** · Dữ liệu lưu ngay trên trình duyệt (localStorage) · Không cần tài khoản · Hỗ trợ **tiếng Việt & tiếng Anh**
+Giao diện pastel kawaii · **Offline-first** — dùng được không cần tài khoản, dữ liệu lưu trên trình duyệt (localStorage) · **Đồng bộ đám mây tùy chọn** khi đăng nhập · Hỗ trợ **tiếng Việt & tiếng Anh**
 
 [![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
 [![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS)
@@ -16,6 +16,20 @@ Giao diện pastel kawaii · Hoạt động **100% offline** · Dữ liệu lưu
 **🚀taskflow-todoist.vercel.app
 
 </div>
+
+**TaskFlow là personal productivity system offline-first** — một nơi duy nhất cho việc lập kế hoạch và điều hành hằng ngày:
+
+- 🗓️ **Today** — việc cần làm hôm nay: tiến độ, thói quen, Focus
+- 📥 **Inbox** — bắt nhanh mọi ý tưởng, lên lịch sau
+- 🔭 **Upcoming** — nhìn trước công việc những ngày tới
+- 📅 **Week · Month · Year** — kế hoạch tuần, tổng quan tháng, mục tiêu năm
+- ✅ **Tasks** — ưu tiên, subtask, lặp lại, nhắc việc
+- 🔁 **Habits** — streak & heatmap
+- 🍅 **Focus / Pomodoro**
+- 📊 **Calendar & Reports** — lịch, báo cáo tháng/tuần/năm
+- 🔍 **Search** + 📤 **Import/Export** (JSON · CSV · ICS)
+- 📲 **PWA** — cài như app thật, chạy offline-first
+- ☁️ **Optional cloud sync** — đăng nhập để đồng bộ đa thiết bị
 
 ---
 
@@ -94,7 +108,7 @@ Tất cả dữ liệu được lưu an toàn trong **localStorage** của trìn
 - **Thống kê session**: số phiên + tổng phút hôm nay và tuần này (key `planner-pomo-log`, tự đồng bộ đám mây)
 
 ### 📦 PWA — cài đặt như app thật
-- 📲 **Cài đặt offline**: mở trang → chọn "Cài đặt ứng dụng" (Chrome/Edge) — app chạy ngoài cửa sổ trình duyệt, **hoạt động offline 100%**
+- 📲 **Cài đặt offline**: mở trang → chọn "Cài đặt ứng dụng" (Chrome/Edge) — app chạy ngoài cửa sổ trình duyệt, **hoạt động offline-first** (vẫn dùng được khi mất mạng)
 - 🔔 **Nhắc việc hằng ngày**: bật nút 🔔 trong header, chọn giờ — trình duyệt nhắc điểm danh thói quen mỗi ngày (kể cả khi app đã đóng, nhờ Periodic Background Sync)
 - 🔔 **Nhắc việc theo habit/task**: mỗi thói quen & task có giờ nhắc riêng (nút 🔔 cạnh tên) — chính xác khi app mở
 - 🖼️ Icon pastel kawaii đầy đủ kích thước (192/512/maskable) cho Android & iOS
@@ -142,7 +156,7 @@ Tất cả dữ liệu được lưu an toàn trong **localStorage** của trìn
 - App tự ghi bản tóm tắt hôm qua (thói quen bỏ lỡ, mục tiêu hôm nay) vào cache — nhắc hằng ngày của trình duyệt hiển thị **số liệu thực tế** thay vì câu mặc định
 
 ### 📈 Analytics (GA4)
-- Theo dõi **lượt truy cập, người dùng quay lại, tạo mục tiêu/thói quen/task, cài đặt PWA** — cấu hình Measurement ID trong `js/app.js`
+- Theo dõi **lượt truy cập, người dùng quay lại, tạo mục tiêu/thói quen/task, cài đặt PWA** — cấu hình Measurement ID trong `js/analytics.js`
 
 ---
 
@@ -162,6 +176,16 @@ npx serve .
 Mở trình duyệt tại `http://localhost:8080`.
 
 > ⚠️ Lưu ý: dữ liệu lưu trong localStorage **theo từng trình duyệt** — dùng đúng một trình duyệt để giữ dữ liệu liên tục.
+
+---
+
+## 🧊 Offline-first & Sync
+
+TaskFlow hoạt động **offline-first / local-first**:
+
+- **Không đăng nhập** → toàn bộ dữ liệu nằm ngay trong trình duyệt (localStorage). Mở app là dùng được, kể cả khi mất mạng.
+- **Đăng nhập** → **đồng bộ đám mây là tùy chọn**: dữ liệu được đồng bộ qua backend để dùng trên nhiều thiết bị.
+- Cloud sync **không phải yêu cầu bắt buộc** — TaskFlow dùng tốt hoàn toàn local, không cần tài khoản.
 
 ---
 
@@ -207,7 +231,7 @@ node test-sync.js   # 6 test: no-config, signup+migrate, login lỗi/đúng, pus
 
 - 🔥 **Share streak**: nút *Chia sẻ streak 🔥* trên thẻ thói quen tạo ảnh card 1080×1080 (tên + số ngày liên tiếp + heatmap 16 tuần) tải về làm story — mỗi bài share là một kênh marketing miễn phí. Trên điện thoại hỗ trợ **Web Share API** (chia sẻ ảnh thẳng vào app khác).
 - 💬 **Feedback FAB**: nút 💬 góc phải dưới mở popup Góp ý — nối **Google Form** qua `FB_FORM_URL` và email qua `FB_EMAIL` (khai báo đầu file `js/app.js`). Mọi phản hồi đều theo dõi bằng event `feedback_click` (GA4).
-- 📊 **Iterate theo analytics**: điền `GA4_ID` (đầu `js/app.js` — hiện đang placeholder `G-XXXXXXXXXX`) để bắt đầu đo. Các event sẵn sàng: `first_visit`, `return_visit`, `create_goal`, `create_habit`, `create_task`, `share_streak` (kèm số ngày + kênh: native/fallback/download), `feedback_click`, `onboarding_*`, `export_*`, `print`, `reminder_*`.
+- 📊 **Iterate theo analytics**: điền `GA4_ID` (đầu `js/analytics.js` — hiện đang placeholder `G-XXXXXXXXXX`) để bắt đầu đo. Các event sẵn sàng: `first_visit`, `return_visit`, `create_goal`, `create_habit`, `create_task`, `share_streak` (kèm số ngày + kênh: native/fallback/download), `feedback_click`, `onboarding_*`, `export_*`, `print`, `reminder_*`.
   - Mẹo iterate: xem GA4 → *Reports → Engagement → Events* — kênh nào (landing → app, share story, bạn bè giới thiệu) đem traffic về, đổ thêm công sức vào kênh đó.
 
 ---
@@ -237,7 +261,7 @@ vercel --prod     # deploy production
 ## 📈 Kích hoạt Analytics & Góp ý
 
 1. Tạo GA4 property tại [analytics.google.com](https://analytics.google.com) → lấy Measurement ID dạng `G-XXXXXXX`
-2. Điền vào `js/app.js` đầu file: `GA4_ID` (analytics), `FB_FORM_URL` (link Google Form góp ý), `FB_EMAIL` (email nhận góp ý)
+2. Điền vào `js/analytics.js` (`GA4_ID`) và `js/app.js` (`FB_FORM_URL`, `FB_EMAIL`):
 3. Mỗi hành động quan trọng đã có sẵn event GA4 (`create_goal`, `share_streak`, `pwa_install`, `pwa_prompt`, ...) — xem ở Reports → Engagement → Events
 
 ---
@@ -252,14 +276,27 @@ TaskFlow/
 ├── og-image.png        # Ảnh chia sẻ Facebook/Zalo (og:image)
 ├── app-screenshot.png  # Ảnh chụp app hiển thị trên landing
 ├── css/
+│   ├── tokens.css      # Design tokens (màu, spacing, font)
+│   ├── components.css  # Component dùng chung (button, input, toast, drawer, tooltip)
+│   ├── app-shell.css   # App shell: sidebar, topbar, mobile bottom nav, More sheet
 │   ├── styles.css      # Giao diện pastel kawaii app + 4 chủ đề màu + onboarding/empty states
+│   ├── legal.css       # Trang pháp lý (privacy/terms/data-and-security)
 │   └── landing.css     # Giao diện trang giới thiệu
 ├── js/
-│   ├── app.js          # Logic ứng dụng (vanilla JS, không framework)
+│   ├── app.js          # Logic ứng dụng chính (vanilla JS, không framework)
+│   ├── inbox.js        # Inbox view (add/save/schedule/render)
+│   ├── search.js       # Tìm kiếm (open/close/run/render/go-result)
+│   ├── quick-add.js    # Quick Add (submit/chunk/target-date)
+│   ├── mood.js         # Mood tracker
+│   ├── year-report.js  # Báo cáo năm
+│   ├── digest.js       # Weekly digest cache
+│   ├── remind-ui.js    # UI nhắc việc
+│   ├── chat.js         # Trợ lý chat
 │   ├── sync.js         # Engine đồng bộ backend (pull/push/migrate, offline-first)
 │   ├── deeplink.js     # Parse ?view= & ?m=YYYY-M (manifest shortcuts) — module nhỏ, có unit test
-│   ├── plan-math.js    # Tính toán thuần: % theo mục tiêu habit, streak, huy hiệu, chuyển tháng/năm — có unit test
+│   ├── plan-math.js    # Tính toán thuần: % theo mục tiêu habit, streak, huy hiệu — có unit test
 │   └── api-config.js   # Điền URL backend tại đây (js/api-config.js)
+│   (mỗi module có bản .min.js do scripts/minify.py tạo)
 ├── server/
 │   ├── index.js        # Backend Express (auth JWT + sync API)
 │   ├── auth.js         # Đăng ký/đăng nhập username/password + Google OAuth
@@ -311,6 +348,15 @@ TaskFlow/
 - [x] **Share streak 🔥** — ảnh card 1080×1080 (tên + streak + heatmap) tải về / chia sẻ native
 - [x] **Feedback FAB** 💬 — Google Form (`FB_FORM_URL`) + email (`FB_EMAIL`) + event GA4
 - [x] **Đăng ký/đăng nhập email đã chạy** — lỗi hiện đúng thông báo của server; cần xác nhận email (hoặc bật Anonymous)
+
+---
+
+## 🔒 Privacy & Data
+
+- Không đăng nhập → dữ liệu chỉ nằm trong trình duyệt của bạn.
+- Đăng nhập → đồng bộ đám mây tùy chọn; chi tiết ở các trang pháp lý:
+
+[Chính sách bảo mật](/privacy) · [Điều khoản sử dụng](/terms) · [Dữ liệu & Bảo mật](/data-and-security)
 
 ---
 
