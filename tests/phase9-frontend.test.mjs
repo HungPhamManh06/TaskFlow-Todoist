@@ -435,8 +435,8 @@ test('week progress bars stay synchronized after inline task and goal changes', 
 });
 
 test('empty week days report zero progress instead of NaN', () => {
-  const source = APP_JS.match(/function dayPct\(day\)\s*\{[^}]*}/)?.[0];
-  assert.ok(source, 'missing dayPct helper');
+  const source = readRequiredAsset('js/xp.js').match(/function dayPct\(day\)\s*\{[^}]*}/)?.[0];
+  assert.ok(source, 'missing dayPct helper in js/xp.js');
   const dayPct = new Function(`${source}; return dayPct;`)();
   assert.equal(dayPct({ tasks: [] }), 0);
 });
@@ -696,8 +696,9 @@ test('setView synchronizes the selected view and plan period to the URL', () => 
 });
 
 test('every generated checkbox receives a meaningful accessible label', () => {
-  assert.match(APP_JS, /function checkboxHTML\(mod, checked, attrs = '', label\)/);
-  assert.match(APP_JS, /TaskFlowUI\.checkboxA11y\(checked, label\)/);
+  const xpMod = readRequiredAsset('js/xp.js');
+  assert.match(xpMod, /function checkboxHTML\(mod, checked, attrs = '', label\)/);
+  assert.match(xpMod, /TaskFlowUI\.checkboxA11y\(checked, label\)/);
 
   const callLines = APP_JS
     .split(/\r?\n/)
@@ -709,15 +710,16 @@ test('every generated checkbox receives a meaningful accessible label', () => {
 });
 
 test('gamification XP, smart repeat carry-over and .ics export are wired end-to-end', () => {
-  // XP & Level
-  assert.match(APP_JS, /function xpLevelInfo/);
-  assert.match(APP_JS, /function addXP/);
-  assert.match(APP_JS, /function renderXP/);
+  // XP & Level — core ở js/xp.js; call-sites (addXP 10/15/20/30) ở app.js
+  const xpMod = readRequiredAsset('js/xp.js');
+  assert.match(xpMod, /function xpLevelInfo/);
+  assert.match(xpMod, /function addXP/);
+  assert.match(xpMod, /function renderXP/);
   assert.match(APP_JS, /addXP\(10\)/); // task
   assert.match(APP_JS, /addXP\(15\)/); // habit
   assert.match(APP_JS, /addXP\(20\)/); // mục tiêu tháng
   assert.match(APP_JS, /addXP\(30\)/); // mục tiêu năm
-  assert.match(APP_JS, /localStorage\.getItem\('planner-xp'\)/);
+  assert.match(xpMod, /localStorage\.getItem\('planner-xp'\)/);
   assert.match(APP, /id="appXp"/);
   assert.match(APP, /id="xpCard"/);
   // Task lặp thông minh (carry-over) — logic thuần trong module plan-carry.js
@@ -815,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=148/);
-  assert.match(SW, /const CACHE = 'taskflow-v167';/);
+  assert.match(APP, /js\/app\.min\.js\?v=149/);
+  assert.match(SW, /const CACHE = 'taskflow-v168';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1266,12 +1268,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=148/);
+  assert.match(APP, /js\/app\.min\.js\?v=149/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v167';/);
+  assert.match(SW, /const CACHE = 'taskflow-v168';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1324,8 +1326,8 @@ test('P11: habit day helpers extracted — habitDaysElapsed/dayAggregate/heatLev
   assert.doesNotMatch(APP_JS, /^function habitDaysElapsed\(/m);
   assert.doesNotMatch(APP_JS, /^function dayAggregate\(/m);
   assert.doesNotMatch(APP_JS, /^function heatLevel\(/m);
-  // call-sites giữ nguyên: habitDaysElapsed nhận (PLAN_YEAR, PLAN_MONTH, NUM_DAYS), dayAggregate nhận state
-  assert.match(APP_JS, /habitDaysElapsed\(PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
+  // habitDaysElapsed(PLAN_YEAR, PLAN_MONTH, NUM_DAYS) — caller duy nhất habitPct đã sang js/xp.js
+  assert.match(readRequiredAsset('js/xp.js'), /habitDaysElapsed\(PLAN_YEAR, PLAN_MONTH, NUM_DAYS\)/);
   assert.match(APP_JS, /dayAggregate\(state, d\)/);
   assert.doesNotMatch(APP_JS, /dayAggregate\(d\)/);
   assert.match(APP_JS, /heatLevel\(pct\)/);
@@ -1443,6 +1445,34 @@ test('P11: widget config + bootstrap glue extracted — R4/R5 live in js/widget.
   // module export đủ API
   const mod = readRequiredAsset('js/widget.js');
   assert.match(mod, /return \{ widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, setTheme, prefersReducedMotion, registerSW \}/);
+});
+
+test('P11: XP + render helpers extracted — R11 lives in js/xp.js', () => {
+  // app.html loads xp.js before app.js
+  assert.match(APP, /src="js\/xp\.min\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const xIdx = APP.indexOf('js/xp.min.js?v=');
+  assert.ok(xIdx >= 0 && xIdx < appIdx, 'xp.js phải load trước app.js');
+  // sw.js precache xp.js
+  assert.ok(SW.includes("\'./js/xp.min.js\'"), 'sw.js phải precache js/xp.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowXP\) throw new Error\('TaskFlowXP missing/);
+  assert.match(APP_JS, /const \{ loadXP, saveXP, xpLevelInfo, addXP, removeXP, renderXP, habitPct, dayPct, donutSVG, checkboxHTML \} = window\.TaskFlowXP;/);
+  assert.doesNotMatch(APP_JS, /^function loadXP\(/m);
+  assert.doesNotMatch(APP_JS, /^function saveXP\(/m);
+  assert.doesNotMatch(APP_JS, /^function xpLevelInfo\(/m);
+  assert.doesNotMatch(APP_JS, /^function addXP\(/m);
+  assert.doesNotMatch(APP_JS, /^function removeXP\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderXP\(/m);
+  assert.doesNotMatch(APP_JS, /^function habitPct\(/m);
+  assert.doesNotMatch(APP_JS, /^function dayPct\(/m);
+  assert.doesNotMatch(APP_JS, /^function donutSVG\(/m);
+  assert.doesNotMatch(APP_JS, /^function checkboxHTML\(/m);
+  // xpTotal là state riêng của module, không còn global trong app.js
+  assert.doesNotMatch(APP_JS, /let xpTotal = 0;/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/xp.js');
+  assert.match(mod, /return \{ loadXP, saveXP, xpLevelInfo, addXP, removeXP, renderXP, habitPct, dayPct, donutSVG, checkboxHTML \}/);
 });
 
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
@@ -1653,7 +1683,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v167';/);
+  assert.match(SW, /const CACHE = 'taskflow-v168';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1731,7 +1761,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v167';/);
+  assert.match(SW, /const CACHE = 'taskflow-v168';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',

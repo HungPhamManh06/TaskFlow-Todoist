@@ -127,7 +127,8 @@ test('Task2: addHabit gán target 100', () => {
 });
 
 test('Task2: habitPct dùng habitPctFrom theo target', () => {
-  assert.match(APP_JS, /PlanMath\.habitPctFrom/);
+  const XP_JS = readFileSync(path.join(ROOT, 'js/xp.js'), 'utf8');
+  assert.match(XP_JS, /PlanMath\.habitPctFrom/);
 });
 
 test('Task2: migration mặc định target 100 trong loadState', () => {
