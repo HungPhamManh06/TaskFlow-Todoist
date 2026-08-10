@@ -2699,52 +2699,13 @@ function pomoWeekSecs() {
 }
 /* ---------- Phase 7: Thống kê focus (biểu đồ tuần + báo cáo) ---------- */
 
-// Số giây focus của một ngày cụ thể (từ pomo log — hợp nhất pomo + task-focus).
-function pomoDaySecs(date) {
-  const log = loadPomoLog();
-  const e = log[pomoDateKey(date)];
-  return e && typeof e.secs === 'number' ? e.secs : 0;
-}
-
-// Phút focus 7 ngày của một tuần (Mon → Sun) — mặc định tuần hiện tại, truyền week để tính tuần khác.
-function focusWeekMinutes(week) {
-  const wn = week ?? state.currentWeek;
-  const out = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(PLAN_START.getTime() + ((wn - 1) * 7 + i) * 86400000);
-    out.push(Math.round(pomoDaySecs(d) / 60));
-  }
-  return out;
-}
-
-// Tổng phút focus của tháng đang xem (chỉ tính các ngày thuộc tháng — bỏ ô tràn grid).
-function focusMonthMinutes() {
-  let secs = 0;
-  for (let i = 0; i < NUM_DAYS; i++) {
-    const d = new Date(PLAN_START.getTime() + i * 86400000);
-    if (d.getFullYear() === PLAN_YEAR && d.getMonth() === PLAN_MONTH) secs += pomoDaySecs(d);
-  }
-  return Math.round(secs / 60);
-}
-
-// Tổng giây focus của task trong khoảng [startKey, endKey] (date key 'YYYY-MM-DD').
-function taskFocusSecsInRange(tk, startKey, endKey) {
-  return taskFocusLog(tk).filter((e) => e.d >= startKey && e.d <= endKey).reduce((s, e) => s + (e.secs || 0), 0);
-}
-
-// Top N task có thời gian focus nhiều nhất trong tuần (từ task.focusLog của chính tuần đó).
-function topFocusTasksInWeek(w, n) {
-  const start = new Date(PLAN_START.getTime() + (w.n - 1) * 7 * 86400000);
-  const end = new Date(start.getTime() + 6 * 86400000);
-  const sk = pomoDateKey(start), ek = pomoDateKey(end);
-  const acc = [];
-  w.days.forEach((d) => (d.tasks || []).forEach((tk) => {
-    const secs = taskFocusSecsInRange(tk, sk, ek);
-    if (secs > 0) acc.push({ tk, secs });
-  }));
-  acc.sort((a, b) => b.secs - a.secs);
-  return acc.slice(0, n);
-}
+// Các hàm tính toán focus stats (pomoDaySecs, focusWeekMinutes, focusMonthMinutes,
+// topFocusTasksInWeek/Month, taskFocusMinLabel — extraction 37, từ R22/R28) được tách sang
+// js/focus-stats.js (window.TaskFlowFocusStats). Report-ui.js + year-report.js + các call
+// site còn lại trong app.js (focusChartCardHTML, focus mode, focusMonthMinutesFor) resolve
+// qua destructure alias này (global lexical).
+if (!window.TaskFlowFocusStats) throw new Error('TaskFlowFocusStats missing — js/focus-stats.js failed to load');
+const { pomoDaySecs, focusWeekMinutes, focusMonthMinutes, topFocusTasksInWeek, topFocusTasksInMonth, taskFocusMinLabel } = window.TaskFlowFocusStats;
 
 /* ---------- Phase 8: Thống kê focus năm + lịch ---------- */
 
@@ -3016,21 +2977,6 @@ function focusChartCardHTML(w) {
     <div class="focus-chart-bars">${bars}</div>
     ${topHtml ? `<div class="focus-chart-top">${topHtml}</div>` : ''}
   </div>`;
-}
-
-// Top N task có focus nhiều nhất trong tháng đang xem.
-function topFocusTasksInMonth(n) {
-  const mKey = PLAN_YEAR + '-' + String(PLAN_MONTH + 1).padStart(2, '0');
-  const sk = mKey + '-01';
-  const last = new Date(PLAN_YEAR, PLAN_MONTH + 1, 0).getDate();
-  const ek = mKey + '-' + String(last).padStart(2, '0');
-  const acc = [];
-  state.weeks.forEach((w) => w.days.forEach((d) => (d.tasks || []).forEach((tk) => {
-    const secs = taskFocusSecsInRange(tk, sk, ek);
-    if (secs > 0) acc.push({ tk, secs });
-  })));
-  acc.sort((a, b) => b.secs - a.secs);
-  return acc.slice(0, n);
 }
 
 function renderPomoWidgetStats() {
@@ -4170,7 +4116,6 @@ function taskFocusToday(tk) {
   return taskFocusLog(tk).filter((e) => e.d === k).reduce((s, e) => s + (e.secs || 0), 0);
 }
 function taskFocusSessions(tk) { return taskFocusLog(tk).length; }
-function taskFocusMinLabel(secs) { return t('pomoMinShort', { n: Math.round((secs || 0) / 60) }); }
 
 // ---- Bộ đếm focus (countdown theo preset, chính xác cả khi tab ẩn qua endAt) ----
 const FOCUS_PRESETS = [5, 15, 25, 45];

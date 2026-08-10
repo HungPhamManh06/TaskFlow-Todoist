@@ -817,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=153/);
-  assert.match(SW, /const CACHE = 'taskflow-v172';/);
+  assert.match(APP, /js\/app\.min\.js\?v=154/);
+  assert.match(SW, /const CACHE = 'taskflow-v173';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1271,12 +1271,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=153/);
+  assert.match(APP, /js\/app\.min\.js\?v=154/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v172';/);
+  assert.match(SW, /const CACHE = 'taskflow-v173';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1603,6 +1603,37 @@ test('P11: Upcoming view extracted — R25 lives in js/upcoming.js', () => {
   assert.match(mod, /return \{ setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate \}/);
 });
 
+test('P11: focus stats extracted — pomo/focus helpers live in js/focus-stats.js', () => {
+  // app.html loads focus-stats.js before app.js
+  assert.match(APP, /src="js\/focus-stats\.min\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const fIdx = APP.indexOf('js/focus-stats.min.js?v=');
+  assert.ok(fIdx >= 0 && fIdx < appIdx, 'focus-stats.js phải load trước app.js');
+  // sw.js precache focus-stats.js
+  assert.ok(SW.includes("'./js/focus-stats.min.js'"), 'sw.js phải precache js/focus-stats.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowFocusStats\) throw new Error\('TaskFlowFocusStats missing/);
+  assert.match(APP_JS, /const \{ pomoDaySecs, focusWeekMinutes, focusMonthMinutes, topFocusTasksInWeek, topFocusTasksInMonth, taskFocusMinLabel \} = window\.TaskFlowFocusStats;/);
+  assert.doesNotMatch(APP_JS, /^function pomoDaySecs\(/m);
+  assert.doesNotMatch(APP_JS, /^function focusWeekMinutes\(/m);
+  assert.doesNotMatch(APP_JS, /^function focusMonthMinutes\(\)/m);
+  assert.doesNotMatch(APP_JS, /^function topFocusTasksInWeek\(/m);
+  assert.doesNotMatch(APP_JS, /^function topFocusTasksInMonth\(/m);
+  assert.doesNotMatch(APP_JS, /^function taskFocusMinLabel\(/m);
+  assert.doesNotMatch(APP_JS, /^function taskFocusSecsInRange\(/m);
+  // call-sites giữ nguyên trong app.js + resolve qua global lexical từ report-ui/year-report
+  assert.match(APP_JS, /focusWeekMinutes\(\)/);
+  assert.match(APP_JS, /topFocusTasksInWeek\(w, 3\)/);
+  assert.match(APP_JS, /taskFocusMinLabel\(x\.secs\)/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /focusMonthMinutes\(\)/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /focusWeekMinutes\(w\.n\)/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /topFocusTasksInMonth\(1\)/);
+  assert.match(readRequiredAsset('js/year-report.js'), /taskFocusMinLabel\(r\.topTask\.secs\)/);
+  // module export đủ API (taskFocusSecsInRange là helper riêng — không export)
+  const mod = readRequiredAsset('js/focus-stats.js');
+  assert.match(mod, /return \{ pomoDaySecs, focusWeekMinutes, focusMonthMinutes, topFocusTasksInWeek, topFocusTasksInMonth, taskFocusMinLabel \}/);
+});
+
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
   // app.html loads analytics.js before app.js
   assert.match(APP, /src="js\/analytics.min.js\?v=\d+"[^>]*>/);
@@ -1812,7 +1843,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v172';/);
+  assert.match(SW, /const CACHE = 'taskflow-v173';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1890,7 +1921,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v172';/);
+  assert.match(SW, /const CACHE = 'taskflow-v173';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2265,13 +2296,13 @@ test('Phase 6: task-specific focus with timer and session log', () => {
 
 test('Phase 7: focus time bar chart in week view and focus stats in reports', () => {
   const styles = readRequiredAsset('css/styles.css');
-  // helpers stats
-  assert.match(APP_JS, /function pomoDaySecs\(date\)/);
-  assert.match(APP_JS, /function focusWeekMinutes\(week\)/);
-  assert.match(APP_JS, /function focusMonthMinutes\(\)/);
-  assert.match(APP_JS, /function topFocusTasksInWeek\(w, n\)/);
-  assert.match(APP_JS, /function topFocusTasksInMonth\(n\)/);
-  assert.match(APP_JS, /function taskFocusSecsInRange\(tk, startKey, endKey\)/);
+  // helpers stats — sang js/focus-stats.js (P11 extraction 37)
+  assert.match(readRequiredAsset('js/focus-stats.js'), /function pomoDaySecs\(date\)/);
+  assert.match(readRequiredAsset('js/focus-stats.js'), /function focusWeekMinutes\(week\)/);
+  assert.match(readRequiredAsset('js/focus-stats.js'), /function focusMonthMinutes\(\)/);
+  assert.match(readRequiredAsset('js/focus-stats.js'), /function topFocusTasksInWeek\(w, n\)/);
+  assert.match(readRequiredAsset('js/focus-stats.js'), /function topFocusTasksInMonth\(n\)/);
+  assert.match(readRequiredAsset('js/focus-stats.js'), /function taskFocusSecsInRange\(tk, startKey, endKey\)/);
   // card biểu đồ trong week-support-grid (full-width)
   assert.match(APP_JS, /focusChartCardHTML\(w\)/);
   assert.match(APP_JS, /class="card focus-chart-card"/);
