@@ -527,7 +527,7 @@ test('authentication forms expose inline error containers', () => {
 });
 
 test('routine completion feedback uses non-blocking toasts', () => {
-  assert.match(APP_JS, /TaskFlowUI\.toast\(t\('shareDone'\)/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /TaskFlowUI\.toast\(t\('shareDone'\)/);
   assert.match(APP_JS, /TaskFlowUI\.toast\(t\('templateDone'/);
   assert.match(APP_JS, /TaskFlowUI\.toast\(t\('pomoDoneWork'/);
   assert.doesNotMatch(APP_JS, /alert\(t\('shareDone'\)/);
@@ -817,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=151/);
-  assert.match(SW, /const CACHE = 'taskflow-v170';/);
+  assert.match(APP, /js\/app\.min\.js\?v=152/);
+  assert.match(SW, /const CACHE = 'taskflow-v171';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -913,7 +913,8 @@ test('P11: mini plan/report helpers extracted — psStart/shortMonth live in js/
   // call-sites giữ nguyên trong app.js (qua alias); shortMonth(r.topMonth) +
   // focusReportBars(...) thuộc renderYearReportModal đã sang js/year-report.js
   // (P11 extraction 25) — kiểm tra ở module.
-  assert.match(APP_JS, /new Date\(psStart\(srcState, srcY, srcM\)\)/);
+  // caller duy nhất là lastWeekReportData — đã sang js/report-ui.js (extraction 35)
+  assert.match(readRequiredAsset('js/report-ui.js'), /new Date\(psStart\(srcState, srcY, srcM\)\)/);
   const yrmod_pm = readRequiredAsset('js/year-report.js');
   assert.match(yrmod_pm, /shortMonth\(r\.topMonth\)/);
   assert.match(yrmod_pm, /focusReportBars\(r\.focusByMonth, \(i\) => shortMonth\(i\)\)/);
@@ -1268,12 +1269,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=151/);
+  assert.match(APP, /js\/app\.min\.js\?v=152/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v170';/);
+  assert.match(SW, /const CACHE = 'taskflow-v171';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1531,6 +1532,44 @@ test('P11: Today Dashboard extracted — R19 lives in js/today.js', () => {
   assert.match(mod, /return \{ todayGreeting, todayWeekdayLabel, renderToday, totalFocusMinutesToday, taskRowHTML \}/);
 });
 
+test('P11: month/week report UI extracted — R15 lives in js/report-ui.js', () => {
+  // app.html loads report-ui.js before app.js
+  assert.match(APP, /src="js\/report-ui\.min\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const rIdx = APP.indexOf('js/report-ui.min.js?v=');
+  assert.ok(rIdx >= 0 && rIdx < appIdx, 'report-ui.js phải load trước app.js');
+  // sw.js precache report-ui.js
+  assert.ok(SW.includes("\'./js/report-ui.min.js\'"), 'sw.js phải precache js/report-ui.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowReportUI\) throw new Error\('TaskFlowReportUI missing/);
+  assert.match(APP_JS, /const \{ monthlyReportData, renderReportModal, openReportModal, closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, openWeekReportModal, closeWeekReportModal, weekReportCardBlob, doShareWeekReport \} = window\.TaskFlowReportUI;/);
+  assert.doesNotMatch(APP_JS, /^function monthlyReportData\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderReportModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function openReportModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function closeReportModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function reportCardBlob\(/m);
+  assert.doesNotMatch(APP_JS, /^function doShareReport\(/m);
+  assert.doesNotMatch(APP_JS, /^function weeklyReportData\(/m);
+  assert.doesNotMatch(APP_JS, /^function lastWeekReportData\(/m);
+  assert.doesNotMatch(APP_JS, /^function vsCell\(/m);
+  assert.doesNotMatch(APP_JS, /^function focusReportBars\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderWeekReportModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function openWeekReportModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function closeWeekReportModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function weekReportCardBlob\(/m);
+  assert.doesNotMatch(APP_JS, /^function doShareWeekReport\(/m);
+  // call-sites giữ nguyên: dispatcher open/close/share + outside-click đóng modal
+  assert.match(APP_JS, /openReportModal\(\)/);
+  assert.match(APP_JS, /closeReportModal\(\)/);
+  assert.match(APP_JS, /openWeekReportModal\(\)/);
+  assert.match(APP_JS, /closeWeekReportModal\(\)/);
+  // year-report.js (lazy, P1.5) gọi focusReportBars qua global lexical
+  assert.match(readRequiredAsset('js/year-report.js'), /focusReportBars\(r\.focusByMonth/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/report-ui.js');
+  assert.match(mod, /return \{ monthlyReportData, renderReportModal, openReportModal, closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, openWeekReportModal, closeWeekReportModal, weekReportCardBlob, doShareWeekReport \}/);
+});
+
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
   // app.html loads analytics.js before app.js
   assert.match(APP, /src="js\/analytics.min.js\?v=\d+"[^>]*>/);
@@ -1740,7 +1779,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v170';/);
+  assert.match(SW, /const CACHE = 'taskflow-v171';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1818,7 +1857,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v170';/);
+  assert.match(SW, /const CACHE = 'taskflow-v171';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2206,15 +2245,15 @@ test('Phase 7: focus time bar chart in week view and focus stats in reports', ()
   assert.match(APP_JS, /data-role="focus-chart"/);
   assert.match(APP_JS, /fc-bar/);
   assert.match(APP_JS, /dayLabelShort\(di\)/);
-  // báo cáo tuần + tháng có focus
-  assert.match(APP_JS, /focusByDay/);
+  // báo cáo tuần + tháng có focus (weeklyReportData/monthlyReportData sang js/report-ui.js)
+  assert.match(readRequiredAsset('js/report-ui.js'), /focusByDay/);
   assert.match(APP_JS, /focusTotal/);
-  assert.match(APP_JS, /focusByWeek/);
-  assert.match(APP_JS, /reportFocusWeek/);
-  assert.match(APP_JS, /reportFocusMonth/);
-  assert.match(APP_JS, /reportFocusTop/);
-  assert.match(APP_JS, /function focusReportBars\(values, labelFn\)/);
-  assert.match(APP_JS, /report-focus-head/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /focusByWeek/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /reportFocusWeek/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /reportFocusMonth/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /reportFocusTop/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /function focusReportBars\(values, labelFn\)/);
+  assert.match(readRequiredAsset('js/report-ui.js'), /report-focus-head/);
   // CSS
   assert.match(styles, /\.focus-chart-card\s*{[^}]*grid-column:\s*1\s*\/\s*-1/s);
   assert.match(styles, /\.focus-chart-bars\s*{[^}]*display:\s*flex/s);
@@ -2546,19 +2585,21 @@ test('Phase 16: perf — debounce search + save-on-type + content-visibility upc
 });
 
 test('Phase 18: reports — week vs last week comparison block', () => {
+  // R15 (extraction 35): report UI sang js/report-ui.js (window.TaskFlowReportUI)
+  const reportMod = readRequiredAsset('js/report-ui.js');
   // 1. lastWeekReportData xử lý cả tuần 1 của tháng (lấy tuần cuối tháng trước)
-  assert.match(APP_JS, /function lastWeekReportData\(\) \{/);
-  assert.match(APP_JS, /function lastWeekReportData\(\)[\s\S]*?window\.PlanMath[\s\S]*?prevMonth[\s\S]*?monthStateRaw/);
-  assert.match(APP_JS, /function lastWeekReportData\(\)[\s\S]*?dayAggregateAt\(srcY, srcM, gi\)/);
+  assert.match(reportMod, /function lastWeekReportData\(\) \{/);
+  assert.match(reportMod, /function lastWeekReportData\(\)[\s\S]*?window\.PlanMath[\s\S]*?prevMonth[\s\S]*?monthStateRaw/);
+  assert.match(reportMod, /function lastWeekReportData\(\)[\s\S]*?dayAggregateAt\(srcY, srcM, gi\)/);
   // focus xuyên tháng theo grid ps.start (không lấy 7 ngày dương lịch cuối — sai cửa sổ)
-  assert.match(APP_JS, /function lastWeekReportData\(\)[\s\S]*?gridStart \+ gi \* 86400000/);
+  assert.match(reportMod, /function lastWeekReportData\(\)[\s\S]*?gridStart \+ gi \* 86400000/);
   // tuần trước trống rỗng → ẩn block
-  assert.match(APP_JS, /if \(out\.total === 0 && out\.habitAvg === 0 && out\.focus === 0\) return null;/);
+  assert.match(reportMod, /if \(out\.total === 0 && out\.habitAvg === 0 && out\.focus === 0\) return null;/);
   // 2. vsCell + block hiển thị trong week report
-  assert.match(APP_JS, /function vsCell\(label, curText, diff, unit\)/);
-  assert.match(APP_JS, /const vsBlock = lw \?/);
-  assert.match(APP_JS, /report-vs-grid[\s\S]*?vsCell\(t\('reportVsGoal'\)/);
-  assert.match(APP_JS, /vsCell\(t\('reportVsFocus'\)/);
+  assert.match(reportMod, /function vsCell\(label, curText, diff, unit\)/);
+  assert.match(reportMod, /const vsBlock = lw \?/);
+  assert.match(reportMod, /report-vs-grid[\s\S]*?vsCell\(t\('reportVsGoal'\)/);
+  assert.match(reportMod, /vsCell\(t\('reportVsFocus'\)/);
   // 3. i18n cả 2 ngôn ngữ
   assert.match(I18N_JS, /reportVsTitle: 'So với tuần trước'/);
   assert.match(I18N_JS, /reportVsTitle: 'vs last week'/);

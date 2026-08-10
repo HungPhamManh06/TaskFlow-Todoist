@@ -268,12 +268,12 @@ test('4.2: weekReportModal + weeklyReportData + weekReportCardBlob + doShareWeek
   assert.match(APP_HTML, /id="weekReportModal"/);
   assert.match(APP_HTML, /data-action="share-week-report"/);
   assert.match(APP_HTML, /data-action="close-week-report"/);
-  assert.match(APP_JS, /function weeklyReportData\(/);
-  assert.match(APP_JS, /function renderWeekReportModal\(/);
-  assert.match(APP_JS, /function weekReportCardBlob\(/);
-  assert.match(APP_JS, /function doShareWeekReport\(/);
-  assert.match(APP_JS, /share_week_report/);
-  assert.match(APP_JS, /taskflow-week-report\.png/);
+  assert.match(readFileSync(path.join(ROOT, 'js/report-ui.js'), 'utf8'), /function weeklyReportData\(/);
+  assert.match(readFileSync(path.join(ROOT, 'js/report-ui.js'), 'utf8'), /function renderWeekReportModal\(/);
+  assert.match(readFileSync(path.join(ROOT, 'js/report-ui.js'), 'utf8'), /function weekReportCardBlob\(/);
+  assert.match(readFileSync(path.join(ROOT, 'js/report-ui.js'), 'utf8'), /function doShareWeekReport\(/);
+  assert.match(readFileSync(path.join(ROOT, 'js/report-ui.js'), 'utf8'), /share_week_report/);
+  assert.match(readFileSync(path.join(ROOT, 'js/report-ui.js'), 'utf8'), /taskflow-week-report\.png/);
   assert.match(APP_JS, /data-action="week-report"/);  // nút mở nằm trong template renderWeek
 });
 

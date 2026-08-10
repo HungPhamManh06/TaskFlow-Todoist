@@ -174,9 +174,11 @@ test('Task5: modal reportModal + nút report', () => {
 });
 
 test('Task5: hàm monthlyReportData + reportCardBlob + sự kiện share_report', () => {
-  assert.match(APP_JS, /function monthlyReportData/);
-  assert.match(APP_JS, /function reportCardBlob/);
-  assert.match(APP_JS, /'share_report'/);
+  // R15 (extraction 35): report UI sang js/report-ui.js (window.TaskFlowReportUI)
+  const REPORT_JS = readFileSync(path.join(ROOT, 'js/report-ui.js'), 'utf8');
+  assert.match(REPORT_JS, /function monthlyReportData/);
+  assert.match(REPORT_JS, /function reportCardBlob/);
+  assert.match(REPORT_JS, /'share_report'/);
 });
 
 /* ---------- Textual: Task 6 — huy hiệu ---------- */
