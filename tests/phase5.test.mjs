@@ -432,13 +432,14 @@ test('7.5: ngày nghỉ habit (skip days)', () => {
 test('8.1: widget config + helpers', () => {
   assert.match(APP_JS, /WIDGET_DEFS_OVERVIEW/);
   assert.match(APP_JS, /WIDGET_DEFS_YEAR/);
-  assert.match(APP_JS, /function initWidgetConfig/);
-  assert.match(APP_JS, /function saveWidgetConfig/);
-  assert.match(APP_JS, /function getVisibleWidgets/);
+  const WIDGET_MOD = readFileSync(path.join(ROOT, 'js/widget.js'), 'utf8');
+  assert.match(WIDGET_MOD, /function initWidgetConfig/);
+  assert.match(WIDGET_MOD, /function saveWidgetConfig/);
+  assert.match(WIDGET_MOD, /function getVisibleWidgets/);
   assert.match(APP_JS, /function openWidgetSettingsModal/);
   assert.match(APP_JS, /function renderWidgetSettingsModal/);
-  assert.match(APP_JS, /widgetConfigKey/);
-  assert.match(APP_JS, /planner-widgets-/);
+  assert.match(WIDGET_MOD, /widgetConfigKey/);
+  assert.match(WIDGET_MOD, /planner-widgets-/);
 });
 
 test('8.2: renderOverview dùng widget config', () => {

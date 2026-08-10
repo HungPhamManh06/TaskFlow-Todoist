@@ -815,8 +815,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=147/);
-  assert.match(SW, /const CACHE = 'taskflow-v166';/);
+  assert.match(APP, /js\/app\.min\.js\?v=148/);
+  assert.match(SW, /const CACHE = 'taskflow-v167';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1266,12 +1266,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=147/);
+  assert.match(APP, /js\/app\.min\.js\?v=148/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v166';/);
+  assert.match(SW, /const CACHE = 'taskflow-v167';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1403,8 +1403,9 @@ test('P11: dark mode helpers extracted — theme core lives in js/theme.js', () 
   assert.doesNotMatch(APP_JS, /^function darkIsOn\(/m);
   assert.doesNotMatch(APP_JS, /^function applyDark\(/m);
   assert.doesNotMatch(APP_JS, /^function toggleDark\(/m);
-  // prefersReducedMotion giữ lại trong app.js (test lock phase9)
-  assert.match(APP_JS, /^function prefersReducedMotion\(/m);
+  // prefersReducedMotion chuyển sang js/widget.js (extraction 31) — call-sites giữ nguyên
+  assert.doesNotMatch(APP_JS, /^function prefersReducedMotion\(/m);
+  assert.match(readRequiredAsset('js/widget.js'), /function prefersReducedMotion/);
   // call-sites giữ nguyên: darkIsOn/applyDark/toggleDark nhận DARK tham số
   assert.match(APP_JS, /DARK = toggleDark\(DARK\)/);
   assert.match(APP_JS, /applyDark\(DARK\)/);
@@ -1413,6 +1414,35 @@ test('P11: dark mode helpers extracted — theme core lives in js/theme.js', () 
   const mod = readRequiredAsset('js/theme.js');
   assert.match(mod, /return \{ systemPrefersDark, darkIsOn, applyDark, toggleDark \}/);
   assert.match(mod, /planner-dark/);
+});
+
+test('P11: widget config + bootstrap glue extracted — R4/R5 live in js/widget.js', () => {
+  // app.html loads widget.js before app.js
+  assert.match(APP, /src="js\/widget\.min\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const wIdx = APP.indexOf('js/widget.min.js?v=');
+  assert.ok(wIdx >= 0 && wIdx < appIdx, 'widget.js phải load trước app.js');
+  // sw.js precache widget.js
+  assert.ok(SW.includes("\'./js/widget.min.js\'"), 'sw.js phải precache js/widget.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowWidget\) throw new Error\('TaskFlowWidget missing/);
+  assert.match(APP_JS, /const \{ widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, setTheme, prefersReducedMotion, registerSW \} = window\.TaskFlowWidget;/);
+  assert.doesNotMatch(APP_JS, /^function widgetConfigKey\(/m);
+  assert.doesNotMatch(APP_JS, /^function initWidgetConfig\(/m);
+  assert.doesNotMatch(APP_JS, /^function saveWidgetConfig\(/m);
+  assert.doesNotMatch(APP_JS, /^function getVisibleWidgets\(/m);
+  assert.doesNotMatch(APP_JS, /^function setLang\(/m);
+  assert.doesNotMatch(APP_JS, /^function setTheme\(/m);
+  assert.doesNotMatch(APP_JS, /^function prefersReducedMotion\(/m);
+  assert.doesNotMatch(APP_JS, /^function registerSW\(/m);
+  // THEME/THEMES/WIDGET_DEFS_* vẫn ở app.js (deps của module, resolve qua global lexical)
+  assert.match(APP_JS, /let THEME = 'cream';/);
+  assert.match(APP_JS, /const THEMES = \['cream', 'mint', 'lavender', 'peach'\];/);
+  assert.match(APP_JS, /const WIDGET_DEFS_OVERVIEW/);
+  assert.match(APP_JS, /const WIDGET_DEFS_YEAR/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/widget.js');
+  assert.match(mod, /return \{ widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, setTheme, prefersReducedMotion, registerSW \}/);
 });
 
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
@@ -1623,7 +1653,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v166';/);
+  assert.match(SW, /const CACHE = 'taskflow-v167';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1701,7 +1731,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v166';/);
+  assert.match(SW, /const CACHE = 'taskflow-v167';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -1868,14 +1898,15 @@ test('hardening: current shell targets are 44px without expanding dense planner 
 });
 
 test('hardening: reduced-motion helper suppresses confetti and smooth journey scrolling', () => {
-  const helperSource = APP_JS.match(/function prefersReducedMotion\([^)]*\)\s*{[^}]*}/)?.[0];
-  assert.ok(helperSource, 'missing prefersReducedMotion helper');
+  const helperSource = readRequiredAsset('js/widget.js').match(/function prefersReducedMotion\([^)]*\)\s*{[^}]*}/)?.[0];
+  assert.ok(helperSource, 'missing prefersReducedMotion helper in js/widget.js');
   const helper = new Function(`${helperSource}; return prefersReducedMotion;`)();
   assert.equal(helper(() => ({ matches: true })), true);
   assert.equal(helper(() => ({ matches: false })), false);
   assert.equal(helper(null), false);
   // P11 extraction 28: confettiBurst chuyển sang js/popups.js (window.TaskFlowPopups);
-  // app.js giữ guard + alias để call-sites không đổi. prefersReducedMotion vẫn ở app.js.
+  // app.js giữ guard + alias để call-sites không đổi. prefersReducedMotion chuyển sang
+  // js/widget.js (extraction 31) — helper được trích từ module ở trên.
   assert.match(readRequiredAsset('js/popups.js'), /function confettiBurst\(\)\s*{\s*if \(prefersReducedMotion\(\)\) return;/);
   assert.match(APP_JS, /if \(!window\.TaskFlowPopups\) throw new Error\('TaskFlowPopups missing/);
   assert.match(APP_JS, /scrollIntoView\(\{\s*behavior:\s*prefersReducedMotion\(\) \? 'auto' : 'smooth'/);
