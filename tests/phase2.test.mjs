@@ -242,7 +242,7 @@ test('4.1: nút 🔔 + syncReminderTimers + renderRemindList + turnOffRemind', (
   // P11 extraction 27: logic nhắc nằm trong js/remind-ui.js; app.js giữ alias + dispatcher
   const REMIND_JS = readFileSync(path.join(ROOT, 'js/remind-ui.js'), 'utf8');
   assert.match(APP_JS, /data-action="remind-habit"/);
-  assert.match(APP_JS, /data-action="remind-task"/);
+  assert.match(readFileSync(path.join(ROOT, 'js/today.js'), 'utf8'), /data-action="remind-task"/);
   assert.match(REMIND_JS, /data-action="remind-off-item"/);
   assert.match(REMIND_JS, /function syncReminderTimers\(/);
   assert.match(REMIND_JS, /function renderRemindList\(/);

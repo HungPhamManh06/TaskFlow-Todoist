@@ -97,7 +97,7 @@ test('5.1: i18n undo/redo keys đủ vi+en', () => {
 
 test('5.2: draggable trên task/goal/habit + drag events', () => {
   assert.match(APP_JS, /draggable="true"/);
-  assert.match(APP_JS, /data-drag="task"/);
+  assert.match(readFileSync(path.join(ROOT, 'js/today.js'), 'utf8'), /data-drag="task"/);
   assert.match(APP_JS, /data-drag="goal"/);
   assert.match(APP_JS, /data-drag="habit"/);
   assert.match(APP_JS, /dragstart/);
@@ -184,8 +184,8 @@ test('5.2b: reorderTask trả về ĐÚNG mảng gốc khi không đổi (no-op,
 
 test('5.2b: task row có data-kind/data-pos + vùng nhóm data-drop=taskzone', () => {
   assert.match(APP_JS, /data-drop="taskzone"/);
-  assert.match(APP_JS, /data-pos="/);
-  assert.match(APP_JS, /data-kind="\$\{task\.kind\}"/);
+  assert.match(readFileSync(path.join(ROOT, 'js/today.js'), 'utf8'), /data-pos="/);
+  assert.match(readFileSync(path.join(ROOT, 'js/today.js'), 'utf8'), /data-kind="\$\{task\.kind\}"/);
   assert.match(APP_JS, /PlanMath\.reorderTask/);
   assert.match(APP_JS, /toPos = d\.tasks\.filter\(\(x\) => x\.kind === toKind\)\.length/);
   assert.match(CSS, /\.task-rows\.drag-over/);
@@ -280,7 +280,7 @@ test('5.8: nút + tạo task → focus ngay ô viết task mới', () => {
    ============================================================ */
 
 test('7.1: task lặp lại (recurring)', () => {
-  assert.match(APP_JS, /data-action="repeat-edit"/);
+  assert.match(readFileSync(path.join(ROOT, 'js/today.js'), 'utf8'), /data-action="repeat-edit"/);
   assert.match(APP_JS, /function applyRecurrence\(\)/);
   assert.match(APP_JS, /repeat\.freq/);
   assert.match(APP_JS, /applyRecurrence\(\);/);

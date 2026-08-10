@@ -391,7 +391,7 @@ test('week renderer exposes a refined planning workspace contract', () => {
 test('week day renderer emits seven labeled, addressable panels', () => {
   const dayPanel = APP_JS.slice(
     APP_JS.indexOf('function dayColumnHTML'),
-    APP_JS.indexOf('function taskRowHTML')
+    APP_JS.indexOf('function renderDay')
   );
   assert.match(dayPanel, /<section[^>]*class="week-day-panel/);
   assert.match(dayPanel, /id="week-day-\$\{w\.n\}-\$\{di\}"/);
@@ -539,8 +539,8 @@ test('Phase 7: unified empty states with CTA actions and dedup toasts', () => {
   assert.match(APP_JS, /function emptyStateHTML\(icon, titleKey, hintKey, actions\)/);
   assert.match(APP_JS, /class=\"empty-actions\"/);
   assert.match(APP_JS, /class=\"empty-btn\" data-action=\"\$\{esc\(a\.action\)\}\"/);
-  // Today / Inbox / Upcoming / Search all route through the shared helper
-  assert.match(APP_JS, /emptyStateHTML\('🎯', 'todayEmpty', 'todayEmptySub'/);
+  // Today / Inbox / Upcoming / Search all route through the shared helper (Today sang js/today.js)
+  assert.match(readRequiredAsset('js/today.js'), /emptyStateHTML\('🎯', 'todayEmpty', 'todayEmptySub'/);
   assert.match(INBOX_JS, /emptyStateHTML\('📥', 'inboxEmpty', 'inboxEmptySub'/);
   assert.match(APP_JS, /emptyStateHTML\('🗓️', 'upcomingEmpty', 'upcomingEmptySub'/);
   // P11 extraction 22: empty states của search nằm trong js/search.js
@@ -817,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=150/);
-  assert.match(SW, /const CACHE = 'taskflow-v169';/);
+  assert.match(APP, /js\/app\.min\.js\?v=151/);
+  assert.match(SW, /const CACHE = 'taskflow-v170';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1268,12 +1268,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=150/);
+  assert.match(APP, /js\/app\.min\.js\?v=151/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v169';/);
+  assert.match(SW, /const CACHE = 'taskflow-v170';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1506,6 +1506,31 @@ test('P11: streak/heatmap UI extracted — R14 lives in js/streak-ui.js', () => 
   assert.match(mod, /return \{ weekHabitPct, weekCompareHTML, dayAggregateAt, heatHeroHTML, heatRibbonHTML, habitMiniHTML, habitHeatCardHTML, shareTopInfo, canvasCircle, streakCardBlob, doShareStreak \}/);
 });
 
+test('P11: Today Dashboard extracted — R19 lives in js/today.js', () => {
+  // app.html loads today.js before app.js
+  assert.match(APP, /src="js\/today\.min\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const tIdx = APP.indexOf('js/today.min.js?v=');
+  assert.ok(tIdx >= 0 && tIdx < appIdx, 'today.js phải load trước app.js');
+  // sw.js precache today.js
+  assert.ok(SW.includes("\'./js/today.min.js\'"), 'sw.js phải precache js/today.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowToday\) throw new Error\('TaskFlowToday missing/);
+  assert.match(APP_JS, /const \{ todayGreeting, todayWeekdayLabel, renderToday, totalFocusMinutesToday, taskRowHTML \} = window\.TaskFlowToday;/);
+  assert.doesNotMatch(APP_JS, /^function todayGreeting\(/m);
+  assert.doesNotMatch(APP_JS, /^function todayWeekdayLabel\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderToday\(/m);
+  assert.doesNotMatch(APP_JS, /^function totalFocusMinutesToday\(/m);
+  assert.doesNotMatch(APP_JS, /^function taskRowHTML\(/m);
+  // call-sites giữ nguyên: setView/setLang/refresh paths + renderWeek dùng taskRowHTML
+  assert.match(APP_JS, /if \(state\.view === 'today'\) renderToday\(\);/);
+  assert.match(APP_JS, /taskRowHTML\(w\.n, di, ti, 'pink', t, i\)/);
+  assert.match(APP_JS, /taskRowHTML\(w\.n, di, ti, 'blue', t, i\)/);
+  // module export đủ API
+  const mod = readRequiredAsset('js/today.js');
+  assert.match(mod, /return \{ todayGreeting, todayWeekdayLabel, renderToday, totalFocusMinutesToday, taskRowHTML \}/);
+});
+
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
   // app.html loads analytics.js before app.js
   assert.match(APP, /src="js\/analytics.min.js\?v=\d+"[^>]*>/);
@@ -1715,7 +1740,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v169';/);
+  assert.match(SW, /const CACHE = 'taskflow-v170';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1793,7 +1818,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v169';/);
+  assert.match(SW, /const CACHE = 'taskflow-v170';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2015,13 +2040,15 @@ test('release: redundant emoji is removed from tool labels backed by local icons
 test('Phase 3: Today Dashboard is the default view with greeting, tasks, habits and focus', () => {
   const html = readRequiredAsset('app.html');
   assert.match(html, /id="view-today"[^>]*role="tabpanel"/);
-  assert.match(APP_JS, /function renderToday\(\)/);
-  assert.match(APP_JS, /function todayGreeting\(\)/);
-  assert.match(APP_JS, /todayGreetingMorning|todayGreetingAfternoon|todayGreetingEvening/);
-  assert.match(APP_JS, /todayTasksTitle|todayHabitsTitle|todayFocusTitle/);
-  assert.match(APP_JS, /today-addtask/);
-  assert.match(APP_JS, /todayCompleted|todayProgress/);
-  assert.match(APP_JS, /today-page|today-card|today-progress-fill|today-habit-list/);
+  // R19 (extraction 34): Today render sang js/today.js (window.TaskFlowToday)
+  const todayMod = readRequiredAsset('js/today.js');
+  assert.match(todayMod, /function renderToday\(\)/);
+  assert.match(todayMod, /function todayGreeting\(\)/);
+  assert.match(todayMod, /todayGreetingMorning|todayGreetingAfternoon|todayGreetingEvening/);
+  assert.match(todayMod, /todayTasksTitle|todayHabitsTitle|todayFocusTitle/);
+  assert.match(todayMod, /today-addtask/);
+  assert.match(todayMod, /todayCompleted|todayProgress/);
+  assert.match(todayMod, /today-page|today-card|today-progress-fill|today-habit-list/);
   // default state view is today
   assert.match(APP_JS, /view: 'today'/);
   // deeplink accepts today
@@ -2035,27 +2062,27 @@ test('Phase 3: Today Dashboard is the default view with greeting, tasks, habits 
 
 test('Phase 3: Today view toggles tasks and habits through shared actions', () => {
   assert.match(APP_JS, /if \(state\.view === 'today'\) renderToday\(\);/);
-  assert.match(APP_JS, /data-role=\"task-text\"\s+data-week=/);
+  assert.match(readRequiredAsset('js/today.js'), /data-role=\"task-text\"\s+data-week=/);
   assert.match(APP_JS, /habitStreakCached/);
-  assert.match(APP_JS, /totalFocusMinutesToday/);
+  assert.match(readRequiredAsset('js/today.js'), /totalFocusMinutesToday/);
 });
 
 test('Phase 4: minimal task card with meta line and hover ⋯ menu', () => {
   const styles = readRequiredAsset('css/styles.css');
-  // meta line (P1 · giờ · repeat) dưới text
-  assert.match(APP_JS, /task-meta/);
+  // meta line (P1 · giờ · repeat) dưới text — row renderer sang js/today.js (extraction 34)
+  assert.match(readRequiredAsset('js/today.js'), /task-meta/);
   assert.match(APP_JS, /taskPriorityLabel/);
-  assert.match(APP_JS, /task-meta-time/);
-  assert.match(APP_JS, /task-meta-repeat/);
+  assert.match(readRequiredAsset('js/today.js'), /task-meta-time/);
+  assert.match(readRequiredAsset('js/today.js'), /task-meta-repeat/);
   // actions ẩn mặc định, hiện khi hover/focus
   assert.match(styles, /\.task-row-actions[^}]*opacity:\s*0/s);
   assert.match(styles, /\.task-row:hover \.task-row-actions[^}]*opacity:\s*1/s);
   // menu dropdown ⋯ chứa duplicate/delete/move, giữ data-action cũ cho handler
   assert.match(APP_JS, /data-action="task-menu"/);
-  assert.match(APP_JS, /data-action="task-duplicate"/);
-  assert.match(APP_JS, /data-action="task-move"/);
-  assert.match(APP_JS, /data-action="remind-task"/);
-  assert.match(APP_JS, /data-action="repeat-edit"/);
+  assert.match(readRequiredAsset('js/today.js'), /data-action="task-duplicate"/);
+  assert.match(readRequiredAsset('js/today.js'), /data-action="task-move"/);
+  assert.match(readRequiredAsset('js/today.js'), /data-action="remind-task"/);
+  assert.match(readRequiredAsset('js/today.js'), /data-action="repeat-edit"/);
   assert.match(APP_JS, /act === 'task-duplicate'/);
   assert.match(APP_JS, /act === 'task-move'/);
   assert.match(I18N_JS, /taskMove: 'Chuyển ngày'/);
@@ -2146,8 +2173,8 @@ test('Phase 6: task-specific focus with timer and session log', () => {
   assert.match(APP_JS, /act === 'focus-timer-set'/);
   assert.match(APP_JS, /data-action="focus-timer-set"/);
   assert.match(APP_JS, /data-action="focus-show-all"/);
-  // meta badge focus trên row
-  assert.match(APP_JS, /task-meta-focus/);
+  // meta badge focus trên row (taskRowHTML sang js/today.js)
+  assert.match(readRequiredAsset('js/today.js'), /task-meta-focus/);
   // drawer có focus row + nút Tập trung
   assert.match(APP_JS, /td-focus-row/);
   assert.match(APP_JS, /data-action="focus-task"[^]*taskFocusBtn/);
@@ -2565,8 +2592,8 @@ test('Phase 19: e2e stability — stable data-testid hooks, no .active in script
   ]) {
     assert.match(APP, new RegExp(`id="${id}"[^>]*data-testid="${tid}"`), `${id} → ${tid}`);
   }
-  // Task row động có data-testid="task-row"
-  assert.match(APP_JS, /<div class="task-row[^>]*data-testid="task-row"/);
+  // Task row động có data-testid="task-row" (taskRowHTML sang js/today.js)
+  assert.match(readRequiredAsset('js/today.js'), /<div class="task-row[^>]*data-testid="task-row"/);
   // E2E scripts không còn phụ thuộc .active làm selector chính
   const SMOKE = readRequiredAsset('scripts/e2e-smoke.py');
   const FRONT = readRequiredAsset('scripts/e2e-frontend.py');
