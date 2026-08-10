@@ -814,8 +814,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=144/);
-  assert.match(SW, /const CACHE = 'taskflow-v163';/);
+  assert.match(APP, /js\/app\.min\.js\?v=145/);
+  assert.match(SW, /const CACHE = 'taskflow-v164';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1265,12 +1265,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=144/);
+  assert.match(APP, /js\/app\.min\.js\?v=145/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v163';/);
+  assert.match(SW, /const CACHE = 'taskflow-v164';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1429,8 +1429,9 @@ test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', (
   assert.doesNotMatch(APP_JS, /^function initAnalytics\(/m);
   assert.doesNotMatch(APP_JS, /^function trackEvent\(/m);
   // call-sites giữ nguyên: trackEvent(...) khắp app.js + boot initAnalytics();
-  // trackEvent('share_year_report') thuộc doShareYearReport đã sang js/year-report.js
-  assert.match(APP_JS, /trackEvent\('demo_data'\)/);
+  // trackEvent('share_year_report') thuộc doShareYearReport đã sang js/year-report.js;
+  // trackEvent('demo_data') thuộc demoPlan đã sang js/popups.js (extraction 28)
+  assert.match(readRequiredAsset('js/popups.js'), /trackEvent\('demo_data'\)/);
   assert.match(APP_JS, /trackEvent\('import_csv'\)/);
   assert.match(APP_JS, /initAnalytics\(\)/);
   assert.match(readRequiredAsset('js/year-report.js'), /trackEvent\('share_year_report'/);
@@ -1593,7 +1594,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v163';/);
+  assert.match(SW, /const CACHE = 'taskflow-v164';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1671,7 +1672,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v163';/);
+  assert.match(SW, /const CACHE = 'taskflow-v164';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -1844,7 +1845,10 @@ test('hardening: reduced-motion helper suppresses confetti and smooth journey sc
   assert.equal(helper(() => ({ matches: true })), true);
   assert.equal(helper(() => ({ matches: false })), false);
   assert.equal(helper(null), false);
-  assert.match(APP_JS, /function confettiBurst\(\)\s*{\s*if \(prefersReducedMotion\(\)\) return;/);
+  // P11 extraction 28: confettiBurst chuyển sang js/popups.js (window.TaskFlowPopups);
+  // app.js giữ guard + alias để call-sites không đổi. prefersReducedMotion vẫn ở app.js.
+  assert.match(readRequiredAsset('js/popups.js'), /function confettiBurst\(\)\s*{\s*if \(prefersReducedMotion\(\)\) return;/);
+  assert.match(APP_JS, /if \(!window\.TaskFlowPopups\) throw new Error\('TaskFlowPopups missing/);
   assert.match(APP_JS, /scrollIntoView\(\{\s*behavior:\s*prefersReducedMotion\(\) \? 'auto' : 'smooth'/);
 });
 

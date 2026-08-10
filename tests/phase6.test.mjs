@@ -83,16 +83,23 @@ test('6.2: parseCSVRows bỏ qua dòng rác', () => {
    ============================================================ */
 
 test('6.3: app.js có thư viện thói quen mẫu + nút mở', () => {
-  assert.match(APP_JS, /HABIT_TEMPLATES\s*=\s*\[/);
+  // P11 extraction 28: confettiBurst/templatesPopHTML/demoPlan/seedHabitDays/seedTasks
+  // + HABIT_TEMPLATES nằm trong js/popups.js (window.TaskFlowPopups); app.js giữ guard
+  // + alias để call-sites không đổi.
+  const POPUPS_JS = readFileSync(path.join(ROOT, 'js/popups.js'), 'utf8');
+  assert.match(POPUPS_JS, /HABIT_TEMPLATES\s*=\s*\[/);
   assert.match(APP_JS, /data-action="templates-toggle"/);
-  assert.match(APP_JS, /data-action="template-add"/);
-  assert.match(APP_JS, /templatesPopHTML\(\)/);
+  assert.match(POPUPS_JS, /data-action="template-add"/);
+  assert.match(POPUPS_JS, /templatesPopHTML\(\)/);
+  assert.match(APP_JS, /const \{ confettiBurst, templatesPopHTML, demoPlan, seedHabitDays, seedTasks \} = window\.TaskFlowPopups;/);
 });
 
 test('6.3: demo data (demoPlan + nút)', () => {
-  assert.match(APP_JS, /function demoPlan\(\)/);
+  const POPUPS_JS = readFileSync(path.join(ROOT, 'js/popups.js'), 'utf8');
+  assert.match(POPUPS_JS, /function demoPlan\(\)/);
   assert.match(APP_HTML, /data-action="demo-data"/);
-  assert.match(APP_JS, /trackEvent\('demo_data'\)/);
+  assert.match(POPUPS_JS, /trackEvent\('demo_data'\)/);
+  assert.match(APP_JS, /window\.TaskFlowPopups/);
 });
 
 test('6.4: mood tracker (state + UI + insight)', () => {
