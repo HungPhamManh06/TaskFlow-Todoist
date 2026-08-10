@@ -817,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=154/);
-  assert.match(SW, /const CACHE = 'taskflow-v173';/);
+  assert.match(APP, /js\/app\.min\.js\?v=155/);
+  assert.match(SW, /const CACHE = 'taskflow-v174';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1271,12 +1271,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=154/);
+  assert.match(APP, /js\/app\.min\.js\?v=155/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v173';/);
+  assert.match(SW, /const CACHE = 'taskflow-v174';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1634,6 +1634,46 @@ test('P11: focus stats extracted — pomo/focus helpers live in js/focus-stats.j
   assert.match(mod, /return \{ pomoDaySecs, focusWeekMinutes, focusMonthMinutes, topFocusTasksInWeek, topFocusTasksInMonth, taskFocusMinLabel \}/);
 });
 
+test('P11: focus mode extracted — overlay + timer state machine live in js/focus.js', () => {
+  // app.html loads focus.js before app.js
+  assert.match(APP, /src="js\/focus\.min\.js\?v=\d+"[^>]*>/);
+  const appIdx = APP.indexOf('js/app.min.js?v=');
+  const fIdx = APP.indexOf('js/focus.min.js?v=');
+  assert.ok(fIdx >= 0 && fIdx < appIdx, 'focus.js phải load trước app.js');
+  // sw.js precache focus.js
+  assert.ok(SW.includes("'./js/focus.min.js'"), 'sw.js phải precache js/focus.js');
+  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
+  assert.match(APP_JS, /if \(!window\.TaskFlowFocus\) throw new Error\('TaskFlowFocus missing/);
+  assert.match(APP_JS, /const \{ openFocusMode, closeFocusMode, focusTimerStart, focusTimerReset, focusTimerSetDur, refreshFocusIfOpen, taskFocusLog, taskFocusSecs \} = window\.TaskFlowFocus;/);
+  assert.doesNotMatch(APP_JS, /^function openFocusMode\(/m);
+  assert.doesNotMatch(APP_JS, /^function closeFocusMode\(/m);
+  assert.doesNotMatch(APP_JS, /^function focusTimerStart\(/m);
+  assert.doesNotMatch(APP_JS, /^function focusTimerReset\(/m);
+  assert.doesNotMatch(APP_JS, /^function focusTimerSetDur\(/m);
+  assert.doesNotMatch(APP_JS, /^function focusTimerComplete\(/m);
+  assert.doesNotMatch(APP_JS, /^function focusTimerRender\(/m);
+  assert.doesNotMatch(APP_JS, /^function refreshFocusIfOpen\(/m);
+  assert.doesNotMatch(APP_JS, /^function taskFocusLog\(/m);
+  assert.doesNotMatch(APP_JS, /^function taskFocusSecs\(/m);
+  assert.doesNotMatch(APP_JS, /^function fmtSessionDate\(/m);
+  assert.doesNotMatch(APP_JS, /^function getTaskByUid\(/m);
+  // call-sites giữ nguyên: dispatcher focus/focus-close/focus-task/focus-timer-* + outside-click
+  assert.match(APP_JS, /act === 'focus'/);
+  assert.match(APP_JS, /act === 'focus-close'/);
+  assert.match(APP_JS, /act === 'focus-timer-start'/);
+  assert.match(APP_JS, /act === 'focus-timer-set'/);
+  assert.match(APP_JS, /openFocusMode\(el\.dataset\.scope === 'inbox'/);
+  // render path + module chéo resolve qua global lexical
+  assert.match(APP_JS, /taskFocusSecs\(tk\)/);
+  assert.match(readRequiredAsset('js/today.js'), /taskFocusSecs\(task\)/);
+  assert.match(readRequiredAsset('js/focus-stats.js'), /taskFocusLog\(tk\)/);
+  // module export đủ API (focusTaskRef/focusTimer là state riêng — không export)
+  const mod = readRequiredAsset('js/focus.js');
+  assert.match(mod, /return \{\s*openFocusMode, closeFocusMode, focusTimerStart, focusTimerReset, focusTimerSetDur,\s*refreshFocusIfOpen, taskFocusLog, taskFocusSecs,/);
+  assert.match(mod, /let focusTimer = \{ running: false, dur: 25 \* 60/);
+  assert.match(mod, /function focusTimerComplete\(\)/);
+});
+
 test('P11: analytics helpers extracted — GA4 core lives in js/analytics.js', () => {
   // app.html loads analytics.js before app.js
   assert.match(APP, /src="js\/analytics.min.js\?v=\d+"[^>]*>/);
@@ -1843,7 +1883,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v173';/);
+  assert.match(SW, /const CACHE = 'taskflow-v174';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1921,7 +1961,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v173';/);
+  assert.match(SW, /const CACHE = 'taskflow-v174';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2250,32 +2290,34 @@ test('Phase 5: task detail drawer with fields, subtasks, and handlers', () => {
 test('Phase 6: task-specific focus with timer and session log', () => {
   const styles = readRequiredAsset('css/styles.css');
   const html = readRequiredAsset('app.html');
-  // focus-task button truyền ref vào openFocusMode (week/day hoặc scope=inbox cho task Inbox)
+  // focus-task button truyền ref vào openFocusMode (week/day hoặc scope=inbox cho task Inbox) — dispatcher giữ
   assert.match(APP_JS, /openFocusMode\(el\.dataset\.scope === 'inbox'/);
   assert.match(APP_JS, /week: el\.dataset\.week, day: el\.dataset\.day, task: el\.dataset\.task,/);
-  assert.match(APP_JS, /function openFocusMode\(ref\)/);
-  assert.match(APP_JS, /let focusTaskRef = null/);
-  assert.match(APP_JS, /function getFocusedTask\(\)/);
+  // focus mode + timer state machine sang js/focus.js (P11 extraction 39 — A28)
+  assert.match(readRequiredAsset('js/focus.js'), /function openFocusMode\(ref\)/);
+  assert.match(readRequiredAsset('js/focus.js'), /let focusTaskRef = null/);
+  assert.match(readRequiredAsset('js/focus.js'), /function getFocusedTask\(\)/);
   // session log helpers trên task
-  assert.match(APP_JS, /function taskFocusLog\(tk\)/);
-  assert.match(APP_JS, /function taskFocusSecs\(tk\)/);
-  assert.match(APP_JS, /function taskFocusToday\(tk\)/);
-  assert.match(APP_JS, /function getTaskByUid\(uid\)/);
-  assert.match(APP_JS, /byUid\.focusLog = byUid\.focusLog \|\| \[\]/);
+  assert.match(readRequiredAsset('js/focus.js'), /function taskFocusLog\(tk\)/);
+  assert.match(readRequiredAsset('js/focus.js'), /function taskFocusSecs\(tk\)/);
+  assert.match(readRequiredAsset('js/focus.js'), /function taskFocusToday\(tk\)/);
+  assert.match(readRequiredAsset('js/focus.js'), /function getTaskByUid\(uid\)/);
+  assert.match(readRequiredAsset('js/focus.js'), /byUid\.focusLog = byUid\.focusLog \|\| \[\]/);
   // timer: presets + start/pause/reset/set + endAt accuracy
-  assert.match(APP_JS, /const FOCUS_PRESETS = \[5, 15, 25, 45\]/);
-  assert.match(APP_JS, /let focusTimer = \{ running: false, dur: 25 \* 60/);
-  assert.match(APP_JS, /function focusTimerComplete\(\)/);
-  assert.match(APP_JS, /function focusTimerStart\(\)/);
-  assert.match(APP_JS, /function focusTimerSetDur\(min\)/);
-  assert.match(APP_JS, /focusTimer\.endAt = Date\.now\(\) \+ focusTimer\.left \* 1000/);
-  // actions mới
+  assert.match(readRequiredAsset('js/focus.js'), /const FOCUS_PRESETS = \[5, 15, 25, 45\]/);
+  assert.match(readRequiredAsset('js/focus.js'), /let focusTimer = \{ running: false, dur: 25 \* 60/);
+  assert.match(readRequiredAsset('js/focus.js'), /function focusTimerComplete\(\)/);
+  assert.match(readRequiredAsset('js/focus.js'), /function focusTimerStart\(\)/);
+  assert.match(readRequiredAsset('js/focus.js'), /function focusTimerSetDur\(min\)/);
+  assert.match(readRequiredAsset('js/focus.js'), /focusTimer\.endAt = Date\.now\(\) \+ focusTimer\.left \* 1000/);
+  // actions mới — dispatcher giữ ở app.js
   assert.match(APP_JS, /act === 'focus-show-all'/);
   assert.match(APP_JS, /act === 'focus-timer-start'/);
   assert.match(APP_JS, /act === 'focus-timer-reset'/);
   assert.match(APP_JS, /act === 'focus-timer-set'/);
-  assert.match(APP_JS, /data-action="focus-timer-set"/);
-  assert.match(APP_JS, /data-action="focus-show-all"/);
+  // markup timer/overlay — renderFocusContent trong js/focus.js
+  assert.match(readRequiredAsset('js/focus.js'), /data-action="focus-timer-set"/);
+  assert.match(readRequiredAsset('js/focus.js'), /data-action="focus-show-all"/);
   // meta badge focus trên row (taskRowHTML sang js/today.js)
   assert.match(readRequiredAsset('js/today.js'), /task-meta-focus/);
   // drawer có focus row + nút Tập trung
@@ -2479,7 +2521,7 @@ test('Phase 3: Inbox — nav item, view section, capture flow and schedule keepi
   assert.match(APP_JS, /taskDetailRef\.scope === 'inbox'/);
   assert.match(APP_JS, /data-scope=\"inbox\"/);
   assert.match(APP_JS, /taskDetailRef\.scope === 'inbox'\) \{\s*inbox\.splice/s);
-  assert.match(APP_JS, /focusTaskRef\.scope === 'inbox'/);
+  assert.match(readRequiredAsset('js/focus.js'), /focusTaskRef\.scope === 'inbox'/);
   // 7. i18n keys đủ vi+en
   assert.match(I18N_JS, /tabInbox: 'Inbox'/);
   assert.match(I18N_JS, /inboxEyebrow:/);

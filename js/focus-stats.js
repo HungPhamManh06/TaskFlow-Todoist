@@ -4,7 +4,7 @@
 // (chỉ được gọi từ topFocusTasksInWeek/Month) — không expose.
 // Deps resolve qua global lexical tại thời điểm GỌI — pattern mood.js/popups.js:
 //   t, state, PLAN_START/PLAN_YEAR/PLAN_MONTH/NUM_DAYS, loadPomoLog, pomoDateKey,
-//   taskFocusLog (TaskFlowFocus — còn lại trong app.js R28)
+//   taskFocusLog (TaskFlowFocus — js/focus.js, extraction 39)
 // Report-ui.js + year-report.js gọi các hàm này qua global lexical của app.js
 // (app.js giữ alias từ destructure) — không import trực tiếp.
 (function (root, factory) {

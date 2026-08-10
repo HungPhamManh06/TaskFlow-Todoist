@@ -244,10 +244,10 @@ test('5.5: nút feedback + FB_FORM_URL handler', () => {
 test('5.6: focus overlay + open/close + body.focus-mode', () => {
   assert.match(APP_HTML, /id="focusOverlay"/);
   assert.match(APP_HTML, /data-action="focus-close"/);
-  assert.match(APP_JS, /function openFocusMode\(ref\)/);
-  assert.match(APP_JS, /function closeFocusMode\(\)/);
-  assert.match(APP_JS, /function renderFocusContent\(\)/);
-  assert.match(APP_JS, /focus-mode/);
+  assert.match(readFileSync(path.join(ROOT, 'js/focus.js'), 'utf8'), /function openFocusMode\(ref\)/);
+  assert.match(readFileSync(path.join(ROOT, 'js/focus.js'), 'utf8'), /function closeFocusMode\(\)/);
+  assert.match(readFileSync(path.join(ROOT, 'js/focus.js'), 'utf8'), /function renderFocusContent\(\)/);
+  assert.match(readFileSync(path.join(ROOT, 'js/focus.js'), 'utf8'), /focus-mode/);
   // P4: nút Focus đã bỏ khỏi tools drawer — reachable qua sidebar (buildNav actionBtn)
   assert.match(APP_JS, /actionBtn\('focus', 'focus'/);
   assert.match(CSS, /\.focus-overlay/);
