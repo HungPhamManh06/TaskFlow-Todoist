@@ -251,7 +251,25 @@ textarea:focus-visible,
   }
 
   /* Dense planner grid checkboxes are intentionally excluded here. Their compact
-     target-spacing treatment remains pending the dedicated view redesign. */
+     target-spacing treatment remains pending the dedicated view redesign.
+     Row/list checkbox toggles (today tasks+habits, week/upcoming/inbox rows,
+     focus rows) DO expand to a ~44px hit area on touch (mobile QA P1.10 — the
+     dense 31-column habit table stays excluded: a 44px target is physically
+     impossible at 360px width). */
+  :is(.task-row, .today-task, .today-habit, .up-task-row, .inbox-task-row, .focus-task, .focus-tasktext) .checkbox {
+    position: relative;
+  }
+  :is(.task-row, .today-task, .today-habit, .up-task-row, .inbox-task-row, .focus-task, .focus-tasktext) .checkbox::before {
+    content: "";
+    position: absolute;
+    inset: -13px;
+  }
+  /* Base .checkbox:active scale(.85) thu nhỏ cả vùng ::before giữa tap →
+     compat click trượt ra ngoài, checkbox không toggle được (tìm thấy ở 768px
+     tablet, mobile QA P1.10). Bỏ scale trên touch để hit-area đứng yên. */
+  :is(.task-row, .today-task, .today-habit, .up-task-row, .inbox-task-row, .focus-task, .focus-tasktext) .checkbox:active {
+    transform: none;
+  }
 }
 
 @media (max-width: 767px) {

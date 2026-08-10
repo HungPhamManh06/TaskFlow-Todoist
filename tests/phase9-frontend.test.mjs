@@ -2162,7 +2162,12 @@ test('hardening: current shell targets are 44px without expanding dense planner 
     .forEach((className) => assert.match(touchRules, new RegExp(`\\.${className}\\b`)));
   assert.match(touchRules, /min-width:\s*44px/);
   assert.match(touchRules, /min-height:\s*44px/);
-  assert.doesNotMatch(touchRules, /\.checkbox\b|\.habit-table\b/);
+  // P1.10 mobile QA: row/list checkbox toggles (task/habit/upcoming/inbox/focus
+  // rows) also expand to a ~44px hit area via ::before with the :active scale
+  // suppressed on touch — the dense 31-column habit table stays the deliberate
+  // exclusion.
+  assert.match(touchRules, /\.checkbox::before\s*{[^}]*inset:\s*-13px/);
+  assert.doesNotMatch(touchRules, /\.habit-table\b/);
   assert.match(components, /Dense planner grid checkboxes[^]*intentionally excluded/i);
 });
 

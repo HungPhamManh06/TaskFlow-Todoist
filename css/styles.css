@@ -1229,6 +1229,10 @@ textarea:focus-visible,
   box-shadow: var(--shadow-floating);
 }
 .task-menu[hidden] { display: none; }
+/* Row done có opacity < 1 → tự tạo stacking context, nhốt z-index:70 của
+   .task-menu bên trong row — dropdown bị row kế tiếp vẽ đè (không bấm được).
+   Khi mở menu, nâng cả row lên trên các row anh em. */
+.task-row.menu-open { z-index: 1; }
 .task-row.menu-open .task-menu { display: grid; }
 .task-row.menu-open.menu-up .task-menu {
   top: auto;
@@ -2405,7 +2409,8 @@ textarea:focus-visible,
   box-sizing: border-box;
   padding: 10px 12px;
   font-family: inherit;
-  font-size: 14px;
+  /* >=16px tránh iOS auto-zoom khi focus (P1.11) — không phải tăng toàn cục */
+  font-size: 16px;
   color: var(--ink, #4a403a);
   background: #fffdf8;
   border: 1.5px solid var(--card-border, #e8dfd0);
@@ -3100,7 +3105,8 @@ sup.remind-dot {
   width: 100%;
   box-sizing: border-box;
   margin-top: 4px;
-  font-size: 15px;
+  /* >=16px tránh iOS auto-zoom khi focus (P1.11) — không phải tăng toàn cục */
+  font-size: 16px;
   padding: 10px 14px;
 }
 .search-results {
