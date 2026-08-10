@@ -1,4 +1,9 @@
-"""Focused browser checks for the TaskFlow refined frontend views."""
+"""Focused browser checks for the TaskFlow refined frontend views.
+
+Cross-browser: --browser chromium|firefox|webkit (default chromium).
+The full matrix (--all, 11 scenarios x 5 viewports) targets Chromium;
+single scenarios also run on Firefox/WebKit.
+"""
 import argparse
 import http.server
 import os
@@ -37,6 +42,19 @@ def assert_no_page_overflow(page, label):
     assert overflow <= 1, f"{label} horizontal overflow: {overflow}px"
 
 
+def make_page(browser, width, height):
+    # Motion determinism: emulate prefers-reduced-motion (the app honors it in
+    # CSS + JS) so every smooth scroll is instant. Without this, WebKit
+    # suppresses or mis-targets clicks that land while a scroll is still in
+    # flight (elements move under the cursor → "intercepts pointer events"
+    # retries, flaky toggles), and Firefox scrolls more slowly than Chromium so
+    # geometry reads can straddle two scroll positions. Reduced-motion removes
+    # animation timing from the suite on every engine.
+    page = browser.new_page(viewport={"width": width, "height": height})
+    page.emulate_media(reduced_motion="reduce")
+    return page
+
+
 def load_app(page, base):
     page.add_init_script("localStorage.setItem('planner-onboarded','1');")
     page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
@@ -62,7 +80,7 @@ def load_planning_view(page, base, view):
 
 
 def overview_checks(browser, base, width, height, errors, screenshot):
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"{width}px: {error}"))
     load_app(page, base)
 
@@ -116,6 +134,33 @@ def overview_checks(browser, base, width, height, errors, screenshot):
     habit_metric_before = int(habit_metric.inner_text())
     habit = page.locator(f'[data-action="habit"][data-day="{today_index}"]').first
     before = habit.get_attribute("aria-checked")
+    # The habit table is horizontally scrollable with two pinned sticky columns
+    # (name-col 190px + pct-col 52px). At narrow viewports Playwright's minimal
+    # scroll-into-view leaves today's cell UNDER the sticky columns, and the
+    # page's sticky topbar / fixed bottom nav can cover it vertically — so the
+    # click is intercepted ("subtree intercepts pointer events") on every
+    # engine. A real user swipes the cell clear of the pinned columns and taps
+    # mid-screen. Pre-position the cell the same way: align its right edge just
+    # inside the wrap (clears both sticky columns) and center it vertically in
+    # the viewport (clears topbar + bottom nav).
+    page.evaluate(
+        """(day) => {
+          const wrap = document.querySelector('.habit-table-wrap');
+          if (!wrap) return;
+          const t = document.querySelector(`[data-action="habit"][data-day="${day}"]`);
+          if (!t) return;
+          const wr = wrap.getBoundingClientRect();
+          const tr = t.getBoundingClientRect();
+          const dx = tr.left - (wr.right - tr.width - 16);
+          wrap.scrollLeft = Math.min(
+            Math.max(wrap.scrollLeft + dx, 0),
+            wrap.scrollWidth - wrap.clientWidth
+          );
+          const tr2 = t.getBoundingClientRect();
+          window.scrollBy(0, tr2.top - window.innerHeight * 0.35);
+        }""",
+        today_index,
+    )
     habit.click()
     assert habit.get_attribute("aria-checked") != before
     assert int(habit_metric.inner_text()) != habit_metric_before
@@ -134,7 +179,7 @@ def overview_checks(browser, base, width, height, errors, screenshot):
 
 
 def week_checks(browser, base, width, height, errors, screenshot):
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"week {width}px: {error}"))
     load_week(page, base)
 
@@ -200,7 +245,7 @@ def week_checks(browser, base, width, height, errors, screenshot):
 
 
 def year_checks(browser, base, width, height, errors, screenshot):
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"year {width}px: {error}"))
     load_planning_view(page, base, "year")
 
@@ -222,7 +267,7 @@ def year_checks(browser, base, width, height, errors, screenshot):
 
 
 def calendar_checks(browser, base, width, height, errors, screenshot):
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"calendar {width}px: {error}"))
     load_planning_view(page, base, "calendar")
 
@@ -267,7 +312,7 @@ def load_inbox(page, base):
 
 def inbox_checks(browser, base, width, height, errors, screenshot):
     """Phase D: full Inbox flow — capture, type, schedule-to-today — on stable data-testid hooks."""
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"inbox {width}px: {error}"))
     load_inbox(page, base)
 
@@ -306,7 +351,7 @@ def deeplink_checks(browser, base, width, height, errors, screenshot):
     The self-hosted server maps /app → /app.html (clean URLs), same as Vercel.
     NOTE: this tests the deep-link ROUTING the SW/notification opens, not the SW
     notificationclick handler itself (real notifications are untestable in headless)."""
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"deeplink {width}px: {error}"))
 
     # 1. Notification deep-link target: today view, no quick-add
@@ -341,7 +386,7 @@ def taskdetail_checks(browser, base, width, height, errors, screenshot):
     """P0.2: task-detail drawer edit flow (title/date/time/duration/priority/repeat/
     tags/notes/subtasks) + delete/undo + export download flow (JSON/CSV/ICS), on stable
     data-testid / data-action hooks."""
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"taskdetail {width}px: {error}"))
     load_week(page, base)
 
@@ -480,7 +525,7 @@ def taskdetail_checks(browser, base, width, height, errors, screenshot):
 
 
 def dialog_checks(browser, base, width, height, errors, screenshot):
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dialogs {width}px: {error}"))
     load_app(page, base)
 
@@ -546,7 +591,7 @@ def dialog_checks(browser, base, width, height, errors, screenshot):
 
 
 def landing_checks(browser, base, width, height, errors, screenshot):
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"landing {width}px: {error}"))
     page.add_init_script("""
       // Set defaults only on first load so clicks that change the
@@ -592,7 +637,7 @@ def landing_checks(browser, base, width, height, errors, screenshot):
 
 
 def focus_checks(browser, base, width, height, errors, screenshot):
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"focus {width}px: {error}"))
     load_app(page, base)
 
@@ -618,7 +663,7 @@ def focus_checks(browser, base, width, height, errors, screenshot):
 
 
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
     page.add_init_script("""
       localStorage.setItem('planner-onboarded','1');
@@ -633,14 +678,14 @@ def dark_overview_checks(browser, base, width, height, errors, screenshot):
 
 
 def release_layout_checks(browser, base, width, height, errors):
-    landing = browser.new_page(viewport={"width": width, "height": height})
+    landing = make_page(browser, width, height)
     landing.on("pageerror", lambda error: errors.append(f"release landing {width}px: {error}"))
     landing.goto(f"{base}/index.html", wait_until="networkidle")
     assert_no_page_overflow(landing, f"release landing {width}px")
     landing.close()
 
     for view in ("overview", "week", "year", "calendar"):
-        page = browser.new_page(viewport={"width": width, "height": height})
+        page = make_page(browser, width, height)
         page.on("pageerror", lambda error, v=view: errors.append(f"release {v} {width}px: {error}"))
         page.add_init_script("localStorage.setItem('planner-onboarded','1');")
         page.goto(f"{base}/app.html?view={view}", wait_until="networkidle")
@@ -651,12 +696,18 @@ def release_layout_checks(browser, base, width, height, errors):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
     parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--screenshots", action="store_true")
+    parser.add_argument(
+        "--browser",
+        choices=["chromium", "firefox", "webkit"],
+        default="chromium",
+        help="browser engine to run against (full --all matrix is Chromium-focused)",
+    )
     args = parser.parse_args()
 
     httpd = socketserver.TCPServer(("127.0.0.1", 0), Handler)
@@ -672,7 +723,7 @@ def main():
 
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True)
+            browser = getattr(playwright, args.browser).launch(headless=True)
             if args.all:
                 release_layout_checks(browser, base, 360, 800, errors)
                 release_layout_checks(browser, base, 1024, 768, errors)
@@ -725,6 +776,14 @@ def main():
             elif args.view == "taskdetail":
                 taskdetail_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 taskdetail_checks(browser, base, 390, 844, errors, shots["mobile"])
+
+            # Firefox session-restore race (Playwright known bug): closing the
+            # browser while a context still exists can throw "can't access
+            # property _maybeDontRestoreTabs" AFTER tests already passed.
+            # Close contexts explicitly first so teardown is clean on every
+            # engine — otherwise CI would report a green suite as red.
+            for context in browser.contexts:
+                context.close()
             browser.close()
     finally:
         httpd.shutdown()

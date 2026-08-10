@@ -1,4 +1,8 @@
-"""TaskFlow frontend smoke test for the responsive application shell."""
+"""TaskFlow frontend smoke test for the responsive application shell.
+
+Cross-browser: --browser chromium|firefox|webkit (default chromium).
+"""
+import argparse
 import http.server
 import os
 import socketserver
@@ -23,6 +27,13 @@ def assert_no_overflow(page, label):
 
 
 def load_app(page, base):
+    # Motion determinism: emulate prefers-reduced-motion so every smooth scroll
+    # is instant (the app already honors it in CSS + JS). Without this, WebKit
+    # suppresses clicks that land while a smooth scroll is still in flight
+    # (click-vs-drag discrimination) → flaky toggles; Firefox also scrolls more
+    # slowly than Chromium, so geometry reads can straddle two scroll positions.
+    # Reduced-motion removes animation timing from the suite on every engine.
+    page.emulate_media(reduced_motion="reduce")
     page.add_init_script("localStorage.setItem('planner-onboarded','1');")
     # Phase 3: default view đã đổi sang 'today' — load thẳng overview để giữ
     # smoke test overview-centric (habit toggle, widget settings).
@@ -76,11 +87,27 @@ def desktop_checks(browser, base, errors, screenshots):
             assert page.locator(f'#mobileNav [data-nav-view="upcoming"][aria-current="page"]').count() == 0
         assert page.locator(f'#moreSheet [data-nav-view="{view}"][aria-current="page"]').count() == 1
 
-    goals_card_box = page.locator(".week-goals-card").bounding_box()
-    for strip in page.locator(".week-goals-card .v-strip").all():
-        strip_box = strip.bounding_box()
-        assert strip_box["y"] >= goals_card_box["y"] - 1
-        assert strip_box["y"] + strip_box["height"] <= goals_card_box["y"] + goals_card_box["height"] + 1
+    # Đo card + strip trong MỘT evaluate để chống race với smooth scroll của
+    # scrollWeekToToday(): nếu gọi bounding_box() 2 lần riêng, Firefox có thể
+    # vẫn đang cuộn mượt (chậm hơn Chromium) giữa 2 lần đo → strip bị đo lệch
+    # scroll → trông như nằm ngoài card. So sánh theo tọa độ document (bất
+    # biến với scroll) trong cùng một snapshot layout.
+    goals_geo = page.evaluate(
+        """() => {
+          const card = document.querySelector('.week-goals-card');
+          if (!card) return null;
+          const cr = card.getBoundingClientRect();
+          const sy = window.scrollY;
+          const top = cr.top + sy, bottom = cr.bottom + sy;
+          return [...card.querySelectorAll('.v-strip')].map((s) => {
+            const r = s.getBoundingClientRect();
+            return { top: r.top + sy, bottom: r.bottom + sy };
+          }).map((s) => ({ ...s, inside: s.top >= top - 1 && s.bottom <= bottom + 1 }));
+        }"""
+    )
+    assert goals_geo is not None, "week-goals-card missing"
+    assert goals_geo, "no .v-strip in week-goals-card"
+    assert all(g["inside"] for g in goals_geo), f"v-strips outside card: {goals_geo}"
 
     page.locator('[data-action="search-toggle"]').first.click()
     page.wait_for_selector('[data-testid="search-modal"]', state="visible")
@@ -128,8 +155,14 @@ def desktop_checks(browser, base, errors, screenshots):
     page.close()
 
 
-def mobile_checks(browser, base, errors, screenshots):
-    page = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True)
+def mobile_checks(browser, browser_name, base, errors, screenshots):
+    # is_mobile is Chromium-only in Playwright; Firefox/WebKit use the viewport
+    # alone (the app's mobile layout is driven by CSS media queries, not touch
+    # emulation), so the mobile scenario stays meaningful on every engine.
+    page = browser.new_page(
+        viewport={"width": 390, "height": 844},
+        is_mobile=(browser_name == "chromium"),
+    )
     page.on("pageerror", lambda error: errors.append(f"mobile: {error}"))
     load_app(page, base)
 
@@ -221,6 +254,15 @@ def mobile_checks(browser, base, errors, screenshots):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="TaskFlow E2E smoke (responsive shell)")
+    parser.add_argument(
+        "--browser",
+        choices=["chromium", "firefox", "webkit"],
+        default="chromium",
+        help="browser engine to run against",
+    )
+    args = parser.parse_args()
+
     httpd = socketserver.TCPServer(("127.0.0.1", 0), Handler)
     port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -233,10 +275,19 @@ def main():
 
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True)
-            desktop_checks(browser, base, errors, screenshots)
-            mobile_checks(browser, base, errors, screenshots)
-            browser.close()
+            browser = getattr(playwright, args.browser).launch(headless=True)
+            try:
+                desktop_checks(browser, base, errors, screenshots)
+                mobile_checks(browser, args.browser, base, errors, screenshots)
+            finally:
+                # Firefox session-restore race (Playwright known bug): closing the
+                # browser while a context still exists can throw "can't access
+                # property _maybeDontRestoreTabs" AFTER tests already passed.
+                # Close contexts explicitly first so teardown is clean on every
+                # engine — otherwise CI would report a green suite as red.
+                for context in browser.contexts:
+                    context.close()
+                browser.close()
     finally:
         httpd.shutdown()
 
