@@ -4,7 +4,7 @@
 
 **Ứng dụng lập kế hoạch cá nhân miễn phí — Today · Inbox · Upcoming · Mục tiêu năm/tháng/tuần · Thói quen & streak · Focus/Pomodoro · Lịch · Báo cáo**
 
-Giao diện pastel kawaii · **Offline-first** — dùng được không cần tài khoản, dữ liệu lưu trên trình duyệt (localStorage) · **Đồng bộ đám mây tùy chọn** khi đăng nhập · Hỗ trợ **tiếng Việt & tiếng Anh**
+**Calm Productivity** · **Offline-first** — dùng được không cần tài khoản, dữ liệu lưu trong trình duyệt (localStorage) · **Đồng bộ đám mây tùy chọn** khi đăng nhập · Hỗ trợ **tiếng Việt & tiếng Anh**
 
 [![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/HTML)
 [![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/CSS)
@@ -56,15 +56,29 @@ Giao diện pastel kawaii · **Offline-first** — dùng được không cần t
 
 ## 📖 Giới thiệu
 
-**TaskFlow** là trang web lập kế hoạch cá nhân dành cho năm 2026, được thiết kế theo phong cách *"kawaii spreadsheet"* với tông màu pastel ấm áp. Ứng dụng giúp bạn:
+**TaskFlow** là hệ thống năng suất cá nhân **offline-first** — *Calm Productivity*: một nơi duy nhất kết nối mục tiêu dài hạn với thực thi hằng ngày.
 
-- 🗓️ **Điều hướng 12 tháng trong năm** — mỗi tháng có bộ mục tiêu, thói quen, reflection và kế hoạch tuần riêng
-- 🎯 **Đặt và theo dõi mục tiêu** cho cả năm, từng tháng và từng tuần — thêm/sửa/xoá tự do
-- 📊 **Habit tracker 31 ngày** với CRUD động, phần trăm hoàn thành theo từng thói quen
-- 🔥 **Streak & heatmap đa tháng** — chuỗi ngày liên tiếp kiểu GitHub, tính xuyên qua ranh giới tháng
-- ✅ **Checklist công việc** hằng ngày theo nhóm ưu tiên (Priority) và thường (Regular)
-- 📝 **Nhật ký Reflection** — tổng kết điều làm tốt, bài học, lòng biết ơn, mục tiêu tiếp theo
-- 🎨 **4 chủ đề màu pastel** (kem, bạc hà, oải hương, đào) + **Dark mode** + chuyển đổi ngôn ngữ **VI/EN**
+**Luồng sản phẩm chính:**
+
+```
+Capture
+  ↓
+Inbox
+  ↓
+Plan
+  ↓
+Upcoming
+  ↓
+Today
+  ↓
+Focus
+  ↓
+Complete
+  ↓
+Reflect
+```
+
+Cấu trúc kế hoạch: **Year → Month → Week → Today** — mục tiêu năm được rải xuống tháng, tuần và việc của hôm nay.
 
 Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **localStorage** của trình duyệt — không cần tài khoản, không cần internet, không lo lộ dữ liệu. Đăng nhập chỉ để bật **đồng bộ đám mây tùy chọn** (xem [Offline-first & Sync](#-offline-first--sync)).
 
@@ -96,7 +110,7 @@ Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **l
 - 🧭 **Điều hướng nhiều năm** — nút «/» chuyển năm, tab "Năm YYYY" luôn đúng năm đang xem, lưới 12 tháng riêng cho từng năm
 - Card tổng quan **năm + tháng hiện tại** kèm câu motto
 - Biểu đồ cột **4 quý (Q1–Q4)** và **12 tháng**
-- Panel **2026 Goals** — donut, thống kê, nút **"Lấy dữ liệu từ 12 tháng từ Dashboard"** gộp mục tiêu toàn năm
+- Panel **Mục tiêu năm** — donut, thống kê, nút **"Lấy dữ liệu từ 12 tháng từ Dashboard"** gộp mục tiêu toàn năm
 - **Line chart tiến độ 12 tháng** + Reflection năm
 - Bảng **Tổng quan theo quý** (donut + checklist từng quý)
 - Lưới **12 tháng chi tiết**: bar tiến độ, checklist mục tiêu và ô ghi chú riêng từng tháng
@@ -115,16 +129,16 @@ Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **l
 - ♿ Hỗ trợ **aria-label**, `role=checkbox`, điều hướng bằng Tab
 - 📱 **Responsive** trên mobile, tablet và desktop
 
-### 🔔 Nhắc việc habit/task (Phase 4)
+### 🔔 Nhắc việc habit/task
 - Mỗi **thói quen** và **task** có thể bật nhắc riêng với giờ tự chọn (nút 🔔 cạnh tên) — khi đến giờ, trình duyệt hiện thông báo kèm tên mục cần làm
 - Danh sách nhắc đang bật hiển thị ngay trong popup 🔔 của header, bật/tắt từng mục nhanh chóng
 - Nhắc chính xác giờ hoạt động khi app đang mở (`setTimeout` tự lên lịch lại mỗi ngày); khi app đóng, nhắc hằng ngày dùng Periodic Background Sync (giới hạn của trình duyệt)
 
-### 📊 Báo cáo tuần (Phase 4)
+### 📊 Báo cáo tuần
 - Nút **"📊 Báo cáo tuần"** trong view Tuần: % mục tiêu, số xong/đang làm/tổng, tỉ lệ habit theo 7 ngày, thói quen nổi bật 🔥, ngày năng suất nhất ⭐
 - 📤 **Chia sẻ ảnh báo cáo tuần** — ảnh 1080×1080 (donut + thống kê + bar chart 7 ngày), chia sẻ trực tiếp hoặc tải `taskflow-week-report.png`
 
-### 🍅 Widget Pomodoro trong tuần view (Phase 4)
+### 🍅 Widget Pomodoro trong tuần view
 - Card **Pomodoro** ngay trong view Tuần: timer 25/5, start/pause/reset, chuyển nhanh chế độ Tập trung/Nghỉ
 - **Thống kê session**: số phiên + tổng phút hôm nay và tuần này (key `planner-pomo-log`, tự đồng bộ đám mây)
 
@@ -132,7 +146,7 @@ Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **l
 - 📲 **Cài đặt offline**: mở trang → chọn "Cài đặt ứng dụng" (Chrome/Edge) — app chạy ngoài cửa sổ trình duyệt, **hoạt động offline-first** (vẫn dùng được khi mất mạng)
 - 🔔 **Nhắc việc hằng ngày**: bật nút 🔔 trong header, chọn giờ — trình duyệt nhắc điểm danh thói quen mỗi ngày (kể cả khi app đã đóng, nhờ Periodic Background Sync)
 - 🔔 **Nhắc việc theo habit/task**: mỗi thói quen & task có giờ nhắc riêng (nút 🔔 cạnh tên) — chính xác khi app mở
-- 🖼️ Icon pastel kawaii đầy đủ kích thước (192/512/maskable) cho Android & iOS
+- 🖼️ Icon pastel đầy đủ kích thước (192/512/maskable) cho Android & iOS
 
 ### 💾 Dữ liệu của bạn — sao lưu & in
 - 📤 **Xuất JSON**: sao lưu toàn bộ 12 tháng + năm thành 1 file (khôi phục bất cứ lúc nào)
@@ -140,40 +154,40 @@ Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **l
 - 📊 **Xuất CSV**: mọi mục tiêu/thói quen/task/reflection thành bảng 7 section — dán thẳng vào **Google Sheets**
 - 🖨️ **In / PDF**: in view đang mở (Tổng quan/Năm/Tuần) tối ưu A4 ngang, checkbox hiện ☐/☑, ẩn nút thao tác
 
-### ↩️ Undo / Redo (Phase 5)
+### ↩️ Undo / Redo
 - **Hoàn tác / Làm lại** mọi thao tác: tick task/habit/goal, thêm/xoá mục, sửa text, sắp xếp, thậm chí cả nút "Đặt lại"
 - Nút ↩️/↪️ trong header + phím **`Ctrl+Z`** / **`Ctrl+Shift+Z`** — snapshot tối đa 50 bước trong phiên
 
-### 🔀 Kéo-thả sắp xếp (Phase 5)
+### 🔀 Kéo-thả sắp xếp
 - Kéo thả **task** trong ngày, **mục tiêu** trong tháng/tuần/năm, **thói quen** trong bảng để đổi thứ tự (lưu ngay, có undo)
 - Gợi ý: kéo thả tốt nhất trên máy tính; trên mobile dùng thứ tự mặc định
 
-### ⌨️ Phím tắt (Phase 5)
+### ⌨️ Phím tắt
 - `Ctrl+K` — mở/đóng tìm kiếm xuyên tháng · `1-5` — chuyển view (Tổng quan/Tuần/Năm/Lịch) · `/` — focus ô thêm task hôm nay · `Esc` — đóng modal/chế độ tập trung
 
-### 🕑 Sao lưu tự động (Phase 5)
+### 🕑 Sao lưu tự động
 - App tự lưu **7 bản sao lưu** (`planner-backup-0..6`, vòng xoay) sau mỗi lần thay đổi — mở 💾 → **"Khôi phục bản sao lưu tự động"** để quay lại bản cũ bất kỳ
 - Trước khi import JSON, app tự chốt 1 bản sao lưu dữ liệu hiện tại (an toàn không mất)
 
-### 🎯 Chế độ Tập trung (Phase 5)
+### 🎯 Chế độ Tập trung
 - Nút 🎯 trong header: overlay tối giản chỉ còn **task hôm nay + thói quen cần làm** — tick ngay trong đó, `Esc` để thoát
 
-### ✨ Thói quen mẫu & Demo (Phase 6)
+### ✨ Thói quen mẫu & Demo
 - Nút **✨ Thói quen mẫu** trong panel thói quen: 16 gợi ý (💧 📚 🏃 😴 …) thêm 1 chạm
 - Nút **🎬 Demo** trong 💾: tạo sẵn 3 mục tiêu + 4 thói quen + 2 task hôm nay (dữ liệu đầy đủ để trải nghiệm ngay)
 
-### 😊 Mood tracker (Phase 6)
+### 😊 Mood tracker
 - **Chấm mood mỗi ngày** (😢→🤩) ngay trong view Tuần — nhiệt kế **heatmap cả tháng** ngay trên Tổng quan
 - **Insight tự động**: ngày vui vs ngày buồn — hôm nào bạn hoàn thành thói quen tốt hơn? (tự đồng bộ đám mây)
 
-### 📅 Báo cáo năm (Phase 6)
+### 📅 Báo cáo năm
 - Nút **"📊 Báo cáo năm"** trong view Năm: % hoàn thành mục tiêu, tháng đạt mục tiêu nhất 🏆, thói quen nổi bật 🔥, ngày năng suất nhất ⭐
 - 📤 **Chia sẻ ảnh báo cáo năm** — ảnh 1080×1080 (donut + thống kê), chia sẻ trực tiếp hoặc tải `taskflow-year-report.png`
 
-### 📥 Nhập CSV (Phase 6)
+### 📥 Nhập CSV
 - **Nhập CSV** (nút trong 💾): khôi phục mục tiêu/thói quen/task từ file xuất trước đó — dữ liệu trùng tên **gộp vào, không ghi đè** (an toàn khi cập nhật từ Google Sheets)
 
-### 🔔 Weekly digest (Phase 6)
+### 🔔 Weekly digest
 - App tự ghi bản tóm tắt hôm qua (thói quen bỏ lỡ, mục tiêu hôm nay) vào cache — nhắc hằng ngày của trình duyệt hiển thị **số liệu thực tế** thay vì câu mặc định
 
 ### 📈 Analytics (GA4)
@@ -258,18 +272,27 @@ node test-sync.js   # 6 test: no-config, signup+migrate, login lỗi/đúng, pus
 
 ---
 
-## 🌱 Giai đoạn 5 — Growth loop
-
-- 🔥 **Share streak**: nút *Chia sẻ streak 🔥* trên thẻ thói quen tạo ảnh card 1080×1080 (tên + số ngày liên tiếp + heatmap 16 tuần) tải về làm story — mỗi bài share là một kênh marketing miễn phí. Trên điện thoại hỗ trợ **Web Share API** (chia sẻ ảnh thẳng vào app khác).
-- 💬 **Feedback FAB**: nút 💬 góc phải dưới mở popup Góp ý — nối **Google Form** qua `FB_FORM_URL` và email qua `FB_EMAIL` (khai báo đầu file `js/app.js`). Mọi phản hồi đều theo dõi bằng event `feedback_click` (GA4).
-- 📊 **Iterate theo analytics**: điền `GA4_ID` (đầu `js/analytics.js` — hiện đang placeholder `G-XXXXXXXXXX`) để bắt đầu đo. Các event sẵn sàng: `first_visit`, `return_visit`, `create_goal`, `create_habit`, `create_task`, `share_streak` (kèm số ngày + kênh: native/fallback/download), `feedback_click`, `onboarding_*`, `export_*`, `print`, `reminder_*`.
-  - Mẹo iterate: xem GA4 → *Reports → Engagement → Events* — kênh nào (landing → app, share story, bạn bè giới thiệu) đem traffic về, đổ thêm công sức vào kênh đó.
-
----
-
 ## ☁️ Triển khai lên mạng (Vercel)
 
-Trang web là **static site thuần** (HTML/CSS/JS) — không cần build, không cần server.
+**Frontend** là static site (HTML/CSS/JS) — không cần build, chạy trực tiếp trên bất kỳ static host nào và hoạt động **offline-first mà không cần backend**.
+
+**Backend là tùy chọn** — chỉ cần khi bạn muốn:
+
+- 👤 Tài khoản người dùng
+- 🔑 Đăng nhập Google
+- ☁️ Đồng bộ đám mây
+
+Kiến trúc:
+
+```
+Chưa đăng nhập:             Đã đăng nhập (cloud sync tùy chọn):
+
+  Browser                     Browser
+     │                           ↕
+     ▼                      TaskFlow API
+  LocalStorage                   ↕
+                           PostgreSQL
+```
 
 ### 🚀 Vercel
 
@@ -319,7 +342,7 @@ TaskFlow/
 │   ├── tokens.css          # Design tokens (màu, spacing, font)
 │   ├── components.css      # Component dùng chung (button, input, toast, drawer, tooltip)
 │   ├── app-shell.css       # App shell: sidebar, topbar, mobile bottom nav, More sheet
-│   ├── styles.css          # Giao diện pastel kawaii app + 4 chủ đề màu + empty states
+│   ├── styles.css          # Giao diện pastel app + 4 chủ đề màu + empty states
 │   ├── legal.css           # Trang pháp lý
 │   └── landing.css         # Giao diện trang giới thiệu
 │   (mỗi file có bản .min.css do scripts/minify.py tạo)
@@ -343,7 +366,7 @@ TaskFlow/
 │   └── ocr-image.py         # OCR ảnh: tự chọn Windows OCR (vi-VN) → easyocr
 ├── tests/                    # Unit tests (node --test): phase0..phase10 + phase9-frontend
 ├── .github/workflows/ci.yml  # CI: syntax check, minify check, unit tests, E2E
-├── docs/                     # Lighthouse baseline + superpowers plans/specs
+├── docs/                     # Lighthouse baseline + development history + superpowers plans/specs
 ├── README.md
 └── .gitignore
 ```
@@ -363,29 +386,6 @@ TaskFlow/
 
 ---
 
-## 🗺️ Lộ trình phát triển
-
-- [x] Tổng quan tháng + habit tracker + reflection
-- [x] View tuần (task + ghi chú 7 ngày)
-- [x] View **Kế hoạch năm** (goals, biểu đồ quý/tháng, reflection)
-- [x] Điều hướng **12 tháng** — mỗi tháng dữ liệu riêng biệt
-- [x] **CRUD động** mục tiêu & thói quen (thêm/sửa/xoá, lưu localStorage)
-- [x] **Streak & heatmap** kiểu GitHub + streak đa tháng
-- [x] **Nút "Hôm nay"** + tự nhảy tuần hiện tại
-- [x] **4 chủ đề màu** pastel + toggle ngôn ngữ **VI/EN**
-- [x] **Xuất/nhập JSON + CSV** (đồng bộ Google Sheets)
-- [x] **Chế độ in / PDF** (A4 ngang, checkbox ☐/☑)
-- [x] **PWA** — cài đặt offline, chạy như app thật & nhắc việc hằng ngày
-- [x] **Analytics GA4** — lượt truy cập, quay lại, tạo mục tiêu/thói quen
-- [x] **Đăng nhập & đồng bộ đa thiết bị (backend riêng)** — username/password + Google OAuth, offline-first
-- [x] **Landing page tách riêng** (`index.html`) — SEO tĩnh, OG image 1200×630 cho Facebook/Zalo
-- [x] **Onboarding 3 bước** — mục tiêu năm → 2 thói quen → chủ đề màu (lần dùng đầu)
-- [x] **Empty states** có hướng dẫn cho từng panel (mục tiêu, thói quen)
-- [x] **Share streak 🔥** — ảnh card 1080×1080 (tên + streak + heatmap) tải về / chia sẻ native
-- [x] **Feedback FAB** 💬 — Google Form (`FB_FORM_URL`) + email (`FB_EMAIL`) + event GA4
-
----
-
 ## 🔒 Privacy & Data
 
 - Không đăng nhập → dữ liệu chỉ nằm trong trình duyệt của bạn.
@@ -402,6 +402,7 @@ TaskFlow/
 - 🌐 **E2E** — `python scripts/e2e-smoke.py --browser chromium|firefox|webkit` (smoke) · `python scripts/e2e-frontend.py --all` (full suite)
 - ⚙️ **Build** — `python scripts/minify.py` (tạo `.min.js`/`.min.css`, chạy `--check` trong CI)
 - 📊 **Lighthouse** — `python scripts/measure-lighthouse.py` (baseline trong `docs/lighthouse/`)
+- 📜 **Lịch sử phát triển** — [`docs/development-history.md`](docs/development-history.md): roadmap, ghi chú theo phase, growth loop
 
 ---
 
@@ -419,6 +420,6 @@ Dự án được phân phối dưới giấy phép **MIT** — bạn tự do s�
 
 <div align="center">
 
-**Làm chủ năm 2026 của bạn, từng mục tiêu một. 🐥**
+**Lập kế hoạch rõ ràng, tiến bộ mỗi ngày. 🐥**
 
 </div>

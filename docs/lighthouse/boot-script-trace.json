@@ -1,0 +1,211 @@
+{
+ "scripts": [
+  {
+   "name": "config.min.js",
+   "size": 1925,
+   "eval_ms": 284807
+  },
+  {
+   "name": "widget.min.js",
+   "size": 2246,
+   "eval_ms": 284807
+  },
+  {
+   "name": "xp.min.js",
+   "size": 2419,
+   "eval_ms": 284807
+  },
+  {
+   "name": "streak-ui.min.js",
+   "size": 9682,
+   "eval_ms": 284807
+  },
+  {
+   "name": "today.min.js",
+   "size": 9537,
+   "eval_ms": 284807
+  },
+  {
+   "name": "report-ui.min.js",
+   "size": 13699,
+   "eval_ms": 284808
+  },
+  {
+   "name": "upcoming.min.js",
+   "size": 5560,
+   "eval_ms": 284808
+  },
+  {
+   "name": "focus-stats.min.js",
+   "size": 1525,
+   "eval_ms": 284808
+  },
+  {
+   "name": "focus.min.js",
+   "size": 7238,
+   "eval_ms": 284808
+  },
+  {
+   "name": "pomo.min.js",
+   "size": 3050,
+   "eval_ms": 284808
+  },
+  {
+   "name": "api-config.min.js",
+   "size": 69,
+   "eval_ms": 284808
+  },
+  {
+   "name": "deeplink.min.js",
+   "size": 1530,
+   "eval_ms": 284808
+  },
+  {
+   "name": "plan-math.min.js",
+   "size": 3368,
+   "eval_ms": 284808
+  },
+  {
+   "name": "plan-stats.min.js",
+   "size": 4723,
+   "eval_ms": 284809
+  },
+  {
+   "name": "plan-carry.min.js",
+   "size": 2175,
+   "eval_ms": 284809
+  },
+  {
+   "name": "sync.min.js",
+   "size": 5550,
+   "eval_ms": 284809
+  },
+  {
+   "name": "ui.min.js",
+   "size": 5199,
+   "eval_ms": 284809
+  },
+  {
+   "name": "util.min.js",
+   "size": 1554,
+   "eval_ms": 284809
+  },
+  {
+   "name": "i18n.min.js",
+   "size": 56207,
+   "eval_ms": 284809
+  },
+  {
+   "name": "storage.min.js",
+   "size": 902,
+   "eval_ms": 284809
+  },
+  {
+   "name": "account.min.js",
+   "size": 1545,
+   "eval_ms": 284809
+  },
+  {
+   "name": "dates.min.js",
+   "size": 672,
+   "eval_ms": 284809
+  },
+  {
+   "name": "stats.min.js",
+   "size": 477,
+   "eval_ms": 284809
+  },
+  {
+   "name": "habits.min.js",
+   "size": 528,
+   "eval_ms": 284809
+  },
+  {
+   "name": "keys.min.js",
+   "size": 449,
+   "eval_ms": 284809
+  },
+  {
+   "name": "remind.min.js",
+   "size": 1118,
+   "eval_ms": 284809
+  },
+  {
+   "name": "theme.min.js",
+   "size": 745,
+   "eval_ms": 284809
+  },
+  {
+   "name": "analytics.min.js",
+   "size": 1039,
+   "eval_ms": 284809
+  },
+  {
+   "name": "export.min.js",
+   "size": 4455,
+   "eval_ms": 284809
+  },
+  {
+   "name": "streak.min.js",
+   "size": 1301,
+   "eval_ms": 284810
+  },
+  {
+   "name": "goals.min.js",
+   "size": 1187,
+   "eval_ms": 284810
+  },
+  {
+   "name": "fab.min.js",
+   "size": 4546,
+   "eval_ms": 284810
+  },
+  {
+   "name": "syncui.min.js",
+   "size": 1889,
+   "eval_ms": 284810
+  },
+  {
+   "name": "planmini.min.js",
+   "size": 521,
+   "eval_ms": 284810
+  },
+  {
+   "name": "clock.min.js",
+   "size": 869,
+   "eval_ms": 284810
+  },
+  {
+   "name": "shell.min.js",
+   "size": 977,
+   "eval_ms": 284810
+  },
+  {
+   "name": "inbox.min.js",
+   "size": 5355,
+   "eval_ms": 284810
+  },
+  {
+   "name": "mood.min.js",
+   "size": 2813,
+   "eval_ms": 284810
+  },
+  {
+   "name": "remind-ui.min.js",
+   "size": 4525,
+   "eval_ms": 284810
+  },
+  {
+   "name": "popups.min.js",
+   "size": 4603,
+   "eval_ms": 284810
+  },
+  {
+   "name": "app.min.js",
+   "size": 179885,
+   "eval_ms": 284812
+  }
+ ],
+ "fcp_ms": 284807,
+ "lcp_ms": 284807
+}

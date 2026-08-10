@@ -3,7 +3,7 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v176';
+const CACHE = 'taskflow-v183';
 const APP_SHELL = [
   './',
   './index.html',
@@ -15,10 +15,12 @@ const APP_SHELL = [
   './css/tokens.css',
   './css/landing.css',
   './css/legal.css',
+  './css/fonts.min.css',
   './css/tokens.min.css',
   './css/components.min.css',
   './css/app-shell.min.css',
-  './css/styles.min.css',
+  './css/styles-critical.min.css',
+  './css/styles-deferred.min.css',
   './js/app.min.js',
   './js/config.min.js',
   './js/widget.min.js',
@@ -31,6 +33,8 @@ const APP_SHELL = [
   './js/focus.min.js',
   './js/pomo.min.js',
   './js/sync.min.js',
+  './js/stats-ui.min.js',
+  './js/backup.min.js',
   './js/api-config.min.js',
   './js/deeplink.min.js',
   './js/ui.min.js',
@@ -65,6 +69,11 @@ const APP_SHELL = [
   './js/year-report.min.js',
   './js/digest.min.js',
   './js/remind-ui.min.js',
+  './fonts/nunito-cyrillic-ext.woff2',
+  './fonts/nunito-cyrillic.woff2',
+  './fonts/nunito-latin-ext.woff2',
+  './fonts/nunito-latin.woff2',
+  './fonts/nunito-vietnamese.woff2',
   './icons/ui-sprite.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',

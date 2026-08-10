@@ -1,6 +1,6 @@
 # TaskFlow — P2.3 Accessibility Audit
 
-_Generated 2026-08-10 18:32 · browser: webkit · desktop 1440x900 + mobile 390x844 (touch) + reduced-motion comparison_
+_Generated 2026-08-10 21:55 · browser: chromium · desktop 1440x900 + mobile 390x844 (touch) + reduced-motion comparison_
 
 **Result: 62 PASS / 0 FAIL**
 
@@ -74,23 +74,6 @@ _Generated 2026-08-10 18:32 · browser: webkit · desktop 1440x900 + mobile 390x
 ## Page errors
 
 None.
-
-## Findings & fixes
-
-One real accessibility failure surfaced by this audit, fixed in the same commit:
-
-1. **Task Drawer: keyboard focus lost on close (opened from a row ⋯ menu).**
-   Opening the drawer from a task row's ⋯ menu closes the menu (document click
-   handler), so the drawer's saved opener — the `task-detail` menuitem — is hidden
-   by the time the drawer closes. `ui.js`'s `restoreLayerFocus` skips hidden
-   openers, leaving keyboard focus on `<body>` after Escape/backdrop close; the
-   next Tab then started from the top of the page instead of the row.
-   Fixed in `closeTaskDetail` (js/app.js): when the active element is lost after
-   close, focus falls back to the row's ⋯ trigger (`[data-action="task-menu"]`),
-   matching the APG dialog pattern of returning focus to the opener.
-
-   Verified: after the fix, Escape from the drawer returns focus to the row's
-   menu button on Chromium, Firefox and WebKit. (Re-run of the audit: 62 PASS / 0 FAIL.)
 
 ## Simulation limits
 

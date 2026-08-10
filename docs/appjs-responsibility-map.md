@@ -140,10 +140,10 @@ Nếu làm cả 5: app.js ≈ **4.800–4.900 dòng** (−~1.000 nữa, tổng �
 | #35 | `js/report-ui.js` — R15 month/week reports | ✅ |
 | #36 | `js/upcoming.js` — R25 Upcoming view | ✅ |
 | #37 | `js/focus-stats.js` — focus/pomo stats helpers | ✅ |
-| #38 (đề xuất) | `js/backup.js` — A27 backups | ⏳ chưa làm |
+| #38 | `js/backup.js` — A27 backups (lazy qua `ensureLazyModule` sau save + `runLazyModule` ở dispatcher, P1.2 opt#3) | ✅ `commit` (P1.2 series) |
 | #39 (đề xuất) | `js/focus.js` — A28 focus mode | ⏳ |
 | #40 (đề xuất) | `js/pomo.js` — A18 pomodoro timer (+ A19 → focus-stats.js) | ⏳ |
-| #41 (đề xuất) | `js/stats-ui.js` — A20 stats modal + focus chart | ⏳ |
+| #41 | `js/stats-ui.js` — A20 stats modal (lazy qua `runLazyModule`, P1.2 opt#3) | ✅ `commit` (P1.2 series) |
 | #42 (đề xuất) | `js/sync-forms.js` — A33+A34 sync/onboarding glue | ⏳ |
 | sau #42 | **DỪNG extraction** — chuyển sang QA cuối | ⏳ |
 

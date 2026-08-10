@@ -1,0 +1,261 @@
+{
+ "fcp": 1448,
+ "lcp": 1448,
+ "assign": {
+  "TaskFlowConfig": 1433.199999988079,
+  "TaskFlowWidget": 1435.300000011921,
+  "TaskFlowXP": 1471.300000011921,
+  "TaskFlowStreakUI": 1562.300000011921,
+  "TaskFlowToday": 1626.300000011921,
+  "TaskFlowReportUI": 1929.1000000238419,
+  "TaskFlowUpcoming": 1930.5,
+  "TaskFlowFocusStats": 1930.9000000357628,
+  "TaskFlowFocus": 2132.199999988079,
+  "TaskFlowPomo": 2309.400000035763,
+  "TaskFlowUI": 2804,
+  "TaskFlowUtil": 2805.5,
+  "TaskFlowI18N": 3332.699999988079,
+  "TaskFlowStorage": 3333.699999988079,
+  "TaskFlowAccount": 3334,
+  "TaskFlowDates": 3334.400000035763,
+  "TaskFlowStats": 3334.5,
+  "TaskFlowHabits": 3334.600000023842,
+  "TaskFlowKeys": 3582.400000035763,
+  "TaskFlowRemind": 3612.5,
+  "TaskFlowTheme": 3643.800000011921,
+  "TaskFlowAnalytics": 3645.600000023842,
+  "TaskFlowExport": 3674.100000023842,
+  "TaskFlowStreak": 3756.699999988079,
+  "TaskFlowGoals": 4002.800000011921,
+  "TaskFlowFab": 4050.600000023842,
+  "TaskFlowSyncUI": 4067.699999988079,
+  "TaskFlowPlanMini": 4068.300000011921,
+  "TaskFlowClock": 4099.300000011921,
+  "TaskFlowShell": 4176.800000011921,
+  "TaskFlowInbox": 4445.199999988079,
+  "TaskFlowMood": 4506.400000035763,
+  "TaskFlowRemindUI": 4552.5,
+  "TaskFlowPopups": 4554.400000035763,
+  "TaskFlowDigest": 8356.900000035763
+ },
+ "calls": {
+  "TaskFlowAccount": {
+   "hasAccount": {
+    "first": 5983.800000011921,
+    "n": 2
+   },
+   "defaultYearState": {
+    "first": 5983.800000011921,
+    "n": 1
+   },
+   "loadBadges": {
+    "first": 5994.699999988079,
+    "n": 1
+   }
+  },
+  "TaskFlowShell": {
+   "monthKey": {
+    "first": 5984.900000035763,
+    "n": 5
+   },
+   "updateBrand": {
+    "first": 6005.199999988079,
+    "n": 1
+   }
+  },
+  "TaskFlowClock": {
+   "nowInfo": {
+    "first": 5985.600000023842,
+    "n": 3
+   },
+   "renderClock": {
+    "first": 6006.900000035763,
+    "n": 3
+   }
+  },
+  "TaskFlowPopups": {
+   "seedHabitDays": {
+    "first": 5986.699999988079,
+    "n": 10
+   },
+   "seedTasks": {
+    "first": 5991.699999988079,
+    "n": 42
+   }
+  },
+  "TaskFlowHabits": {
+   "habitDaysElapsed": {
+    "first": 5987.100000023842,
+    "n": 10
+   }
+  },
+  "TaskFlowInbox": {
+   "loadInbox": {
+    "first": 5994.5,
+    "n": 1
+   }
+  },
+  "TaskFlowWidget": {
+   "setTheme": {
+    "first": 6000.699999988079,
+    "n": 1
+   },
+   "registerSW": {
+    "first": 6089.800000011921,
+    "n": 1
+   }
+  },
+  "TaskFlowTheme": {
+   "applyDark": {
+    "first": 6001.600000023842,
+    "n": 1
+   }
+  },
+  "TaskFlowI18N": {
+   "applyStaticI18N": {
+    "first": 6002.199999988079,
+    "n": 1
+   },
+   "t": {
+    "first": 6005.199999988079,
+    "n": 104
+   },
+   "monthLabel": {
+    "first": 6005.900000035763,
+    "n": 13
+   },
+   "dateLocale": {
+    "first": 6007.100000023842,
+    "n": 22
+   }
+  },
+  "TaskFlowDates": {
+   "fmtDate": {
+    "first": 6007.100000023842,
+    "n": 3
+   }
+  },
+  "TaskFlowUtil": {
+   "esc": {
+    "first": 6050.600000023842,
+    "n": 90
+   },
+   "formatFocusTime": {
+    "first": 6082.100000023842,
+    "n": 1
+   }
+  },
+  "TaskFlowUI": {
+   "icon": {
+    "first": 6050.900000035763,
+    "n": 57
+   },
+   "checkboxLabel": {
+    "first": 6076.100000023842,
+    "n": 15
+   },
+   "checkboxA11y": {
+    "first": 6076.199999988079,
+    "n": 15
+   },
+   "syncUrl": {
+    "first": 6083.5,
+    "n": 1
+   }
+  },
+  "TaskFlowMood": {
+   "loadMood": {
+    "first": 6070.699999988079,
+    "n": 1
+   }
+  },
+  "TaskFlowXP": {
+   "loadXP": {
+    "first": 6071,
+    "n": 1
+   },
+   "renderXP": {
+    "first": 6072,
+    "n": 1
+   },
+   "checkboxHTML": {
+    "first": 6076.100000023842,
+    "n": 15
+   }
+  },
+  "TaskFlowToday": {
+   "renderToday": {
+    "first": 6073.699999988079,
+    "n": 1
+   }
+  },
+  "TaskFlowStreak": {
+   "habitStreakCached": {
+    "first": 6077.600000023842,
+    "n": 10
+   }
+  },
+  "TaskFlowStorage": {
+   "monthStateRaw": {
+    "first": 6078.199999988079,
+    "n": 120
+   },
+   "loadPomoLog": {
+    "first": 6081.300000011921,
+    "n": 1
+   },
+   "backupSlotKey": {
+    "first": 6087,
+    "n": 1
+   }
+  },
+  "TaskFlowKeys": {
+   "pomoDateKey": {
+    "first": 6081.300000011921,
+    "n": 1
+   }
+  },
+  "TaskFlowExport": {
+   "collectAllData": {
+    "first": 6086.199999988079,
+    "n": 1
+   }
+  },
+  "TaskFlowSyncUI": {
+   "updateSyncStatus": {
+    "first": 6088.800000011921,
+    "n": 3
+   }
+  },
+  "TaskFlowAnalytics": {
+   "initAnalytics": {
+    "first": 6089.600000023842,
+    "n": 1
+   }
+  },
+  "TaskFlowFab": {
+   "initFabDrags": {
+    "first": 6090.199999988079,
+    "n": 1
+   }
+  },
+  "TaskFlowRemind": {
+   "getRemindTime": {
+    "first": 6092.100000023842,
+    "n": 1
+   }
+  },
+  "TaskFlowRemindUI": {
+   "syncReminderTimers": {
+    "first": 8349.300000011921,
+    "n": 1
+   }
+  },
+  "TaskFlowDigest": {
+   "updateDigestCache": {
+    "first": 8358.400000035763,
+    "n": 1
+   }
+  }
+ }
+}

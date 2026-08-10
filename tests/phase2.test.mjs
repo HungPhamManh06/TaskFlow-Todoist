@@ -307,8 +307,8 @@ test('Phase 4: version bumps app.min.js>=36 styles.min.css>=37 sw cache>=v27', (
   // P1.2 opt#1: app.html trỏ js/*.min.js + css/*.min.css
   const am = /js\/app\.min\.js\?v=(\d{2,3})/.exec(APP_HTML);
   assert.ok(am && Number(am[1]) >= 36, `app.min.js version phải >= 36 (thấy ${am && am[1]})`);
-  const cm = /css\/styles\.min\.css\?v=(\d{2,3})/.exec(APP_HTML);
-  assert.ok(cm && Number(cm[1]) >= 37, `styles.min.css version phải >= 37 (thấy ${cm && cm[1]})`);
+  const cm = /css\/styles-(?:critical|deferred)\.min\.css\?v=(\d+)/.exec(APP_HTML);
+  assert.ok(cm && Number(cm[1]) >= 1, `styles (critical/deferred) phải versioned (thấy ${cm && cm[1]})`);
   const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const m = /const CACHE = 'taskflow-v(\d+)';/.exec(SW);
   assert.ok(Number(m[1]) >= 27);

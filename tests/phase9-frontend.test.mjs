@@ -817,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=157/);
-  assert.match(SW, /const CACHE = 'taskflow-v176';/);
+  assert.match(APP, /js\/app\.min\.js\?v=158/);
+  assert.match(SW, /const CACHE = 'taskflow-v183';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1070,6 +1070,61 @@ test('P11: search extracted — openSearchModal/closeSearchModal/runSearch/rende
   assert.match(mod, /search-hit/);
 });
 
+test('P11: stats-ui extracted — stats modal (A20) lives in js/stats-ui.js, lazy via runLazyModule', () => {
+  // P1.5 lazy-load: stats-ui.js KHÔNG còn trong chuỗi script boot app.html
+  assert.doesNotMatch(APP, /src="js\/stats-ui\.min\.js/, 'stats-ui.js phải lazy-load (không ở boot)');
+  // sw.js vẫn precache stats-ui.js (offline vẫn dùng được feature)
+  assert.ok(SW.includes("\'./js/stats-ui.min.js\'"), 'sw.js phải precache js/stats-ui.js');
+  // app.js không định nghĩa lại; nạp lazy qua runLazyModule ở dispatcher
+  assert.match(APP_JS, /runLazyModule\('js\/stats-ui\.min\.js'/);
+  assert.doesNotMatch(APP_JS, /^let statsRange = 'month';/m);
+  assert.doesNotMatch(APP_JS, /^function statsData\(/m);
+  assert.doesNotMatch(APP_JS, /^function statsCorrelation\(/m);
+  assert.doesNotMatch(APP_JS, /^function statsScatterSVG\(/m);
+  assert.doesNotMatch(APP_JS, /^function renderStatsModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function openStatsModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function closeStatsModal\(/m);
+  // call-sites qua window access sau khi nạp: dispatcher stats/stats-close/stats-range
+  assert.match(APP_JS, /act === 'stats'[\s\S]{0,140}window\.TaskFlowStatsUI\.openStatsModal\(\)\)/);
+  assert.match(APP_JS, /act === 'stats-close'[\s\S]{0,140}window\.TaskFlowStatsUI\.closeStatsModal\(\)\)/);
+  assert.match(APP_JS, /act === 'stats-range'[\s\S]{0,140}window\.TaskFlowStatsUI\.setStatsRange\(el\.dataset\.range\)\)/);
+  // module export đủ API + accessor pattern + vẫn giữ statsRange state riêng
+  const mod = readRequiredAsset('js/stats-ui.js');
+  assert.match(mod, /return \{ openStatsModal, closeStatsModal, setStatsRange \}/);
+  assert.match(mod, /module\.exports/);
+  assert.match(mod, /let statsRange = 'month';/);
+  assert.match(mod, /statsScatterSVG\(ps\)/);
+});
+
+test('P11: backup extracted — backup subsystem (A27) lives in js/backup.js, lazy via ensureLazyModule/runLazyModule', () => {
+  // P1.5 lazy-load: backup.js KHÔNG còn trong chuỗi script boot app.html
+  assert.doesNotMatch(APP, /src="js\/backup\.min\.js/, 'backup.js phải lazy-load (không ở boot)');
+  // sw.js vẫn precache backup.js (offline vẫn dùng được feature)
+  assert.ok(SW.includes("\'./js/backup.min.js\'"), 'sw.js phải precache js/backup.js');
+  // app.js không định nghĩa lại backup core; nạp lazy qua ensureLazyModule (save) + runLazyModule (dispatcher)
+  assert.match(APP_JS, /ensureLazyModule\('js\/backup\.min\.js'\)/);
+  assert.match(APP_JS, /runLazyModule\('js\/backup\.min\.js'/);
+  assert.doesNotMatch(APP_JS, /^const BACKUP_SLOTS = 7;/m);
+  assert.doesNotMatch(APP_JS, /^function rotateBackup\(/m);
+  assert.doesNotMatch(APP_JS, /^function maybeAutoBackup\(/m);
+  assert.doesNotMatch(APP_JS, /^function listBackups\(/m);
+  assert.doesNotMatch(APP_JS, /^function openBackupModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function closeBackupModal\(/m);
+  assert.doesNotMatch(APP_JS, /^function doRestoreBackup\(/m);
+  // save path fail-safe: backupAfterSave không throw, không spam toast
+  assert.match(APP_JS, /function backupAfterSave\(\)/);
+  assert.match(APP_JS, /backup là best-effort/);
+  // call-sites qua window access: dispatcher backup-restore/backup-close/backup-use + backdrop
+  assert.match(APP_JS, /act === 'backup-restore'[\s\S]{0,140}window\.TaskFlowBackup\.openBackupModal\(\)\)/);
+  assert.match(APP_JS, /act === 'backup-use'[\s\S]{0,140}window\.TaskFlowBackup\.doRestoreBackup\(\+el\.dataset\.idx\)\)/);
+  assert.match(APP_JS, /e\.target === bm\) runLazyModule\('js\/backup\.min\.js', \(\) => window\.TaskFlowBackup\.closeBackupModal\(\)\)/);
+  // module export đủ API + accessor pattern
+  const mod = readRequiredAsset('js/backup.js');
+  assert.match(mod, /return \{ rotateBackup, maybeAutoBackup, openBackupModal, closeBackupModal, doRestoreBackup \}/);
+  assert.match(mod, /module\.exports/);
+  assert.match(mod, /BACKUP_SLOTS = 7/);
+});
+
 test('P11: quick-add extracted — openQuickAdd/closeQuickAdd/submitQuickAdd/quickAddDefaultTarget live in js/quick-add.js', () => {
   // P1.5 lazy-load: quick-add.js KHÔNG còn trong chuỗi script boot app.html
   assert.doesNotMatch(APP, /src="js\/quick-add\.min\.js/, 'quick-add.js phải lazy-load (không ở boot)');
@@ -1271,14 +1326,18 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=157/);
-  assert.match(APP, /css\/styles\.min\.css\?v=99/);
+  assert.match(APP, /js\/app\.min\.js\?v=158/);
+  assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
+  // P1.2 opt#2: critical subset trên critical path, phần còn lại deferred (media=print swap)
+  assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
+  assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v176';/);
+  assert.match(SW, /const CACHE = 'taskflow-v183';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
-  assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
+  assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
+  assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
   const src = readRequiredAsset('js/app.js');
   const min = readRequiredAsset('js/app.min.js');
@@ -1759,8 +1818,10 @@ test('P11: export helpers extracted — downloadFile/collectAllData/exportJSON l
   assert.doesNotMatch(APP_JS, /^function exportICS\(/m);
   assert.doesNotMatch(APP_JS, /^function legacyCSVRows\(/m);
   assert.doesNotMatch(APP_JS, /^function csvRow\(/m);
-  // call-sites giữ nguyên: collectAllData(LEGACY_KEY)/exportJSON(LEGACY_KEY), downloadFile giữ signature
-  assert.match(APP_JS, /rotateBackup\(collectAllData\(LEGACY_KEY\)\)/);
+  // call-sites giữ nguyên: collectAllData(LEGACY_KEY)/exportJSON(LEGACY_KEY), downloadFile giữ signature.
+  // backup giờ lazy qua js/backup.js — snapshot lấy đồng bộ trước khi ghi đè (fail-safe save path).
+  assert.match(APP_JS, /importSnapshot = collectAllData\(LEGACY_KEY\)/);
+  assert.match(APP_JS, /window\.TaskFlowBackup\.rotateBackup\(importSnapshot\)/);
   assert.match(APP_JS, /exportJSON\(LEGACY_KEY\)/);
   assert.doesNotMatch(APP_JS, /collectAllData\(\)/);
   assert.doesNotMatch(APP_JS, /exportJSON\(\)/);
@@ -1918,18 +1979,18 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
   // call-sites giữ nguyên trong app.js
   assert.match(APP_JS, /monthStateRaw\(/);
   assert.match(APP_JS, /saveMonthState\(/);
-  assert.match(APP_JS, /backupSlotKey\(/);
+  assert.match(readRequiredAsset('js/backup.js'), /backupSlotKey\(/);
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v176';/);
+  assert.match(SW, /const CACHE = 'taskflow-v183';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
 test('design system assets load before legacy styles and expose stable shell roots', () => {
   assert.match(
     APP,
-    /css\/tokens\.min\.css[^]*css\/components\.min\.css[^]*css\/app-shell\.min\.css[^]*css\/styles\.min\.css/
+    /css\/tokens\.min\.css[^]*css\/components\.min\.css[^]*css\/app-shell\.min\.css[^]*css\/styles-critical\.min\.css[^]*css\/styles-deferred\.min\.css/
   );
 
   const shell = readRequiredAsset('css/app-shell.css');
@@ -2000,12 +2061,12 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v176';/);
+  assert.match(SW, /const CACHE = 'taskflow-v183';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
     './css/tokens.min.css', './css/components.min.css', './css/app-shell.min.css',
-    './css/styles.min.css', './icons/ui-sprite.svg', './js/ui.min.js', './index.html',
+    './css/styles-critical.min.css', './css/styles-deferred.min.css', './icons/ui-sprite.svg', './js/ui.min.js', './index.html',
   ].forEach((asset) => assert.match(SW, new RegExp(`["']${asset.replaceAll('.', '\\.')}["']`)));
 });
 
@@ -2397,7 +2458,7 @@ test('Phase 7: focus time bar chart in week view and focus stats in reports', ()
   assert.match(APP_JS, /dayLabelShort\(di\)/);
   // báo cáo tuần + tháng có focus (weeklyReportData/monthlyReportData sang js/report-ui.js)
   assert.match(readRequiredAsset('js/report-ui.js'), /focusByDay/);
-  assert.match(APP_JS, /focusTotal/);
+  assert.match(readRequiredAsset('js/stats-ui.js'), /focusTotal/);
   assert.match(readRequiredAsset('js/report-ui.js'), /focusByWeek/);
   assert.match(readRequiredAsset('js/report-ui.js'), /reportFocusWeek/);
   assert.match(readRequiredAsset('js/report-ui.js'), /reportFocusMonth/);
@@ -2455,19 +2516,21 @@ test('Phase 9: focus × task correlation stats modal with range filter', () => {
   assert.match(APP, /id="statsContent"/);
   // sprite có icon stats riêng
   assert.match(SPRITE, /<symbol id="stats"/);
-  // helpers + data builder
-  assert.match(APP_JS, /let statsRange = 'month';/);
-  assert.match(APP_JS, /function statsMonthsForRange\(range\)/);
-  assert.match(APP_JS, /function statsData\(range\)/);
-  assert.match(APP_JS, /function statsCorrelation\(xs, ys\)/);
-  assert.match(APP_JS, /function statsScatterSVG\(points\)/);
-  assert.match(APP_JS, /function renderStatsModal\(\)/);
-  assert.match(APP_JS, /function openStatsModal\(\)/);
+  // helpers + data builder — sang js/stats-ui.js (P11 extraction 41, lazy module)
+  const statsui = readRequiredAsset('js/stats-ui.js');
+  assert.match(statsui, /let statsRange = 'month';/);
+  assert.match(statsui, /function statsMonthsForRange\(range\)/);
+  assert.match(statsui, /function statsData\(range\)/);
+  assert.match(statsui, /function statsCorrelation\(xs, ys\)/);
+  assert.match(statsui, /function statsScatterSVG\(points\)/);
+  assert.match(statsui, /function renderStatsModal\(\)/);
+  assert.match(statsui, /function openStatsModal\(\)/);
   // granularity: tuần cho tháng/quý, tháng cho năm/toàn bộ
-  assert.match(APP_JS, /granularity = \(range === 'year' \|\| range === 'all'\) \? 'month' : 'week'/);
-  assert.match(APP_JS, /monthStateRaw\(y, m\)/);
+  assert.match(statsui, /granularity = \(range === 'year' \|\| range === 'all'\) \? 'month' : 'week'/);
+  assert.match(statsui, /monthStateRaw\(y, m\)/);
+  // dispatcher nạp lazy qua runLazyModule
   assert.match(APP_JS, /act === 'stats-range'/);
-  assert.match(APP_JS, /statsRange = el\.dataset\.range/);
+  assert.match(APP_JS, /window\.TaskFlowStatsUI\.setStatsRange\(el\.dataset\.range\)\)/);
   // CSS
   assert.match(styles, /\.stats-modal-card\s*{[^}]*max-width:\s*560px/s);
   assert.match(styles, /\.stats-range-btn\.active\s*{/);

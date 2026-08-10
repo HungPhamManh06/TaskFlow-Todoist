@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-10T11:39:13",
+  "generated": "2026-08-10T21:59:33",
   "results": {
     "landing-desktop": {
       "scores": {
@@ -9,27 +9,27 @@
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 568,
-        "largest-contentful-paint": 568,
-        "speed-index": 568,
+        "first-contentful-paint": 556,
+        "largest-contentful-paint": 556,
+        "speed-index": 556,
         "total-blocking-time": 0,
-        "interactive": 568,
+        "interactive": 556,
         "cumulative-layout-shift": 0.068
       }
     },
     "landing-mobile": {
       "scores": {
-        "performance": 89,
+        "performance": 98,
         "accessibility": 96,
         "best-practices": 100,
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 2914,
-        "largest-contentful-paint": 2914,
-        "speed-index": 2950,
+        "first-contentful-paint": 1657,
+        "largest-contentful-paint": 1657,
+        "speed-index": 1657,
         "total-blocking-time": 0,
-        "interactive": 2914,
+        "interactive": 1657,
         "cumulative-layout-shift": 0.067
       }
     },
@@ -41,27 +41,27 @@
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 644,
-        "largest-contentful-paint": 1184,
-        "speed-index": 774,
+        "first-contentful-paint": 533,
+        "largest-contentful-paint": 1271,
+        "speed-index": 862,
         "total-blocking-time": 0,
-        "interactive": 1184,
-        "cumulative-layout-shift": 0.001
+        "interactive": 1271,
+        "cumulative-layout-shift": 0.002
       }
     },
     "app-mobile": {
       "scores": {
-        "performance": 76,
+        "performance": 77,
         "accessibility": 92,
         "best-practices": 100,
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 2555,
-        "largest-contentful-paint": 5528,
-        "speed-index": 2555,
-        "total-blocking-time": 61,
-        "interactive": 5566,
+        "first-contentful-paint": 1816,
+        "largest-contentful-paint": 6071,
+        "speed-index": 1816,
+        "total-blocking-time": 77,
+        "interactive": 6071,
         "cumulative-layout-shift": 0.0
       }
     }

@@ -8,9 +8,9 @@
   <!-- ===== SEO ===== -->
   <title>TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày</title>
   <meta name="description"
-    content="TaskFlow, ứng dụng lập kế hoạch tiếng Việt miễn phí: quản lý mục tiêu năm, tháng, tuần, theo dõi thói quen 31 ngày, checklist công việc và nhật ký reflection. Hoạt động offline, dữ liệu lưu trên trình duyệt." />
+    content="TaskFlow là ứng dụng năng suất cá nhân offline-first với Today, Inbox, Upcoming, kế hoạch tuần/tháng/năm, thói quen, Focus và báo cáo. Dùng không cần tài khoản, với đồng bộ đám mây tùy chọn." />
   <meta name="keywords"
-    content="planner 2026, kế hoạch năm, quản lý mục tiêu, habit tracker, thói quen, lập kế hoạch, kế hoạch tháng, kế hoạch tuần, reflection, nhật ký, tiếng việt, offline, pastel" />
+    content="TaskFlow, productivity planner, quản lý công việc, lập kế hoạch, Today, Inbox, Upcoming, habit tracker, thói quen, Pomodoro, Focus, kế hoạch tuần, kế hoạch tháng, mục tiêu năm, offline-first" />
   <meta name="author" content="Hung Pham" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#f4f0e9" />
@@ -29,7 +29,7 @@
   <meta property="og:locale" content="vi_VN" />
   <meta property="og:title" content="TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày" />
   <meta property="og:description"
-    content="Planner tiếng Việt miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, checklist & reflection. Giao diện pastel dễ thương, offline 100%." />
+    content="Today, Inbox, Upcoming, mục tiêu, thói quen và Focus trong một hệ thống productivity offline-first. Không bắt buộc tài khoản, đồng bộ đám mây tùy chọn." />
   <meta property="og:url" content="https://taskflow-todoist.vercel.app/app" />
   <meta property="og:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
   <meta property="og:image:width" content="1200" />
@@ -40,15 +40,14 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày" />
   <meta name="twitter:description"
-    content="Planner tiếng Việt miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, checklist & reflection. Offline 100%." />
+    content="Quản lý Today, Inbox, Upcoming, mục tiêu, thói quen và Focus trong một planner offline-first." />
   <meta name="twitter:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
 
   <!-- ===== TaskFlow logo ===== -->
   <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Nunito tự lưu trữ (offline-first, không còn third-party render-blocking): @font-face trong css/fonts.min.css -->
+  <link rel="preload" href="fonts/nunito-vietnamese.woff2" as="font" type="font/woff2" crossorigin />
   <!-- Chống nháy trắng (FOUC): áp chế độ tối trước khi CSS vẽ (đặt TRƯỚC stylesheet) -->
   <script>
     (function () {
@@ -59,10 +58,15 @@
       } catch (e) { /* ẩn */ }
     })();
   </script>
+  <link rel="stylesheet" href="css/fonts.min.css?v=1" />
   <link rel="stylesheet" href="css/tokens.min.css?v=7" />
   <link rel="stylesheet" href="css/components.min.css?v=6" />
   <link rel="stylesheet" href="css/app-shell.min.css?v=17" />
-  <link rel="stylesheet" href="css/styles.min.css?v=99" />
+  <!-- styles-critical: tập con boot (shell + Today + modals + theme/dark) giữ trên critical path.
+       styles-deferred (phần còn lại của styles.css): nạp sau first paint (media=print swap) — vẫn trong SW cache cho offline. -->
+  <link rel="stylesheet" href="css/styles-critical.min.css?v=3" />
+  <link rel="stylesheet" href="css/styles-deferred.min.css?v=3" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=3" /></noscript>
 </head>
 
 <body>
@@ -686,7 +690,7 @@
   <script src="js/mood.min.js?v=1"></script>
   <script src="js/remind-ui.min.js?v=1"></script>
   <script src="js/popups.min.js?v=1"></script>
-  <script src="js/app.min.js?v=157"></script>
+  <script src="js/app.min.js?v=158"></script>
 </body>
 
 </html>

@@ -210,16 +210,17 @@ test('5.3: i18n shortcutHint đủ vi+en', () => {
    Phase 5.4 — Sao lưu tự động
    ============================================================ */
 
-test('5.4: ring buffer backup + modal khôi phục', () => {
-  assert.match(APP_JS, /planner-backup-/);
-  assert.match(APP_JS, /function rotateBackup\(/);
-  assert.match(APP_JS, /BACKUP_SLOTS = 7/);
-  assert.match(APP_JS, /function maybeAutoBackup\(/);
-  assert.match(APP_JS, /function listBackups\(/);
-  assert.match(APP_JS, /function doRestoreBackup\(/);
+test('5.4: ring buffer backup + modal khôi phục (module js/backup.js, lazy)', () => {
+  const BK = readFileSync(path.join(ROOT, 'js/backup.js'), 'utf8');
+  assert.match(BK, /planner-backup-/);
+  assert.match(BK, /function rotateBackup\(/);
+  assert.match(BK, /BACKUP_SLOTS = 7/);
+  assert.match(BK, /function maybeAutoBackup\(/);
+  assert.match(BK, /function listBackups\(/);
+  assert.match(BK, /function doRestoreBackup\(/);
   assert.match(APP_HTML, /id="backupModal"/);
   assert.match(APP_HTML, /data-action="backup-restore"/);
-  assert.match(APP_JS, /data-action="backup-use"/);
+  assert.match(BK, /data-action="backup-use"/);
 });
 
 test('5.4: i18n backup keys đủ vi+en', () => {
@@ -493,8 +494,8 @@ test('Phase 5: version bumps app.min.js>=38 styles.min.css>=44 plan-math.min.js>
   // P1.2 opt#1: app.html trỏ js/*.min.js + css/*.min.css
   const am = /js\/app\.min\.js\?v=(\d{2,3})/.exec(APP_HTML);
   assert.ok(am && Number(am[1]) >= 38, `app.min.js version phải >= 38 (thấy ${am && am[1]})`);
-  const cm = /css\/styles\.min\.css\?v=(\d{2,3})/.exec(APP_HTML);
-  assert.ok(cm && Number(cm[1]) >= 44, `styles.min.css version phải >= 44 (thấy ${cm && cm[1]})`);
+  const cm = /css\/styles-(?:critical|deferred)\.min\.css\?v=(\d+)/.exec(APP_HTML);
+  assert.ok(cm && Number(cm[1]) >= 1, `styles (critical/deferred) phải versioned (thấy ${cm && cm[1]})`);
   assert.match(APP_HTML, /js\/plan-math\.min\.js\?v=([2-9]|\d{2})/);
   const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const m = /const CACHE = 'taskflow-v(\d+)';/.exec(SW);
