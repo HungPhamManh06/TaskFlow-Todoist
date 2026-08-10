@@ -114,7 +114,7 @@ test('6.5: app.html có báo cáo năm + logic nằm trong js/year-report.js (P1
   assert.match(APP_HTML, /data-action="close-year-report"/);
   assert.match(APP_HTML, /data-action="share-year-report"/);
   // app.js giữ alias destructure + dispatcher; logic trong module
-  assert.match(APP_JS, /const \{ openYearReportModal, closeYearReportModal, doShareYearReport \} = window\.TaskFlowYearReport;/);
+  assert.match(APP_JS, /runLazyModule\('js\/year-report\.min\.js'/);
   assert.match(APP_JS, /data-action="year-report"/);
   const YR_JS = readFileSync(path.join(ROOT, 'js/year-report.js'), 'utf8');
   assert.match(YR_JS, /function yearlyReportData\(\)/);
@@ -128,8 +128,8 @@ test('6.6: weekly digest — app ghi cache, SW đọc (logic trong js/digest.js,
   assert.match(DIGEST_JS, /function updateDigestCache\(\)/);
   assert.match(DIGEST_JS, /caches\.open\('taskflow-digest'\)/);
   // app.js giữ alias destructure + call-sites (afterHabitToggle/refreshToday/boot setTimeout)
-  assert.match(APP_JS, /const \{ updateDigestCache \} = window\.TaskFlowDigest;/);
-  assert.match(APP_JS, /updateDigestCache\(\);/);
+  assert.match(APP_JS, /runLazyModule\('js\/digest\.min\.js'/);
+  assert.match(APP_JS, /window\.TaskFlowDigest\.updateDigestCache\(\)/);
   assert.match(SW_JS, /digest\.json/);
   assert.match(SW_JS, /'taskflow-digest'/);
 });

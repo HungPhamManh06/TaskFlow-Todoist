@@ -814,8 +814,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=143/);
-  assert.match(SW, /const CACHE = 'taskflow-v162';/);
+  assert.match(APP, /js\/app\.min\.js\?v=144/);
+  assert.match(SW, /const CACHE = 'taskflow-v163';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1012,24 +1012,21 @@ test('P11: inbox view extracted — loadInbox/saveInbox/renderInbox/schedule flo
 });
 
 test('P11: chat helpers extracted — CHAT_RESPONSES/doChatSend/doChatSuggest/chatBotReply live in js/chat.js', () => {
-  // app.html loads chat.js before app.js
-  assert.match(APP, /src="js\/chat.min.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.min.js?v=');
-  const chIdx = APP.indexOf('js/chat.min.js?v=');
-  assert.ok(chIdx >= 0 && chIdx < appIdx, 'chat.js phải load trước app.js');
-  // sw.js precache chat.js
+  // P1.5 lazy-load: chat.js KHÔNG còn trong chuỗi script boot app.html
+  assert.doesNotMatch(APP, /src="js\/chat\.min\.js/, 'chat.js phải lazy-load (không ở boot)');
+  // sw.js vẫn precache chat.js (offline vẫn dùng được feature)
   assert.ok(SW.includes("\'./js/chat.min.js\'"), 'sw.js phải precache js/chat.js');
-  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
-  assert.match(APP_JS, /if \(!window\.TaskFlowChat\) throw new Error\('TaskFlowChat missing/);
-  assert.match(APP_JS, /const \{ doChatSend, doChatSuggest \} = window\.TaskFlowChat;/);
+  // app.js không định nghĩa lại + không destructure guard; nạp lazy qua runLazyModule
+  assert.match(APP_JS, /runLazyModule\('js\/chat\.min\.js'/);
+  assert.doesNotMatch(APP_JS, /const \{ doChatSend, doChatSuggest \} = window\.TaskFlowChat;/);
   assert.doesNotMatch(APP_JS, /^const CHAT_RESPONSES = \{/m);
   assert.doesNotMatch(APP_JS, /^function doChatSend\(/m);
   assert.doesNotMatch(APP_JS, /^function doChatSuggest\(/m);
   assert.doesNotMatch(APP_JS, /^function chatBotReply\(/m);
-  // call-sites giữ nguyên trong app.js (qua alias) — dispatcher + Enter key trong chat input
-  assert.match(APP_JS, /act === 'chat-send'[\s\S]{0,80}doChatSend\(\);/);
-  assert.match(APP_JS, /act === 'chat-suggest'[\s\S]{0,80}doChatSuggest\(el\.dataset\.topic\);/);
-  assert.match(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,80}doChatSend\(\)/);
+  // call-sites qua window access sau khi nạp — dispatcher + Enter key trong chat input
+  assert.match(APP_JS, /act === 'chat-send'[\s\S]{0,140}window\.TaskFlowChat\.doChatSend\(\)\)/);
+  assert.match(APP_JS, /act === 'chat-suggest'[\s\S]{0,140}window\.TaskFlowChat\.doChatSuggest\(el\.dataset\.topic\)\)/);
+  assert.match(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,140}window\.TaskFlowChat\.doChatSend\(\)/);
   // module export đủ API + accessor pattern
   const mod = readRequiredAsset('js/chat.js');
   assert.match(mod, /return \{ CHAT_RESPONSES, doChatSend, doChatSuggest, chatBotReply \}/);
@@ -1038,28 +1035,25 @@ test('P11: chat helpers extracted — CHAT_RESPONSES/doChatSend/doChatSuggest/ch
 });
 
 test('P11: search extracted — openSearchModal/closeSearchModal/runSearch/renderSearchResults/goSearchResult live in js/search.js', () => {
-  // app.html loads search.js before app.js
-  assert.match(APP, /src="js\/search.min.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.min.js?v=');
-  const srIdx = APP.indexOf('js/search.min.js?v=');
-  assert.ok(srIdx >= 0 && srIdx < appIdx, 'search.js phải load trước app.js');
-  // sw.js precache search.js
+  // P1.5 lazy-load: search.js KHÔNG còn trong chuỗi script boot app.html
+  assert.doesNotMatch(APP, /src="js\/search\.min\.js/, 'search.js phải lazy-load (không ở boot)');
+  // sw.js vẫn precache search.js (offline vẫn dùng được feature)
   assert.ok(SW.includes("\'./js/search.min.js\'"), 'sw.js phải precache js/search.js');
-  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
-  assert.match(APP_JS, /if \(!window\.TaskFlowSearch\) throw new Error\('TaskFlowSearch missing/);
-  assert.match(APP_JS, /const \{ openSearchModal, closeSearchModal, renderSearchResults, goSearchResult \} = window\.TaskFlowSearch;/);
+  // app.js không định nghĩa lại + không destructure guard; nạp lazy qua runLazyModule
+  assert.match(APP_JS, /runLazyModule\('js\/search\.min\.js'/);
+  assert.doesNotMatch(APP_JS, /const \{ openSearchModal, closeSearchModal, renderSearchResults, goSearchResult \} = window\.TaskFlowSearch;/);
   assert.doesNotMatch(APP_JS, /^function openSearchModal\(/m);
   assert.doesNotMatch(APP_JS, /^function closeSearchModal\(/m);
   assert.doesNotMatch(APP_JS, /^function runSearch\(/m);
   assert.doesNotMatch(APP_JS, /^function renderSearchResults\(/m);
   assert.doesNotMatch(APP_JS, /^function goSearchResult\(/m);
-  // call-sites giữ nguyên trong app.js (qua alias): dispatcher + toggle + debounce + backdrop
-  assert.match(APP_JS, /act === 'search-toggle'[\s\S]{0,80}openSearchModal\(\);/);
-  assert.match(APP_JS, /act === 'search-close'[\s\S]{0,120}closeSearchModal\(\);/);
-  assert.match(APP_JS, /act === 'search-go'[\s\S]{0,80}goSearchResult\(el\);/);
-  assert.match(APP_JS, /if \(m\.hidden\) openSearchModal\(\); else closeSearchModal\(\);/);
-  assert.match(APP_JS, /setTimeout\(\(\) => renderSearchResults\(t\.value\), 200\)/);
-  assert.match(APP_JS, /e\.target === s\) closeSearchModal\(\);/);
+  // call-sites qua window access sau khi nạp: dispatcher + toggle + debounce + backdrop
+  assert.match(APP_JS, /act === 'search-toggle'[\s\S]{0,140}window\.TaskFlowSearch\.openSearchModal\(\)\)/);
+  assert.match(APP_JS, /act === 'search-close'[\s\S]{0,180}window\.TaskFlowSearch\.closeSearchModal\(\)\)/);
+  assert.match(APP_JS, /act === 'search-go'[\s\S]{0,140}window\.TaskFlowSearch\.goSearchResult\(el\)\)/);
+  assert.match(APP_JS, /if \(m\.hidden\) runLazyModule\('js\/search\.min\.js', \(\) => window\.TaskFlowSearch\.openSearchModal\(\)\);/);
+  assert.match(APP_JS, /setTimeout\(\(\) => runLazyModule\('js\/search\.min\.js', \(\) => window\.TaskFlowSearch\.renderSearchResults\(t\.value\)\), 200\)/);
+  assert.match(APP_JS, /e\.target === s\) runLazyModule\('js\/search\.min\.js', \(\) => window\.TaskFlowSearch\.closeSearchModal\(\)\);/);
   // module export đủ API + accessor pattern
   const mod = readRequiredAsset('js/search.js');
   assert.match(mod, /return \{ openSearchModal, closeSearchModal, runSearch, renderSearchResults, goSearchResult \}/);
@@ -1071,26 +1065,23 @@ test('P11: search extracted — openSearchModal/closeSearchModal/runSearch/rende
 });
 
 test('P11: quick-add extracted — openQuickAdd/closeQuickAdd/submitQuickAdd/quickAddDefaultTarget live in js/quick-add.js', () => {
-  // app.html loads quick-add.js before app.js
-  assert.match(APP, /src="js\/quick-add.min.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.min.js?v=');
-  const qaIdx = APP.indexOf('js/quick-add.min.js?v=');
-  assert.ok(qaIdx >= 0 && qaIdx < appIdx, 'quick-add.js phải load trước app.js');
-  // sw.js precache quick-add.js
+  // P1.5 lazy-load: quick-add.js KHÔNG còn trong chuỗi script boot app.html
+  assert.doesNotMatch(APP, /src="js\/quick-add\.min\.js/, 'quick-add.js phải lazy-load (không ở boot)');
+  // sw.js vẫn precache quick-add.js (offline vẫn dùng được feature)
   assert.ok(SW.includes("\'./js/quick-add.min.js\'"), 'sw.js phải precache js/quick-add.js');
-  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
-  assert.match(APP_JS, /if \(!window\.TaskFlowQuickAdd\) throw new Error\('TaskFlowQuickAdd missing/);
-  assert.match(APP_JS, /const \{ openQuickAdd, closeQuickAdd, submitQuickAdd \} = window\.TaskFlowQuickAdd;/);
+  // app.js không định nghĩa lại + không destructure guard; nạp lazy qua runLazyModule
+  assert.match(APP_JS, /runLazyModule\('js\/quick-add\.min\.js'/);
+  assert.doesNotMatch(APP_JS, /const \{ openQuickAdd, closeQuickAdd, submitQuickAdd \} = window\.TaskFlowQuickAdd;/);
   assert.doesNotMatch(APP_JS, /^function openQuickAdd\(/m);
   assert.doesNotMatch(APP_JS, /^function closeQuickAdd\(/m);
   assert.doesNotMatch(APP_JS, /^function submitQuickAdd\(/m);
   assert.doesNotMatch(APP_JS, /^function quickAddDefaultTarget\(/m);
-  // call-sites giữ nguyên trong app.js (qua alias): phím tắt + dispatcher + boot ?quick=1
+  // call-sites qua window access sau khi nạp: phím tắt + dispatcher + boot ?quick=1
   assert.match(APP_JS, /id === 'quickAddInput'/);
   assert.match(APP_JS, /act === 'quickadd-do'/);
   assert.match(APP_JS, /act === 'quickadd-close'/);
-  assert.match(APP_JS, /act === 'shell-add-task'[\s\S]{0,80}openQuickAdd\(\);/);
-  assert.match(APP_JS, /setTimeout\(\(\) => \{ openQuickAdd\(\); \}, 350\)/);
+  assert.match(APP_JS, /act === 'shell-add-task'[\s\S]{0,140}window\.TaskFlowQuickAdd\.openQuickAdd\(\)\)/);
+  assert.match(APP_JS, /setTimeout\(\(\) => runLazyModule\('js\/quick-add\.min\.js', \(\) => window\.TaskFlowQuickAdd\.openQuickAdd\(\)\), 350\)/);
   // module export đủ API + logic giữ nguyên (target context, inbox scope, pushTaskToDate dùng chung)
   const qamod = readRequiredAsset('js/quick-add.js');
   assert.match(qamod, /return \{ openQuickAdd, closeQuickAdd, submitQuickAdd \}/);
@@ -1136,24 +1127,21 @@ test('P11: mood extracted — loadMood/saveMood/moodCardHTML/openMoodPicker/clos
 });
 
 test('P11: year-report extracted — yearlyReportData/renderYearReportModal/openYearReportModal/closeYearReportModal/yearReportCardBlob/doShareYearReport live in js/year-report.js', () => {
-  // app.html loads year-report.js before app.js
-  assert.match(APP, /src="js\/year-report.min.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.min.js?v=');
-  const yrIdx = APP.indexOf('js/year-report.min.js?v=');
-  assert.ok(yrIdx >= 0 && yrIdx < appIdx, 'year-report.js phải load trước app.js');
-  // sw.js precache year-report.js
+  // P1.5 lazy-load: year-report.js KHÔNG còn trong chuỗi script boot app.html
+  assert.doesNotMatch(APP, /src="js\/year-report\.min\.js/, 'year-report.js phải lazy-load (không ở boot)');
+  // sw.js vẫn precache year-report.js (offline vẫn dùng được feature)
   assert.ok(SW.includes("\'./js/year-report.min.js\'"), 'sw.js phải precache js/year-report.js');
-  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
-  assert.match(APP_JS, /if \(!window\.TaskFlowYearReport\) throw new Error\('TaskFlowYearReport missing/);
-  assert.match(APP_JS, /const \{ openYearReportModal, closeYearReportModal, doShareYearReport \} = window\.TaskFlowYearReport;/);
+  // app.js không định nghĩa lại + không destructure guard; nạp lazy qua runLazyModule
+  assert.match(APP_JS, /runLazyModule\('js\/year-report\.min\.js'/);
+  assert.doesNotMatch(APP_JS, /const \{ openYearReportModal, closeYearReportModal, doShareYearReport \} = window\.TaskFlowYearReport;/);
   assert.doesNotMatch(APP_JS, /^function yearlyReportData\(/m);
   assert.doesNotMatch(APP_JS, /^function renderYearReportModal\(/m);
   assert.doesNotMatch(APP_JS, /^function openYearReportModal\(/m);
   assert.doesNotMatch(APP_JS, /^function yearReportCardBlob\(/m);
-  // call-sites giữ nguyên trong app.js (qua alias): dispatcher + outside-click
-  assert.match(APP_JS, /act === 'year-report'[\s\S]{0,80}openYearReportModal\(\);/);
-  assert.match(APP_JS, /act === 'close-year-report'[\s\S]{0,80}closeYearReportModal\(\);/);
-  assert.match(APP_JS, /act === 'share-year-report'[\s\S]{0,80}doShareYearReport\(\);/);
+  // call-sites qua window access sau khi nạp: dispatcher + outside-click
+  assert.match(APP_JS, /act === 'year-report'[\s\S]{0,140}window\.TaskFlowYearReport\.openYearReportModal\(\)\)/);
+  assert.match(APP_JS, /act === 'close-year-report'[\s\S]{0,140}window\.TaskFlowYearReport\.closeYearReportModal\(\)\)/);
+  assert.match(APP_JS, /act === 'share-year-report'[\s\S]{0,140}window\.TaskFlowYearReport\.doShareYearReport\(\)\)/);
   // module export đủ API + logic giữ nguyên
   const yrmod = readRequiredAsset('js/year-report.js');
   assert.match(yrmod, /return \{ yearlyReportData, renderYearReportModal, openYearReportModal, closeYearReportModal, yearReportCardBlob, doShareYearReport \}/);
@@ -1166,23 +1154,20 @@ test('P11: year-report extracted — yearlyReportData/renderYearReportModal/open
 });
 
 test('P11: digest extracted — computeDigest/updateDigestCache live in js/digest.js', () => {
-  // app.html loads digest.js before app.js
-  assert.match(APP, /src="js\/digest.min.js\?v=\d+"[^>]*>/);
-  const appIdx = APP.indexOf('js/app.min.js?v=');
-  const dgIdx = APP.indexOf('js/digest.min.js?v=');
-  assert.ok(dgIdx >= 0 && dgIdx < appIdx, 'digest.js phải load trước app.js');
-  // sw.js precache digest.js
+  // P1.5 lazy-load: digest.js KHÔNG còn trong chuỗi script boot app.html
+  assert.doesNotMatch(APP, /src="js\/digest\.min\.js/, 'digest.js phải lazy-load (không ở boot)');
+  // sw.js vẫn precache digest.js (offline vẫn dùng được feature)
   assert.ok(SW.includes("\'./js/digest.min.js\'"), 'sw.js phải precache js/digest.js');
-  // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
-  assert.match(APP_JS, /if \(!window\.TaskFlowDigest\) throw new Error\('TaskFlowDigest missing/);
-  assert.match(APP_JS, /const \{ updateDigestCache \} = window\.TaskFlowDigest;/);
+  // app.js không định nghĩa lại + không destructure guard; nạp lazy qua runLazyModule
+  assert.match(APP_JS, /runLazyModule\('js\/digest\.min\.js'/);
+  assert.doesNotMatch(APP_JS, /const \{ updateDigestCache \} = window\.TaskFlowDigest;/);
   assert.doesNotMatch(APP_JS, /^function computeDigest\(/m);
   assert.doesNotMatch(APP_JS, /^function updateDigestCache\(/m);
   assert.doesNotMatch(APP_JS, /let digestCacheTs = 0;/m);
-  // call-sites giữ nguyên trong app.js (qua alias): afterHabitToggle + refreshToday + boot
-  assert.match(APP_JS, /function afterHabitToggle\(\)[\s\S]{0,80}updateDigestCache\(\);/);
-  assert.match(APP_JS, /function refreshToday\(\)[\s\S]{0,80}updateDigestCache\(\);/);
-  assert.match(APP_JS, /setTimeout\(updateDigestCache, 2000\)/);
+  // call-sites qua window access sau khi nạp: afterHabitToggle + refreshToday + boot
+  assert.match(APP_JS, /function afterHabitToggle\(\)[\s\S]{0,160}window\.TaskFlowDigest\.updateDigestCache\(\)\)/);
+  assert.match(APP_JS, /function refreshToday\(\)[\s\S]{0,160}window\.TaskFlowDigest\.updateDigestCache\(\)\)/);
+  assert.match(APP_JS, /setTimeout\(\(\) => runLazyModule\('js\/digest\.min\.js', \(\) => window\.TaskFlowDigest\.updateDigestCache\(\)\), 2000\)/);
   // module export đủ API + logic giữ nguyên
   const dgmod = readRequiredAsset('js/digest.js');
   assert.match(dgmod, /return \{ computeDigest, updateDigestCache \}/);
@@ -1280,12 +1265,12 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=143/);
+  assert.match(APP, /js\/app\.min\.js\?v=144/);
   assert.match(APP, /css\/styles\.min\.css\?v=99/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v162';/);
+  assert.match(SW, /const CACHE = 'taskflow-v163';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles.min.css'"), 'sw.js phải precache css/styles.min.css');
   // source readable vẫn tồn tại (không xoá) + .min sibling nhỏ hơn
@@ -1608,7 +1593,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v162';/);
+  assert.match(SW, /const CACHE = 'taskflow-v163';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -1686,7 +1671,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v162';/);
+  assert.match(SW, /const CACHE = 'taskflow-v163';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2273,9 +2258,9 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
   assert.match(QA_JS, /state\.view === 'inbox'/);
   assert.match(QA_JS, /state\.view === 'day'/);
   assert.match(QA_JS, /state\.view === 'week'/);
-  // 4. Nút Thêm công việc (shell-add-task) mở Quick Add — KHÔNG còn chuyển sang Week
-  assert.match(APP_JS, /act === 'shell-add-task'\).*openQuickAdd\(\)/s);
-  assert.match(APP_JS, /if \(k === 'q'\)\s*\{\s*e\.preventDefault\(\);\s*openQuickAdd\(\)/s);
+  // 4. Nút Thêm công việc (shell-add-task) mở Quick Add — KHÔNG còn chuyển sang Week (lazy qua runLazyModule)
+  assert.match(APP_JS, /act === 'shell-add-task'\).*runLazyModule\('js\/quick-add\.min\.js', \(\) => window\.TaskFlowQuickAdd\.openQuickAdd\(\)\)/s);
+  assert.match(APP_JS, /if \(k === 'q'\)\s*\{\s*e\.preventDefault\(\);\s*runLazyModule\('js\/quick-add\.min\.js', \(\) => window\.TaskFlowQuickAdd\.openQuickAdd\(\)\)/s);
   // 5. Dùng chung logic đặt task: pushTaskToDate (không duplicate) + inbox scope
   assert.match(APP_JS, /function pushTaskToDate\(tk, dt\)/);
   assert.match(QA_JS, /tk\.inbox = true;/);
@@ -2388,7 +2373,7 @@ test('Phase 13: vercel.json security headers + CSP không chặn font/sync', () 
 test('Phase 16: perf — debounce search + save-on-type + content-visibility upcoming', () => {
   // 1. Search không chạy runSearch mỗi keystroke — debounce 200ms
   assert.match(APP_JS, /searchDebounceTimer/);
-  assert.match(APP_JS, /t\.id === 'searchInput'\).*setTimeout\(\(\) => renderSearchResults\(t\.value\), 200\)/s);
+  assert.match(APP_JS, /t\.id === 'searchInput'\).*setTimeout\(\(\) => runLazyModule\('js\/search\.min\.js', \(\) => window\.TaskFlowSearch\.renderSearchResults\(t\.value\)\), 200\)/s);
   // 2. Gõ text không serialize toàn bộ state mỗi phím — saveSoon/saveYearSoon/saveInboxSoon/saveTaskDetailStateSoon
   assert.match(APP_JS, /function saveSoon\(\) \{[\s\S]*?setTimeout\(save, 350\)/);
   assert.match(APP_JS, /function saveYearSoon\(\) \{[\s\S]*?setTimeout\(saveYear, 350\)/);

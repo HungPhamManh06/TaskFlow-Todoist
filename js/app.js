@@ -1,5 +1,31 @@
 'use strict';
 
+/* ============================ Lazy-load modules (P1.5) ============================ */
+// chat/search/quick-add/year-report/digest chỉ cần khi mở feature tương ứng — không
+// nằm trong chuỗi script boot ở app.html (P11 extractions 21-26). ensureLazyModule nạp
+// đúng 1 lần (cache theo URL); runLazyModule gọi fn sau khi nạp xong, fail loud nếu lỗi
+// mạng. URL không có ?v= để khớp precache trong sw.js (offline vẫn dùng được feature).
+const _lazyScripts = new Map();
+function ensureLazyModule(url) {
+  if (_lazyScripts.has(url)) return _lazyScripts.get(url);
+  const p = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => { _lazyScripts.delete(url); reject(new Error('lazy module failed to load: ' + url)); };
+    document.head.appendChild(s);
+  });
+  _lazyScripts.set(url, p);
+  return p;
+}
+function runLazyModule(url, fn) {
+  ensureLazyModule(url).then(fn).catch((err) => {
+    console.error(err);
+    if (window.TaskFlowUI && TaskFlowUI.toast) TaskFlowUI.toast('Không thể tải module — kiểm tra kết nối', 'error');
+  });
+}
+
 /* ============================ Dữ liệu ============================ */
 
 const DAYS = [
@@ -954,16 +980,14 @@ const { pomoDateKey, moodDateKey } = window.TaskFlowKeys;
 // Lưu ý: yearlyReportData/renderYearReportModal/yearReportCardBlob chỉ dùng NỘI BỘ
 // trong module (openYearReportModal→render, doShareYearReport→data+blob) — không có
 // alias ở app.js, đừng grep lạc.
-if (!window.TaskFlowYearReport) throw new Error('TaskFlowYearReport missing — js/year-report.js failed to load');
-const { openYearReportModal, closeYearReportModal, doShareYearReport } = window.TaskFlowYearReport;
+// Lazy-load (P1.5): js/year-report.min.js không nằm trong chuỗi script boot, chỉ nạp
+// khi mở báo cáo năm lần đầu (runLazyModule ở dispatcher + outside-click).
 
 /* ---------- 6B.3 — Weekly digest (nhắc bù qua Service Worker) ---------- */
 /* ---------- 6B.3 — Weekly digest (nhắc bù qua Service Worker) ---------- */
 // computeDigest/updateDigestCache (digestCacheTs nội bộ) được tách sang js/digest.js
-// (window.TaskFlowDigest) — P11 extraction 26. Giữ alias để call-sites (afterHabitToggle/
-// refreshToday/boot setTimeout) không đổi.
-if (!window.TaskFlowDigest) throw new Error('TaskFlowDigest missing — js/digest.js failed to load');
-const { updateDigestCache } = window.TaskFlowDigest;
+// (window.TaskFlowDigest) — P11 extraction 26. Lazy-load (P1.5): chỉ nạp khi cần cập
+// nhật cache digest (afterHabitToggle/refreshToday/boot setTimeout — runLazyModule).
 
 /* ---------- 6B.4 — Import CSV ---------- */
 
@@ -3712,11 +3736,9 @@ function bindTaskDetailEvents(drawer) {
 
 /* ============================ Phase 2: Tìm kiếm xuyên tháng ============================ */
 // openSearchModal/closeSearchModal/runSearch/renderSearchResults/goSearchResult được tách
-// sang js/search.js (window.TaskFlowSearch) — P11 extraction 22. Module đọc state app-level
-// (state/yearState/inbox/monthStateRaw/PLAN_YEAR) + helper (TaskFlowUI/emptyStateHTML/t/esc/
-// openMonth/openYear/setView) resolve qua global scope tại thời điểm GỌI — pattern inbox.js.
-if (!window.TaskFlowSearch) throw new Error('TaskFlowSearch missing — js/search.js failed to load');
-const { openSearchModal, closeSearchModal, renderSearchResults, goSearchResult } = window.TaskFlowSearch;
+// sang js/search.js (window.TaskFlowSearch) — P11 extraction 22. Lazy-load (P1.5): module
+// không nằm trong chuỗi script boot, chỉ nạp khi mở search lần đầu (runLazyModule). Module
+// đọc state app-level + helper resolve qua global scope tại thời điểm GỌI — pattern inbox.js.
 
 /* ============================ Phase 2: View Lịch ============================ */
 
@@ -4427,23 +4449,19 @@ renderPomoWidgetStats = function() {
 
 /* ============================ Chatbot trợ lý học tập ============================ */
 // CHAT_RESPONSES/doChatSend/doChatSuggest/chatBotReply được tách sang js/chat.js
-// (window.TaskFlowChat) — P11 extraction 21. Module không phụ thuộc state app; helper
-// `esc` resolve qua global scope tại thời điểm GỌI (app.js load sau chat.js nhưng mọi
-// hàm chỉ chạy sau boot — pattern syncui/clock). Destructure + fail-fast như inbox.js.
-if (!window.TaskFlowChat) throw new Error('TaskFlowChat missing — js/chat.js failed to load');
-// app.js chỉ destructure 2 hàm thực sự dùng (dispatcher + Enter key); CHAT_RESPONSES/
-// chatBotReply ở trong module, không cần alias ở app.js (pattern leaner như stats/dates).
-const { doChatSend, doChatSuggest } = window.TaskFlowChat;
+// (window.TaskFlowChat) — P11 extraction 21. Lazy-load (P1.5): module không nằm trong
+// chuỗi script boot, chỉ nạp khi dùng chat lần đầu (runLazyModule). Helper app-level
+// resolve qua global scope tại thời điểm GỌI — pattern syncui/clock.
 
 // Enter key trong chat input gửi tin nhắn
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'chatInput') {
     e.preventDefault();
-    doChatSend();
+    runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatSend());
   }
   if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'quickAddInput') {
     e.preventDefault();
-    submitQuickAdd();
+    runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.submitQuickAdd());
   }
 });
 
@@ -5142,9 +5160,7 @@ function pushTaskToDate(tk, dt) {
 // openQuickAdd/closeQuickAdd/submitQuickAdd/quickAddDefaultTarget/quickAddTarget được
 // tách sang js/quick-add.js (window.TaskFlowQuickAdd) — P11 extraction 23. Giữ alias
 // để call-sites (keydown Enter, dispatcher shell-add-task/quickadd-*, phím tắt q,
-// outside-click, boot ?quick=1) không đổi. pushTaskToDate vẫn ở app.js (dùng chung// với Inbox scheduling).
-if (!window.TaskFlowQuickAdd) throw new Error('TaskFlowQuickAdd missing — js/quick-add.js failed to load');
-const { openQuickAdd, closeQuickAdd, submitQuickAdd } = window.TaskFlowQuickAdd;
+// outside-click, boot ?quick=1) không đổi. pushTaskToDate vẫn ở app.js (dùng chung// với Inbox scheduling). Lazy-load (P1.5): module chỉ nạp khi mở Quick Add lần đầu.
 
 function setView(view, week) {
   // Phase 5: đổi view/tuần → đóng drawer chi tiết (ref index có thể lệch theo tuần mới)
@@ -5366,7 +5382,8 @@ function updateUndoButtons() {
 function toggleSearchModal() {
   const m = document.getElementById('searchModal');
   if (!m) return;
-  if (m.hidden) openSearchModal(); else closeSearchModal();
+  if (m.hidden) runLazyModule('js/search.min.js', () => window.TaskFlowSearch.openSearchModal());
+  else runLazyModule('js/search.min.js', () => window.TaskFlowSearch.closeSearchModal());
 }
 function focusTodayTaskAdd() {
   const ti = nowInfo(PLAN_START, NUM_DAYS);
@@ -5914,7 +5931,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   else if (act === 'tools-close') { closeToolsDrawer(); return; }
-  else if (act === 'shell-add-task') { openQuickAdd(); return; }
+  else if (act === 'shell-add-task') { runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.openQuickAdd()); return; }
   else if (act === 'undo') { doUndo(); return; }
   else if (act === 'redo') { doRedo(); return; }
   else if (act === 'habits') {
@@ -5954,11 +5971,11 @@ document.addEventListener('click', (e) => {
     return;
   }
   else if (act === 'chat-send') {
-    doChatSend();
+    runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatSend());
     return;
   }
   else if (act === 'chat-suggest') {
-    doChatSuggest(el.dataset.topic);
+    runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatSuggest(el.dataset.topic));
     return;
   }
   else if (act === 'help-toggle') {
@@ -6019,9 +6036,9 @@ document.addEventListener('click', (e) => {
   } else if (act === 'upcoming-range') {
     setUpcomingRange(+el.dataset.days);
   } else if (act === 'quickadd-close') {
-    closeQuickAdd();
+    runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.closeQuickAdd());
   } else if (act === 'quickadd-do') {
-    submitQuickAdd();
+    runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.submitQuickAdd());
   } else if (act === 'habit-focus') {
     // P8: CTA empty state "Tạo thói quen" — từ Today chuyển sang Overview (nơi có ô nhập habit)
     if (state.view !== 'overview') setView('overview');
@@ -6371,12 +6388,12 @@ document.addEventListener('click', (e) => {
   } else if (act === 'copyhabits') {
     copyHabitsToNextMonth();
   } else if (act === 'search-toggle') {
-    openSearchModal();
+    runLazyModule('js/search.min.js', () => window.TaskFlowSearch.openSearchModal());
   } else if (act === 'search-close') {
     if (searchDebounceTimer) { clearTimeout(searchDebounceTimer); searchDebounceTimer = null; }
-    closeSearchModal();
+    runLazyModule('js/search.min.js', () => window.TaskFlowSearch.closeSearchModal());
   } else if (act === 'search-go') {
-    goSearchResult(el);
+    runLazyModule('js/search.min.js', () => window.TaskFlowSearch.goSearchResult(el));
   } else if (act === 'tagfilter') {
     tagFilter = el.dataset.tag || null;
     if (state.view === 'calendar') { renderCalendar(); }
@@ -6451,11 +6468,11 @@ document.addEventListener('click', (e) => {
   } else if (act === 'share-week-report') {
     doShareWeekReport();
   } else if (act === 'year-report') {
-    openYearReportModal();
+    runLazyModule('js/year-report.min.js', () => window.TaskFlowYearReport.openYearReportModal());
   } else if (act === 'close-year-report') {
-    closeYearReportModal();
+    runLazyModule('js/year-report.min.js', () => window.TaskFlowYearReport.closeYearReportModal());
   } else if (act === 'share-year-report') {
-    doShareYearReport();
+    runLazyModule('js/year-report.min.js', () => window.TaskFlowYearReport.doShareYearReport());
   } else if (act === 'stats') {
     openStatsModal();
   } else if (act === 'stats-close') {
@@ -6621,7 +6638,7 @@ document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.id === 'searchInput') {
     clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => renderSearchResults(t.value), 200);
+    searchDebounceTimer = setTimeout(() => runLazyModule('js/search.min.js', () => window.TaskFlowSearch.renderSearchResults(t.value)), 200);
   }
 });
 
@@ -6807,7 +6824,7 @@ document.addEventListener('keydown', (e) => {
     // Phase 4: phím tắt Quick Add (q) — thêm nhanh không cần đổi view
     if (k === 'q') {
       e.preventDefault();
-      openQuickAdd();
+      runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.openQuickAdd());
       return;
     }
   }
@@ -6893,7 +6910,7 @@ function afterYearGoalToggle() {
 }
 
 function afterHabitToggle() {
-  updateDigestCache();
+  runLazyModule('js/digest.min.js', () => window.TaskFlowDigest.updateDigestCache());
   state.habits.forEach((h) => {
     const p = habitPct(h);
     document.querySelectorAll(`[data-action="habit"][data-id="${h.id}"]`).forEach((b) => {
@@ -7032,7 +7049,7 @@ let lastRealWeek = null;
 let viewedMonth = null;
 
 function refreshToday() {
-  updateDigestCache();
+  runLazyModule('js/digest.min.js', () => window.TaskFlowDigest.updateDigestCache());
   const now = new Date();
   if (viewedMonth !== null) {
     if (viewedMonth === now.getMonth() && PLAN_YEAR === now.getFullYear()) {
@@ -7116,11 +7133,11 @@ document.addEventListener('click', (e) => {
   const wr = document.getElementById('weekReportModal');
   if (wr && !wr.hidden && e.target === wr) closeWeekReportModal();
   const yr = document.getElementById('yearReportModal');
-  if (yr && !yr.hidden && e.target === yr) closeYearReportModal();
+  if (yr && !yr.hidden && e.target === yr) runLazyModule('js/year-report.min.js', () => window.TaskFlowYearReport.closeYearReportModal());
   const s = document.getElementById('searchModal');
-  if (s && !s.hidden && e.target === s) closeSearchModal();
+  if (s && !s.hidden && e.target === s) runLazyModule('js/search.min.js', () => window.TaskFlowSearch.closeSearchModal());
   const qa = document.getElementById('quickAddModal');
-  if (qa && !qa.hidden && e.target === qa) closeQuickAdd();
+  if (qa && !qa.hidden && e.target === qa) runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.closeQuickAdd());
   const t = document.getElementById('templateModal');
   if (t && !t.hidden && e.target === t) closeTemplateModal();
   const p = document.getElementById('profileModal');
@@ -7397,10 +7414,10 @@ loadXP();
 carryOverRepeatTasks();
 renderXP();
 setView(state.view, state.currentWeek);
-setTimeout(updateDigestCache, 2000);
+setTimeout(() => runLazyModule('js/digest.min.js', () => window.TaskFlowDigest.updateDigestCache()), 2000);
 // Manifest shortcut "Thêm công việc" (?quick=1) → mở Quick Add ngay sau khi view đầu render
 if (window.__quickAddOnBoot) {
-  setTimeout(() => { openQuickAdd(); }, 350);
+  setTimeout(() => runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.openQuickAdd()), 350);
   delete window.__quickAddOnBoot;
 }
 
