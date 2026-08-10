@@ -1,7 +1,7 @@
 {
-  "name": "TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày",
+  "name": "TaskFlow",
   "short_name": "TaskFlow",
-  "description": "Ứng dụng lập kế hoạch cá nhân miễn phí: mục tiêu năm/tháng/tuần, habit tracker 31 ngày, streak & heatmap, nhật ký reflection. Offline 100%, dữ liệu lưu trên trình duyệt.",
+  "description": "TaskFlow là ứng dụng lập kế hoạch cá nhân offline-first cho mục tiêu, công việc, thói quen và tập trung. Dùng được ngay không cần tài khoản; đồng bộ đám mây là tùy chọn khi đăng nhập.",
   "lang": "vi",
   "dir": "ltr",
   "start_url": "./app",

@@ -2303,8 +2303,11 @@ test('Phase 4: Quick Add — overlay, shortcut, context-aware target and shared 
 
 test('Phase 9: PWA manifest shortcuts, screenshots, and notification deep-link', () => {
   const manifest = JSON.parse(readRequiredAsset('manifest.json'));
-  assert.equal(manifest.name, 'TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày');
+  assert.equal(manifest.name, 'TaskFlow');
   assert.equal(manifest.short_name, 'TaskFlow');
+  // P0.2: description phải phản ánh offline-first + optional cloud sync, KHÔNG còn claim "Offline 100%"
+  assert.match(manifest.description, /offline-first/);
+  assert.doesNotMatch(manifest.description, /Offline 100%/);
   assert.equal(manifest.start_url, './app');
   assert.equal(manifest.display, 'standalone');
   // 3 shortcuts theo spec: Hôm nay / Thêm công việc / Tuần này (+ giữ Tháng/Năm)
