@@ -2157,6 +2157,20 @@ function closeTaskDetail() {
   TaskFlowUI.closeDrawer('taskDrawer');
   const b = document.getElementById('taskDetailBackdrop');
   if (b) b.hidden = true;
+  // P2.3: focus restore fallback. The drawer's saved opener is the row ⋯ menuitem,
+  // but opening the drawer closes the menu (document click handler), so the opener is
+  // hidden by close time and ui.js's restoreLayerFocus skips it -> focus falls to body.
+  // Return focus to the row's ⋯ trigger instead (APG: focus returns to the opener).
+  const ae = document.activeElement;
+  if (!ae || ae === document.body || !ae.getClientRects || !ae.getClientRects().length) {
+    const ref = taskDetailRef;
+    if (ref) {
+      const row = document.querySelector(
+        `.task-row[data-week="${ref.week}"][data-day="${ref.day}"][data-task="${ref.task}"]`);
+      const trig = row && row.querySelector('[data-action="task-menu"]');
+      if (trig && typeof trig.focus === 'function') trig.focus();
+    }
+  }
   taskDetailRef = null;
   taskDetailMonthState = null;
 }
