@@ -3,14 +3,14 @@
 > Deliverable của phase hardening. Mục tiêu: **clear responsibility boundaries**, không phải "app.js phải dưới X dòng".
 > Quy tắc: chỉ extract subsystem **LOW risk** trước; mỗi extraction = một commit riêng; sau extraction phải xóa code cũ + test + E2E + console + git diff.
 
-## 1. Bức tranh hiện tại
+## 1. Bức tranh hiện tại (sau extractions #28–#37)
 
 | Metric | Giá trị |
 |---|---|
-| `js/app.js` | 7.463 dòng, ~812 hàm |
-| Module đã tách (trong `js/`) | **34** (đã qua 27+ đợt extraction P11) |
-| Cách nối module | UMD guard (`if (!window.TaskFlowX) throw ...`) + destructure alias, hoặc resolve `window.TaskFlowX` tại thời điểm gọi |
-| Boot chain (`app.html`) | 30 script synchronous cuối `<body>`; 5 module action-gated (chat/search/quick-add/year-report/digest) load qua `runLazyModule` (P1.5) |
+| `js/app.js` | **5.870 dòng, ~227 hàm** (từ 7.463 dòng / ~812 hàm — bản đồ gốc) |
+| Module đã tách (trong `js/`) | **44 source** (43 module + app.js) |
+| Boot chain (`app.html`) | **38 script** synchronous cuối `<body>`; 5 module action-gated (chat/search/quick-add/year-report/digest) load qua `runLazyModule` (P1.5) |
+| Extractions #28–#37 | **10 pass** (~1.595 dòng rời app.js): popups, config, export-builders, widget, xp, streak-ui, today, report-ui, upcoming, focus-stats |
 
 ### 1.1 Các module đã tách (không còn trong app.js)
 
@@ -30,15 +30,26 @@
 | `analytics.js` (TaskFlowAnalytics) | `GA4_ID, GA4_ENABLED, initAnalytics, trackEvent` | GA4 |
 | `remind.js` (TaskFlowRemind) | `getRemindTime, setRemindTime, requestRemindPermission, registerPeriodicReminder` | reminder core |
 | `remind-ui.js` (TaskFlowRemindUI) | `syncReminderTimers, renderRemindList, insertBeforeTaskActions, beginRemindEdit, turnOffRemind` | reminder UI (render path) |
-| `export.js` (TaskFlowExport) | `downloadFile, collectAllData, exportJSON` | export primitives |
+| `export.js` (TaskFlowExport) | `downloadFile, collectAllData, exportJSON, exportCSV, exportICS` (+ private `csvRow/icsEscape/icsDayFromDay/legacyCSVRows`) | export primitives **+ builders (extraction #30)** |
 | `mood.js` (TaskFlowMood) | `loadMood, saveMood, moodCardHTML, openMoodPicker, closeMoodPicker, rerenderMoodCard` | mood tracker (render path) |
 | `fab.js` (TaskFlowFab) | `loadFabPos, saveFabPos, clampFabPos, initFabDrags, fabTuckAllowed, nearestTuckEdge, tuckOffset, initFabTuck` | FAB drag/tuck (boot destructure) |
+| `config.js` (TaskFlowConfig) | `HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK` | seed data (extraction #29) |
+| `widget.js` (TaskFlowWidget) | `widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, setTheme, prefersReducedMotion, registerSW` | widget config + bootstrap glue (extraction #31) |
+| `xp.js` (TaskFlowXP) | `xpTotal` (private), `loadXP, saveXP, xpLevelInfo, addXP, removeXP, renderXP, habitPct, dayPct, donutSVG, checkboxHTML` | XP + pure render helpers (extraction #32) |
+| `streak-ui.js` (TaskFlowStreakUI) | `weekHabitPct, weekCompareHTML, dayAggregateAt, heatHeroHTML, heatRibbonHTML, habitMiniHTML, habitHeatCardHTML, shareTopInfo, canvasCircle, streakCardBlob, doShareStreak` | streak/heatmap renderers + share card (extraction #33) |
+| `today.js` (TaskFlowToday) | `todayGreeting, todayWeekdayLabel, renderToday, totalFocusMinutesToday, taskRowHTML` | Today render (default boot view — extraction #34) |
+| `report-ui.js` (TaskFlowReportUI) | `monthlyReportData, renderReportModal, open/closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, open/closeWeekReportModal, weekReportCardBlob, doShareWeekReport` | month/week report UI (extraction #35) |
+| `upcoming.js` (TaskFlowUpcoming) | `setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate` | Upcoming view (extraction #36); `upcomingRange` là state riêng của module |
+| `focus-stats.js` (TaskFlowFocusStats) | `pomoDaySecs, focusWeekMinutes, focusMonthMinutes, topFocusTasksInWeek, topFocusTasksInMonth, taskFocusMinLabel` (+ private `taskFocusSecsInRange`) | focus/pomo stats helpers (extraction #37) |
+| `popups.js` (TaskFlowPopups) | `confettiBurst, templatesPopHTML, demoPlan` (+ seed/import helpers) | popup/demo/templates (extraction #28) |
 
 **Boot + resolve tại call time (không destructure):** `inbox.js`, `streak.js`, `stats.js`, `planmini.js`, `keys.js`, `habits.js`, `dates.js`, `syncui.js` (mỗi module ~3 refs `window.TaskFlowX`).
 
 **Lazy (P1.5, qua `ensureLazyModule`/`runLazyModule`):** `chat.js`, `search.js`, `quick-add.js`, `year-report.js`, `digest.js` — không còn trong boot chain, load khi action đầu tiên.
 
-## 2. Bản đồ trách nhiệm (theo vùng trong app.js)
+**Pattern đã kiểm chứng qua 10 extraction (#28–#37):** UMD + guard fail-fast + destructure alias ở app.js; module resolve `t/state/PLAN_*` qua **global lexical tại thời điểm GỌI** (mood.js/popups.js). Đã chứng minh chiều ngược: `report-ui.js`/`year-report.js` (module) gọi `focusReportBars`/`focusMonthMinutes`/`taskFocusMinLabel` — vốn là hàm app.js đã alias từ destructure — resolve ngược qua cùng cơ chế, không cần import trực tiếp. Không có circular import nào xuất hiện.
+
+## 2. Bản đồ trách nhiệm HIỆN TẠI (app.js 5.870 dòng)
 
 **Chú thích rủi ro:**
 - **LOW** — self-contained, ít phụ thuộc global state/DOM, API nhỏ → extract an toàn.
@@ -47,57 +58,63 @@
 
 | # | Region (dòng) | Responsibility | Dependencies | Global state | DOM coupling | Risk | Extract? |
 |---|---|---|---|---|---|---|---|
-| R1 | 1–27 | `ensureLazyModule` / `runLazyModule` — lazy script loader (P1.5) | none | none | inject `<script>` | LOW | **không** — infra của boot, giữ ở composition root |
-| R2 | 28–115 | Constants mặc định: `DAYS, HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT prompts` | none | none | none | LOW | ✅ **ứng viên #1** — pure data, move sang `js/config.js` |
-| R3 | 115–390 | Plan state: `initPlan, yearKey, capturePlan/restorePlan, loadYearState, saveYear, yearGoalStats, yearMonthlyData, loadMonthStateOrCreate, toggleMonthGoal, toggleQuarterGoal, pullYearGoalsFromMonths, quarterStats` | storage, goals, account | `state`, `viewedMonth`, `YEAR_MONTH_CACHE` | none | HIGH | **không** — core state, coupling chặt |
-| R4 | 389–447 | Widget config: `widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets` | storage | `widgetConfigs` | reads DOM section headers | MEDIUM | ✅ **ứng viên #4** — API nhỏ (4 fn), có thể tách cùng R5 |
-| R5 | 447–520 | App-level glue: `setLang, setTheme, prefersReducedMotion, registerSW` | i18n, theme, shell | `LANG`, `THEME`, `DARK` | `document.documentElement`, SW register | MEDIUM | ✅ ứng viên #4 (gộp R4+R5 thành "settings/bootstrap") |
-| R6 | 519–603 | Reminder app-glue: `enableReminder, disableReminder, checkDailyReminder` | remind, i18n | `reminder` state | header bell UI, Notification | MEDIUM | ✅ ứng viên #3 — logic nhỏ, self-contained |
-| R7 | 603–651 | Recurrence: `beginRepeatEdit, applyRecurrence` | state, i18n | `state` | repeat modal DOM | MEDIUM | có thể; phụ thuộc `setView/renderCurrentView` → chờ |
-| R8 | 651–799 | Export glue: `csvRow, exportCSV, icsEscape, icsDayFromDay, exportICS, legacyCSVRows, importJSONFile, togglePop` | export, storage, i18n, UI | `state` | file input, popup | MEDIUM | ✅ ứng viên #2 — `export.js` đã có primitives; đây là builders còn sót |
-| R9 | 799–1054 | Popup/demo/templates: `confettiBurst, templatesPopHTML, demoPlan, importCSVFile, seedHabitDays, seedTasks` | storage, goals, habits | `state` (demo/seed ghi state) | canvas, modal DOM | LOW–MEDIUM | ✅ **ứng viên #1 (kế hoạch extraction #28)** — confetti/templates là pure; demo/seed tách riêng nếu cần |
-| R10 | 1054–1245 | State load/save: `defaultState, emptyState, loadState, bootState, bootYearState, rebootState, save` | storage, account, keys | `state` (global) | none | HIGH | **không** — trái tim persistence |
-| R11 | 1245–1337 | XP + helpers: `loadXP, saveXP, xpLevelInfo, addXP, removeXP, renderXP, habitPct, dayPct, donutSVG, checkboxHTML` | storage, i18n, UI | `xp` state | XP badge DOM, donut/checkbox HTML builders | MEDIUM | ✅ ứng viên #5 — `donutSVG/checkboxHTML` là pure render helpers |
-| R12 | 1337–1415 | Reflection + overview metric: `getRefQuestion, saveRefQuestion, reflectionHTML, overviewMetricSnapshot, syncOverviewMetrics, syncOverviewFocus` | storage, sync | `state` | reflection DOM, metric cards | MEDIUM–HIGH | chờ — gắn render path + sync |
-| R13 | 1415–1736 | **Overview render**: `renderOverview` + 8 builders (`dateCardHTML, weeklyChartHTML, focusCardHTML, sceneCardHTML, goalsPanelHTML, emptyStateHTML, goalBlockHTML, habitPanelHTML`) | i18n, clock, stats, mood, remind-ui, habits | `state`, `viewedMonth`, cache | toàn bộ #overview DOM | HIGH | **không** (render path chính) — có thể tách "HTML builders" thuần nếu muốn |
-| R14 | 1736–2072 | Streak/heatmap UI: `weekHabitPct, weekCompareHTML, dayAggregateAt, heatHeroHTML, heatRibbonHTML, habitMiniHTML, habitHeatCardHTML, shareTopInfo, canvasCircle, streakCardBlob, doShareStreak` | streak (calc đã tách), i18n, UI, export | `state`, cache | heatmap DOM, canvas share | MEDIUM | ✅ ứng viên #6 — calc đã ở `streak.js`; phần còn lại là renderers/share |
-| R15 | 2072–2524 | Reports tháng/tuần: `monthlyReportData, renderReportModal, open/closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, open/closeWeekReportModal, weekReportCardBlob, doShareWeekReport` | stats, i18n, export, UI | `state`, month cache | report modal DOM, canvas | MEDIUM–HIGH | chờ — `year-report.js` đã tách; còn month/week report |
-| R16 | 2524–2801 | Badges + CRUD: `countActiveDays, evaluateMonthBadges, badgePanelHTML, refreshHeatCard` + `showGoalAdd, addGoal, removeGoal, addHabit, removeHabit, copyHabitsToNextMonth, beginTargetEdit, beginTagEdit, refreshHabitLabels, beginInlineEdit` | account (badge storage), storage, UI, undo | `state` | badge panel, inline edit DOM | MEDIUM–HIGH | chờ — CRUD gắn undo + render |
-| R17 | 2801–3079 | **Year render**: `renderYear` + 11 builders (`yearCardHTML, yearGoalsCardHTML, yearChartsHTML, yearOverviewReflectionHTML, yearQuartersHTML, yearMonthsHTML, yearReflectionHTML, yearReflectionsHTML, yearHabitHeatmapHTML, weekTagFilterBar`) | i18n, stats, goals, habits | `state`, `viewedYear` | toàn bộ #year DOM | HIGH | **không** (render path) |
-| R18 | 3079–3330 | **Week/Day render**: `renderWeek` + 9 builders (`weekHabitsHTML, weeklyGoalsHTML, dayColumnHTML, dayOfMonthIndex, dayHabitsHTML, renderDay, openDay, goDay`) | i18n, clock, mood, plan-math | `state`, `viewedMonth` | toàn bộ #week/#day DOM | HIGH | **không** (render path) |
-| R19 | 3329–3480 | **Today render**: `todayGreeting, todayWeekdayLabel, renderToday, totalFocusMinutesToday, taskRowHTML` | i18n, clock, focus, mood, remind-ui, inbox | `state` | toàn bộ #today DOM | MEDIUM | ✅ **ứng viên #7** — API nhỏ (5 fn), render path nhưng cô lập được; kế hoạch P1.8 từng liệt kê |
-| R20 | 3480–3745 | **Task Detail**: `taskDetailState, saveTaskDetailState, getTaskDetailTarget, openInboxTaskDetail, openTaskDetail, closeTaskDetail, refreshTaskRowAfterEdit, renderTaskDetail, bindTaskDetailEvents` | storage, i18n, keys, inbox | `taskDetail` state | #taskDrawer DOM + events | MEDIUM–HIGH | chờ — 264 dòng, gắn sự kiện phức tạp |
-| R21 | 3745–3931 | Calendar + template modal: `calendarDayEntries, calendarTaskMatches, calendarVisibleTasks, calendarDayPct, calendarTagFilterBar, calendarTasksHTML, renderCalendar` + `openTemplateModal, closeTemplateModal, copyMonthTemplate` | i18n, stats, habits | `state`, `calendarTagFilters` | #calendar DOM, modal | MEDIUM–HIGH | chờ — tag filter state global |
-| R22 | 3931–4471 | **Pomodoro/Focus + Stats**: `renderPomo` + 17 pomo/focus fns + `statsWeekStartOf, statsMonthsForRange, statsData, statsCorrelation, statsScatterSVG, renderStatsModal, focusChartCardHTML, topFocusTasksInMonth, renderPomoWidgetStats, renderPomoTomatoCounter` | storage (POMO_LOG_KEY), i18n, stats module | `pomo` state | pomo panel, stats modal, charts | MEDIUM | ✅ **ứng viên #8** — `stats.js` đã tách core calc; pomo timer + stats modal còn lại |
-| R23 | 4471–4626 | Year dashboard + widget settings + profile: `bestHabitAcrossYear, bestProductiveDay, yearDashboardHTML` + `open/close/renderWidgetSettingsModal, setFieldError, clearFormErrors, openProfileModal, closeProfileModal, doChangePassword, doDeleteAccount` | account, i18n, UI, sync | `state` | modals, account forms | MEDIUM–HIGH | chờ — account ops gắn sync |
-| R24 | 4677–4993 | Shell/nav: `isSidebarCollapsed, applySidebarCollapse, toggleSidebarCollapse, sidebarTooltipLayer/Host, show/hideSidebarTooltip, shellNavLabel, buildNav, updateNav, renderShellIcons, updateShellContext, openMoreSheet, closeMoreSheet, openToolsDrawer, closeToolsDrawer` | shell module, i18n, keys | `nav` state | toàn bộ sidebar/bottom-nav/more-sheet DOM | MEDIUM–HIGH | chờ — `shell.js` mới giữ brand/month-nav; nav build còn ở đây |
-| R25 | 4993–5243 | **Upcoming**: `setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate` | i18n, dates, inbox | `state`, `upcomingRange` | #upcoming DOM | MEDIUM | ✅ **ứng viên #9** — `inbox.js` đã tách; upcoming là vùng cùng họ, tách sau |
-| R26 | 5165–5382 | **View switching + Undo**: `setView, goWeek, openMonth, openYear, snapshotAll, pushUndo, applySnapshot, renderCurrentView, doUndo, doRedo, updateUndoButtons, toggleSearchModal, focusTodayTaskAdd` | mọi view renderer, keys, search (lazy) | `state`, `viewHistory`, `undoStack` | toàn bộ view container | HIGH | **không** — bộ điều phối trung tâm |
-| R27 | 5567–5639 | Backups: `rotateBackup, maybeAutoBackup, listBackups, openBackupModal, closeBackupModal, doRestoreBackup` | storage, UI, i18n | `state` (snapshot) | backup modal DOM | MEDIUM | ✅ **ứng viên #10** — API nhỏ (6 fn), self-contained |
-| R28 | 5639–5878 | **Focus mode**: `openFocusMode, closeFocusMode, focusState, saveFocusState, getFocusedTask, taskFocusLog, taskFocusSecs, taskFocusToday, taskFocusSessions, taskFocusMinLabel, focusTimerRender, focusTimerSync, focusTimerComplete, focusTimerStart, focusTimerReset, focusTimerSetDur, getTaskByUid, renderFocusContent, refreshFocusIfOpen, fmtSessionDate` | storage, i18n, UI | `focusState` (global) | #focusMode DOM + timer | MEDIUM | ✅ ứng viên #11 — timer logic thuần + DOM overlay; kế hoạch liệt kê "Focus" |
-| R29 | 5890–6680 | **Event dispatchers**: click dispatcher (~700 dòng) + `change/dblclick/input/focusin` listeners + `saveSoon/saveYearSoon/saveInboxSoon/saveTaskDetailStateSoon/flushPendingSaves` | mọi module | `state` | toàn bộ DOM events | HIGH | **không** — đây là wiring layer; chỉ tách từng branch nếu có lý do |
-| R30 | 6680–7034 | Task mutations: `afterGoalToggle, afterYearGoalToggle, afterHabitToggle, afterWGoalToggle, refreshTaskUI, newTaskUid, ensureTaskUid, carryOverRepeatTasks, carriedDateLabel, syncCarriedDone, scrollWeekToToday, refreshToday` | storage, plan-carry, XP | `state` | task DOM | HIGH | **không** — mutation + render xen kẽ |
-| R31 | 7034–7378 | Sync glue + onboarding: `syncNow, toggleSyncModal, closeSyncModal, setSyncMode, doSyncSignup, doSyncLogin, doSyncGoogle, doSyncLogout, handleSyncChange` + `obHasAnyData, obNeeded, obGoStep, startOnboarding, obFinish, obDoGoal, obDoHabits, obDoTheme, maybeStartOnboarding` | sync, syncui, account, theme, i18n | `syncMode`, `onboarding` state | sync modal, onboarding DOM | MEDIUM | ✅ **ứng viên #12** — `sync.js`/`syncui.js` đã tách core; phần còn lại là form/modal glue |
-| R32 | 7378–7463 | **Boot sequence**: `ti0`/`lastRealWeek` init, deeplink, `setTheme/applyDark/buildNav/loadMood/loadXP/setView`, sync init, `initAnalytics/registerSW/initFabDrags/reminder timers`, import input | tất cả | — | — | — | **không** — composition root, giữ nguyên |
+| A1 | 3–34 | `ensureLazyModule`/`runLazyModule` — lazy loader (P1.5) | none | none | inject `<script>` | LOW | **không** — infra boot, giữ ở composition root |
+| A2 | 35–61 | Plan globals: `MONTH_NAMES, PLAN_YEAR/MONTH, NUM_DAYS/WEEKS, PLAN_START/END, initPlan` | none | `PLAN_*` đọc khắp nơi | none | HIGH | **không** — boot state, mọi module đọc qua lexical |
+| A3 | 61–272 | Year/plan state: `yearKey, capturePlan/restorePlan, defaultMonthPct, loadYearState, yearState, saveYear, yearGoalStats, yearMonthlyCache/Data, invalidateYearCache, loadMonthStateOrCreate, toggleMonthGoal, toggleQuarterGoal, pullYearGoalsFromMonths, quarterStats` | storage, goals, account | `state`, `yearState`, `viewedMonth`, cache | none | HIGH | **không** — core state |
+| A4 | 272–323 | Widget defs: `WIDGET_DEFS_OVERVIEW/YEAR` | none | đọc bởi widget.js + render | — | LOW | **không** — data của composition root; widget.js đọc qua lexical |
+| A5 | 323–387 | Theme/PWA globals: `THEME, THEMES, DARK, deferredPrompt` + install listeners | theme.js | `THEME`, `DARK` | install prompt | LOW–MED | **không** — ~60 dòng, event wiring |
+| A6 | 387–438 | Reminder glue: `enableReminder, disableReminder, checkDailyReminder` + `lastRemindDay` | remind.js, i18n | reminder state | header bell, Notification | MED | tùy chọn — ~50 dòng, giá trị thấp |
+| A7 | 438–489 | Recurrence: `beginRepeatEdit, applyRecurrence` | state, i18n | `state` | repeat modal DOM | MED | tùy chọn — phụ thuộc `setView/renderCurrentView` |
+| A8 | 489–540 | Import JSON/popup glue: `importJSONFile, togglePop` | export, storage, UI | `state` | file input, popup | MED | ✅ **ứng viên** — gộp A8+A9 thành import glue |
+| A9 | 540–650 | Import CSV + data/guards: `MOOD_KEY, MOODS, moodMap` (data), mood/keys/habits guards, `importCSVFile` | plan-stats, storage, keys, habits | `state`, `yearState` | file input | MED | ✅ ứng viên — `importCSVFile` tách; mood data giữ lại |
+| A10 | 650–850 | Persistence: `defaultState, loadState, emptyState, bootState, bootYearState, rebootState` + `state, inbox, save` | storage, account, keys | `state` (global) | none | HIGH | **không** — trái tim persistence |
+| A11 | 850–922 | Reflection + overview metric: `getRefQuestion, saveRefQuestion, reflectionHTML, overviewMetricSnapshot, syncOverviewMetrics, syncOverviewFocus` | storage, sync | `state` | reflection DOM, metric cards | MED–HIGH | tùy chọn — gắn sync + render path |
+| A12 | 922–1272 | **Overview render**: `renderOverview` + 8 builders | i18n, clock, stats, mood, remind-ui, habits | `state`, `viewedMonth` | toàn bộ #overview DOM | HIGH | **không** — render path chính |
+| A13 | 1272–1560 | Badges + CRUD: `BADGE_DEFS, badgesStore, countActiveDays, evaluateMonthBadges, badgePanelHTML, refreshHeatCard, showGoalAdd, addGoal, removeGoal, addHabit, removeHabit, copyHabitsToNextMonth, beginTargetEdit, beginTagEdit, refreshHabitLabels, beginInlineEdit` | account, storage, UI, undo | `state`, `badgesStore` | badge panel, inline edit DOM | MED–HIGH | tùy chọn — chỉ tách badge calc thuần (`countActiveDays`/`evaluateMonthBadges`) nếu muốn; CRUD gắn undo + render |
+| A14 | 1560–1826 | **Year render**: `renderYear` + 11 builders | i18n, stats, goals, habits | `state`, `viewedYear` | toàn bộ #year DOM | HIGH | **không** — render path |
+| A15 | 1826–2096 | **Week/Day render**: `tagFilter/calendarTagFilters, weekTagFilterBar, renderWeek` + 8 builders | i18n, clock, mood, plan-math | `state`, `viewedMonth`, `tagFilter` | toàn bộ #week/#day DOM | HIGH | **không** — render path |
+| A16 | 2096–2367 | **Task Detail**: `taskDetailRef/MonthState, taskDetailState, saveTaskDetailState, getTaskDetailTarget, openInboxTaskDetail, openTaskDetail, closeTaskDetail, refreshTaskRowAfterEdit, renderTaskDetail, bindTaskDetailEvents` (+ dblclick listener ở A29) | storage, i18n, keys, inbox | `taskDetail` state | #taskDrawer DOM + events | MED–HIGH | tùy chọn — event-heavy + refresh chéo view; chờ |
+| A17 | 2367–2547 | Calendar + template: `calendarDayEntries, calendarTaskMatches, calendarVisibleTasks, calendarDayPct, calendarTagFilterBar, calendarTasksHTML, renderCalendar, open/closeTemplateModal, copyMonthTemplate` | i18n, stats, habits | `calendarTagFilters` (dùng chung với A15) | #calendar DOM, modal | MED–HIGH | tùy chọn — filter state dùng chung với week view |
+| A18 | 2547–2710 | **Pomodoro timer**: `pomo` state, `renderPomo, pomoDuration, pomoSync, pomoComplete, pomoStart, pomoReset, pomoSetMode, togglePomoPanel, pomoAddSession, pomoWeekSecs` | storage, i18n, focus-stats | `pomo`, `pomoEndAt` | pomo panel | MED | ✅ **ứng viên #3** — timer state machine + panel |
+| A19 | 2710–2753 | Year focus helpers: `focusMonthMinutesFor, focusYearByMonth, topFocusTasksInYear` | storage, keys | — | none | LOW–MED | ✅ **ứng viên** — gộp vào `focus-stats.js` (họ hàng của #37) |
+| A20 | 2753–3020 | Stats modal + focus chart: `statsRange, statsWeekStartOf, statsMonthsForRange, statsWeekLabel, statsMonthLabel, statsData, statsCorrelation, statsScatterSVG, renderStatsModal, open/closeStatsModal, focusChartCardHTML, renderPomoWidgetStats, renderPomoTomatoCounter` | stats.js, storage, i18n | `statsRange` | stats modal, charts | MED | ✅ **ứng viên #4** — `stats.js` đã tách core calc; đây là modal UI còn lại |
+| A21 | 3020–3038 | Chat Enter shortcut: keydown cho chatInput/quickAddInput (lazy) | lazy modules | none | chat input | LOW | **không** — ~20 dòng glue |
+| A22 | 3038–3245 | Year dashboard + widget settings + profile: `bestHabitAcrossYear, bestProductiveDay, yearDashboardHTML, open/close/renderWidgetSettingsModal, setFieldError, clearFormErrors, open/closeProfileModal, doChangePassword, doDeleteAccount` | account, i18n, UI, sync, widget | `state` | modals, account forms | MED–HIGH | tùy chọn — account ops gắn sync; year dashboard là render |
+| A23 | 3245–3566 | Nav/shell/tooltips: `isSidebarCollapsed, applySidebarCollapse, toggleSidebarCollapse, sidebarTooltipLayer/Host, show/hideSidebarTooltip, shellNavLabel, MORE_SHEET_VIEWS, buildNav, updateNav, renderShellIcons, updateShellContext, openMoreSheet, closeMoreSheet, openToolsDrawer, closeToolsDrawer` | shell.js, i18n, keys | `nav` state | toàn bộ sidebar/bottom-nav/more-sheet DOM | MED | ✅ ứng viên — gộp vào `shell.js` (nav build còn sót) |
+| A24 | 3566–3696 | **View switching**: `setView, goWeek, openMonth, openYear` (+ quick-add guard comment) | mọi renderer | `state`, `viewedMonth` | view container | HIGH | **không** — bộ điều phối trung tâm |
+| A25 | 3696–3806 | Undo/redo + shortcuts: `undoStack, lastSnapshotJson, snapshotAll, pushUndo, applySnapshot, renderCurrentView, doUndo, doRedo, updateUndoButtons, toggleSearchModal, focusTodayTaskAdd` | plan-math, mọi renderer | `state`, `undoStack` | view container | HIGH | **không** — trạng thái undo toàn cục |
+| A26 | 3806–3955 | Drag & drop: `dragState` + dragstart/dragover/dragleave/drop/dragend listeners | state, storage | `dragState`, `state` | task/group DOM | MED | tùy chọn — self-contained nhưng thao tác state trực tiếp + undo |
+| A27 | 3975–4042 | Backups: `rotateBackup, lastBackupTs, maybeAutoBackup, listBackups, openBackupModal, closeBackupModal, doRestoreBackup` | storage, UI, i18n | `state` (snapshot) | backup modal DOM | MED | ✅ **ứng viên #1** — API nhỏ (6 fn), self-contained, call-sites rõ (save→maybeAutoBackup, dispatcher 4355–4357, outside-click 5553) |
+| A28 | 4042–4295 | **Focus mode**: `focusTaskRef, open/closeFocusMode, focusMonthState, focusState, saveFocusState, getFocusedTask, taskFocusLog/Secs/Today/Sessions, FOCUS_PRESETS, focusTimer, focusTimerRender/Sync/Complete/Start/Reset/SetDur, getTaskByUid, renderFocusContent, refreshFocusIfOpen, fmtSessionDate` | storage, i18n, UI, focus-stats | `focusState`, `focusTimer` | #focusMode DOM + timer | MED | ✅ **ứng viên #2** — timer tự bind sự kiện trong region (4131); đã gần self-contained |
+| A29 | 4295–5272 | **Event dispatchers**: click dispatcher (~730 dòng) + change/dblclick/input/focusin/keydown listeners + `taskDetailDblClickListener` + `saveSoon/saveYearSoon/saveInboxSoon/saveTaskDetailStateSoon/flushPendingSaves` | mọi module | `state` | toàn bộ DOM events | HIGH | **không** — wiring layer; chỉ tách branch khi có lý do |
+| A30 | 5272–5383 | Post-toggle updates: `afterGoalToggle, afterYearGoalToggle, afterHabitToggle, afterWGoalToggle, refreshTaskUI` | storage, XP, sync, undo | `state` | task DOM | HIGH | **không** — mutation + render xen kẽ |
+| A31 | 5383–5434 | Carry-over: `newTaskUid, ensureTaskUid, carryOverRepeatTasks, carriedDateLabel, syncCarriedDone` | plan-carry, storage | `state` | task DOM | MED–HIGH | tùy chọn — core đã ở plan-carry.js; phần này là glue |
+| A32 | 5434–5513 | Realtime refresh glue: `lastDayKey, lastRealWeek, viewedMonth, refreshToday, scrollWeekToToday` + visibilitychange/focus listeners | mọi renderer, sync | `state`, `viewedMonth` | toàn bộ view | HIGH | **không** — render coordinator |
+| A33 | 5513–5681 | Cloud sync glue: `syncNow, toggleSyncModal, closeSyncModal, syncMode, setSyncMode, doSyncSignup/Login/Google/Logout, handleSyncChange` | sync.js, syncui, account | `syncMode` | sync modal | MED | ✅ **ứng viên #5** — form/modal glue; core đã ở sync.js |
+| A34 | 5681–5773 | Onboarding: `obStep, obHasAnyData, obNeeded, obGoStep, startOnboarding, obFinish, obDoGoal, obDoHabits, obDoTheme, maybeStartOnboarding` | account, theme, storage | onboarding state | onboarding DOM | MED | ✅ **ứng viên #5** — wizard self-contained, gộp với A33 thành sync-forms |
+| A35 | 5773–5870 | **Boot sequence**: ti0/lastRealWeek init, deeplink, `setTheme/applyDark/buildNav/loadMood/loadXP/setView`, sync init, `initAnalytics/registerSW/initFabDrags/reminder timers`, import input | tất cả | — | — | — | **không** — composition root, giữ nguyên |
 
-## 3. Thứ tự extraction đề xuất (LOW → HIGH)
+## 3. Đánh giá: tiếp tục hay dừng?
 
-Chỉ extract **1 subsystem / 1 pass**, mỗi pass = 1 commit riêng, theo thứ tự:
+**Đã hoàn thành:** 10 extraction (#28–#37), app.js từ **7.463 → 5.870 dòng** (−1.595, ~21%). Từng vùng LOW/MEDIUM self-contained đã được tách và kiểm chứng (tests 288/288, smoke 3 engine, full E2E, minify check).
 
-1. **R9 — Popup/demo/templates** (kế hoạch extraction #28): `confettiBurst` + `templatesPopHTML` + `demoPlan` → `js/popups.js` (hoặc `js/demo.js`). LOW risk nhất vì pure + ít state.
-2. **R2 — Constants** → `js/config.js` (DAYS, HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, prompts). Pure data, không thể vỡ.
-3. **R8 — Export builders** (csvRow, exportCSV, icsEscape, icsDayFromDay, exportICS, legacyCSVRows) → gộp vào `js/export.js` hoặc `js/export-format.js`. `importJSONFile/importCSVFile` giữ lại (gắn DOM input + backup).
-4. **R4+R5 — Widget config + bootstrap glue** → `js/settings.js`.
-5. **R11 — XP** → `js/xp.js` (kèm `donutSVG`/`checkboxHTML` nếu tách được render helpers thuần).
-6. **R14 — Streak/heatmap renderers + share** → `js/streak-ui.js` (calc đã ở `streak.js`).
-7. **R19 — Today render** → `js/today.js` (5 fn, render path cô lập được).
-8. **R22 — Pomodoro/Focus timer + stats modal** → `js/pomo.js` + `js/stats-ui.js`.
-9. **R25 — Upcoming** → `js/upcoming.js`.
-10. **R27 — Backups** → `js/backup.js`.
-11. **R28 — Focus mode** → `js/focus.js`.
-12. **R31 — Sync/onboarding glue** → `js/sync-forms.js`.
+**Còn 5 ứng viên đáng làm (MEDIUM, self-contained, theo thứ tự):**
 
-**KHÔNG extract (giữ ở app.js):** R3 (plan state), R10 (persistence), R13/R17/R18 (render path overview/year/week), R26 (view dispatcher + undo), R29 (event dispatchers), R30 (task mutations), R32 (boot).
+1. **A27 — Backups** → `js/backup.js` (~70 dòng). API nhỏ (6 fn), call-sites rõ ràng (save, dispatcher, outside-click). Rủi ro thấp nhất còn lại.
+2. **A28 — Focus mode** → `js/focus.js` (~250 dòng). Timer tự bind sự kiện trong region (4131) → đã gần self-contained; chỉ phụ thuộc `taskFocusLog` họ hàng + storage. Là vùng UI lớn nhất còn lại.
+3. **A18 — Pomodoro timer** → `js/pomo.js` (~160 dòng). Timer state machine + panel; có thể gộp chung A19 (year focus helpers → focus-stats.js) ở cùng pass.
+4. **A20 — Stats modal + focus chart** → `js/stats-ui.js` (~270 dòng). Core calc đã ở `stats.js`; phần còn lại là modal UI.
+5. **A33+A34 — Sync/onboarding glue** → `js/sync-forms.js` (~190 dòng). Form/modal glue; core sync đã ở sync.js/syncui.js.
+
+Nếu làm cả 5: app.js ≈ **4.800–4.900 dòng** (−~1.000 nữa, tổng −~2.600 so với gốc).
+
+**Điểm dừng (SAU 5 ứng viên trên — không extract tiếp):**
+
+- **HIGH không bao giờ chạm:** A3 (plan state), A10 (persistence), A12/A14/A15 (render overview/year/week), A24 (view switching), A25 (undo/redo), A29 (event dispatchers), A30 (task mutations), A32 (render coordinator), A35 (boot).
+- **MED–HIGH tùy chọn nhưng KHÔNG nên:** A16 (task detail — event-heavy + refresh chéo), A17 (calendar — filter state dùng chung week view), A13 (badges CRUD — undo + render), A22 (profile — async + sync-coupled), A11 (reflection — sync-coupled), A26 (drag-drop — thao tác state trực tiếp), A31 (carry-over — glue mỏng), A23 (nav — buildNav gắn render path; chỉ tách nếu gộp sạch vào shell.js).
+- Lý do: các vùng này cần **truyền dependency rõ ràng** (state refs, undo, render callbacks, event binding) — vi phạm quy tắc **API nhỏ** của P1.9 và làm architecture khó theo dõi hơn. Đúng tinh thần luật dừng: *"nếu extraction khiến architecture phức tạp hơn — không tiếp tục."*
+
+**Kết luận:** tiếp tục có kiểm soát với đúng 5 ứng viên (#1–#5), mỗi pass một commit + tests + smoke 3 engine. Sau đó **dừng extraction**, chuyển trọng tâm sang QA cuối (mobile real-device, edge states, a11y, regression) — vì lợi ích còn lại của việc tách tiếp không bù được rủi ro chạm vào core dispatcher/render.
 
 ## 4. Quy tắc module (P1.9) — nhắc lại cho mỗi extraction
 
@@ -112,9 +129,22 @@ Chỉ extract **1 subsystem / 1 pass**, mỗi pass = 1 commit riêng, theo thứ
 
 | Extraction | Module | Status |
 |---|---|---|
-| #1–27 | 34 modules hiện tại trong `js/` | ✅ done (qua các phase P11) |
-| #28 | R9 popup/demo/templates | ⏳ chưa làm |
-| #29 | R2 constants | ⏳ chưa làm |
-| … | xem thứ tự mục 3 | ⏳ |
+| #1–27 | 34 module gốc trong `js/` | ✅ done (qua các phase P11) |
+| #28 | `js/popups.js` — R9 popup/demo/templates | ✅ `commit` (P11 series) |
+| #29 | `js/config.js` — R2 constants | ✅ |
+| #30 | `js/export.js` — R8 export builders (gộp vào module có sẵn) | ✅ |
+| #31 | `js/widget.js` — R4+R5 widget-config + bootstrap glue | ✅ |
+| #32 | `js/xp.js` — R11 XP + donutSVG/checkboxHTML | ✅ |
+| #33 | `js/streak-ui.js` — R14 streak/heatmap UI | ✅ |
+| #34 | `js/today.js` — R19 Today render | ✅ |
+| #35 | `js/report-ui.js` — R15 month/week reports | ✅ |
+| #36 | `js/upcoming.js` — R25 Upcoming view | ✅ |
+| #37 | `js/focus-stats.js` — focus/pomo stats helpers | ✅ |
+| #38 (đề xuất) | `js/backup.js` — A27 backups | ⏳ chưa làm |
+| #39 (đề xuất) | `js/focus.js` — A28 focus mode | ⏳ |
+| #40 (đề xuất) | `js/pomo.js` — A18 pomodoro timer (+ A19 → focus-stats.js) | ⏳ |
+| #41 (đề xuất) | `js/stats-ui.js` — A20 stats modal + focus chart | ⏳ |
+| #42 (đề xuất) | `js/sync-forms.js` — A33+A34 sync/onboarding glue | ⏳ |
+| sau #42 | **DỪNG extraction** — chuyển sang QA cuối | ⏳ |
 
 _Cập nhật file này sau mỗi extraction thành công._
