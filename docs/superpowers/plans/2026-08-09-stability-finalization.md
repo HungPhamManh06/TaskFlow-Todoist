@@ -166,8 +166,9 @@
   - [ ] Extraction 28 (đề xuất kế tiếp: confetti/demo/templates — confettiBurst/
         templatesPopHTML/demoPlan ~140 dòng; HOẶC group topbar/search UI còn lại)
 - [ ] **P1.3 — Mobile real-device QA** (checklist manual + viewport audit)
-- [ ] **P2.1 — Mobile PWA screenshot** (manifest `form_factor: narrow`)
-- [ ] **P2.2 — README offline-first rewording** (hiện nói "100% offline · Không cần tài khoản" — cần sửa)
+- [x] **P2.1 — Mobile PWA screenshot** (manifest `form_factor: narrow`) — done: `app-screenshot-mobile.png` 390×844 khớp manifest, commit `74ac197`
+- [x] **P2.2 — README offline-first rewording** — done: header blurb "100% offline" → offline-first + optional cloud sync; thêm checklist feature hiện tại (Today/Inbox/Upcoming/Week·Month·Year/Tasks/Habits/Focus·Pomodoro/Calendar&Reports/Search/Import-Export/PWA/Cloud sync) + sections **Offline-first & Sync** + **Privacy & Data** (link /privacy /terms /data-and-security); PWA line + structure tree js/css + GA4 ref (`js/analytics.js`) refresh. Kèm manifest.json: description "Offline 100%" → "offline-first… đồng bộ đám mây là tùy chọn khi đăng nhập", `name` → `TaskFlow` (spec), screenshots 1200×900/390×844 khớp file; phase9 test cập nhật + 2 guard mới (`/offline-first/`, `doesNotMatch /Offline 100%/`).
+- [x] **P0.3 — Production legal verify** — Playwright battery 33 checks × 3 pages × PROD+LOCAL: PROD 33/33 PASS, LOCAL 33/33 PASS (khớp source). Checked: không lộ data-t-vi/data-t-en/`href=\"` trong UI, language switch VI↔EN, dark mode (data-dark + theme-color #1b1917), links đủ href + target=_blank có rel noopener, mobile 390 không h-scroll, h1 visible, 0 uncaught exception. Không cần root-cause deployment — production đã serve source mới đúng.
 - [ ] **P2.3 — Cross-browser** (Firefox + WebKit qua Playwright, hoặc ghi limitation)
 
 ## Nguyên tắc chung
