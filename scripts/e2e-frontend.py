@@ -1,7 +1,7 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 17 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 18 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
@@ -1209,6 +1209,92 @@ def weekly_review_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def monthly_review_checks(browser, base, width, height, errors, screenshot):
+    """P7: Monthly Review derives real pillar scores and persists structured reflection."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"monthly-review {width}px: {error}"))
+    load_app(page, base)
+
+    page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const monthDays = new Date(year, month + 1, 0).getDate();
+      state.weeks.forEach(week => week.days.forEach(day => { day.tasks = []; }));
+      state.weeks[0].days[0].tasks = [{
+        uid: 'p7-linked', text: 'P7 linked task', kind: 'priority', done: true,
+        tags: [], linkedMetricIds: ['p7-task', 'p7-focus'],
+        focusLog: [{ d: `${year}-${String(month + 1).padStart(2, '0')}-01`, secs: 3600 }],
+        remind: { enabled: false, time: '20:00' },
+      }, {
+        uid: 'p7-unlinked', text: 'P7 unlinked task', kind: 'regular', done: true,
+        tags: [], linkedMetricIds: [],
+        focusLog: [{ d: `${year}-${String(month + 1).padStart(2, '0')}-01`, secs: 7200 }],
+        remind: { enabled: false, time: '20:00' },
+      }];
+      state.habits = [{
+        id: 'p7-habit', name: 'P7 Gym', target: 100,
+        days: Array.from({ length: monthDays }, (_, i) => i < 8), skipDays: [],
+      }];
+      state.pillars = [{
+        id: 'p7-body', name: 'P7 Body', icon: 'B', hidden: false, focus: '', metrics: [
+          { id: 'p7-gym', title: 'P7 Gym', type: 'HABIT', linkedHabitId: 'p7-habit', target: { mode: 'perMonth', value: 10 } },
+          { id: 'p7-sleep', title: 'P7 Sleep', type: 'MANUAL', days: Array.from({ length: monthDays }, (_, i) => i < 10), target: { mode: 'perMonth', value: 20 } },
+        ],
+      }, {
+        id: 'p7-work', name: 'P7 Work', icon: 'W', hidden: false, focus: '', metrics: [
+          { id: 'p7-task', title: 'P7 Delivery', type: 'TASK', target: { mode: 'perMonth', value: 2 } },
+          { id: 'p7-focus', title: 'P7 Focus', type: 'FOCUS', target: { mode: 'perMonth', value: 120 } },
+        ],
+      }];
+      state.monthlyReview = {};
+      state.reflections.overview = ['P7 legacy achievement', '', '', ''];
+      localStorage.setItem(key, JSON.stringify(state));
+    }""")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    card = page.locator('[data-testid="monthly-review"]')
+    assert card.is_visible()
+    assert card.locator('[role="progressbar"]').count() == 2
+    body_score = card.locator('[role="progressbar"]').nth(0).get_attribute('aria-valuenow')
+    assert body_score == '65', f"expected P7 Body 65, got {body_score}; card={card.inner_text()}"
+    assert card.locator('[role="progressbar"]').nth(1).get_attribute('aria-valuenow') == '50'
+    assert card.locator('.monthly-review-overall').inner_text().strip() == '58%'
+    assert 'P7 Gym' in card.inner_text()
+    assert 'P7 Sleep' in card.inner_text()
+
+    values = {
+        'achievement': 'P7 achievement',
+        'learned': 'P7 learned',
+        'continue': 'P7 continue',
+        'stop': 'P7 stop',
+        'start': 'P7 start',
+    }
+    for field, value in values.items():
+        card.locator(f'[data-monthly-review-field="{field}"]').fill(value)
+    page.wait_for_timeout(650)
+    assert card.locator('[data-testid="monthly-review-status"]').inner_text().strip()
+
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    card = page.locator('[data-testid="monthly-review"]')
+    for field, value in values.items():
+        assert card.locator(f'[data-monthly-review-field="{field}"]').input_value() == value
+    legacy = card.locator('[data-testid="monthly-review-legacy"]')
+    legacy.locator('summary').click()
+    assert 'P7 legacy achievement' in legacy.inner_text()
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"monthly-review dark {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -1244,7 +1330,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1295,6 +1381,7 @@ def main():
                     ("task-focus-metrics", task_focus_metrics_checks),
                     ("daily-alignment", daily_alignment_checks),
                     ("weekly-review", weekly_review_checks),
+                    ("monthly-review", monthly_review_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1338,6 +1425,9 @@ def main():
             elif args.view == "weekly-review":
                 weekly_review_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 weekly_review_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "monthly-review":
+                monthly_review_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                monthly_review_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access
@@ -1354,7 +1444,7 @@ def main():
         print("PAGE ERRORS:", errors[:8])
         return 1
     label = "RELEASE" if args.all else "LANDING" if args.landing else "DIALOGS" if args.dialogs else args.view.upper()
-    print(f"E2E {label} OK")  # Focused output includes: E2E WEEKLY-REVIEW OK
+    print(f"E2E {label} OK")  # Focused output includes E2E WEEKLY-REVIEW OK / E2E MONTHLY-REVIEW OK
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0
 

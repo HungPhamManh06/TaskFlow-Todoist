@@ -22,6 +22,9 @@ const REPORT_UI = readFileSync(new URL('../js/report-ui.js', import.meta.url), '
 const I18N = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
 const STYLES = readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
 const DEFERRED = readFileSync(new URL('../css/styles-deferred.css', import.meta.url), 'utf8');
+const APP_HTML = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+const SW = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+const E2E = readFileSync(new URL('../scripts/e2e-frontend.py', import.meta.url), 'utf8');
 
 const context = {
   year: 2026,
@@ -199,4 +202,22 @@ test('Monthly Review has VI/EN copy and mirrored responsive styles', () => {
   assert.match(DEFERRED, /\.monthly-review-card/);
   assert.match(STYLES, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.monthly-review-fields/);
   assert.match(DEFERRED, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.monthly-review-fields/);
+});
+
+test('Monthly Review production assets load before report/app and cache offline', () => {
+  const monthlyIndex = APP_HTML.indexOf('js/monthly-review.min.js?v=1');
+  const reportIndex = APP_HTML.indexOf('js/report-ui.min.js?v=2');
+  const appIndex = APP_HTML.indexOf('js/app.min.js?v=163');
+  assert.ok(monthlyIndex >= 0 && reportIndex > monthlyIndex && appIndex > reportIndex);
+  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=6/);
+  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=8/g) || []).length, 2);
+  assert.match(SW, /const CACHE = 'taskflow-v190'/);
+  assert.match(SW, /'\.\/js\/monthly-review\.min\.js'/);
+});
+
+test('Monthly Review E2E is focused and part of the release matrix', () => {
+  assert.match(E2E, /def monthly_review_checks\(/);
+  assert.match(E2E, /\("monthly-review", monthly_review_checks\)/);
+  assert.match(E2E, /args\.view == "monthly-review"/);
+  assert.match(E2E, /E2E MONTHLY-REVIEW OK/);
 });

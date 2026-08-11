@@ -392,12 +392,12 @@ test('Week view composes Weekly Review and delegated autosave editing', () => {
 
 test('Weekly Review production asset loads before app and is cached offline', () => {
   const reviewIndex = APP_HTML.indexOf('js/weekly-review.min.js?v=1');
-  const appIndex = APP_HTML.indexOf('js/app.min.js?v=162');
+  const appIndex = APP_HTML.indexOf('js/app.min.js?v=163');
   assert.ok(reviewIndex >= 0);
   assert.ok(appIndex > reviewIndex);
-  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=5/);
-  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=7/g) || []).length, 2);
-  assert.match(SW, /const CACHE = 'taskflow-v189'/);
+  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=6/);
+  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=8/g) || []).length, 2);
+  assert.match(SW, /const CACHE = 'taskflow-v190'/);
   assert.match(SW, /'\.\/js\/weekly-review\.min\.js'/);
 });
 

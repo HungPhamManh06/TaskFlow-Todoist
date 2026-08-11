@@ -138,3 +138,11 @@
 - 🧳 **Tương thích dữ liệu cũ** — `state.weeklyReviews` được migration cộng thêm, không thay thế `state.reflections.weeks`; nội dung phản ánh cũ vẫn xem được trong phần thu gọn.
 - 🌐 **Song ngữ + responsive** — đầy đủ tiếng Việt/Anh, giao diện một cột trên mobile, không gây tràn ngang và hoạt động offline qua service worker cache `v189`.
 - 🧪 **Kiểm chứng** — unit 408/408, sync 7/7, server security PASS, E2E Chromium đầy đủ 17 scenario × 5 viewport và scenario Weekly Review chuyên biệt desktop/mobile, smoke PASS, mobile QA 262/262, a11y 62/62, CSS verifier 0 diffs, minify 61/61 file.
+
+## Personal Growth & Reflection — P7: Monthly Review
+
+- 📊 **Tổng kết tháng từ dữ liệu thật** — điểm tổng thể và tiến độ từng trụ cột dùng trực tiếp metric tháng; TASK/FOCUS chỉ tính task liên kết đúng metric, metric lỗi thời hoặc không chấm được bị loại khỏi insight.
+- 🏆 **Strongest / Needs attention** — chọn metric cao nhất và thấp nhất theo thứ tự ổn định, không tạo nhận xét khi không có dữ liệu đủ điều kiện.
+- ✍️ **Continue / Stop / Start** — năm trường reflection tháng autosave trong `state.monthlyReview`; tháng trống vẫn viết được và có trạng thái lưu truy cập được.
+- 🧳 **Tương thích reflection cũ** — `state.reflections.overview` không bị chuyển nghĩa hoặc xoá; câu trả lời cũ hiển thị trong disclosure riêng.
+- 🧪 **Kiểm chứng checkpoint P7** — unit 424/424, sync 7/7, E2E Monthly Review desktop/mobile PASS, CSS verifier 0 diffs, minify 62/62 file.
