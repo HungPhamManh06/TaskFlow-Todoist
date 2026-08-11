@@ -1,7 +1,7 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 19 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 20 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
@@ -1419,6 +1419,82 @@ def month_carryover_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def report_growth_checks(browser, base, width, height, errors, screenshot):
+    """P9: truthful balance/guidance/mood and unified reflection filters."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"report-growth {width}px: {error}"))
+    load_app(page, base)
+    page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const days = new Date(year, month + 1, 0).getDate();
+      state.habits = [];
+      state.pillars = [{
+        id: 'p9-balance', name: 'P9 Balance', icon: 'P', hidden: false, focus: '', metrics: [
+          { id: 'p9-low', title: 'P9 Low', type: 'MANUAL', days: Array.from({ length: days }, (_, i) => i < 3), target: { mode: 'perMonth', value: 10 } },
+          { id: 'p9-high', title: 'P9 High', type: 'MANUAL', days: Array.from({ length: days }, (_, i) => i < 9), target: { mode: 'perMonth', value: 10 } },
+        ],
+      }];
+      state.weeklyReviews[0] = { best: 'P9 weekly reflection', blocker: '', learned: '', change: '', priorities: [], updatedAt: `${year}-${String(month + 1).padStart(2, '0')}-07T20:00:00.000Z` };
+      state.monthlyReview = { achievement: 'P9 monthly reflection', learned: '', continue: '', stop: '', start: '', updatedAt: `${year}-${String(month + 1).padStart(2, '0')}-10T20:00:00.000Z` };
+      localStorage.setItem(key, JSON.stringify(state));
+      const pad = value => String(value).padStart(2, '0');
+      const dates = [1, 2, 3].map(day => `${year}-${pad(month + 1)}-${pad(day)}`);
+      localStorage.setItem('planner-reflections-daily', JSON.stringify({
+        [dates[0]]: { mood: 0, good: 'P9 daily one', updatedAt: dates[0] + 'T20:00:00.000Z' },
+        [dates[1]]: { mood: 2, good: 'P9 daily two', updatedAt: dates[1] + 'T20:00:00.000Z' },
+        [dates[2]]: { mood: 4, good: 'P9 daily three', updatedAt: dates[2] + 'T20:00:00.000Z' },
+      }));
+      const previous = month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 };
+      localStorage.setItem(window.TaskFlowShell.monthKey(previous.year, previous.month), JSON.stringify({
+        monthlyReview: { achievement: 'P9 previous monthly', updatedAt: `${previous.year}-${pad(previous.month + 1)}-20T20:00:00.000Z` },
+        weeklyReviews: [],
+      }));
+    }""")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    report = page.locator('[data-testid="report-modal"]')
+    growth = report.locator('[data-testid="report-growth"]')
+    assert growth.is_visible()
+    assert growth.locator('.report-balance-progress').count() == 1
+    assert growth.locator('.report-balance-progress').get_attribute('aria-valuenow') == '60'
+    guidance = growth.locator('[data-testid="report-guidance"]').inner_text()
+    assert 'P9 Low' in guidance and '30%' in guidance
+    assert 'P9 High' in guidance and '90%' in guidance
+    assert growth.locator('[data-testid="report-mood-trend"] .report-mood-bar').count() == 5
+    assert_no_page_overflow(page, f"report-growth {width}px")
+
+    growth.locator('[data-action="report-history-open-panel"]').click()
+    history = page.locator('[data-testid="report-history-modal"]')
+    assert history.is_visible()
+    assert history.locator('[data-history-filter="daily"]').get_attribute('aria-selected') == 'true'
+    assert history.locator('.report-history-item').count() == 3
+    history.locator('[data-history-filter="weekly"]').click()
+    assert history.locator('.report-history-item').count() == 1
+    assert 'P9 weekly reflection' in history.inner_text()
+    history.locator('[data-history-filter="monthly"]').click()
+    assert history.locator('.report-history-item').count() == 2
+    history.locator('[data-history-filter="daily"]').click()
+    history.locator('.report-history-item').first.click()
+    deep = page.locator('[data-testid="reflection-modal"]')
+    assert deep.is_visible()
+    assert deep.locator('[data-reflect-field="good"]').input_value() == 'P9 daily three'
+    deep.locator('[data-action="reflection-deep-close"]').click()
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    page.wait_for_timeout(50)
+    assert page.locator('[data-testid="report-modal"] .report-modal-card').evaluate("el => el.scrollTop") == 0
+    assert_no_page_overflow(page, f"report-growth dark {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -1454,7 +1530,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1507,6 +1583,7 @@ def main():
                     ("weekly-review", weekly_review_checks),
                     ("monthly-review", monthly_review_checks),
                     ("month-carryover", month_carryover_checks),
+                    ("report-growth", report_growth_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1556,6 +1633,9 @@ def main():
             elif args.view == "month-carryover":
                 month_carryover_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 month_carryover_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "report-growth":
+                report_growth_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                report_growth_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access
@@ -1573,7 +1653,7 @@ def main():
         return 1
     label = "RELEASE" if args.all else "LANDING" if args.landing else "DIALOGS" if args.dialogs else args.view.upper()
     # Stable focused-output markers asserted by phase tests:
-    # E2E WEEKLY-REVIEW OK / E2E MONTHLY-REVIEW OK / E2E MONTH-CARRYOVER OK
+    # E2E WEEKLY-REVIEW OK / E2E MONTHLY-REVIEW OK / E2E MONTH-CARRYOVER OK / E2E REPORT-GROWTH OK
     print(f"E2E {label} OK")
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0

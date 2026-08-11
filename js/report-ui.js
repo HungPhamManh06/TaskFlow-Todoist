@@ -44,6 +44,42 @@
     };
   }
 
+  function reportMoodEntries(historyEntries) {
+    const daily = (Array.isArray(historyEntries) ? historyEntries : []).filter((entry) => entry && entry.type === 'daily' && Number.isInteger(entry.mood)).map((entry) => ({ date: entry.date, mood: entry.mood }));
+    if (daily.length >= 3) return daily;
+    const seen = new Set(daily.map((entry) => entry.date));
+    const fallback = [];
+    if (typeof moodMap === 'object' && moodMap) Object.keys(moodMap).forEach((key) => {
+      const match = key.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      const value = moodMap[key];
+      if (!match || !Number.isInteger(value) || value < 0 || value > 4) return;
+      const date = `${match[1]}-${String(+match[2]).padStart(2, '0')}-${String(+match[3]).padStart(2, '0')}`;
+      if (!seen.has(date)) fallback.push({ date, mood: value + 1 });
+    });
+    return daily.concat(fallback);
+  }
+
+  function growthReportHTML(monthlyReviewModel) {
+    const { monthlyBalance, metricRecommendations, moodTrend } = window.TaskFlowReportInsights;
+    const historyEntries = window.TaskFlowReflectionHistory.collectReflectionHistory(localStorage);
+    const balance = monthlyBalance(monthlyReviewModel);
+    const guidance = metricRecommendations(monthlyReviewModel);
+    const trend = moodTrend(reportMoodEntries(historyEntries));
+    const balanceRows = balance.length ? balance.map((pillar) => `<li class="report-balance-row">
+      <div class="report-balance-head"><strong>${esc((pillar.icon ? pillar.icon + ' ' : '') + pillar.name)}</strong><span>${pillar.pct}%</span></div>
+      <div class="report-balance-progress" role="progressbar" aria-label="${esc(pillar.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pillar.pct}"><span style="width:${pillar.pct}%"></span></div>
+      <div class="report-balance-detail"><span>${t('monthlyReviewStrongest')}: ${esc(pillar.strongest && pillar.strongest.title || '—')}</span><span>${t('monthlyReviewAttention')}: ${esc(pillar.attention && pillar.attention.title || '—')}</span></div>
+    </li>`).join('') : `<li class="report-growth-empty">${t('reportBalanceEmpty')}</li>`;
+    const guidanceHTML = guidance.length ? `<ul>${guidance.map((item) => `<li class="is-${item.tone}"><strong>${esc(item.metricTitle)} · ${item.pct}%</strong><span>${t(item.messageKey, { metric: item.metricTitle, pct: item.pct })}</span></li>`).join('')}</ul>` : `<p class="report-growth-empty">${t('reportGuidanceEmpty')}</p>`;
+    const moodHTML = trend.available ? `<div class="report-mood-chart" aria-label="${t('reportMoodDistribution')}">${trend.distribution.map((count, index) => `<div><span class="report-mood-bar" style="height:${Math.max(8, count / trend.sampleCount * 100)}%"></span><strong>${index + 1}</strong><small>${count}</small></div>`).join('')}</div><p>${t(trend.directionKey, { n: trend.sampleCount })}</p>` : `<p class="report-growth-empty">${t('reportMoodEmpty', { n: trend.sampleCount })}</p>`;
+    return `<section class="report-growth" data-testid="report-growth">
+      <div class="report-growth-section"><h3>${t('reportBalanceTitle')}</h3><ul class="report-balance-list">${balanceRows}</ul></div>
+      <div class="report-growth-section" data-testid="report-guidance"><h3>${t('reportGuidanceTitle')}</h3>${guidanceHTML}</div>
+      <div class="report-growth-section" data-testid="report-mood-trend"><h3>${t('reportMoodTitle')}</h3>${moodHTML}</div>
+      <div class="report-history-launch"><div><h3>${t('reportHistoryTitle')}</h3><p>${t('reportHistoryIntro')}</p></div><button type="button" class="button" data-action="report-history-open-panel">${t('reportHistoryOpenPanel')}</button></div>
+    </section>`;
+  }
+
   function renderReportModal() {
     const el = document.getElementById('reportContent');
     if (!el) return;
@@ -78,6 +114,7 @@
       <div class="report-focus-head"><b>🎯 ${r.focusTotal}p</b><span>${t('reportFocusMonth')}</span>${r.topTask ? `<span class="report-focus-top">${t('reportFocusTop')}: ${esc((r.topTask.tk.text || '…').slice(0, 20))} · ${taskFocusMinLabel(r.topTask.secs)}</span>` : ''}</div>
       ${focusReportBars(r.focusByWeek, (i) => String(i + 1))}
     </div>
+    ${growthReportHTML(monthlyReviewModel)}
     ${monthlyReviewHTML(monthlyReviewModel, { t, esc })}`;
   }
 
@@ -86,6 +123,11 @@
     if (!m) return;
     renderReportModal();
     TaskFlowUI.openDialog('reportModal');
+    const card = m.querySelector('.report-modal-card');
+    if (card) {
+      card.scrollTop = 0;
+      requestAnimationFrame(() => { card.scrollTop = 0; });
+    }
   }
 
   function closeReportModal() {
@@ -466,5 +508,8 @@
     }
   }
 
-  return { monthlyReportData, renderReportModal, openReportModal, closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, openWeekReportModal, closeWeekReportModal, weekReportCardBlob, doShareWeekReport };
+  function coreReportApi() {
+    return { monthlyReportData, renderReportModal, openReportModal, closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, openWeekReportModal, closeWeekReportModal, weekReportCardBlob, doShareWeekReport };
+  }
+  return Object.assign(coreReportApi(), { reportMoodEntries, growthReportHTML });
 });

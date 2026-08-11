@@ -596,6 +596,8 @@ const {
   nextMonth: nextCarryMonth, normalizeCarrySelection, buildCarryPreview,
   applyCarryover, carryDialogHTML,
 } = window.TaskFlowMonthCarryover;
+if (!window.TaskFlowReflectionHistory) throw new Error('TaskFlowReflectionHistory missing — js/reflection-history.js failed to load');
+const { collectReflectionHistory, reflectionHistoryHTML } = window.TaskFlowReflectionHistory;
 // Monthly Life Pillars (P2) — module js/pillars.js (window.TaskFlowPillars). Module
 // thuần: nhận state qua tham số; dispatcher + input listener gọi qua
 // window.TaskFlowPillars (pattern reflection.js). defaultState/emptyState/loadState/
@@ -1439,6 +1441,48 @@ function applyMonthCarry() {
 
 function closeMonthCarry() {
   TaskFlowUI.closeDialog('monthCarryModal');
+}
+
+let reportHistoryEntries = [];
+let reportHistoryFilter = 'daily';
+
+function renderUnifiedReportHistory() {
+  const content = document.getElementById('reportHistoryContent');
+  if (!content) return;
+  content.innerHTML = reflectionHistoryHTML({ entries: reportHistoryEntries, filter: reportHistoryFilter }, { t, esc });
+}
+
+function openUnifiedReportHistory() {
+  reportHistoryEntries = collectReflectionHistory(localStorage);
+  reportHistoryFilter = 'daily';
+  closeReportModal();
+  renderUnifiedReportHistory();
+  TaskFlowUI.openDialog('reportHistoryModal');
+}
+
+function closeUnifiedReportHistory() {
+  TaskFlowUI.closeDialog('reportHistoryModal');
+}
+
+function openUnifiedHistoryEntry(id) {
+  const entry = reportHistoryEntries.find((item) => item.id === id);
+  if (!entry || !entry.owner) return;
+  closeUnifiedReportHistory();
+  if (entry.type === 'daily') {
+    window.TaskFlowReflection.openDeepReflection(entry.owner.key);
+    return;
+  }
+  if (Number.isInteger(entry.owner.year) && Number.isInteger(entry.owner.month)) {
+    PLAN_YEAR = entry.owner.year;
+    openMonth(entry.owner.month);
+  }
+  if (entry.type === 'weekly') {
+    const week = Math.max(1, Math.min(NUM_WEEKS, (+entry.owner.weekIndex || 0) + 1));
+    state.currentWeek = week;
+    setView('week', week);
+  } else if (entry.type === 'monthly') {
+    openReportModal();
+  }
 }
 
 /* ---------- Huy hiệu 🎖️ ---------- */
@@ -4461,6 +4505,15 @@ document.addEventListener('click', (e) => {
     applyMonthCarry();
   } else if (act === 'month-carry-close') {
     closeMonthCarry();
+  } else if (act === 'report-history-open-panel') {
+    openUnifiedReportHistory();
+  } else if (act === 'report-history-filter') {
+    reportHistoryFilter = el.dataset.historyFilter || 'daily';
+    renderUnifiedReportHistory();
+  } else if (act === 'report-history-open') {
+    openUnifiedHistoryEntry(el.dataset.historyId || '');
+  } else if (act === 'report-history-close') {
+    closeUnifiedReportHistory();
   } else if (act === 'week-report') {
     openWeekReportModal();
   } else if (act === 'close-week-report') {
@@ -5242,6 +5295,8 @@ document.addEventListener('click', (e) => {
   if (r && !r.hidden && e.target === r) closeReportModal();
   const mc = document.getElementById('monthCarryModal');
   if (mc && !mc.hidden && e.target === mc) closeMonthCarry();
+  const rh = document.getElementById('reportHistoryModal');
+  if (rh && !rh.hidden && e.target === rh) closeUnifiedReportHistory();
   const wr = document.getElementById('weekReportModal');
   if (wr && !wr.hidden && e.target === wr) closeWeekReportModal();
   const yr = document.getElementById('yearReportModal');

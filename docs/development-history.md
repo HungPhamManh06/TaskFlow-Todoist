@@ -155,3 +155,12 @@
 - 🛡️ **Không ghi đè** — habit/trụ cột tương đương ở tháng đích được giữ nguyên; lỗi quota không điều hướng và không thay đổi dữ liệu đích.
 - 🌐 **Production-ready** — song ngữ Việt/Anh, dialog rộng trên desktop và một cột trên mobile, asset offline cache `v191` và scenario E2E riêng trong ma trận release.
 - 🧪 **Kiểm chứng checkpoint P8** — hồi quy P4–P8 93/93, sync 7/7, E2E carry-over desktop/mobile PASS, minify 63/63 file; kiểm tra trực quan light/dark và mobile không tràn ngang.
+
+## Personal Growth & Reflection — P9: Reports Integration
+
+- ⚖️ **Monthly Balance** — Report tái sử dụng đúng điểm Monthly Review làm nguồn duy nhất, hiển thị progressbar truy cập được cho từng trụ cột và strongest/needs-attention từ metric thật.
+- 📏 **Gợi ý theo quy tắc** — chỉ phát thông điệp trung tính khi metric dưới 40% hoặc trên 80%; hai biên 40/80 không phát gợi ý, không gọi AI và không suy diễn sức khỏe, ý định hay nguyên nhân.
+- 🗂️ **Lịch sử reflection hợp nhất** — Daily, Weekly và Monthly Review từ mọi tháng được chuẩn hóa, sắp mới nhất trước và lọc bằng ba tab; mở bản ghi sẽ chuyển về đúng bề mặt có thể xem/sửa của loại đó.
+- 🙂 **Mood trend trung thực** — ưu tiên mood trong Daily Reflection, fallback dữ liệu mood cũ, chỉ hiển thị phân bố và hướng khi có ít nhất ba ngày hợp lệ.
+- 🌐 **Report production** — layout hai cột desktop/một cột mobile, dark mode, modal lịch sử có focus semantics, asset mới được precache offline trong service worker `v192`.
+- 🧪 **Kiểm chứng checkpoint P9** — unit P7–P9 89/89 và frontend 134/134; E2E Report Growth desktop/mobile PASS với balance 60%, ngưỡng 30/90, ba filter, mở Daily detail, dark mode và không tràn ngang.

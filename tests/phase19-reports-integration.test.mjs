@@ -1,10 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const Insights = require('../js/report-insights.js');
 const History = require('../js/reflection-history.js');
+const APP_HTML = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+const APP_JS = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+const REPORT_UI = readFileSync(new URL('../js/report-ui.js', import.meta.url), 'utf8');
+const I18N = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+const STYLES = readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
+const DEFERRED = readFileSync(new URL('../css/styles-deferred.css', import.meta.url), 'utf8');
+const SW = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+const E2E = readFileSync(new URL('../scripts/e2e-frontend.py', import.meta.url), 'utf8');
 
 const model = {
   pillars: [{
@@ -153,4 +162,56 @@ test('reflectionHistoryHTML renders accessible filters, newest entries and empty
   assert.ok(html.indexOf('Week blocker') < html.indexOf('Week one win'));
   const empty = History.reflectionHistoryHTML({ entries: [], filter: 'daily' }, { t: historyT, esc: historyEsc });
   assert.match(empty, /No entries/);
+});
+
+test('report UI composes accessible balance, guidance, mood trend and history launcher', () => {
+  assert.match(REPORT_UI, /monthlyBalance\(monthlyReviewModel\)/);
+  assert.match(REPORT_UI, /metricRecommendations\(monthlyReviewModel\)/);
+  assert.match(REPORT_UI, /moodTrend\(/);
+  assert.match(REPORT_UI, /class="report-balance-progress"[^>]*role="progressbar"/);
+  assert.match(REPORT_UI, /data-testid="report-guidance"/);
+  assert.match(REPORT_UI, /data-testid="report-mood-trend"/);
+  assert.match(REPORT_UI, /data-action="report-history-open-panel"/);
+});
+
+test('report history modal and delegated owner actions are wired', () => {
+  assert.match(APP_HTML, /id="reportHistoryModal"[^>]*data-testid="report-history-modal"/);
+  assert.match(APP_JS, /TaskFlowReflectionHistory missing/);
+  ['report-history-open-panel', 'report-history-filter', 'report-history-open', 'report-history-close'].forEach((action) => {
+    assert.match(APP_JS, new RegExp(`act === '${action}'`));
+  });
+  assert.match(APP_JS, /openDeepReflection\(entry\.owner\.key\)/);
+  assert.match(APP_JS, /openReportModal\(\)/);
+});
+
+test('P9 has VI/EN factual copy and mirrored responsive styles', () => {
+  ['reportBalanceTitle', 'reportInsightMaintained', 'reportInsightLessOften', 'reportHistoryTitle', 'reportMoodTitle'].forEach((key) => {
+    assert.ok((I18N.match(new RegExp(`${key}:`, 'g')) || []).length >= 2, `missing ${key}`);
+  });
+  const guidanceLines = I18N.split(/\r?\n/).filter((line) => /reportInsight(Maintained|LessOften):/.test(line)).join('\n');
+  assert.doesNotMatch(guidanceLines, /\bAI\b|chẩn đoán|diagnos(e|is)/i);
+  assert.match(STYLES, /\.report-balance-list/);
+  assert.match(DEFERRED, /\.report-balance-list/);
+  assert.match(STYLES, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.report-history-tabs/);
+  assert.match(DEFERRED, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.report-history-tabs/);
+});
+
+test('P9 production assets load in dependency order and cache offline', () => {
+  const insights = APP_HTML.indexOf('js/report-insights.min.js?v=1');
+  const history = APP_HTML.indexOf('js/reflection-history.min.js?v=1');
+  const report = APP_HTML.indexOf('js/report-ui.min.js?v=3');
+  const app = APP_HTML.indexOf('js/app.min.js?v=165');
+  assert.ok(insights >= 0 && history > insights && report > history && app > report);
+  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=8/);
+  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=10/g) || []).length, 2);
+  assert.match(SW, /const CACHE = 'taskflow-v192'/);
+  assert.match(SW, /'\.\/js\/report-insights\.min\.js'/);
+  assert.match(SW, /'\.\/js\/reflection-history\.min\.js'/);
+});
+
+test('P9 E2E is focused and part of the release matrix', () => {
+  assert.match(E2E, /def report_growth_checks\(/);
+  assert.match(E2E, /\("report-growth", report_growth_checks\)/);
+  assert.match(E2E, /args\.view == "report-growth"/);
+  assert.match(E2E, /E2E REPORT-GROWTH OK/);
 });

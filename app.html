@@ -65,8 +65,8 @@
   <!-- styles-critical: tập con boot (shell + Today + modals + theme/dark) giữ trên critical path.
        styles-deferred (phần còn lại của styles.css): nạp sau first paint (media=print swap) — vẫn trong SW cache cho offline. -->
   <link rel="stylesheet" href="css/styles-critical.min.css?v=5" />
-  <link rel="stylesheet" href="css/styles-deferred.min.css?v=9" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=9" /></noscript>
+  <link rel="stylesheet" href="css/styles-deferred.min.css?v=10" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=10" /></noscript>
 </head>
 
 <body>
@@ -530,6 +530,16 @@
     </div>
   </div>
 
+  <!-- ===== P9: Unified Reflection History ===== -->
+  <div class="report-modal" id="reportHistoryModal" hidden data-testid="report-history-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="reportHistoryDialogTitle">
+      <button type="button" class="sync-close" data-action="report-history-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h2 class="sync-modal-title" id="reportHistoryDialogTitle"><span data-i18n="reportHistoryTitle">Lịch sử reflection</span></h2>
+      <div id="reportHistoryContent"></div>
+    </div>
+  </div>
+
   <!-- ===== P8: Chuyển kế hoạch sang tháng kế tiếp ===== -->
   <div class="report-modal" id="monthCarryModal" hidden data-testid="month-carry-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="monthCarryDialogTitle">
@@ -708,8 +718,10 @@
   <script src="js/weekly-review.min.js?v=1"></script>
   <script src="js/month-carryover.min.js?v=1"></script>
   <script src="js/monthly-review.min.js?v=2"></script>
+  <script src="js/report-insights.min.js?v=1"></script>
+  <script src="js/reflection-history.min.js?v=1"></script>
   <script src="js/today.min.js?v=3"></script>
-  <script src="js/report-ui.min.js?v=2"></script>
+  <script src="js/report-ui.min.js?v=3"></script>
   <script src="js/upcoming.min.js?v=1"></script>
   <script src="js/focus-stats.min.js?v=1"></script>
   <script src="js/focus.min.js?v=1"></script>
@@ -722,7 +734,7 @@
   <script src="js/sync.min.js?v=3"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=1"></script>
-  <script src="js/i18n.min.js?v=7"></script>
+  <script src="js/i18n.min.js?v=8"></script>
   <script src="js/storage.min.js?v=2"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
@@ -746,7 +758,7 @@
   <script src="js/popups.min.js?v=1"></script>
   <script src="js/reflection.min.js?v=1"></script>
   <script src="js/pillars.min.js?v=1"></script>
-  <script src="js/app.min.js?v=164"></script>
+  <script src="js/app.min.js?v=165"></script>
 </body>
 
 </html>
