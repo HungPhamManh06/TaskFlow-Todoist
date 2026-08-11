@@ -16,11 +16,17 @@ const {
   buildWeeklyReviewModel,
   weeklyReviewHTML,
   updateReviewField,
+  setSaveStatus,
+  scheduleSavedStatus,
 } = WeeklyReview;
 
 const I18N_JS = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
 const STYLES = readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
 const DEFERRED_STYLES = readFileSync(new URL('../css/styles-deferred.css', import.meta.url), 'utf8');
+const APP_JS = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+const APP_HTML = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+const SW = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+const E2E = readFileSync(new URL('../scripts/e2e-frontend.py', import.meta.url), 'utf8');
 
 const context = {
   planStart: new Date(2026, 6, 27),
@@ -253,6 +259,23 @@ test('updateReviewField edits only allowed fields and one priority', () => {
   assert.equal(updateReviewField(state, 1, 'priority', 'x', 3, 'now'), null);
 });
 
+test('save status helpers update the live region after the requested delay', async () => {
+  const status = { textContent: '' };
+  const previousDocument = globalThis.document;
+  globalThis.document = { querySelector: () => status };
+  try {
+    setSaveStatus('Saving');
+    assert.equal(status.textContent, 'Saving');
+    await new Promise((resolve) => scheduleSavedStatus(() => {
+      setSaveStatus('Saved');
+      resolve();
+    }, 5));
+    assert.equal(status.textContent, 'Saved');
+  } finally {
+    globalThis.document = previousDocument;
+  }
+});
+
 const copy = {
   weeklyReviewTitle: 'Week {n} · Review',
   weeklyReviewSummary: 'Weekly summary',
@@ -348,4 +371,40 @@ test('Weekly Review responsive styles are mirrored in both source stylesheets', 
   });
   assert.match(STYLES, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.weekly-review-fields/);
   assert.match(DEFERRED_STYLES, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.weekly-review-fields/);
+});
+
+test('app state creates, migrates and saves additive weeklyReviews', () => {
+  assert.match(APP_JS, /TaskFlowWeeklyReview missing/);
+  assert.ok((APP_JS.match(/weeklyReviews:\s*Array\.from\(\{ length: NUM_WEEKS \}/g) || []).length >= 2);
+  assert.match(APP_JS, /ensureWeeklyReviews\(s, NUM_WEEKS\)/);
+  assert.match(APP_JS, /ensureWeeklyReviews\(state, NUM_WEEKS\)/);
+});
+
+test('Week view composes Weekly Review and delegated autosave editing', () => {
+  assert.match(APP_JS, /buildWeeklyReviewModel\(/);
+  assert.match(APP_JS, /weeklyReviewHTML\(/);
+  assert.match(APP_JS, /dataset\.weekReviewField/);
+  assert.match(APP_JS, /updateReviewField\(/);
+  assert.match(APP_JS, /weeklyReviewSaving/);
+  assert.match(APP_JS, /weeklyReviewSaved/);
+  assert.doesNotMatch(APP_JS, /week-reflection-card[^\n]*reflectionHTML\('w'/);
+});
+
+test('Weekly Review production asset loads before app and is cached offline', () => {
+  const reviewIndex = APP_HTML.indexOf('js/weekly-review.min.js?v=1');
+  const appIndex = APP_HTML.indexOf('js/app.min.js?v=162');
+  assert.ok(reviewIndex >= 0);
+  assert.ok(appIndex > reviewIndex);
+  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=5/);
+  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=7/g) || []).length, 2);
+  assert.match(SW, /const CACHE = 'taskflow-v189'/);
+  assert.match(SW, /'\.\/js\/weekly-review\.min\.js'/);
+});
+
+test('Weekly Review E2E scenario is focused and part of the release matrix', () => {
+  assert.match(E2E, /def weekly_review_checks\(/);
+  assert.match(E2E, /"weekly-review"/);
+  assert.match(E2E, /\("weekly-review", weekly_review_checks\)/);
+  assert.match(E2E, /args\.view == "weekly-review"/);
+  assert.match(E2E, /E2E WEEKLY-REVIEW OK/);
 });

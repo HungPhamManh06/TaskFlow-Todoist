@@ -129,3 +129,12 @@
 - ♻️ **Khử trùng lặp đúng phạm vi** — cùng một task chỉ xuất hiện một lần trong một trụ cột, nhưng vẫn có thể xuất hiện ở nhiều trụ cột khi được liên kết hợp lệ; trạng thái hoàn thành tiếp tục dùng chính task/habit gốc.
 - 📱 **Responsive + accessibility** — bố cục xếp dọc trên mobile, giữ nguyên các action hiện có và bổ sung test id ổn định cho kiểm thử trình duyệt.
 - 🧪 **Kiểm chứng** — unit 382/382, sync 7/7, E2E Chromium đầy đủ 16 scenario × 5 viewport và scenario P5 chuyên biệt desktop/mobile, mobile QA 262/262, a11y 62/62, CSS verifier 0 diffs, minify 60/60 file.
+
+## Personal Growth & Reflection — P6: Weekly Review
+
+- 📊 **Tổng kết tuần tự động** — Week view hiển thị số task hoàn thành, tỷ lệ habit và tổng thời gian Focus theo đúng các ngày thuộc tuần đang xem.
+- 🎯 **Điểm tiến độ theo trụ cột** — mỗi trụ cột tổng hợp các metric có thể chấm điểm; TASK và FOCUS chỉ tính các task được liên kết trực tiếp với metric tương ứng.
+- ✍️ **Đánh giá có cấu trúc** — lưu riêng theo tuần các mục điều tốt nhất, trở ngại, bài học, thay đổi và ba ưu tiên tuần tới; autosave có trạng thái thông báo truy cập được.
+- 🧳 **Tương thích dữ liệu cũ** — `state.weeklyReviews` được migration cộng thêm, không thay thế `state.reflections.weeks`; nội dung phản ánh cũ vẫn xem được trong phần thu gọn.
+- 🌐 **Song ngữ + responsive** — đầy đủ tiếng Việt/Anh, giao diện một cột trên mobile, không gây tràn ngang và hoạt động offline qua service worker cache `v189`.
+- 🧪 **Kiểm chứng** — unit 408/408, sync 7/7, server security PASS, E2E Chromium đầy đủ 17 scenario × 5 viewport và scenario Weekly Review chuyên biệt desktop/mobile, smoke PASS, mobile QA 262/262, a11y 62/62, CSS verifier 0 diffs, minify 61/61 file.

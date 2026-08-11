@@ -1,7 +1,7 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 16 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 17 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
@@ -1088,6 +1088,127 @@ def daily_alignment_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def weekly_review_checks(browser, base, width, height, errors, screenshot):
+    """P6: Week review derives weekly evidence and persists isolated reflection fields."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"weekly-review {width}px: {error}"))
+    load_app(page, base)
+
+    seeded = page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const planStart = new Date(year, month, 1 - offset);
+      const weekIndex = Math.min(1, state.weeks.length - 1);
+      const week = state.weeks[weekIndex];
+      const start = new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + weekIndex * 7);
+      const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const inMonth = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+        return { i, date, dayIndex: date.getMonth() === month ? date.getDate() - 1 : -1 };
+      }).filter(item => item.dayIndex >= 0);
+
+      week.days.forEach(day => { day.tasks = []; });
+      week.days[0].tasks = [
+        {
+          uid: 'p6-done', text: 'P6 linked done', kind: 'priority', done: true,
+          tags: [], linkedMetricIds: ['p6-task', 'p6-focus'],
+          focusLog: [{ d: dateKey(inMonth[0].date), secs: 5400 }],
+          remind: { enabled: false, time: '20:00' },
+        },
+        {
+          uid: 'p6-open', text: 'P6 linked open', kind: 'regular', done: false,
+          tags: [], linkedMetricIds: ['p6-task'], focusLog: [],
+          remind: { enabled: false, time: '20:00' },
+        },
+        {
+          uid: 'p6-unrelated', text: 'P6 unrelated done', kind: 'regular', done: true,
+          tags: [], linkedMetricIds: ['other'],
+          focusLog: [{ d: dateKey(inMonth[0].date), secs: 7200 }],
+          remind: { enabled: false, time: '20:00' },
+        },
+      ];
+
+      const habit = state.habits[0] || { id: 'p6-habit', name: 'P6 habit', days: [], skipDays: [], target: 100 };
+      if (!state.habits.length) state.habits.push(habit);
+      habit.id = habit.id || 'p6-habit';
+      habit.name = 'P6 habit';
+      habit.days = Array.isArray(habit.days) ? habit.days : [];
+      habit.skipDays = [];
+      inMonth.forEach(item => { habit.days[item.dayIndex] = false; });
+      inMonth.slice(0, 2).forEach(item => { habit.days[item.dayIndex] = true; });
+
+      state.pillars.forEach(pillar => { pillar.metrics = []; pillar.hidden = false; });
+      state.pillars[0].metrics = [{
+        id: 'p6-habit-metric', title: 'P6 Habit', type: 'HABIT', linkedHabitId: habit.id,
+        target: { mode: 'daily', value: 1 },
+      }];
+      state.pillars[1].metrics = [
+        { id: 'p6-task', title: 'P6 Tasks', type: 'TASK', target: { mode: 'perWeek', value: 2 } },
+        { id: 'p6-focus', title: 'P6 Focus', type: 'FOCUS', target: { mode: 'perWeek', value: 120 } },
+      ];
+      state.weeklyReviews = [];
+      state.reflections.weeks[weekIndex] = ['P6 old win', '', 'P6 old gratitude', 'P6 old goals'];
+      localStorage.setItem(key, JSON.stringify(state));
+
+      const pomo = {};
+      pomo[dateKey(inMonth[0].date)] = { secs: 5400, count: 1 };
+      localStorage.setItem('planner-pomo-log', JSON.stringify(pomo));
+      return { week: weekIndex + 1, weekCount: state.weeks.length, legacy: 'P6 old gratitude' };
+    }""")
+
+    page.goto(f'{base}/app.html?view=week&w={seeded["week"]}', wait_until="networkidle")
+    card = page.locator('[data-testid="weekly-review"]')
+    assert card.is_visible()
+    summary = card.locator('[data-testid="weekly-review-summary"]')
+    assert '2/3' in summary.inner_text()
+    assert summary.locator('strong').nth(2).inner_text().strip() not in ('', '0', '0m', '0p')
+    assert card.locator('[data-testid="weekly-review-pillar"]').count() == 2
+    work_bar = card.locator('[data-testid="weekly-review-pillar"]').nth(1).locator('[role="progressbar"]')
+    assert work_bar.get_attribute('aria-valuenow') == '63'
+
+    values = {
+        'best': 'P6 best answer',
+        'blocker': 'P6 blocker answer',
+        'learned': 'P6 learned answer',
+        'change': 'P6 change answer',
+    }
+    for field, value in values.items():
+        card.locator(f'[data-week-review-field="{field}"]').fill(value)
+    for index, value in enumerate(('P6 priority one', 'P6 priority two', 'P6 priority three')):
+        card.locator(f'[data-week-review-field="priority"][data-priority-index="{index}"]').fill(value)
+    page.wait_for_timeout(600)
+    assert card.locator('[data-testid="weekly-review-status"]').inner_text().strip()
+
+    page.reload(wait_until="networkidle")
+    card = page.locator('[data-testid="weekly-review"]')
+    for field, value in values.items():
+        assert card.locator(f'[data-week-review-field="{field}"]').input_value() == value
+    for index, value in enumerate(('P6 priority one', 'P6 priority two', 'P6 priority three')):
+        assert card.locator(f'[data-week-review-field="priority"][data-priority-index="{index}"]').input_value() == value
+    legacy = card.locator('[data-testid="weekly-review-legacy"]')
+    legacy.locator('summary').click()
+    assert seeded['legacy'] in legacy.inner_text()
+
+    next_week = min(seeded['week'] + 1, seeded['weekCount'])
+    if next_week != seeded['week']:
+        page.goto(f'{base}/app.html?view=week&w={next_week}', wait_until="networkidle")
+        other = page.locator('[data-testid="weekly-review"]')
+        assert other.locator('[data-week-review-field="best"]').input_value() == ''
+        page.goto(f'{base}/app.html?view=week&w={seeded["week"]}', wait_until="networkidle")
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"weekly-review dark {width}px")
+    page.screenshot(path=screenshot, full_page=True)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -1123,7 +1244,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1173,6 +1294,7 @@ def main():
                     ("metrics", metrics_checks),
                     ("task-focus-metrics", task_focus_metrics_checks),
                     ("daily-alignment", daily_alignment_checks),
+                    ("weekly-review", weekly_review_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1213,6 +1335,9 @@ def main():
             elif args.view == "daily-alignment":
                 daily_alignment_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 daily_alignment_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "weekly-review":
+                weekly_review_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                weekly_review_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access
@@ -1229,7 +1354,7 @@ def main():
         print("PAGE ERRORS:", errors[:8])
         return 1
     label = "RELEASE" if args.all else "LANDING" if args.landing else "DIALOGS" if args.dialogs else args.view.upper()
-    print(f"E2E {label} OK")
+    print(f"E2E {label} OK")  # Focused output includes: E2E WEEKLY-REVIEW OK
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0
 

@@ -299,6 +299,22 @@
     </section>`;
   }
 
+  let savedStatusTimer = null;
+  function setSaveStatus(text) {
+    if (typeof document === 'undefined') return;
+    const status = document.querySelector('[data-testid="weekly-review-status"]');
+    if (status) status.textContent = typeof text === 'string' ? text : '';
+  }
+
+  function scheduleSavedStatus(callback, delay) {
+    clearTimeout(savedStatusTimer);
+    savedStatusTimer = setTimeout(() => {
+      savedStatusTimer = null;
+      if (typeof callback === 'function') callback();
+    }, Number.isFinite(delay) && delay >= 0 ? delay : 450);
+    return savedStatusTimer;
+  }
+
   return {
     emptyReview,
     normalizeReview,
@@ -311,5 +327,7 @@
     buildWeeklyReviewModel,
     weeklyReviewHTML,
     updateReviewField,
+    setSaveStatus,
+    scheduleSavedStatus,
   };
 });

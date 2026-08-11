@@ -576,6 +576,13 @@ const { loadMood, saveMood, moodCardHTML, openMoodPicker, closeMoodPicker, reren
 // reflection-* gọi qua window.TaskFlowReflection (pattern mood.js/backup.js).
 if (!window.TaskFlowReflection) throw new Error('TaskFlowReflection missing — js/reflection.js failed to load');
 const { loadReflections } = window.TaskFlowReflection;
+// Weekly Review (P6) — module thuần, lưu additive trong month state và giữ
+// state.reflections.weeks cũ làm ghi chú legacy chỉ đọc.
+if (!window.TaskFlowWeeklyReview) throw new Error('TaskFlowWeeklyReview missing — js/weekly-review.js failed to load');
+const {
+  emptyReview, ensureWeeklyReviews, buildWeeklyReviewModel, weeklyReviewHTML,
+  updateReviewField, setSaveStatus: setWeeklyReviewSaveStatus, scheduleSavedStatus,
+} = window.TaskFlowWeeklyReview;
 // Monthly Life Pillars (P2) — module js/pillars.js (window.TaskFlowPillars). Module
 // thuần: nhận state qua tham số; dispatcher + input listener gọi qua
 // window.TaskFlowPillars (pattern reflection.js). defaultState/emptyState/loadState/
@@ -704,6 +711,7 @@ function defaultState() {
       overview: ['', '', '', ''],
       weeks: WEEK_PATTERNS.slice(0, NUM_WEEKS).map(() => ['', '', '', '']),
     },
+    weeklyReviews: Array.from({ length: NUM_WEEKS }, () => emptyReview()),
   };
 }
 
@@ -717,6 +725,7 @@ function loadState() {
     if (!s || !Array.isArray(s.monthlyGoals) || !Array.isArray(s.habits) || !Array.isArray(s.weeks)) return null;
     if (s.monthKey !== monthKey(PLAN_YEAR, PLAN_MONTH) || s.weeks.length !== NUM_WEEKS) return null;
     if (!s.reflections || !Array.isArray(s.reflections.weeks) || s.reflections.weeks.length !== NUM_WEEKS) s.reflections = defaultState().reflections;
+    ensureWeeklyReviews(s, NUM_WEEKS);
     if (!s.goalTab) s.goalTab = 'priority';
     // Migration additive (P2): tháng cũ chưa có pillars → điền template mặc định.
     window.TaskFlowPillars.ensurePillars(s);
@@ -818,6 +827,7 @@ function emptyState() {
       overview: ['', '', '', ''],
       weeks: Array.from({ length: NUM_WEEKS }, () => ['', '', '', '']),
     },
+    weeklyReviews: Array.from({ length: NUM_WEEKS }, () => emptyReview()),
   };
 }
 
@@ -857,6 +867,7 @@ let inbox = loadInbox();
 function save() {
   // Migration additive (P2): state luôn có pillars hợp lệ trước khi serialize.
   if (window.TaskFlowPillars) window.TaskFlowPillars.ensurePillars(state);
+  ensureWeeklyReviews(state, NUM_WEEKS);
   try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(state)); } catch (e) { /* ẩn */ }
   if (window.Sync) window.Sync.push(monthKey(PLAN_YEAR, PLAN_MONTH));
   backupAfterSave();
@@ -1909,6 +1920,14 @@ function renderWeek() {
   const w = state.weeks[state.currentWeek - 1];
   const st = weekStats(w);
   const ti = nowInfo(PLAN_START, NUM_DAYS);
+  const weeklyReviewModel = buildWeeklyReviewModel(state, state.currentWeek - 1, {
+    planStart: PLAN_START,
+    year: PLAN_YEAR,
+    month: PLAN_MONTH,
+    monthDays: NUM_DAYS,
+    focusMinutes: focusWeekMinutes(w.n).reduce((sum, minutes) => sum + minutes, 0),
+    legacyPrompts: REFLECT_PROMPTS_WEEK(),
+  });
   el.innerHTML = `
     <div class="week-page">
       <header class="week-page-header">
@@ -1962,7 +1981,7 @@ function renderWeek() {
           <div class="pomo-tomato-wrap" id="pomoWidgetTomato"></div>
         </div>
         ${focusChartCardHTML(w)}
-        <div class="card reflection sub week-reflection-card">${reflectionHTML('w' + w.n, REFLECT_PROMPTS_WEEK())}</div>
+        ${weeklyReviewHTML(weeklyReviewModel, { t, esc, formatFocusTime })}
       </section>
       <nav class="week-day-selector" aria-label="${t('weekDaySelectorAria')}">
         ${w.days.map((d, di) => `<button type="button" class="week-day-selector-button${isDayToday(d) ? ' today' : ''}" data-action="day-jump" data-day-target="week-day-${w.n}-${di}" aria-label="${t('weekJumpDay', { day: dayLabel(di) })}"><span>${dayLabel(di)}</span><small>${d.date}</small></button>`).join('')}
@@ -4636,7 +4655,23 @@ function flushPendingSaves() {
 
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.reflectQ) {
+  if (t.dataset.weekReviewField) {
+    const weekIndex = Number(t.dataset.weekIndex);
+    const priorityIndex = t.dataset.priorityIndex === undefined ? null : Number(t.dataset.priorityIndex);
+    const updated = updateReviewField(
+      state,
+      weekIndex,
+      t.dataset.weekReviewField,
+      t.value,
+      priorityIndex,
+      new Date().toISOString()
+    );
+    if (updated) {
+      setWeeklyReviewSaveStatus(window.TaskFlowI18N.t('weeklyReviewSaving'));
+      saveSoon();
+      scheduleSavedStatus(() => setWeeklyReviewSaveStatus(window.TaskFlowI18N.t('weeklyReviewSaved')), 450);
+    }
+  } else if (t.dataset.reflectQ) {
     const [scope, i] = t.dataset.reflectQ.split('-');
     saveRefQuestion(scope, +i, t.innerText);
   } else if (t.dataset.reflect) {
