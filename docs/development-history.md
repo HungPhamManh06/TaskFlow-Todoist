@@ -358,3 +358,22 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - **Vẫn giữ:** chat panel, i18n, lazy chat.min.js, handlers, a11y; Truy cập: Tools → Trợ lý học tập (desktop) · More → Công cụ → Trợ lý (mobile)
 - **Bug liên quan (tự phát hiện):** splitter bị kill giữa chừng → dom_closure chưa chạy xong để lại split chưa đóng (`.reflection` deferred đè `.week-reflection-card` critical — cascade flip, verify 30 diffs). Chạy lại splitter tới khi hội tụ (round 1 moved 3 stmts, round 2 → 0 diffs) → verify 0 diffs
 - Versions: app.min.js v165 · fab.min.js v1 · styles-critical/deferred v13 · CACHE v200
+
+## 🔤 P1.3 — Self-host Nunito trên toàn bộ first-party pages
+
+- **index.html, privacy.html, terms.html, data-and-security.html:** bỏ preconnect ×2 + stylesheet Google Fonts → `preload fonts/nunito-vietnamese.woff2` + `css/fonts.min.css?v=1` (cùng strategy với app.html, @font-face KHÔNG duplicate — 1 file dùng chung)
+- **Verify browser thật (5 trang):** 0 request tới fonts.googleapis/gstatic · nunito-vietnamese/latin-ext/latin.woff2 nạp local · `document.fonts.check('400 16px Nunito')` = true · Vietnamese (ă â ê ô ơ ư đ á à ả ã ạ ế ề ể ễ ệ ớ ờ ở ỡ ợ ứ ừ ử ữ ự) + English render Nunito
+- **Offline:** SW đã precache sẵn cả 4 trang + fonts.min.css + 5 woff2 (không cần đổi sw.js) — offline E2E pass
+- **Lighthouse landing (3 runs):** Desktop 99→99 (FCP 564→405, LCP 564→425) · Mobile 98→98 (FCP 1684→1657, LCP 1684→1882, CLS 0.067 giữ nguyên, TBT 0) — không regression, không chase score
+- **CSP:** fonts.googleapis.com + fonts.gstatic.com giờ **có thể bỏ** (chuyển sang phase CSP riêng — chưa đụng)
+
+## 🎨 P2 — Small action icon polish (Aug 11, 2026)
+
+- Added `edit` (pencil) symbol to `icons/ui-sprite.svg` (stroke 1.8) → 59 symbols.
+- Migrated 6 mini-btn action buttons from emoji to sprite:
+  - `remind-habit` 🔔 → `bell` · `targetedit` 🎯 → `target` · `edithabit` ✏️ → `edit` (app.js)
+  - `editgoal` ✏️ → `edit` (app.js)
+  - `metric-edit` / `pillar-edit` ✏️ → `edit` (pillars.js)
+- **Bug fix (tự phát hiện):** pillars.js `iconHTML()` gates on the user-icon palette (`ICONS`), so action buttons `edit/trash/plus/refresh` were rendering as literal text since the P1 migration. Added dedicated `actionIcon()` (no palette gate) → verified all 14 action buttons render sprite `<use>`.
+- Kept personality emoji: 🙈 pillar visibility toggle, ✓ confirm-addgoal, 🗓️ copyhabits, ✨ templates, mood/pomodoro/streak/celebration.
+- Versions: app v169 → pillars v5 → **CACHE v203** · gates: unit 471/0, E2E RELEASE OK, a11y 62/0, mobile QA PASS, minify 66 OK.

@@ -11,6 +11,9 @@
 
   // 👉 Thay 'G-XXXXXXXXXX' bằng Measurement ID của bạn:
   // Google Analytics → Quản trị → Luồng dữ liệu → Web → đo ID (định dạng G-XXXXXXXXXX)
+  // ⚠️ Khi bật GA4 thật: phải thêm lại https://www.googletagmanager.com vào script-src
+  // và https://www.google-analytics.com + https://stats.g.doubleclick.net vào connect-src
+  // trong Content-Security-Policy tại vercel.json (đã gỡ vì analytics đang tắt).
   const GA4_ID = 'G-XXXXXXXXXX';
   const GA4_ENABLED = !!(GA4_ID && !GA4_ID.startsWith('G-XXXX'));
 

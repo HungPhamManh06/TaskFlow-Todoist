@@ -1244,7 +1244,7 @@ function goalBlockHTML(kind, goals) {
           ${checkboxHTML(mod, g.done, `data-action="goal" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, `${monthLabel(PLAN_MONTH)} ${PLAN_YEAR}`))}
           <span class="g-text" data-role="goal-text" data-id="${g.id}">${esc(g.text)}</span>
           <span class="item-actions">
-            <button type="button" class="mini-btn" data-action="editgoal" data-id="${g.id}" title="${t('editGoalAria')}" aria-label="${t('editGoalAria')}">✏️</button>
+            <button type="button" class="mini-btn" data-action="editgoal" data-id="${g.id}" title="${t('editGoalAria')}" aria-label="${t('editGoalAria')}">${window.TaskFlowUI.icon('edit')}</button>
             <button type="button" class="mini-btn" data-action="delgoal" data-scope="m" data-id="${g.id}" title="${t('delGoalAria')}" aria-label="${t('delGoalAria')}">${window.TaskFlowUI.icon('trash')}</button>
           </span>
         </li>`).join('') || `<li class="goal-item empty-item">${emptyStateHTML('🎯', 'emptyGoalsT', 'emptyGoalsH')}</li>`}
@@ -1303,9 +1303,9 @@ function habitPanelHTML() {
                 <td class="sticky name-col"><span class="habit-name-cell">
                   <span class="habit-name-text" data-id="${h.id}" title="${esc(h.name)}">${esc(h.name)}</span>
                   <span class="item-actions">
-                    <button type="button" class="mini-btn" data-action="remind-habit" data-id="${h.id}" title="${t('remindHabitAria')}" aria-label="${t('remindHabitAria')}">🔔${h.remind && h.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
-                    <button type="button" class="mini-btn" data-action="targetedit" data-id="${h.id}" title="${t('targetAria', { n: h.target || 100 })}" aria-label="${t('targetAria', { n: h.target || 100 })}">🎯</button>
-                    <button type="button" class="mini-btn" data-action="edithabit" data-id="${h.id}" title="${t('renameAria')}" aria-label="${t('renameAria')}">✏️</button>
+                    <button type="button" class="mini-btn" data-action="remind-habit" data-id="${h.id}" title="${t('remindHabitAria')}" aria-label="${t('remindHabitAria')}">${window.TaskFlowUI.icon('bell')}${h.remind && h.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
+                    <button type="button" class="mini-btn" data-action="targetedit" data-id="${h.id}" title="${t('targetAria', { n: h.target || 100 })}" aria-label="${t('targetAria', { n: h.target || 100 })}">${window.TaskFlowUI.icon('target')}</button>
+                    <button type="button" class="mini-btn" data-action="edithabit" data-id="${h.id}" title="${t('renameAria')}" aria-label="${t('renameAria')}">${window.TaskFlowUI.icon('edit')}</button>
                     <button type="button" class="mini-btn" data-action="delhabit" data-id="${h.id}" title="${t('delAria')}" aria-label="${t('delAria')}">${window.TaskFlowUI.icon('trash')}</button>
                   </span>
                 </span></td>

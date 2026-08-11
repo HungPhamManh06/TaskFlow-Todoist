@@ -29,9 +29,8 @@
   <meta name="twitter:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
 
   <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Nunito tự lưu trữ (offline-first): @font-face trong css/fonts.min.css -->
+  <link rel="preload" href="fonts/nunito-vietnamese.woff2" as="font" type="font/woff2" crossorigin />
   <script>
     (function () {
       try {
@@ -41,6 +40,7 @@
       } catch (error) { /* Storage may be unavailable in privacy mode. */ }
     })();
   </script>
+  <link rel="stylesheet" href="css/fonts.min.css?v=1" />
   <link rel="stylesheet" href="css/tokens.css?v=5" />
   <link rel="stylesheet" href="css/landing.css?v=9" />
   <link rel="stylesheet" href="css/legal.css?v=1" />

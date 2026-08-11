@@ -25,32 +25,37 @@
 
 ## ✨ Tính năng chính (Core Features)
 
-- 🗓️ **Today Dashboard** — việc cần làm hôm nay: task, tiến độ, thói quen, Focus
+- 🗓️ **Today Dashboard** — việc cần làm hôm nay: task, tiến độ, thói quen, Focus, **Daily Alignment**
 - 📥 **Inbox** — bắt nhanh mọi ý tưởng, lên lịch sau
 - 🔭 **Upcoming** — nhìn trước công việc những ngày tới (hôm nay / sắp tới / quá hạn)
 - ➕ **Quick Add** — thêm task nhanh từ mọi nơi (phím tắt, nút +)
-- 📋 **Task Detail** — deadline · giờ · thời lượng · ưu tiên · lặp lại · tags · ghi chú · subtasks · nhắc việc
-- 📅 **Week planning** — 7 ngày, task + ghi chú + mục tiêu tuần + Pomodoro
-- 📊 **Month planning** — mục tiêu tháng, habit tracker 31 ngày, reflection
+- 📋 **Task Detail** — deadline · giờ · thời lượng · ưu tiên · lặp lại · tags · ghi chú · subtasks · nhắc việc · **liên kết mục tiêu**
+- 📅 **Week planning** — 7 ngày, task + ghi chú + mục tiêu tuần + Pomodoro + **Weekly Review**
+- 📊 **Month planning** — **Monthly Life Pillars** (Cơ thể · Việc chính · Tương tác), **Monthly Focus & Metrics**, habit tracker, reflection
 - 🎯 **Year goals** — mục tiêu năm, biểu đồ quý/tháng, line chart 12 tháng
 - 🗓️ **Calendar** — lịch task & focus theo ngày
-- 🔁 **Habit tracking** — streak 🔥 & heatmap kiểu GitHub, mục tiêu habit riêng
+- 🔁 **Habit tracking** — streak 🔥 & heatmap kiểu GitHub, mục tiêu habit riêng, **liên kết metric tháng**
 - 🍅 **Focus / Pomodoro** — timer 25/5, thống kê phiên, chế độ tập trung
-- 📈 **Reports** — báo cáo tháng/tuần/năm, huy hiệu, chia sẻ ảnh 1080×1080
+- 🪞 **Daily / Weekly / Monthly Reflection** — Quick & Deep Reflection, **Monthly Review**, carry-over tháng sau
+- 📈 **Reports** — báo cáo tháng/tuần/năm, huy hiệu, cân bằng trụ cột, mood trend, chia sẻ ảnh 1080×1080
 - 🔍 **Search** — tìm kiếm xuyên tháng (`Ctrl+K`)
 - 📤 **Import / Export / Backup** — JSON · CSV · ICS, sao lưu tự động 7 bản
 - 📲 **PWA** — cài như app thật, chạy offline-first
 - ☁️ **Optional cloud sync** — đăng nhập để đồng bộ đa thiết bị
-- 🌙 **Dark mode** + 4 chủ đề màu pastel (kem · bạc hà · oải hương · đào)
+- 🌙 **Dark mode** + 4 chủ đề màu (kem · bạc hà · oải hương · đào)
 - 🌐 **Tiếng Việt / English**
 
 ---
 
 ## 📸 Ảnh chụp màn hình
 
-| Tổng quan tháng (Overview) — desktop | Today — mobile |
+| Today — Desktop | Monthly Growth (Pillars + Metrics) |
 |---|---|
-| <img src="https://github.com/user-attachments/assets/ac9e44ee-880a-44a3-9919-0929fba2b0d2" alt="TaskFlow desktop" width="700"> | <img src="https://github.com/user-attachments/assets/5852356b-6e95-403c-a1d8-024f18e46637" alt="TaskFlow mobile" width="260"> |
+| <img src="docs/screenshots/today-desktop.png" alt="TaskFlow Today trên desktop" width="700"> | <img src="docs/screenshots/monthly-growth.png" alt="TaskFlow Monthly Goals + Reflection trên desktop" width="700"> |
+
+| Today — Mobile | Dark Mode |
+|---|---|
+| <img src="docs/screenshots/today-mobile.png" alt="TaskFlow Today trên mobile" width="260"> | <img src="docs/screenshots/dark-mode.png" alt="TaskFlow dark mode" width="700"> |
 
 ---
 
@@ -80,7 +85,7 @@ Reflect
 
 Cấu trúc kế hoạch: **Year → Month → Week → Today** — mục tiêu năm được rải xuống tháng, tuần và việc của hôm nay.
 
-Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **localStorage** của trình duyệt — không cần tài khoản, không cần internet, không lo lộ dữ liệu. Đăng nhập chỉ để bật **đồng bộ đám mây tùy chọn** (xem [Offline-first & Sync](#-offline-first--sync)).
+Khi chưa đăng nhập, dữ liệu mặc định được lưu cục bộ trong trình duyệt của bạn và **không được gửi lên máy chủ**. Đăng nhập chỉ để bật **đồng bộ đám mây tùy chọn** (xem [Offline-first & Sync](#-offline-first--sync)).
 
 ---
 
@@ -179,6 +184,22 @@ Khi chưa đăng nhập, tất cả dữ liệu được lưu an toàn trong **l
 ### 😊 Mood tracker
 - **Chấm mood mỗi ngày** (😢→🤩) ngay trong view Tuần — nhiệt kế **heatmap cả tháng** ngay trên Tổng quan
 - **Insight tự động**: ngày vui vs ngày buồn — hôm nào bạn hoàn thành thói quen tốt hơn? (tự đồng bộ đám mây)
+
+### 🌱 Cá nhân hoá & Phản ánh (Personal Growth)
+
+TaskFlow kết nối **mục tiêu dài hạn → tháng → tuần → hôm nay → phản ánh**:
+
+```
+PLAN → DO → REFLECT → ADJUST → PLAN
+```
+
+- 🏛️ **Monthly Life Pillars** — 3 trụ cột mặc định (Cơ thể · Việc chính · Tương tác), đổi tên/icon/ẩn/thêm/khôi phục template
+- 🎯 **Monthly Focus & Metrics** — mỗi trụ cột 1 Focus + các metric có tiến độ **/ngày thật** (đúng day-count tháng); metric liên kết **Habit / Task / Focus / manual** (type HABIT · TASK · MANUAL · CUSTOM)
+- 🧭 **Daily Alignment** — ngay trong Today: "Để tiến gần mục tiêu tháng" — tham chiếu task/habit thật, cập nhật tức thời khi hoàn thành
+- 🪞 **Daily Reflection 2 cấp** — Quick (mood + 2 ô, ~1 phút) và Deep (5 câu, autosave); kèm tóm tắt ngày trước khi viết
+- 📅 **Weekly Review** — điểm task/habit/focus/từng trụ cột trong tuần + 4 câu hỏi + ưu tiên tuần sau
+- 📆 **Monthly Review** — tổng kết từng trụ cột (strongest / needs attention), reflection **Continue · Stop · Start**, carry-over chọn lọc sang tháng sau
+- 💡 **Insight theo rule** (không phải AI): nhận xét khi metric ≥80% / <40% / streak giảm — hoàn toàn cục bộ, không gọi dịch vụ ngoài
 
 ### 📅 Báo cáo năm
 - Nút **"📊 Báo cáo năm"** trong view Năm: % hoàn thành mục tiêu, tháng đạt mục tiêu nhất 🏆, thói quen nổi bật 🔥, ngày năng suất nhất ⭐
@@ -364,7 +385,7 @@ TaskFlow/
 │   ├── measure-lighthouse.py# Đo Lighthouse baseline (trước/sau khi tối ưu)
 │   ├── measure-perf.py      # Playwright measurement harness
 │   └── ocr-image.py         # OCR ảnh: tự chọn Windows OCR (vi-VN) → easyocr
-├── tests/                    # Unit tests (node --test): phase0..phase10 + phase9-frontend
+├── tests/                    # Unit tests (node --test): phase0..phase19 (features + frontend)
 ├── .github/workflows/ci.yml  # CI: syntax check, minify check, unit tests, E2E
 ├── docs/                     # Lighthouse baseline + development history + superpowers plans/specs
 ├── README.md
@@ -382,7 +403,7 @@ TaskFlow/
 | **Vanilla JavaScript** | Toàn bộ logic, không framework, không thư viện ngoài |
 | **localStorage** | Lưu trữ dữ liệu mục tiêu/thói quen/reflection theo từng tháng (key `planner-{y}-{m}`) |
 | **SVG** | Donut chart, line chart, bar chart vẽ tay |
-| **Google Fonts** | Nunito |
+| **Self-hosted Nunito** | Font cục bộ (woff2 trong `fonts/`), không gọi Google Fonts — offline-first & riêng tư |
 
 ---
 

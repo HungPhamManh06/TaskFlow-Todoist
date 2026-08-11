@@ -41,9 +41,8 @@
 
   <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Nunito tự lưu trữ (offline-first, không còn third-party render-blocking): @font-face trong css/fonts.min.css -->
+  <link rel="preload" href="fonts/nunito-vietnamese.woff2" as="font" type="font/woff2" crossorigin />
   <script>
     (function () {
       try {
@@ -53,6 +52,7 @@
       } catch (error) { /* Storage may be unavailable in privacy mode. */ }
     })();
   </script>
+  <link rel="stylesheet" href="css/fonts.min.css?v=1" />
   <link rel="stylesheet" href="css/tokens.css?v=5" />
   <link rel="stylesheet" href="css/landing.css?v=10" />
 
@@ -130,7 +130,7 @@
           </aside>
           <div class="preview-workspace">
             <div class="preview-topline">
-              <div><small data-t-vi="THÁNG 8 · 2026" data-t-en="AUGUST · 2026">THÁNG 8 · 2026</small><strong data-t-vi="Chào buổi sáng, Hùng" data-t-en="Good morning, Hung">Chào buổi sáng, Hùng</strong></div>
+              <div><small data-t-vi="THÁNG NÀY" data-t-en="THIS MONTH">THÁNG NÀY</small><strong data-t-vi="Chào buổi sáng 👋" data-t-en="Good morning 👋">Chào buổi sáng 👋</strong></div>
               <span class="preview-add" aria-hidden="true">+ <span data-t-vi="Thêm việc" data-t-en="Add task">Thêm việc</span></span>
             </div>
             <div class="preview-metric-grid">
