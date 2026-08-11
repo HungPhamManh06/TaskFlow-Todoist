@@ -18,7 +18,11 @@ const BACKUP_SLOTS = 7;
 function rotateBackup(data) {
   try {
     let idx = 0;
-    try { idx = (+localStorage.getItem('planner-backup-idx') || -1) + 1; } catch (e) { /* ẩn */ }
+    try {
+      const rawIdx = localStorage.getItem('planner-backup-idx');
+      const currentIdx = rawIdx === null ? -1 : Number(rawIdx);
+      idx = (Number.isInteger(currentIdx) ? currentIdx : -1) + 1;
+    } catch (e) { /* ẩn */ }
     idx = ((idx % BACKUP_SLOTS) + BACKUP_SLOTS) % BACKUP_SLOTS;
     localStorage.setItem('planner-backup-idx', String(idx));
     localStorage.setItem(backupSlotKey(idx), JSON.stringify({ savedAt: new Date().toISOString(), data }));
@@ -70,16 +74,36 @@ function closeBackupModal() {
 function doRestoreBackup(idx) {
   try {
     const b = JSON.parse(localStorage.getItem(backupSlotKey(idx)));
-    if (!b || !b.data || !b.data.keys) return;
-    if (!confirm(t('backupRestoreConfirm'))) return;
+    if (!b || !b.data || !b.data.keys) return false;
+    if (!confirm(t('backupRestoreConfirm'))) return false;
     // Không khôi phục token đăng nhập / chính các slot backup (tránh ghi đè phiên + vòng lặp backup)
-    Object.keys(b.data.keys).forEach((k) => {
-      if (k === 'planner-token' || k === 'planner-backup-idx' || k.startsWith('planner-backup-')) return;
-      try { localStorage.setItem(k, b.data.keys[k]); } catch (e) { /* ẩn */ }
-    });
+    const keys = Object.keys(b.data.keys).filter((k) => (
+      k !== 'planner-token'
+      && k !== 'planner-sync-meta'
+      && k !== 'planner-backup-idx'
+      && !k.startsWith('planner-backup-')
+    ));
+    const before = {};
+    keys.forEach((k) => { before[k] = localStorage.getItem(k); });
+    try {
+      keys.forEach((k) => { localStorage.setItem(k, b.data.keys[k]); });
+    } catch (error) {
+      keys.forEach((k) => {
+        try {
+          if (before[k] === null) localStorage.removeItem(k);
+          else localStorage.setItem(k, before[k]);
+        } catch (rollbackError) { /* best effort for broken storage */ }
+      });
+      TaskFlowUI.toast(t('backupRestoreError'), 'error');
+      return false;
+    }
     TaskFlowUI.toast(t('backupRestoreDone'), 'success');
     window.setTimeout(() => location.reload(), 450);
-  } catch (e) { /* ẩn */ }
+    return true;
+  } catch (e) {
+    TaskFlowUI.toast(t('backupRestoreError'), 'error');
+    return false;
+  }
 }
 
   return { rotateBackup, maybeAutoBackup, openBackupModal, closeBackupModal, doRestoreBackup };

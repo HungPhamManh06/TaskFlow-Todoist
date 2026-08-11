@@ -28,12 +28,21 @@
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
   }
 
+  function isReservedKey(key) {
+    return key === 'planner-token'
+      || key === 'planner-sync-meta'
+      || key === 'planner-backup-idx'
+      || key.startsWith('planner-backup-');
+  }
+
   function collectAllData(legacyKey) {
     const out = { app: 'taskflow-todoist', version: 2, exportedAt: new Date().toISOString(), keys: {} };
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k.startsWith('planner-') || k === legacyKey) out.keys[k] = localStorage.getItem(k);
+        if (k && !isReservedKey(k) && (k.startsWith('planner-') || k === legacyKey)) {
+          out.keys[k] = localStorage.getItem(k);
+        }
       }
     } catch (e) { /* ẩn */ }
     return out;
@@ -55,6 +64,9 @@
     try {
       const fromVersion = parsed.version == null ? 1 : Number(parsed.version);
       const snapshot = M.migrateSnapshot(parsed);
+      Object.keys(snapshot.keys).forEach((key) => {
+        if (isReservedKey(key)) delete snapshot.keys[key];
+      });
       return {
         ok: true,
         snapshot,
@@ -67,7 +79,7 @@
 
   function applySnapshotTransactional(snapshot, storage) {
     const target = storage || localStorage;
-    const keys = Object.keys(snapshot.keys || {});
+    const keys = Object.keys(snapshot.keys || {}).filter((key) => !isReservedKey(key));
     const before = {};
     keys.forEach((key) => { before[key] = target.getItem(key); });
     try {

@@ -64,10 +64,14 @@ test('validation rejects malformed, foreign and future snapshots', () => {
   assert.equal(M.validateSnapshot({ app: 'taskflow-todoist', version: 2, keys: { bad: '{}' } }).ok, false);
 });
 
-test('collectAllData exports every planner key and legacy key exactly once as v2', () => {
+test('collectAllData exports portable planner data but excludes session and backup internals', () => {
   global.localStorage = storage({
     'planner-2026-8': '{"monthlyGoals":[]}',
     'planner-reflections-daily': '{}',
+    'planner-token': 'secret-jwt',
+    'planner-sync-meta': '{}',
+    'planner-backup-idx': '0',
+    'planner-backup-0': '{"nested":true}',
     'january-planner-2026': '{"legacy":true}',
     unrelated: 'no',
   });
@@ -75,6 +79,96 @@ test('collectAllData exports every planner key and legacy key exactly once as v2
   const snapshot = E.collectAllData('january-planner-2026');
   assert.equal(snapshot.version, 2);
   assert.deepEqual(Object.keys(snapshot.keys).sort(), ['january-planner-2026', 'planner-2026-8', 'planner-reflections-daily']);
+});
+
+test('prepareImport and transactional apply never restore reserved session or backup keys', () => {
+  const E = require('../js/export.js');
+  const result = E.prepareImport({
+    app: 'taskflow-todoist', version: 2,
+    keys: {
+      'planner-2026-8': '{}',
+      'planner-token': 'foreign-session',
+      'planner-sync-meta': '{"foreign":true}',
+      'planner-backup-0': '{"nested":true}',
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(Object.keys(result.snapshot.keys), ['planner-2026-8']);
+  assert.equal(result.preview.keyCount, 1);
+
+  const target = storage({ 'planner-token': 'current-session' });
+  const applied = E.applySnapshotTransactional({
+    keys: { 'planner-token': 'foreign-session', 'planner-2026-8': '{}' },
+  }, target);
+  assert.equal(applied.ok, true);
+  assert.equal(target.getItem('planner-token'), 'current-session');
+  assert.equal(target.getItem('planner-2026-8'), '{}');
+});
+
+test('backup rotation advances through distinct slots and snapshots do not nest prior backups', () => {
+  const previous = {
+    localStorage: global.localStorage,
+    backupSlotKey: global.backupSlotKey,
+    collectAllData: global.collectAllData,
+    LEGACY_KEY: global.LEGACY_KEY,
+  };
+  try {
+    global.localStorage = storage({ 'planner-2026-8': '{}' });
+    global.backupSlotKey = (i) => 'planner-backup-' + i;
+    global.LEGACY_KEY = 'january-planner-2026';
+    const E = require('../js/export.js');
+    global.collectAllData = E.collectAllData;
+    const B = require('../js/backup.js');
+
+    for (let i = 0; i < 3; i++) B.rotateBackup(E.collectAllData(global.LEGACY_KEY));
+
+    assert.equal(global.localStorage.getItem('planner-backup-idx'), '2');
+    assert.ok(global.localStorage.getItem('planner-backup-0'));
+    assert.ok(global.localStorage.getItem('planner-backup-1'));
+    assert.ok(global.localStorage.getItem('planner-backup-2'));
+    const latest = JSON.parse(global.localStorage.getItem('planner-backup-2'));
+    assert.deepEqual(Object.keys(latest.data.keys), ['planner-2026-8']);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete global[key]; else global[key] = value;
+    }
+  }
+});
+
+test('backup restore rolls back all touched keys and reports failure when one write fails', () => {
+  const previous = {
+    localStorage: global.localStorage,
+    backupSlotKey: global.backupSlotKey,
+    confirm: global.confirm,
+    t: global.t,
+    TaskFlowUI: global.TaskFlowUI,
+    window: global.window,
+  };
+  let toast = null;
+  try {
+    global.localStorage = storage({
+      'planner-backup-0': JSON.stringify({ data: { keys: {
+        'planner-a': 'new-a', 'planner-b': 'new-b', 'planner-c': 'new-c',
+      } } }),
+      'planner-a': 'old-a', 'planner-b': 'old-b', 'planner-c': 'old-c',
+    }, 'planner-b');
+    global.backupSlotKey = (i) => 'planner-backup-' + i;
+    global.confirm = () => true;
+    global.t = (key) => key;
+    global.TaskFlowUI = { toast: (message, type) => { toast = { message, type }; } };
+    global.window = { TaskFlowExport: require('../js/export.js'), setTimeout() {} };
+    const B = require('../js/backup.js');
+
+    assert.equal(B.doRestoreBackup(0), false);
+    assert.equal(global.localStorage.getItem('planner-a'), 'old-a');
+    assert.equal(global.localStorage.getItem('planner-b'), 'old-b');
+    assert.equal(global.localStorage.getItem('planner-c'), 'old-c');
+    assert.deepEqual(toast, { message: 'backupRestoreError', type: 'error' });
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete global[key]; else global[key] = value;
+    }
+  }
 });
 
 test('prepareImport migrates v1 and provides preview metadata', () => {
