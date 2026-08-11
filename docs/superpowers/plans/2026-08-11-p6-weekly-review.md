@@ -163,9 +163,9 @@ test('weeklySummary excludes blank tasks and skipped habit opportunities', () =>
     { days: [false, true], skipDays: [] },
   ];
   assert.deepEqual(weeklySummary(week, habits, 95, context), {
-    tasksDone: 4,
+    tasksDone: 5,
     tasksTotal: 7,
-    tasksPct: 57,
+    tasksPct: 71,
     habitsDone: 2,
     habitsTotal: 3,
     habitsPct: 67,
