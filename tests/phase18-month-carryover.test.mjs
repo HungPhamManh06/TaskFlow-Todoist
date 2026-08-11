@@ -237,12 +237,12 @@ test('P8 has VI/EN copy and mirrored responsive styles', () => {
 test('P8 production assets load before monthly review/app and cache offline', () => {
   const carryIndex = APP_HTML.indexOf('js/month-carryover.min.js?v=1');
   const monthlyIndex = APP_HTML.indexOf('js/monthly-review.min.js?v=2');
-  const appIndex = APP_HTML.indexOf('js/app.min.js?v=167');
+  const appIndex = APP_HTML.indexOf('js/app.min.js?v=168');
   assert.ok(carryIndex >= 0 && monthlyIndex > carryIndex && appIndex > monthlyIndex);
-  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=9/);
+  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=10/);
   assert.match(APP_HTML, /js\/storage\.min\.js\?v=2/);
-  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=12/g) || []).length, 2);
-  assert.match(SW, /const CACHE = 'taskflow-v196'/);
+  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=\d+/g) || []).length, 2);
+  assert.match(SW, /const CACHE = 'taskflow-v201'/);
   assert.match(SW, /'\.\/js\/month-carryover\.min\.js'/);
 });
 

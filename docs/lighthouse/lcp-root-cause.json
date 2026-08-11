@@ -1,0 +1,1012 @@
+{
+ "generated": "2026-08-11T16:03:34",
+ "runs": [
+  {
+   "ttfb": 39,
+   "domContentLoaded": 5409,
+   "load": 5429,
+   "fcp": 1496,
+   "scripts": [
+    {
+     "name": "config.min.js?v=1",
+     "start": 407,
+     "end": 715,
+     "dur": 308,
+     "size": 2225
+    },
+    {
+     "name": "widget.min.js?v=1",
+     "start": 410,
+     "end": 730,
+     "dur": 320,
+     "size": 2546
+    },
+    {
+     "name": "xp.min.js?v=1",
+     "start": 411,
+     "end": 777,
+     "dur": 366,
+     "size": 2719
+    },
+    {
+     "name": "streak-ui.min.js?v=1",
+     "start": 412,
+     "end": 965,
+     "dur": 554,
+     "size": 9982
+    },
+    {
+     "name": "today.min.js?v=3",
+     "start": 412,
+     "end": 1074,
+     "dur": 662,
+     "size": 9983
+    },
+    {
+     "name": "report-ui.min.js?v=1",
+     "start": 412,
+     "end": 1139,
+     "dur": 727,
+     "size": 13999
+    },
+    {
+     "name": "upcoming.min.js?v=1",
+     "start": 412,
+     "end": 1027,
+     "dur": 615,
+     "size": 5860
+    },
+    {
+     "name": "focus-stats.min.js?v=1",
+     "start": 412,
+     "end": 998,
+     "dur": 586,
+     "size": 1825
+    },
+    {
+     "name": "focus.min.js?v=1",
+     "start": 412,
+     "end": 1232,
+     "dur": 820,
+     "size": 7538
+    },
+    {
+     "name": "pomo.min.js?v=1",
+     "start": 413,
+     "end": 1214,
+     "dur": 801,
+     "size": 3350
+    },
+    {
+     "name": "api-config.min.js?v=1",
+     "start": 414,
+     "end": 1203,
+     "dur": 789,
+     "size": 369
+    },
+    {
+     "name": "deeplink.min.js?v=6",
+     "start": 415,
+     "end": 1263,
+     "dur": 848,
+     "size": 1830
+    },
+    {
+     "name": "plan-math.min.js?v=7",
+     "start": 415,
+     "end": 1325,
+     "dur": 910,
+     "size": 3668
+    },
+    {
+     "name": "plan-stats.min.js?v=3",
+     "start": 415,
+     "end": 1418,
+     "dur": 1003,
+     "size": 5023
+    },
+    {
+     "name": "plan-carry.min.js?v=1",
+     "start": 418,
+     "end": 1398,
+     "dur": 980,
+     "size": 2475
+    },
+    {
+     "name": "sync.min.js?v=3",
+     "start": 419,
+     "end": 1450,
+     "dur": 1030,
+     "size": 5850
+    },
+    {
+     "name": "ui.min.js?v=6",
+     "start": 420,
+     "end": 1465,
+     "dur": 1046,
+     "size": 5499
+    },
+    {
+     "name": "util.min.js?v=1",
+     "start": 420,
+     "end": 1497,
+     "dur": 1076,
+     "size": 1854
+    },
+    {
+     "name": "i18n.min.js?v=3",
+     "start": 421,
+     "end": 2276,
+     "dur": 1855,
+     "size": 63442
+    },
+    {
+     "name": "storage.min.js?v=1",
+     "start": 421,
+     "end": 1573,
+     "dur": 1152,
+     "size": 1202
+    },
+    {
+     "name": "account.min.js?v=1",
+     "start": 422,
+     "end": 1604,
+     "dur": 1183,
+     "size": 1845
+    },
+    {
+     "name": "dates.min.js?v=1",
+     "start": 422,
+     "end": 1621,
+     "dur": 1199,
+     "size": 972
+    },
+    {
+     "name": "stats.min.js?v=1",
+     "start": 422,
+     "end": 1635,
+     "dur": 1213,
+     "size": 777
+    },
+    {
+     "name": "habits.min.js?v=1",
+     "start": 423,
+     "end": 1776,
+     "dur": 1353,
+     "size": 828
+    },
+    {
+     "name": "keys.min.js?v=1",
+     "start": 423,
+     "end": 1791,
+     "dur": 1368,
+     "size": 749
+    },
+    {
+     "name": "remind.min.js?v=1",
+     "start": 423,
+     "end": 1822,
+     "dur": 1399,
+     "size": 1418
+    },
+    {
+     "name": "theme.min.js?v=1",
+     "start": 423,
+     "end": 1949,
+     "dur": 1525,
+     "size": 1045
+    },
+    {
+     "name": "analytics.min.js?v=1",
+     "start": 424,
+     "end": 1964,
+     "dur": 1540,
+     "size": 1339
+    },
+    {
+     "name": "export.min.js?v=2",
+     "start": 424,
+     "end": 2088,
+     "dur": 1664,
+     "size": 4755
+    },
+    {
+     "name": "streak.min.js?v=1",
+     "start": 424,
+     "end": 2120,
+     "dur": 1696,
+     "size": 1601
+    },
+    {
+     "name": "goals.min.js?v=1",
+     "start": 425,
+     "end": 2135,
+     "dur": 1711,
+     "size": 1487
+    },
+    {
+     "name": "fab.min.js?v=1",
+     "start": 425,
+     "end": 2339,
+     "dur": 1913,
+     "size": 4846
+    },
+    {
+     "name": "syncui.min.js?v=1",
+     "start": 426,
+     "end": 2322,
+     "dur": 1896,
+     "size": 2189
+    },
+    {
+     "name": "planmini.min.js?v=1",
+     "start": 426,
+     "end": 2307,
+     "dur": 1881,
+     "size": 821
+    },
+    {
+     "name": "clock.min.js?v=1",
+     "start": 427,
+     "end": 2448,
+     "dur": 2021,
+     "size": 1169
+    },
+    {
+     "name": "shell.min.js?v=1",
+     "start": 427,
+     "end": 2448,
+     "dur": 2021,
+     "size": 1277
+    },
+    {
+     "name": "inbox.min.js?v=2",
+     "start": 427,
+     "end": 2527,
+     "dur": 2100,
+     "size": 5686
+    },
+    {
+     "name": "mood.min.js?v=1",
+     "start": 427,
+     "end": 2541,
+     "dur": 2114,
+     "size": 3113
+    },
+    {
+     "name": "remind-ui.min.js?v=2",
+     "start": 428,
+     "end": 2572,
+     "dur": 2144,
+     "size": 4880
+    },
+    {
+     "name": "popups.min.js?v=1",
+     "start": 428,
+     "end": 2573,
+     "dur": 2145,
+     "size": 4903
+    },
+    {
+     "name": "reflection.min.js?v=1",
+     "start": 428,
+     "end": 2729,
+     "dur": 2301,
+     "size": 10714
+    },
+    {
+     "name": "pillars.min.js?v=2",
+     "start": 428,
+     "end": 2869,
+     "dur": 2441,
+     "size": 18120
+    },
+    {
+     "name": "app.min.js?v=162",
+     "start": 428,
+     "end": 4189,
+     "dur": 3761,
+     "size": 183309
+    },
+    {
+     "name": "backup.min.js",
+     "start": 4973,
+     "end": 5155,
+     "dur": 182,
+     "size": 2403
+    }
+   ],
+   "lcp": [
+    {
+     "time": 1496,
+     "sel": "#appViewTitle"
+    },
+    {
+     "time": 5396,
+     "sel": ".today-date"
+    }
+   ],
+   "todaySkeletonGone": null,
+   "firstTaskRow": null,
+   "totalScripts": 44,
+   "totalJsBytes": 411485,
+   "wall_ms": 7159
+  },
+  {
+   "ttfb": 6,
+   "domContentLoaded": 5315,
+   "load": 5336,
+   "fcp": 1920,
+   "scripts": [
+    {
+     "name": "config.min.js?v=1",
+     "start": 602,
+     "end": 809,
+     "dur": 207,
+     "size": 2225
+    },
+    {
+     "name": "widget.min.js?v=1",
+     "start": 604,
+     "end": 838,
+     "dur": 234,
+     "size": 2546
+    },
+    {
+     "name": "xp.min.js?v=1",
+     "start": 605,
+     "end": 903,
+     "dur": 299,
+     "size": 2719
+    },
+    {
+     "name": "streak-ui.min.js?v=1",
+     "start": 605,
+     "end": 1053,
+     "dur": 448,
+     "size": 9982
+    },
+    {
+     "name": "today.min.js?v=3",
+     "start": 605,
+     "end": 1193,
+     "dur": 588,
+     "size": 9983
+    },
+    {
+     "name": "report-ui.min.js?v=1",
+     "start": 605,
+     "end": 1317,
+     "dur": 712,
+     "size": 13999
+    },
+    {
+     "name": "upcoming.min.js?v=1",
+     "start": 606,
+     "end": 1202,
+     "dur": 596,
+     "size": 5860
+    },
+    {
+     "name": "focus-stats.min.js?v=1",
+     "start": 606,
+     "end": 1272,
+     "dur": 666,
+     "size": 1825
+    },
+    {
+     "name": "focus.min.js?v=1",
+     "start": 606,
+     "end": 1485,
+     "dur": 879,
+     "size": 7538
+    },
+    {
+     "name": "pomo.min.js?v=1",
+     "start": 607,
+     "end": 1443,
+     "dur": 836,
+     "size": 3350
+    },
+    {
+     "name": "api-config.min.js?v=1",
+     "start": 607,
+     "end": 1461,
+     "dur": 854,
+     "size": 369
+    },
+    {
+     "name": "deeplink.min.js?v=6",
+     "start": 607,
+     "end": 1521,
+     "dur": 913,
+     "size": 1830
+    },
+    {
+     "name": "plan-math.min.js?v=7",
+     "start": 608,
+     "end": 1665,
+     "dur": 1058,
+     "size": 3668
+    },
+    {
+     "name": "plan-stats.min.js?v=3",
+     "start": 608,
+     "end": 1710,
+     "dur": 1102,
+     "size": 5023
+    },
+    {
+     "name": "plan-carry.min.js?v=1",
+     "start": 620,
+     "end": 1679,
+     "dur": 1060,
+     "size": 2475
+    },
+    {
+     "name": "sync.min.js?v=3",
+     "start": 620,
+     "end": 1756,
+     "dur": 1136,
+     "size": 5850
+    },
+    {
+     "name": "ui.min.js?v=6",
+     "start": 621,
+     "end": 1804,
+     "dur": 1184,
+     "size": 5499
+    },
+    {
+     "name": "util.min.js?v=1",
+     "start": 621,
+     "end": 1864,
+     "dur": 1243,
+     "size": 1854
+    },
+    {
+     "name": "i18n.min.js?v=3",
+     "start": 621,
+     "end": 2829,
+     "dur": 2208,
+     "size": 63442
+    },
+    {
+     "name": "storage.min.js?v=1",
+     "start": 621,
+     "end": 1881,
+     "dur": 1259,
+     "size": 1202
+    },
+    {
+     "name": "account.min.js?v=1",
+     "start": 622,
+     "end": 1970,
+     "dur": 1349,
+     "size": 1845
+    },
+    {
+     "name": "dates.min.js?v=1",
+     "start": 622,
+     "end": 1989,
+     "dur": 1367,
+     "size": 972
+    },
+    {
+     "name": "stats.min.js?v=1",
+     "start": 622,
+     "end": 2055,
+     "dur": 1433,
+     "size": 777
+    },
+    {
+     "name": "habits.min.js?v=1",
+     "start": 622,
+     "end": 2061,
+     "dur": 1439,
+     "size": 828
+    },
+    {
+     "name": "keys.min.js?v=1",
+     "start": 623,
+     "end": 2236,
+     "dur": 1614,
+     "size": 749
+    },
+    {
+     "name": "remind.min.js?v=1",
+     "start": 623,
+     "end": 2267,
+     "dur": 1644,
+     "size": 1418
+    },
+    {
+     "name": "theme.min.js?v=1",
+     "start": 623,
+     "end": 2407,
+     "dur": 1784,
+     "size": 1045
+    },
+    {
+     "name": "analytics.min.js?v=1",
+     "start": 624,
+     "end": 2409,
+     "dur": 1786,
+     "size": 1339
+    },
+    {
+     "name": "export.min.js?v=2",
+     "start": 624,
+     "end": 2531,
+     "dur": 1906,
+     "size": 4755
+    },
+    {
+     "name": "streak.min.js?v=1",
+     "start": 625,
+     "end": 2578,
+     "dur": 1953,
+     "size": 1601
+    },
+    {
+     "name": "goals.min.js?v=1",
+     "start": 626,
+     "end": 2593,
+     "dur": 1968,
+     "size": 1487
+    },
+    {
+     "name": "fab.min.js?v=1",
+     "start": 626,
+     "end": 2811,
+     "dur": 2185,
+     "size": 4846
+    },
+    {
+     "name": "syncui.min.js?v=1",
+     "start": 627,
+     "end": 2795,
+     "dur": 2168,
+     "size": 2189
+    },
+    {
+     "name": "planmini.min.js?v=1",
+     "start": 628,
+     "end": 2780,
+     "dur": 2152,
+     "size": 821
+    },
+    {
+     "name": "clock.min.js?v=1",
+     "start": 628,
+     "end": 2936,
+     "dur": 2308,
+     "size": 1169
+    },
+    {
+     "name": "shell.min.js?v=1",
+     "start": 629,
+     "end": 2953,
+     "dur": 2324,
+     "size": 1277
+    },
+    {
+     "name": "inbox.min.js?v=2",
+     "start": 629,
+     "end": 3017,
+     "dur": 2388,
+     "size": 5686
+    },
+    {
+     "name": "mood.min.js?v=1",
+     "start": 629,
+     "end": 3032,
+     "dur": 2403,
+     "size": 3113
+    },
+    {
+     "name": "remind-ui.min.js?v=2",
+     "start": 629,
+     "end": 3065,
+     "dur": 2436,
+     "size": 4880
+    },
+    {
+     "name": "popups.min.js?v=1",
+     "start": 630,
+     "end": 3065,
+     "dur": 2436,
+     "size": 4903
+    },
+    {
+     "name": "reflection.min.js?v=1",
+     "start": 630,
+     "end": 3222,
+     "dur": 2592,
+     "size": 10714
+    },
+    {
+     "name": "pillars.min.js?v=2",
+     "start": 630,
+     "end": 3301,
+     "dur": 2671,
+     "size": 18120
+    },
+    {
+     "name": "app.min.js?v=162",
+     "start": 630,
+     "end": 4159,
+     "dur": 3529,
+     "size": 183309
+    },
+    {
+     "name": "backup.min.js",
+     "start": 4635,
+     "end": 4821,
+     "dur": 185,
+     "size": 2403
+    },
+    {
+     "name": "digest.min.js",
+     "start": 6937,
+     "end": 6940,
+     "dur": 3,
+     "size": 0
+    }
+   ],
+   "lcp": [
+    {
+     "time": 1920,
+     "sel": "#appViewTitle"
+    },
+    {
+     "time": 5300,
+     "sel": ".today-date"
+    }
+   ],
+   "todaySkeletonGone": null,
+   "firstTaskRow": null,
+   "totalScripts": 45,
+   "totalJsBytes": 411485,
+   "wall_ms": 6976
+  },
+  {
+   "ttfb": 3,
+   "domContentLoaded": 6640,
+   "load": 6670,
+   "fcp": 1688,
+   "scripts": [
+    {
+     "name": "config.min.js?v=1",
+     "start": 480,
+     "end": 714,
+     "dur": 234,
+     "size": 2225
+    },
+    {
+     "name": "widget.min.js?v=1",
+     "start": 481,
+     "end": 714,
+     "dur": 233,
+     "size": 2546
+    },
+    {
+     "name": "xp.min.js?v=1",
+     "start": 482,
+     "end": 777,
+     "dur": 295,
+     "size": 2719
+    },
+    {
+     "name": "streak-ui.min.js?v=1",
+     "start": 482,
+     "end": 903,
+     "dur": 421,
+     "size": 9982
+    },
+    {
+     "name": "today.min.js?v=3",
+     "start": 482,
+     "end": 1012,
+     "dur": 530,
+     "size": 9983
+    },
+    {
+     "name": "report-ui.min.js?v=1",
+     "start": 482,
+     "end": 1106,
+     "dur": 624,
+     "size": 13999
+    },
+    {
+     "name": "upcoming.min.js?v=1",
+     "start": 483,
+     "end": 997,
+     "dur": 514,
+     "size": 5860
+    },
+    {
+     "name": "focus-stats.min.js?v=1",
+     "start": 483,
+     "end": 996,
+     "dur": 513,
+     "size": 1825
+    },
+    {
+     "name": "focus.min.js?v=1",
+     "start": 483,
+     "end": 1138,
+     "dur": 655,
+     "size": 7538
+    },
+    {
+     "name": "pomo.min.js?v=1",
+     "start": 483,
+     "end": 1217,
+     "dur": 733,
+     "size": 3350
+    },
+    {
+     "name": "api-config.min.js?v=1",
+     "start": 483,
+     "end": 1170,
+     "dur": 687,
+     "size": 369
+    },
+    {
+     "name": "deeplink.min.js?v=6",
+     "start": 483,
+     "end": 1202,
+     "dur": 719,
+     "size": 1830
+    },
+    {
+     "name": "plan-math.min.js?v=7",
+     "start": 484,
+     "end": 1311,
+     "dur": 827,
+     "size": 3668
+    },
+    {
+     "name": "plan-stats.min.js?v=3",
+     "start": 484,
+     "end": 1365,
+     "dur": 881,
+     "size": 5023
+    },
+    {
+     "name": "plan-carry.min.js?v=1",
+     "start": 527,
+     "end": 1359,
+     "dur": 831,
+     "size": 2475
+    },
+    {
+     "name": "sync.min.js?v=3",
+     "start": 528,
+     "end": 1441,
+     "dur": 913,
+     "size": 5850
+    },
+    {
+     "name": "ui.min.js?v=6",
+     "start": 528,
+     "end": 1437,
+     "dur": 908,
+     "size": 5499
+    },
+    {
+     "name": "util.min.js?v=1",
+     "start": 529,
+     "end": 1484,
+     "dur": 955,
+     "size": 1854
+    },
+    {
+     "name": "i18n.min.js?v=3",
+     "start": 529,
+     "end": 2033,
+     "dur": 1504,
+     "size": 63442
+    },
+    {
+     "name": "storage.min.js?v=1",
+     "start": 529,
+     "end": 1549,
+     "dur": 1019,
+     "size": 1202
+    },
+    {
+     "name": "account.min.js?v=1",
+     "start": 530,
+     "end": 1577,
+     "dur": 1047,
+     "size": 1845
+    },
+    {
+     "name": "dates.min.js?v=1",
+     "start": 530,
+     "end": 1627,
+     "dur": 1097,
+     "size": 972
+    },
+    {
+     "name": "stats.min.js?v=1",
+     "start": 530,
+     "end": 1632,
+     "dur": 1102,
+     "size": 777
+    },
+    {
+     "name": "habits.min.js?v=1",
+     "start": 531,
+     "end": 1657,
+     "dur": 1126,
+     "size": 828
+    },
+    {
+     "name": "keys.min.js?v=1",
+     "start": 531,
+     "end": 1735,
+     "dur": 1204,
+     "size": 749
+    },
+    {
+     "name": "remind.min.js?v=1",
+     "start": 531,
+     "end": 1738,
+     "dur": 1207,
+     "size": 1418
+    },
+    {
+     "name": "theme.min.js?v=1",
+     "start": 532,
+     "end": 1817,
+     "dur": 1285,
+     "size": 1045
+    },
+    {
+     "name": "analytics.min.js?v=1",
+     "start": 532,
+     "end": 1821,
+     "dur": 1288,
+     "size": 1339
+    },
+    {
+     "name": "export.min.js?v=2",
+     "start": 533,
+     "end": 1878,
+     "dur": 1345,
+     "size": 4755
+    },
+    {
+     "name": "streak.min.js?v=1",
+     "start": 533,
+     "end": 2009,
+     "dur": 1476,
+     "size": 1601
+    },
+    {
+     "name": "goals.min.js?v=1",
+     "start": 533,
+     "end": 2017,
+     "dur": 1484,
+     "size": 1487
+    },
+    {
+     "name": "fab.min.js?v=1",
+     "start": 533,
+     "end": 2116,
+     "dur": 1582,
+     "size": 4846
+    },
+    {
+     "name": "syncui.min.js?v=1",
+     "start": 534,
+     "end": 2241,
+     "dur": 1707,
+     "size": 2189
+    },
+    {
+     "name": "planmini.min.js?v=1",
+     "start": 534,
+     "end": 2228,
+     "dur": 1694,
+     "size": 821
+    },
+    {
+     "name": "clock.min.js?v=1",
+     "start": 534,
+     "end": 2238,
+     "dur": 1704,
+     "size": 1169
+    },
+    {
+     "name": "shell.min.js?v=1",
+     "start": 534,
+     "end": 2307,
+     "dur": 1773,
+     "size": 1277
+    },
+    {
+     "name": "inbox.min.js?v=2",
+     "start": 535,
+     "end": 2473,
+     "dur": 1938,
+     "size": 5686
+    },
+    {
+     "name": "mood.min.js?v=1",
+     "start": 535,
+     "end": 2471,
+     "dur": 1936,
+     "size": 3113
+    },
+    {
+     "name": "remind-ui.min.js?v=2",
+     "start": 536,
+     "end": 2517,
+     "dur": 1981,
+     "size": 4880
+    },
+    {
+     "name": "popups.min.js?v=1",
+     "start": 536,
+     "end": 2530,
+     "dur": 1994,
+     "size": 4903
+    },
+    {
+     "name": "reflection.min.js?v=1",
+     "start": 536,
+     "end": 2670,
+     "dur": 2133,
+     "size": 10714
+    },
+    {
+     "name": "pillars.min.js?v=2",
+     "start": 537,
+     "end": 2791,
+     "dur": 2254,
+     "size": 18120
+    },
+    {
+     "name": "app.min.js?v=162",
+     "start": 537,
+     "end": 4146,
+     "dur": 3609,
+     "size": 183309
+    },
+    {
+     "name": "backup.min.js",
+     "start": 5799,
+     "end": 5980,
+     "dur": 181,
+     "size": 2403
+    }
+   ],
+   "lcp": [
+    {
+     "time": 1688,
+     "sel": "#appViewTitle"
+    },
+    {
+     "time": 6584,
+     "sel": ".today-date"
+    }
+   ],
+   "todaySkeletonGone": null,
+   "firstTaskRow": null,
+   "totalScripts": 44,
+   "totalJsBytes": 411485,
+   "wall_ms": 8390
+  }
+ ],
+ "medians": {
+  "ttfb": 6,
+  "fcp": 1688,
+  "todaySkeletonGone": null,
+  "firstTaskRow": null,
+  "load": 5429
+ }
+}

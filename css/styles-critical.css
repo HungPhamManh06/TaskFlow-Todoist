@@ -224,6 +224,10 @@ textarea:focus-visible,
 
 .view { display: none; }
 .view.active { display: block; animation: fadeUp .3s ease; }
+/* P5: skeleton tĩnh trước khi JS hydrate — giống layout Today, không flash view khác */
+.today-skeleton { display: grid; gap: 1.25rem; padding: 1.25rem 0; max-width: 46rem; }
+.today-skeleton .skeleton { width: 100%; border-radius: var(--radius-card); }
+.today-skeleton .skeleton:first-child { border-radius: var(--radius-control); }
 
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(6px); }
@@ -248,9 +252,6 @@ textarea:focus-visible,
   grid-template-columns: 1fr .85fr 1.6fr 1.3fr;
   gap: 12px;
 }
-
-/* Reflection Panel */
-.reflection { background: var(--yellow-ref-bg) !important; padding: 0 !important; overflow: hidden; }
 
 .habit-layout { display: grid; grid-template-columns: 1.65fr 1fr; gap: 12px; align-items: start; }
 .habit-table-wrap {
@@ -765,12 +766,15 @@ textarea:focus-visible,
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   transition: transform .15s ease, background .15s ease;
 }
 .pop-btn:hover { background: var(--surface-hover); transform: translateY(-1px); }
 .pop-btn.primary { background: var(--peach-bar); border-color: var(--ink); }
 .pop-actions { display: flex; gap: 8px; }
-.pop-actions .pop-btn { flex: 1; text-align: center; }
+.pop-actions .pop-btn { flex: 1; text-align: center; justify-content: center; }
 .pop-note { margin: 0; font-size: 11.5px; color: var(--ink-soft); line-height: 1.5; }
 
 @media (max-width: 720px) {
@@ -1020,26 +1024,8 @@ textarea:focus-visible,
 
 /* ============================ Giai đoạn 5 — Feedback FAB + Share streak ============================ */
 
-.fb-fab-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 95; transition: transform .3s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
-
-.fb-fab {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 2px solid rgba(var(--ink-rgb), .25);
-  background: var(--surface);
-  font-size: 24px;
-  cursor: grab;
-  box-shadow: 0 8px 22px rgba(var(--ink-rgb), .22);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform .2s ease, box-shadow .2s ease;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
-.fb-fab:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 12px 26px rgba(var(--ink-rgb), .28); }
+/* Anchor cho chatPop (Trợ lý) — floating FAB đã bỏ (P1.2), panel mở từ Công cụ / More sheet. */
+.fb-fab-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 95; }
 
 .share-btn { font-size: 12.5px; padding: 8px 14px; margin-left: auto; }
 
@@ -1711,8 +1697,7 @@ textarea:focus-visible,
   will-change: transform;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pomo-fab-wrap,
-  .fb-fab-wrap {
+  .pomo-fab-wrap {
     transition: none;
   }
 }
@@ -1777,7 +1762,7 @@ textarea:focus-visible,
 .chat-pop {
   position: absolute;
   top: auto;
-  bottom: calc(100% + 12px);
+  bottom: 0;
   right: 0;
   width: 340px;
   max-height: 480px;
@@ -1918,6 +1903,9 @@ textarea:focus-visible,
   font-size: 14px;
   font-weight: 800;
   color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .profile-section.danger { border-top: 1.5px dashed rgba(var(--ink-rgb), .18); padding-top: 14px; }
 .pop-btn.danger {
@@ -2207,13 +2195,6 @@ textarea:focus-visible,
   grid-template-columns: minmax(230px, .7fr) minmax(0, 1.8fr);
   gap: var(--space-4);
   min-width: 0;
-}
-
-.week-page .card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-panel);
 }
 
 .week-progress-card,
@@ -2706,6 +2687,7 @@ textarea:focus-visible,
   min-height: 40px;
   padding: 0 var(--space-4);
   border: 1px dashed var(--color-border);
+
   border-radius: var(--radius-button);
   background: transparent;
   color: var(--color-text-secondary);

@@ -311,6 +311,7 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
   pointer-events: none;
 }
 
+
 .tools-drawer-head {
   display: flex;
   align-items: flex-start;
@@ -722,11 +723,10 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
   body .pomo-fab-wrap { left: 12px; }
   body .fb-fab-wrap { right: 12px; }
 
-  /* Mobile UI polish: bỏ 2 nút floating (Pomodoro 🍅 + Trợ lý 🤖) — CTA duy
-     nhất là FAB + giữa. Truy cập qua More sheet (Công cụ: Focus/Trợ lý/Báo
-     cáo). Wrap vẫn giữ để chatPop/pomoPanel hiển thị đúng khi toggle từ sheet. */
-  body .pomo-fab-wrap .pomo-fab,
-  body .fb-fab-wrap .fb-fab {
+  /* Mobile UI polish: bỏ nút floating Pomodoro 🍅 — CTA duy nhất là FAB +
+     giữa. Truy cập qua More sheet (Công cụ: Focus/Trợ lý/Báo cáo). Wrap vẫn
+     giữ để chatPop/pomoPanel hiển thị đúng khi toggle từ sheet. */
+  body .pomo-fab-wrap .pomo-fab {
     display: none;
   }
 
@@ -898,7 +898,7 @@ body.more-sheet-open {
 
 /* Chỉ ẩn nút floating khi sheet mở — wrap/panel giữ nguyên để Công cụ
    (Trợ lý/Pomodoro) mở được từ More sheet (panel nằm trong wrap). */
-body.more-sheet-open :is(.pomo-fab, .fb-fab) {
+body.more-sheet-open .pomo-fab {
   visibility: hidden;
   pointer-events: none;
 }

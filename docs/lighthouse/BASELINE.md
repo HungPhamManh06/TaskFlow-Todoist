@@ -1,38 +1,6 @@
 # TaskFlow Lighthouse baseline
 
-Generated: 2026-08-11 13:44:14 · server http://127.0.0.1:62768 · 3 run(s) per combo · lighthouse@13.4.1
-
-## landing-desktop
-
-- **Performance**: 99/100
-- **Accessibility**: 96/100
-- **Best Practices**: 100/100
-- **SEO**: 100/100
-
-### Core Web Vitals
-
-- first-contentful-paint: 564
-- largest-contentful-paint: 564
-- speed-index: 564
-- total-blocking-time: 0
-- interactive: 564
-- cumulative-layout-shift: 0.067
-
-## landing-mobile
-
-- **Performance**: 98/100
-- **Accessibility**: 96/100
-- **Best Practices**: 100/100
-- **SEO**: 100/100
-
-### Core Web Vitals
-
-- first-contentful-paint: 1684
-- largest-contentful-paint: 1684
-- speed-index: 1684
-- total-blocking-time: 0
-- interactive: 1684
-- cumulative-layout-shift: 0.067
+Generated: 2026-08-11 16:48:26 · server http://127.0.0.1:58660 · 3 run(s) per combo · lighthouse@13.4.1
 
 ## app-desktop
 
@@ -43,26 +11,26 @@ Generated: 2026-08-11 13:44:14 · server http://127.0.0.1:62768 · 3 run(s) per 
 
 ### Core Web Vitals
 
-- first-contentful-paint: 527
-- largest-contentful-paint: 1303
-- speed-index: 562
+- first-contentful-paint: 455
+- largest-contentful-paint: 1274
+- speed-index: 517
 - total-blocking-time: 0
-- interactive: 1303
+- interactive: 1274
 - cumulative-layout-shift: 0.002
 
 ## app-mobile
 
-- **Performance**: 77/100
+- **Performance**: 76/100
 - **Accessibility**: 92/100
 - **Best Practices**: 100/100
 - **SEO**: 100/100
 
 ### Core Web Vitals
 
-- first-contentful-paint: 1808
-- largest-contentful-paint: 6272
-- speed-index: 1808
-- total-blocking-time: 29
-- interactive: 6272
+- first-contentful-paint: 1813
+- largest-contentful-paint: 6329
+- speed-index: 1813
+- total-blocking-time: 26
+- interactive: 6344
 - cumulative-layout-shift: 0.0
 

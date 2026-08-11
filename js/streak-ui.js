@@ -180,8 +180,8 @@
     <div class="hm-head">
       <h3 class="card-title">${t('hmTitle')}</h3>
       ${weekCompareHTML()}
-      <button type="button" class="pop-btn share-btn" data-action="share-streak">${t('shareTitle')}</button>
-      <button type="button" class="pop-btn share-btn" data-action="report" title="${t('reportTitle')}">📊 ${t('reportTitle')}</button>
+      <button type="button" class="pop-btn share-btn" data-action="share-streak">${window.TaskFlowUI ? window.TaskFlowUI.icon('upload') : ''}${t('shareTitle')}</button>
+      <button type="button" class="pop-btn share-btn" data-action="report" title="${t('reportTitle')}">${window.TaskFlowUI ? window.TaskFlowUI.icon('report') : ''} ${t('reportTitle')}</button>
     </div>
     ${heatHeroHTML()}
     ${heatRibbonHTML()}

@@ -390,7 +390,7 @@
         <span class="metric-num">${prog.done}/${prog.target}${unit}</span>
         <div class="pillar-actions">
           <button type="button" class="mini-btn" data-action="metric-edit" data-id="${esc(m.id)}" title="${t('metricEdit')}" aria-label="${t('metricEdit')}">✏️</button>
-          <button type="button" class="mini-btn" data-action="metric-delete" data-id="${esc(m.id)}" title="${t('metricDel')}" aria-label="${t('metricDel')}">🗑</button>
+          <button type="button" class="mini-btn" data-action="metric-delete" data-id="${esc(m.id)}" title="${t('metricDel')}" aria-label="${t('metricDel')}">${iconHTML('trash')}</button>
         </div>
       </div>
       <div class="metric-bar" role="progressbar" aria-valuenow="${prog.pct}" aria-valuemin="0" aria-valuemax="100"
@@ -419,10 +419,10 @@
       ${metrics.length ? `<div class="pillar-metrics" data-testid="pillar-metrics">
         <div class="pillar-metrics-head">
           <span class="pillar-metrics-label">${t('metricLbl')}</span>
-          <button type="button" class="mini-btn add-btn" data-action="metric-add" data-pillar-id="${esc(p.id)}">${t('metricAdd')}</button>
+          <button type="button" class="mini-btn add-btn" data-action="metric-add" data-pillar-id="${esc(p.id)}">${iconHTML('plus')}<span>${t('metricAdd')}</span></button>
         </div>
         ${metrics.map((m) => metricRowHTML(state, p, m)).join('')}
-      </div>` : `<button type="button" class="mini-btn add-btn metric-empty-add" data-action="metric-add" data-pillar-id="${esc(p.id)}">${t('metricAdd')}</button>`}
+      </div>` : `<button type="button" class="mini-btn add-btn metric-empty-add" data-action="metric-add" data-pillar-id="${esc(p.id)}">${iconHTML('plus')}<span>${t('metricAdd')}</span></button>`}
     </article>`;
   }
 
@@ -438,8 +438,8 @@
       <div class="pillars-head">
         <h4 class="pillars-title">${t('pillarTitle')}</h4>
         <div class="pillars-actions">
-          <button type="button" class="mini-btn add-btn" data-action="pillar-add">${t('pillarAdd')}</button>
-          <button type="button" class="mini-btn" data-action="pillars-reset" title="${t('pillarsReset')}" aria-label="${t('pillarsReset')}">↺</button>
+          <button type="button" class="mini-btn add-btn" data-action="pillar-add">${iconHTML('plus')}<span>${t('pillarAdd')}</span></button>
+          <button type="button" class="mini-btn" data-action="pillars-reset" title="${t('pillarsReset')}" aria-label="${t('pillarsReset')}">${iconHTML('refresh')}</button>
         </div>
       </div>
       ${vis.length ? `<div class="pillar-list">${vis.map((p) => pillarCardHTML(state, p)).join('')}</div>` : empty}

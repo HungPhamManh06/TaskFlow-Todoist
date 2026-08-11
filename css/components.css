@@ -250,9 +250,7 @@ textarea:focus-visible,
     .lang-btn,
     .dark-btn,
     .theme-dot,
-    .pomo-fab,
-    .fb-fab,
-    .chat-fab
+    .pomo-fab
   ) {
     min-width: 44px;
     min-height: 44px;

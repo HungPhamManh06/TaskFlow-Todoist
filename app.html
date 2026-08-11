@@ -64,9 +64,9 @@
   <link rel="stylesheet" href="css/app-shell.min.css?v=19" />
   <!-- styles-critical: tập con boot (shell + Today + modals + theme/dark) giữ trên critical path.
        styles-deferred (phần còn lại của styles.css): nạp sau first paint (media=print swap) — vẫn trong SW cache cho offline. -->
-  <link rel="stylesheet" href="css/styles-critical.min.css?v=11" />
-  <link rel="stylesheet" href="css/styles-deferred.min.css?v=12" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=12" /></noscript>
+  <link rel="stylesheet" href="css/styles-critical.min.css?v=14" />
+  <link rel="stylesheet" href="css/styles-deferred.min.css?v=14" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=14" /></noscript>
 </head>
 
 <body>
@@ -142,6 +142,36 @@
 
       <main class="container" id="appMain" tabindex="-1">
     <section id="view-today" class="view active" role="tabpanel" aria-label="Hôm nay" data-i18n-aria="viewToday" data-testid="today-view" aria-labelledby="tab-today">
+      <!-- P0.4: static Today header — h1.today-date (LCP element) paint ngay từ FCP.
+           Inline script ghi ngày + lời chào thật trước first paint (không chờ boot JS).
+           renderToday() giữ nguyên — repaint cùng kích thước KHÔNG tạo LCP entry mới
+           (đã verify bằng experiment Chrome; nội dung giữ khớp today.js/i18n.js). -->
+      <header class="today-header" id="todayStaticHeader" style="padding-block: var(--space-4)">
+        <p class="today-greeting" id="todayStaticGreeting"></p>
+        <!-- font-size 33px (transient, bị thay bởi boot render 32px): đảm bảo kích thước vẽ
+             của h1 static luôn LỚN HƠN bản boot render kể cả khi chưa có Nunito (fallback),
+             nên boot render không tạo LCP entry mới. Không ảnh hưởng bản cuối (bị thay thế). -->
+        <h1 class="today-date" id="todayStaticDate" style="font-size: 33px"></h1>
+      </header>
+      <script>
+        (function () {
+          var lang = 'vi';
+          try { lang = localStorage.getItem('planner-lang') || 'vi'; } catch (e) {}
+          var vi = lang !== 'en';
+          var loc = vi ? 'vi-VN' : 'en-GB'; // khớp TaskFlowI18N.dateLocale()
+          var d = new Date();
+          var h = d.getHours();
+          var g = vi
+            ? (h >= 5 && h < 12 ? 'Chào buổi sáng 👋' : h >= 12 && h < 18 ? 'Chào buổi chiều ☀️' : 'Chào buổi tối 🌙')
+            : (h >= 5 && h < 12 ? 'Good morning 👋' : h >= 12 && h < 18 ? 'Good afternoon ☀️' : 'Good evening 🌙');
+          var gEl = document.getElementById('todayStaticGreeting');
+          var dEl = document.getElementById('todayStaticDate');
+          // Ghi NGAY lúc parse (trước first paint) → header đầy đủ ngay từ FCP, không CLS.
+          // Không cần chờ font: font-size 33px ở trên bù cho lệch fallback→Nunito của boot render.
+          if (gEl) gEl.textContent = g;
+          if (dEl) dEl.textContent = d.toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long' });
+        })();
+      </script>
       <!-- P5: skeleton tĩnh — hiển thị ngay trước khi JS hydrate, không flash "Tổng quan tháng" -->
       <div class="today-skeleton" aria-hidden="true">
         <div class="skeleton" style="width: 38%; height: 2rem"></div>
@@ -247,7 +277,7 @@
           </button>
           <div class="header-pop data-pop" id="dataPop" hidden>
             <strong data-i18n="dataTitle">Dữ liệu của bạn</strong>
-            <button type="button" class="pop-btn" data-action="export-json" data-i18n="exportJson">Xuất JSON (sao lưu)</button>
+            <button type="button" class="pop-btn" data-action="export-json" data-shell-icon="upload"><span data-i18n="exportJson">Xuất JSON (sao lưu)</span></button>
             <button type="button" class="pop-btn" data-action="import-json" data-i18n="importJson">Nhập JSON (khôi phục)</button>
             <button type="button" class="pop-btn" data-action="import-csv" data-i18n="importCsv">Nhập CSV (khôi phục)</button>
             <button type="button" class="pop-btn" data-action="export-csv" data-i18n="exportCsv">Xuất CSV (Google Sheets)</button>
@@ -291,6 +321,8 @@
           <span data-i18n="installTitle">Cài đặt ứng dụng</span></button>
         <button type="button" class="tools-row" id="btnHelp" data-action="help-toggle" data-i18n-title="helpTitle"
           data-i18n-aria="helpTitle" data-shell-icon="help"><span data-i18n="helpTitle">Hướng dẫn sử dụng</span></button>
+        <button type="button" class="tools-row" data-action="chat-toggle" data-i18n-title="chatTitle"
+          data-i18n-aria="chatTitle" data-shell-icon="help"><span data-i18n="chatTitle">Trợ lý học tập</span></button>
         <button type="button" class="tools-row tools-row-danger" data-action="reset" data-i18n-title="resetTitle"
           data-shell-icon="close"><span data-i18n="resetTxt">Đặt lại</span></button>
         <a class="tools-row landing-link" href="index.html" data-shell-icon="overview"><span>Trang giới thiệu</span></a>
@@ -350,7 +382,7 @@
           aria-label="" data-i18n-aria="taskDetailPriority" /><span class="td-prio-badge" data-i18n="taskPriorityLabel">Ưu tiên</span></label>
       </div>
       <div class="sync-actions">
-        <button type="button" class="pop-btn primary" data-action="quickadd-do" data-i18n="quickAddBtn">＋ Thêm việc</button>
+        <button type="button" class="pop-btn primary" data-action="quickadd-do" data-shell-icon="plus"><span data-i18n="quickAddBtn">Thêm việc</span></button>
       </div>
     </div>
   </div>
@@ -371,7 +403,7 @@
         </label>
       </div>
       <div class="sync-actions">
-        <button type="button" class="pop-btn primary" data-action="template-do" data-i18n="templateDo">📋 Sao chép</button>
+        <button type="button" class="pop-btn primary" data-action="template-do" data-shell-icon="copy"><span data-i18n="templateDo">Sao chép</span></button>
       </div>
     </div>
   </div>
@@ -406,7 +438,7 @@
       <h2 class="sync-modal-title" id="profileDialogTitle"><span data-i18n="profileTitle">Tài khoản</span></h2>
       <p class="sync-desc" id="profileUser"></p>
       <div class="profile-section">
-        <h4 class="profile-h">🔑 <span data-i18n="pwTitle">Đổi mật khẩu</span></h4>
+        <h4 class="profile-h" data-shell-icon="key"><span data-i18n="pwTitle">Đổi mật khẩu</span></h4>
         <input type="password" id="pwCurrent" class="inline-input" placeholder="" autocomplete="current-password"
           data-i18n-placeholder="pwCurrentPh" aria-label="" data-i18n-aria="pwCurrentPh" aria-describedby="pwCurrentError" />
         <p class="field-error" id="pwCurrentError" hidden></p>
@@ -416,8 +448,8 @@
         <button type="button" class="pop-btn primary" data-action="pw-change" data-i18n="pwBtn">Đổi mật khẩu</button>
       </div>
       <div class="profile-section danger">
-        <h4 class="profile-h">🗑 <span data-i18n="acctDeleteTitle">Xoá tài khoản</span></h4>
-        <button type="button" class="pop-btn danger" data-action="acct-delete" data-i18n="acctDeleteBtn">🗑 Xoá tài khoản</button>
+        <h4 class="profile-h" data-shell-icon="trash"><span data-i18n="acctDeleteTitle">Xoá tài khoản</span></h4>
+        <button type="button" class="pop-btn danger" data-action="acct-delete" data-shell-icon="trash"><span data-i18n="acctDeleteBtn">Xoá tài khoản</span></button>
       </div>
     </div>
   </div>
@@ -431,15 +463,14 @@
       <div class="pomo-tomato-wrap" id="pomoTomatoCounter"></div>
       <div class="pomo-actions">
         <button type="button" class="pop-btn primary" data-action="pomo-start" id="pomoStart"></button>
-        <button type="button" class="pop-btn" data-action="pomo-reset" data-i18n="pomoReset">↺</button>
+        <button type="button" class="pop-btn" data-action="pomo-reset" data-shell-icon="refresh"
+          data-i18n-aria="pomoReset" data-i18n-title="pomoReset"></button>
       </div>
     </div>
   </div>
 
-  <!-- ===== Trợ lý học tập (Chatbot FAB) ===== -->
+  <!-- ===== Trợ lý học tập (mở từ Công cụ / More sheet) ===== -->
   <div class="fb-fab-wrap" id="chatFabWrap">
-    <button type="button" class="fb-fab" data-action="chat-toggle" title="Trợ lý học tập"
-      data-i18n-title="chatTitle" data-i18n-aria="chatTitle">🤖</button>
     <div class="chat-pop" id="chatPop" hidden data-testid="chat-pop">
       <div class="chat-header">
         <strong data-i18n="chatTitle">🤖 Trợ lý học tập</strong>
@@ -511,7 +542,7 @@
         </div>
       </form>
       <button type="button" class="pop-btn sync-profile" id="syncProfileBtn" data-action="profile-open" hidden
-        data-i18n="profileOpen">👤 Tài khoản</button>
+        data-shell-icon="user"><span data-i18n="profileOpen">Tài khoản</span></button>
       <button type="button" class="pop-btn sync-logout" id="syncLogoutBtn" data-action="sync-logout" hidden
         data-i18n="syncLogout">Đăng xuất</button>
     </div>
@@ -525,7 +556,7 @@
       <h2 class="sync-modal-title" id="reportDialogTitle"><span data-i18n="reportTitle">Báo cáo tháng</span></h2>
       <div id="reportContent"></div>
       <div class="report-actions">
-        <button type="button" class="pop-btn share-btn" data-action="share-report">📤 <span
+        <button type="button" class="pop-btn share-btn" data-action="share-report" data-shell-icon="upload"><span
             data-i18n="reportShare">Chia sẻ ảnh</span></button>
       </div>
     </div>
@@ -559,7 +590,7 @@
       <h2 class="sync-modal-title" id="weekReportDialogTitle"><span data-i18n="weekReportTitle">Báo cáo tuần</span></h2>
       <div id="weekReportContent"></div>
       <div class="report-actions">
-        <button type="button" class="pop-btn share-btn" data-action="share-week-report">📤 <span
+        <button type="button" class="pop-btn share-btn" data-action="share-week-report" data-shell-icon="upload"><span
             data-i18n="weekReportShare">Chia sẻ ảnh</span></button>
       </div>
     </div>
@@ -573,7 +604,7 @@
       <h2 class="sync-modal-title" id="yearReportDialogTitle"><span data-i18n="yearReportTitle">Báo cáo năm</span></h2>
       <div id="yearReportContent"></div>
       <div class="report-actions">
-        <button type="button" class="pop-btn share-btn" data-action="share-year-report">📤 <span
+        <button type="button" class="pop-btn share-btn" data-action="share-year-report" data-shell-icon="upload"><span
             data-i18n="yearReportShare">Chia sẻ ảnh</span></button>
       </div>
     </div>
@@ -715,14 +746,14 @@
   <script src="js/data-migrations.min.js?v=1"></script>
   <script src="js/widget.min.js?v=1"></script>
   <script src="js/xp.min.js?v=1"></script>
-  <script src="js/streak-ui.min.js?v=1"></script>
+  <script src="js/streak-ui.min.js?v=2"></script>
   <script src="js/alignment.min.js?v=1"></script>
   <script src="js/weekly-review.min.js?v=1"></script>
   <script src="js/month-carryover.min.js?v=1"></script>
   <script src="js/monthly-review.min.js?v=2"></script>
   <script src="js/report-insights.min.js?v=1"></script>
   <script src="js/reflection-history.min.js?v=1"></script>
-  <script src="js/today.min.js?v=4"></script>
+  <script src="js/today.min.js?v=6"></script>
   <script src="js/report-ui.min.js?v=3"></script>
   <script src="js/upcoming.min.js?v=1"></script>
   <script src="js/focus-stats.min.js?v=1"></script>
@@ -736,7 +767,7 @@
   <script src="js/sync.min.js?v=4"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=1"></script>
-  <script src="js/i18n.min.js?v=9"></script>
+  <script src="js/i18n.min.js?v=10"></script>
   <script src="js/storage.min.js?v=2"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
@@ -754,13 +785,13 @@
   <script src="js/planmini.min.js?v=1"></script>
   <script src="js/clock.min.js?v=1"></script>
   <script src="js/shell.min.js?v=1"></script>
-  <script src="js/inbox.min.js?v=2"></script>
+  <script src="js/inbox.min.js?v=4"></script>
   <script src="js/mood.min.js?v=1"></script>
   <script src="js/remind-ui.min.js?v=2"></script>
   <script src="js/popups.min.js?v=1"></script>
   <script src="js/reflection.min.js?v=1"></script>
   <script src="js/pillars.min.js?v=3"></script>
-  <script src="js/app.min.js?v=167"></script>
+  <script src="js/app.min.js?v=168"></script>
 </body>
 
 </html>

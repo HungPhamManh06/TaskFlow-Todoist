@@ -1245,12 +1245,12 @@ function goalBlockHTML(kind, goals) {
           <span class="g-text" data-role="goal-text" data-id="${g.id}">${esc(g.text)}</span>
           <span class="item-actions">
             <button type="button" class="mini-btn" data-action="editgoal" data-id="${g.id}" title="${t('editGoalAria')}" aria-label="${t('editGoalAria')}">✏️</button>
-            <button type="button" class="mini-btn" data-action="delgoal" data-scope="m" data-id="${g.id}" title="${t('delGoalAria')}" aria-label="${t('delGoalAria')}">🗑</button>
+            <button type="button" class="mini-btn" data-action="delgoal" data-scope="m" data-id="${g.id}" title="${t('delGoalAria')}" aria-label="${t('delGoalAria')}">${window.TaskFlowUI.icon('trash')}</button>
           </span>
         </li>`).join('') || `<li class="goal-item empty-item">${emptyStateHTML('🎯', 'emptyGoalsT', 'emptyGoalsH')}</li>`}
       </ul>
       <div class="goal-add-wrap">
-        <button type="button" class="mini-btn add-btn" data-action="addgoal" data-kind="${kind}">${t('addGoal')}</button>
+        <button type="button" class="mini-btn add-btn" data-action="addgoal" data-kind="${kind}">${window.TaskFlowUI.icon('plus')}<span>${t('addGoal')}</span></button>
         <div class="goal-add-bar" hidden data-role="goal-add-bar" data-kind="${kind}">
           <input class="inline-input" data-role="goal-add-input" data-kind="${kind}" placeholder="${t('goalPh')}" aria-label="${t('goalNameAria', { label })}" maxlength="120" />
           <button type="button" class="mini-btn" data-action="confirm-addgoal" data-kind="${kind}" title="${t('addTxt')}" aria-label="${t('addTxt')}">✓</button>
@@ -1276,7 +1276,7 @@ function habitPanelHTML() {
     </div>
     <div class="habit-add-row">
       <input class="inline-input habit-name-input" data-role="habit-name-input" placeholder="${t('habitPh')}" aria-label="${t('habitNameAria')}" maxlength="60" />
-      <button type="button" class="mini-btn add-btn" data-action="addhabit" title="${t('addHabitTxt')}">${t('addHabitTxt')}</button>
+      <button type="button" class="mini-btn add-btn" data-action="addhabit" title="${t('addHabitTxt')}">${window.TaskFlowUI.icon('plus')}<span>${t('addHabitTxt')}</span></button>
       <button type="button" class="mini-btn" data-action="copyhabits" title="${t('copyHabitsTxt')}">🗓️ ${t('copyHabitsTxt')}</button>
       <button type="button" class="mini-btn" data-action="templates-toggle" title="${t('templatesTitle')}" aria-label="${t('templatesTitle')}">✨</button>
     </div>
@@ -1306,7 +1306,7 @@ function habitPanelHTML() {
                     <button type="button" class="mini-btn" data-action="remind-habit" data-id="${h.id}" title="${t('remindHabitAria')}" aria-label="${t('remindHabitAria')}">🔔${h.remind && h.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
                     <button type="button" class="mini-btn" data-action="targetedit" data-id="${h.id}" title="${t('targetAria', { n: h.target || 100 })}" aria-label="${t('targetAria', { n: h.target || 100 })}">🎯</button>
                     <button type="button" class="mini-btn" data-action="edithabit" data-id="${h.id}" title="${t('renameAria')}" aria-label="${t('renameAria')}">✏️</button>
-                    <button type="button" class="mini-btn" data-action="delhabit" data-id="${h.id}" title="${t('delAria')}" aria-label="${t('delAria')}">🗑</button>
+                    <button type="button" class="mini-btn" data-action="delhabit" data-id="${h.id}" title="${t('delAria')}" aria-label="${t('delAria')}">${window.TaskFlowUI.icon('trash')}</button>
                   </span>
                 </span></td>
                 <td class="sticky pct-col"><b data-role="habit-pct" data-id="${h.id}">${p}%</b></td>
@@ -1860,9 +1860,9 @@ function yearGoalsCardHTML(gs) {
               ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}" draggable="true" data-drag="goal" data-scope="y" data-id="${g.id}" title="${t('dragHint')}">
                 ${checkboxHTML('pink', g.done, `data-action="ygoal" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, String(PLAN_YEAR)))}
                 <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="y-goal-text" data-id="${g.id}" data-placeholder="${t('yGoalPh')}" aria-label="${t('yGoalAria')}">${esc(g.text)}</span>
-                <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button>
+                <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('trash')}</button>
               </li>`).join('')}
-              <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="y" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">＋</button></li>
+              <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="y" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">${window.TaskFlowUI.icon('plus')}</button></li>
             </ul>
           </div>
           <div class="goal-block">
@@ -1871,9 +1871,9 @@ function yearGoalsCardHTML(gs) {
               ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}" draggable="true" data-drag="goal" data-scope="y" data-id="${g.id}" title="${t('dragHint')}">
                 ${checkboxHTML('blue', g.done, `data-action="ygoal" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, String(PLAN_YEAR)))}
                 <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="y-goal-text" data-id="${g.id}" data-placeholder="${t('yGoalPh')}" aria-label="${t('yGoalAria')}">${esc(g.text)}</span>
-                <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button>
+                <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('trash')}</button>
               </li>`).join('')}
-              <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="y" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">＋</button></li>
+              <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="y" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">${window.TaskFlowUI.icon('plus')}</button></li>
             </ul>
           </div>
         </div>
@@ -1986,15 +1986,15 @@ function yearMonthsHTML() {
             <div class="ym-block">
               <div class="v-strip pink"><span>${t('priLbl')}</span></div>
               <ul class="goal-items ym-items">
-                ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('pink', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, `${monthLabel(m)} ${PLAN_YEAR}`))}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button></li>`).join('')}
-                <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="ym" data-month="${m}" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">＋</button></li>
+                ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('pink', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, `${monthLabel(m)} ${PLAN_YEAR}`))}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('trash')}</button></li>`).join('')}
+                <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="ym" data-month="${m}" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">${window.TaskFlowUI.icon('plus')}</button></li>
               </ul>
             </div>
             <div class="ym-block">
               <div class="v-strip blue"><span>${t('regLbl')}</span></div>
               <ul class="goal-items ym-items">
-                ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('blue', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, `${monthLabel(m)} ${PLAN_YEAR}`))}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button></li>`).join('')}
-                <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="ym" data-month="${m}" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">＋</button></li>
+                ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('blue', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, `${monthLabel(m)} ${PLAN_YEAR}`))}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('trash')}</button></li>`).join('')}
+                <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="ym" data-month="${m}" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">${window.TaskFlowUI.icon('plus')}</button></li>
               </ul>
             </div>
           </div>
@@ -2120,7 +2120,7 @@ function renderWeek() {
           <div class="pomo-widget-time" id="pomoWidgetTime">25:00</div>
           <div class="pomo-widget-actions">
             <button type="button" class="pop-btn primary" data-action="pomo-start" id="pomoWidgetStart"></button>
-            <button type="button" class="pop-btn" data-action="pomo-reset" data-i18n="pomoReset">↺</button>
+            <button type="button" class="pop-btn" data-action="pomo-reset" aria-label="${t('pomoReset')}" title="${t('pomoReset')}">${window.TaskFlowUI.icon('refresh')}</button>
             <button type="button" class="pop-btn" data-action="pomo-mode" data-mode="work">${t('pomoWork')}</button>
             <button type="button" class="pop-btn" data-action="pomo-mode" data-mode="break">${t('pomoBreak')}</button>
           </div>
@@ -2178,9 +2178,9 @@ function weeklyGoalsHTML(w) {
           ${pri.map(({ g, gi }) => `<div class="legend-goal" draggable="true" data-drag="goal" data-scope="w" data-week="${w.n}" data-id="${gi}" title="${t('dragHint')}">
             ${checkboxHTML('pink', g.done, `data-action="wgoal" data-week="${w.n}" data-id="${gi}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, t('weekN', { n: w.n })))}
             <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="w-goal-text" data-week="${w.n}" data-id="${gi}" data-placeholder="${t('yGoalPh')}" aria-label="${t('wGoalAria', { n: gi + 1 })}">${esc(g.text)}</span>
-            <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button>
+            <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('trash')}</button>
           </div>`).join('')}
-          <div class="legend-goal"><button type="button" class="btn-add" data-action="addgoal" data-scope="w" data-week="${w.n}" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">＋</button></div>
+          <div class="legend-goal"><button type="button" class="btn-add" data-action="addgoal" data-scope="w" data-week="${w.n}" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">${window.TaskFlowUI.icon('plus')}</button></div>
         </div>
       </div>
       <div class="legend-col">
@@ -2190,9 +2190,9 @@ function weeklyGoalsHTML(w) {
           ${reg.map(({ g, gi }) => `<div class="legend-goal" draggable="true" data-drag="goal" data-scope="w" data-week="${w.n}" data-id="${gi}" title="${t('dragHint')}">
             ${checkboxHTML('blue', g.done, `data-action="wgoal" data-week="${w.n}" data-id="${gi}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, t('weekN', { n: w.n })))}
             <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="w-goal-text" data-week="${w.n}" data-id="${gi}" data-placeholder="${t('yGoalPh')}" aria-label="${t('wGoalAria', { n: gi + 1 })}">${esc(g.text)}</span>
-            <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button>
+            <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('trash')}</button>
           </div>`).join('')}
-          <div class="legend-goal"><button type="button" class="btn-add" data-action="addgoal" data-scope="w" data-week="${w.n}" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">＋</button></div>
+          <div class="legend-goal"><button type="button" class="btn-add" data-action="addgoal" data-scope="w" data-week="${w.n}" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">${window.TaskFlowUI.icon('plus')}</button></div>
         </div>
       </div>
     </div>`;
@@ -2226,7 +2226,7 @@ function dayColumnHTML(w, di, isToday, inDayView) {
         <div class="task-rows" data-drop="taskzone" data-week="${w.n}" data-day="${di}" data-kind="priority">
           <span class="task-sub-head">${t('taskPriSub')}</span>
           ${pri.map(({ t, ti }, i) => taskRowHTML(w.n, di, ti, 'pink', t, i)).join('')}
-          <button type="button" class="btn-add" data-action="addtask" data-week="${w.n}" data-day="${di}" data-kind="priority" aria-label="${t('addPriTaskAria')}" title="${t('addPriTaskAria')}">＋</button>
+          <button type="button" class="btn-add" data-action="addtask" data-week="${w.n}" data-day="${di}" data-kind="priority" aria-label="${t('addPriTaskAria')}" title="${t('addPriTaskAria')}">${window.TaskFlowUI.icon('plus')}</button>
         </div>
       </div>
       <div class="task-group">
@@ -2234,7 +2234,7 @@ function dayColumnHTML(w, di, isToday, inDayView) {
         <div class="task-rows" data-drop="taskzone" data-week="${w.n}" data-day="${di}" data-kind="regular">
           <span class="task-sub-head">${t('taskRegSub')}</span>
           ${reg.map(({ t, ti }, i) => taskRowHTML(w.n, di, ti, 'blue', t, i)).join('')}
-          <button type="button" class="btn-add" data-action="addtask" data-week="${w.n}" data-day="${di}" data-kind="regular" aria-label="${t('addRegTaskAria')}" title="${t('addRegTaskAria')}">＋</button>
+          <button type="button" class="btn-add" data-action="addtask" data-week="${w.n}" data-day="${di}" data-kind="regular" aria-label="${t('addRegTaskAria')}" title="${t('addRegTaskAria')}">${window.TaskFlowUI.icon('plus')}</button>
         </div>
       </div>
     </div>
@@ -2525,7 +2525,7 @@ function renderTaskDetail() {
         <div class="td-tags">
           ${tags.length ? tags.map((tg) => `<span class="tag-chip td-tag">#${esc(tg)}<button type="button" class="td-tag-del" data-action="td-tag-del" data-tag="${esc(tg)}" aria-label="${t('tagDelAria', { tag: tg })}" title="${t('tagDelAria', { tag: tg })}">${window.TaskFlowUI.icon('close')}</button></span>`).join('') : `<span class="td-empty">—</span>`}
         </div>
-        <span class="td-add-row"><input type="text" data-role="td-tag-input" placeholder="${t('tagAdd')}" maxlength="40" aria-label="${t('tagAdd')}"><button type="button" class="td-add-btn" data-action="td-tag-add" aria-label="${t('tagAdd')}">＋</button></span>
+        <span class="td-add-row"><input type="text" data-role="td-tag-input" placeholder="${t('tagAdd')}" maxlength="40" aria-label="${t('tagAdd')}"><button type="button" class="td-add-btn" data-action="td-tag-add" aria-label="${t('tagAdd')}">${window.TaskFlowUI.icon('plus')}</button></span>
       </div>
       <div class="td-field">
         <span class="td-field-label">${t('taskDetailNotes')}</span>
@@ -2534,9 +2534,9 @@ function renderTaskDetail() {
       <div class="td-field">
         <span class="td-field-label">${t('taskDetailSubtasks')}${subs.length ? ` <span class="td-sub-count">${subDone}/${subs.length}</span>` : ''}</span>
         <div class="td-subtasks">
-          ${subs.length ? subs.map((s, i) => `<div class="td-subtask ${s.done ? 'done' : ''}">${checkboxHTML('blue', s.done, `data-action="subtask-toggle" data-sub="${i}"`, window.TaskFlowUI.checkboxLabel('subtask', s.text, `${t('taskDetailSubtasks')} ${i + 1}`))}<span class="td-subtask-text">${esc(s.text)}</span><button type="button" class="td-subtask-del" data-action="subtask-del" data-sub="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">${window.TaskFlowUI.icon('close')}</button></div>`).join('') : `<p class="td-empty">${t('taskDetailSubtaskPh')}</p>`}
+          ${subs.length ? subs.map((s, i) => `<div class="td-subtask ${s.done ? 'done' : ''}">${checkboxHTML('blue', s.done, `data-action="subtask-toggle" data-sub="${i}"`, window.TaskFlowUI.checkboxLabel('subtask', s.text, `${t('taskDetailSubtasks')} ${i + 1}`))}<span class="td-subtask-text">${esc(s.text)}</span><button type="button" class="td-subtask-del" data-action="subtask-del" data-sub="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">${window.TaskFlowUI.icon('trash')}</button></div>`).join('') : `<p class="td-empty">${t('taskDetailSubtaskPh')}</p>`}
         </div>
-        <span class="td-add-row"><input type="text" data-role="td-subtask-input" placeholder="${t('taskDetailSubtaskPh')}" maxlength="120" aria-label="${t('taskDetailAddSubtask')}"><button type="button" class="td-add-btn" data-action="subtask-add" aria-label="${t('taskDetailAddSubtask')}">＋</button></span>
+        <span class="td-add-row"><input type="text" data-role="td-subtask-input" placeholder="${t('taskDetailSubtaskPh')}" maxlength="120" aria-label="${t('taskDetailAddSubtask')}"><button type="button" class="td-add-btn" data-action="subtask-add" aria-label="${t('taskDetailAddSubtask')}">${window.TaskFlowUI.icon('plus')}</button></span>
       </div>
       <button type="button" class="td-delete danger" data-action="td-delete" ${inInbox ? `data-scope="inbox"` : `data-week="${taskDetailRef.week}" data-day="${taskDetailRef.day}"`} data-task="${taskDetailRef.task}">${t('taskDetailDelete')}</button>`;
   bindTaskDetailEvents(drawer);
@@ -4006,6 +4006,9 @@ document.addEventListener('click', (e) => {
       if (!p.hidden) {
         const pomoPanel = document.getElementById('pomoPanel');
         if (pomoPanel) pomoPanel.hidden = true;
+        // Trợ lý mở từ Công cụ (desktop) → đóng drawer để panel hiển thị rõ.
+        // More sheet (mobile) giữ nguyên — E2E-verified flow: toggle chat/pomo trong sheet.
+        if (el && el.closest && el.closest('#toolsDrawer')) closeToolsDrawer();
       }
     }
     return;

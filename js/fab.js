@@ -12,7 +12,7 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
 
-  const FAB_POS_KEYS = { pomo: 'planner-fab-pomo', chat: 'planner-fab-chat' };
+  const FAB_POS_KEYS = { pomo: 'planner-fab-pomo' };
   const FAB_MARGIN = 8; // lề tối thiểu so với mép viewport
   const FAB_TUCK_MS = 2200;
   const FAB_TUCK_SLIVER = 14;
@@ -152,12 +152,7 @@
       initFabTuck(pomoWrap, fab, FAB_POS_KEYS.pomo);
       if (fab) initFabDrag(pomoWrap, fab, FAB_POS_KEYS.pomo);
     }
-    const chatWrap = document.getElementById('chatFabWrap');
-    if (chatWrap) {
-      const fab = chatWrap.querySelector('.fb-fab');
-      initFabTuck(chatWrap, fab, FAB_POS_KEYS.chat);
-      if (fab) initFabDrag(chatWrap, fab, FAB_POS_KEYS.chat);
-    }
+    // Trợ lý học tập không còn floating FAB (P1.2) — panel mở từ Công cụ / More sheet.
   }
 
   // ---------- Auto-tuck: FAB tự thu về mép màn hình khi rảnh ----------

@@ -314,3 +314,47 @@ Pure-additive (không đụng 30 symbol cũ, không đổi consumer nào). Verif
 **Gates:** unit 351/0 · E2E RELEASE OK · a11y 62/0 · mobile QA 318/0 · CSS verifier 0 diffs · minify 59 file · CACHE v195 · pillars.min.js v2, styles v10.
 
 Lưu ý: mini-btn action trong pillars block (✏️🙈🗑↺) vẫn là emoji — thuộc phase "task/action icons" riêng, chưa đụng.
+
+## 🚀 P0.4 — App mobile LCP: static Today header (LCP element paint từ FCP)
+
+**Root cause (đo, không đoán):** LCP element của /app mobile = `h1.today-date` (xác nhận bởi `lcp-breakdown-insight` Lighthouse 13.4). Element chỉ do `renderToday()` (cuối chuỗi 43 script đồng bộ) sinh ra → paint ở ~6.3s. Chuỗi eval ~3.4s (app.min.js 183KB chiếm ~3.1s) — network KHÔNG phải bottleneck (43 script tải song song trong ~500ms).
+
+**Fix (PA2 — static header, renderToday KHÔNG đổi):**
+- `app.html`: thêm `header.today-header` (greeting + `h1.today-date`) static trong `#view-today`, inline script ghi ngày/lời chào thật lúc parse (trước first paint, i18n VI/EN khớp `dateLocale()` = vi-VN/en-GB). `font-size: 33px` transient (bị thay ở boot) để kích thước vẽ static > boot render kể cả khi chưa có Nunito → boot render không tạo LCP entry mới (verify bằng experiment: Chrome KHÔNG dispatch entry khi size không tăng).
+- `scripts/split-critical-css.py`: thêm `BOOT_CRITICAL` (`.today-skeleton` ×3) — splitter dùng `used-css.json` đo SAU boot nên không bao giờ thấy skeleton (chỉ tồn tại pre-boot) → rule grid/gap rơi vào deferred → bars tách nhau lúc deferred nạp (~2.5s slow network) = CLS latent. Fix: skeleton vào critical. **Đây là bug CLS thật (0.0 → 0.027 dưới real throttling), không chỉ là hiệu ứng phụ.**
+- `sw.js` CACHE v195→v197, versions styles-critical/deferred v10→v11.
+
+**Kết quả (median 3 runs):**
+
+| Phương pháp | BEFORE | AFTER | Δ |
+|---|---|---|---|
+| Playwright devtools-throttle (cùng harness) | LCP ~5396/5300/6584 | **1944/1964/1948** | **−64%** |
+| Lighthouse devtools (throttling thật) | — | **2202ms** · CLS **0.0** · perf **79** | LCP ~3.1–6.3s → 2.2s |
+| Lighthouse Lantern (script mặc định) | 6301 / perf 77 / CLS 0.0 / TBT 29 | 6329 / perf 76 / CLS 0.0 / TBT 26 | **không đổi — model artifact** |
+
+**Lantern caveat (trung thực):** script `measure-lighthouse.py` dùng default `throttlingMethod=simulate` (Lantern). Lantern gắn LCP của JS-heavy page vào dependency graph / load event (~6s — 43 scripts đồng bộ), không credit static-shell LCP: chứng cứ — cùng code, `--throttling-method=provided` (không throttle): LCP thật = **308ms**; `--throttling-method=devtools`: **2202ms**; chỉ Lantern báo 6329. Số Lantern chỉ dịch chuyển khi giảm được load event = defer set (PA1), chưa làm ở phase này.
+
+**Gates:** unit 351/0 · E2E Chromium RELEASE OK · a11y 62/0 · mobile QA 318/0 · CSS verifier 0 diffs · minify 59 OK.
+
+## 🎨 P1 — Functional icon migration hoàn tất (sprite 58)
+
+Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols, stroke 1.8):
+
+- **Sprite mới:** `trash`, `upload`, `copy`, `key` (4 symbol bổ sung)
+- **i18n (VI+EN):** strip glyph khỏi 10 key — exportJson, templateDo, profileOpen, acctDeleteBtn, resetTxt, pillarsReset, metricAdd, pillarAdd, remindAdd, quickAddBtn; pomoReset → 'Reset timer'
+- **app.html (static):** export-json/template-do/acct-delete/profile-open/pomo-reset/quickadd-do/share-report/share-week-report/share-year-report → `data-shell-icon` hydration; profile-h heading 👤 → `user`
+- **JS templates:** delgoal/delhabit (mini-btn + btn-del) `close`→`trash`; deltask ×2 (today), inbox-del, subtask-del → `trash`; btn-add ＋ ×8 → `plus`; pillars: metricAdd/pillarAdd `＋`→`plus`, pillars-reset `↺`→`refresh`; streak-ui: share-streak `upload`, report `📊`→`report`
+- **Giữ emoji personality:** mood 😞😕😐🙂😄, 🍅 pomodoro, 🔥 streak, 🎉 celebration, 👋 greeting, help content + reminder prefixes (descriptive, không phải control)
+- **Còn lại (cố ý):** 🔔/🎯/✏️ mini-btn habit actions (phase action-icon riêng), widget-toggle ✓/✕ (trạng thái), chip X (tag-clear/td-tag-del)
+- **QA screenshots:** docs/qa/icons-light.png, icons-dark.png
+- Versions: app.min.js v164 · today v5 · inbox v4 · i18n v4 · pillars v3 · streak-ui v2 · styles v12 · CACHE v199
+
+## 🤖 P1.2 — Giảm prominence của AI Assistant (bỏ floating FAB)
+
+- **app.html:** xoá `.fb-fab` (🤖 floating bottom-right, desktop) — giữ `#chatFabWrap` làm anchor cho chatPop; thêm `tools-row` `data-action="chat-toggle"` (icon `help`) vào Tools drawer nhóm "Hỗ trợ và hệ thống"
+- **app.js:** chat-toggle khi mở từ Tools drawer (desktop) tự đóng drawer; More sheet (mobile) giữ nguyên flow E2E-verified (toggle chat/pomo trong sheet)
+- **fab.js:** bỏ nhánh chat trong `initFabDrags` + `FAB_POS_KEYS.chat` — pomo FAB giữ nguyên
+- **CSS dead code:** xoá `.fb-fab` (base/hover/focus), `.fb-fab-pop` (unused), `.fb-fab.fab-dragging`, `.fb-fab-wrap.fab-tucked`; `.chat-pop` bottom `calc(100%+12px)` → `0`; app-shell print/more-sheet selectors thu gọn về `.pomo-fab`; components touch-target bỏ `.fb-fab/.chat-fab`
+- **Vẫn giữ:** chat panel, i18n, lazy chat.min.js, handlers, a11y; Truy cập: Tools → Trợ lý học tập (desktop) · More → Công cụ → Trợ lý (mobile)
+- **Bug liên quan (tự phát hiện):** splitter bị kill giữa chừng → dom_closure chưa chạy xong để lại split chưa đóng (`.reflection` deferred đè `.week-reflection-card` critical — cascade flip, verify 30 diffs). Chạy lại splitter tới khi hội tụ (round 1 moved 3 stmts, round 2 → 0 diffs) → verify 0 diffs
+- Versions: app.min.js v165 · fab.min.js v1 · styles-critical/deferred v13 · CACHE v200

@@ -1,6 +1,6 @@
 # P1.10 — Mobile Real-Device QA (simulated)
 
-> Simulated in Playwright (chromium, headless) at 2026-08-11 14:57 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
+> Simulated in Playwright (chromium, headless) at 2026-08-11 18:33 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
 
 Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 (large mobile), 768x1024 (tablet — the app's mobile layout is `max-width: 767px`, so 768 exercises the desktop/tablet layout).
 
@@ -65,7 +65,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 360x800 (small Android) | auth | sync modal opens | PASS |  |
 | 360x800 (small Android) | auth | Google login button present | PASS |  |
 | 360x800 (small Android) | auth | credentials form present | PASS |  |
-| 360x800 (small Android) | auth | modal fits viewport (no cut-off) | PASS | (h=535px) |
+| 360x800 (small Android) | auth | modal fits viewport (no cut-off) | PASS | (h=589px) |
 | 360x800 (small Android) | auth | #syncUser input font-size >= 16px (iOS zoom) | PASS | (16px) |
 | 360x800 (small Android) | auth | #syncPass input font-size >= 16px (iOS zoom) | PASS | (16px) |
 | 360x800 (small Android) | dark mode | toggle enables | PASS |  |
@@ -147,7 +147,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 390x844 (common mobile) | auth | sync modal opens | PASS |  |
 | 390x844 (common mobile) | auth | Google login button present | PASS |  |
 | 390x844 (common mobile) | auth | credentials form present | PASS |  |
-| 390x844 (common mobile) | auth | modal fits viewport (no cut-off) | PASS | (h=495px) |
+| 390x844 (common mobile) | auth | modal fits viewport (no cut-off) | PASS | (h=549px) |
 | 390x844 (common mobile) | auth | #syncUser input font-size >= 16px (iOS zoom) | PASS | (16px) |
 | 390x844 (common mobile) | auth | #syncPass input font-size >= 16px (iOS zoom) | PASS | (16px) |
 | 390x844 (common mobile) | dark mode | toggle enables | PASS |  |
@@ -229,7 +229,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 412x915 (large mobile) | auth | sync modal opens | PASS |  |
 | 412x915 (large mobile) | auth | Google login button present | PASS |  |
 | 412x915 (large mobile) | auth | credentials form present | PASS |  |
-| 412x915 (large mobile) | auth | modal fits viewport (no cut-off) | PASS | (h=495px) |
+| 412x915 (large mobile) | auth | modal fits viewport (no cut-off) | PASS | (h=549px) |
 | 412x915 (large mobile) | auth | #syncUser input font-size >= 16px (iOS zoom) | PASS | (16px) |
 | 412x915 (large mobile) | auth | #syncPass input font-size >= 16px (iOS zoom) | PASS | (16px) |
 | 412x915 (large mobile) | dark mode | toggle enables | PASS |  |
@@ -301,7 +301,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 768x1024 (tablet) | auth | sync modal opens | PASS |  |
 | 768x1024 (tablet) | auth | Google login button present | PASS |  |
 | 768x1024 (tablet) | auth | credentials form present | PASS |  |
-| 768x1024 (tablet) | auth | modal fits viewport (no cut-off) | PASS | (h=495px) |
+| 768x1024 (tablet) | auth | modal fits viewport (no cut-off) | PASS | (h=549px) |
 | 768x1024 (tablet) | auth | #syncUser input font-size >= 16px (iOS zoom) | PASS | (16px) |
 | 768x1024 (tablet) | auth | #syncPass input font-size >= 16px (iOS zoom) | PASS | (16px) |
 | 768x1024 (tablet) | dark mode | toggle enables | PASS |  |

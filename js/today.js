@@ -69,7 +69,7 @@
         <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: i + 1 })}">${esc(tk.text ?? '')}</span>
         ${tk.kind === 'priority' ? `<span class="badge badge-accent today-prio">${t('todayPriority')}</span>` : ''}
         ${timed ? `<span class="today-task-time">${esc(timed)}</span>` : ''}
-        ${tk.done ? '' : `<button type="button" class="btn-del" data-action="deltask" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">${window.TaskFlowUI.icon('close')}</button>`}
+        ${tk.done ? '' : `<button type="button" class="btn-del" data-action="deltask" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">${window.TaskFlowUI.icon('trash')}</button>`}
       </div>`;
         }).join('')
       : emptyStateHTML('🎯', 'todayEmpty', 'todayEmptySub', [
@@ -107,7 +107,7 @@
           </div>
           <p class="today-progress-label" data-role="today-progress-label">${t('todayCompleted', { done, total })}</p>
           <div class="today-task-list" data-role="today-task-list">${taskRows}</div>
-          <button type="button" class="btn-add-today" data-action="today-addtask" aria-label="${t('todayAddTask')}">＋ ${t('todayAddTask')}</button>
+          <button type="button" class="btn-add-today" data-action="today-addtask" aria-label="${t('todayAddTask')}">${window.TaskFlowUI.icon('plus')}<span>${t('todayAddTask')}</span></button>
         </section>
       </div>
       <aside class="today-side">
@@ -169,7 +169,7 @@
         <button type="button" role="menuitem" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">🏷️ <span>${t('tagAdd')}</span></button>
         <button type="button" role="menuitem" data-action="repeat-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">🔁 <span>${t('repeatTitle')}</span>${repeated ? ' <span class="task-menu-on" aria-hidden="true">●</span>' : ''}</button>
         <button type="button" role="menuitem" data-action="task-duplicate" data-week="${wn}" data-day="${di}" data-task="${ti}">⧉ <span>${t('taskDuplicate')}</span></button>
-        <button type="button" role="menuitem" class="danger" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('close')} <span>${t('delTaskAria', { n: ti + 1 })}</span></button>
+        <button type="button" role="menuitem" class="danger" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('trash')} <span>${t('delTaskAria', { n: ti + 1 })}</span></button>
       </span>
     </span>
   </div>`;

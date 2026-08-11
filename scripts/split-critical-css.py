@@ -35,6 +35,17 @@ used = {re.sub(r'\s+', ' ', s).strip() for s in d['used']}
 inter = {re.sub(r'\s+', ' ', s).strip() for s in d['interaction']}
 keyframes_needed = set(d['keyframes'])
 
+# Boot-critical selectors that the post-boot usage measurement can never observe:
+# elements which ONLY exist BEFORE hydration (static pre-boot DOM). The Today
+# skeleton is replaced by renderToday() at boot, so used-css.json never sees it —
+# without this, its grid/gap/padding land in the deferred sheet and the bars jump
+# apart when the deferred CSS arrives after first paint (CLS on slow connections).
+BOOT_CRITICAL = {
+    '.today-skeleton',
+    '.today-skeleton .skeleton',
+    '.today-skeleton .skeleton:first-child',
+}
+
 INTERACTION_RE = re.compile(r':(hover|focus|active|focus-visible|focus-within|visited|checked|disabled|placeholder-shown|link|target)(\([^)]*\))?')
 
 
@@ -104,6 +115,8 @@ def classify(body):
     for s in selectors:
         n = norm(s)
         if 'data-theme' in n or 'data-dark' in n:
+            return True
+        if n in BOOT_CRITICAL:
             return True
         if sel_matches(s):
             return True

@@ -25,10 +25,6 @@
   background-position: 0 2px, 4px 34px, 28px 30px, 32px 6px;
 }
 .btn-reset:hover { background: var(--surface-hover); transform: translateY(-1px); }
-/* P5: skeleton tĩnh trước khi JS hydrate — giống layout Today, không flash view khác */
-.today-skeleton { display: grid; gap: 1.25rem; padding: 1.25rem 0; max-width: 46rem; }
-.today-skeleton .skeleton { width: 100%; border-radius: var(--radius-card); }
-.today-skeleton .skeleton:first-child { border-radius: var(--radius-control); }
 @keyframes bob {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-4px); }
@@ -350,6 +346,9 @@
 .goal-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .goal-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; line-height: 1.25; }
 .g-text.done, .goal-item.done .g-text { text-decoration: line-through; color: var(--ink-light); }
+
+/* Reflection Panel */
+.reflection { background: var(--yellow-ref-bg) !important; padding: 0 !important; overflow: hidden; }
 .ref-title {
   background: var(--yellow-ref);
   text-align: center;
@@ -699,7 +698,9 @@
   font-weight: 500;
 }
 .btn-add:hover { background: rgba(243, 154, 130, .25); border-color: var(--ink); color: var(--ink); }
+.btn-add .ui-icon { width: 12px; height: 12px; }
 .btn-add-lg { width: 24px; height: 24px; font-size: 15px; }
+.btn-add-lg .ui-icon { width: 15px; height: 15px; }
 .goal-item:hover .btn-del,
 .legend-goal:hover .btn-del,
 .task-row:hover .btn-del,
@@ -850,7 +851,11 @@
   font-weight: 800;
   color: var(--ink-soft);
   opacity: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
+.mini-btn.add-btn .ui-icon { width: 11px; height: 11px; flex: none; }
 .mini-btn.add-btn:hover { background: rgba(243, 154, 130, .25); border-color: var(--ink); color: var(--ink); }
 .goal-add-bar { display: flex; align-items: center; gap: 6px; width: 100%; }
 .goal-add-bar[hidden] { display: none; }
@@ -1014,6 +1019,7 @@
 .pop-field[hidden] { display: none; }
 /* P8: CTA "Tạo thói quen" inline trong Today habits empty card — gọn, không phồng như empty-actions */
 .today-habits-empty .empty-btn { margin-left: 8px; padding: 4px 12px; font-size: 12.5px; }
+.pop-btn .ui-icon { width: 14px; height: 14px; flex: none; }
 .landing-title em {
   font-style: normal;
   font-weight: 800;
@@ -1038,16 +1044,6 @@
 @keyframes swingSway { 0%, 100% { transform: rotate(4deg); } 50% { transform: rotate(-4deg); } }
 @keyframes rabbitPeek { 0%, 100% { transform: translateY(0); } 18% { transform: translateY(-3px); } 30% { transform: translateY(0); } }
 @keyframes coinBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-.fb-fab:focus-visible { outline: 3px solid var(--blue-tag, #6fb3d2); outline-offset: 2px; }
-
-.fb-fab-pop {
-  position: absolute;
-  top: auto;
-  bottom: calc(100% + 12px);
-  right: 0;
-  min-width: 250px;
-  margin-bottom: 0;
-}
 .sync-dot[data-status="connecting"] { background: #f4b942; animation: syncPulse 1s ease-in-out infinite; }
 .sync-dot[data-status="syncing"]    { background: #6fb3d2; animation: syncPulse 1s ease-in-out infinite; }
 .sync-dot[data-status="ready"]      { background: #6fbf73; }
@@ -1744,12 +1740,10 @@ sup.remind-dot {
 .dq.best b { color: var(--accent-deep); }
 /* Auto-tuck: FAB thu về mép màn hình khi rảnh, chỉ chừa 1 tab nhỏ ~14px —
    không che nội dung (vd ô Lịch). JS đặt --tuck-x/--tuck-y theo mép gần nhất. */
-.pomo-fab-wrap.fab-tucked,
-.fb-fab-wrap.fab-tucked {
+.pomo-fab-wrap.fab-tucked {
   transform: translate(var(--tuck-x, 0), var(--tuck-y, 0));
 }
-.pomo-fab.fab-dragging,
-.fb-fab.fab-dragging {
+.pomo-fab.fab-dragging {
   cursor: grabbing;
   transition: none;
   transform: none;
@@ -1784,6 +1778,7 @@ sup.remind-dot {
   background: rgba(var(--accent-rgb, 194, 78, 40), .06);
   border-radius: 8px;
 }
+.profile-h .ui-icon { width: 14px; height: 14px; flex: none; }
 
 /* ========== Phase 5: Kéo-thả, Focus Mode, Sao lưu ========== */
 [draggable="true"] { cursor: grab; }
@@ -2373,6 +2368,13 @@ body.focus-mode .container { padding: 0; }
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-surface-muted);
+}
+
+.week-page .card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
 }
 
 .week-progress-heading {
@@ -3557,19 +3559,6 @@ body.focus-mode .container { padding: 0; }
   height: 15px;
 }
 
-.today-task-time {
-  flex: 0 0 auto;
-  font: 600 var(--text-sm) / 1 var(--font-body);
-  color: var(--color-accent);
-  white-space: nowrap;
-}
-
-.today-habits-empty {
-  margin: 0;
-  font: 500 var(--text-sm) / 1.5 var(--font-body);
-  color: var(--color-text-muted);
-}
-
 .today-card.today-alignment-card {
   padding-block: var(--space-4);
   min-width: 0;
@@ -3651,6 +3640,19 @@ body.focus-mode .container { padding: 0; }
   .today-alignment-groups {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.today-task-time {
+  flex: 0 0 auto;
+  font: 600 var(--text-sm) / 1 var(--font-body);
+  color: var(--color-accent);
+  white-space: nowrap;
+}
+
+.today-habits-empty {
+  margin: 0;
+  font: 500 var(--text-sm) / 1.5 var(--font-body);
+  color: var(--color-text-muted);
 }
 
 /* ===== Daily Reflection (P1) ===== */
@@ -4421,7 +4423,11 @@ body.focus-mode .container { padding: 0; }
   padding: 0 12px;
   cursor: pointer;
   font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+.td-add-btn .ui-icon { width: 16px; height: 16px; }
 .td-add-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
 
 .td-note {

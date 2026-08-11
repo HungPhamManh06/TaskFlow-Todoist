@@ -68,7 +68,7 @@
       <button type="button" class="inbox-sched-today" data-action="inbox-today" data-task="${i}"
         title="${t('inboxTodayAria')}" aria-label="${t('inboxTodayAria')}">${t('inboxScheduleToday')}</button>
       <button type="button" class="btn-del" data-action="inbox-del" data-task="${i}"
-        title="${t('inboxDeleteAria')}" aria-label="${t('inboxDeleteAria')}">${window.TaskFlowUI.icon('close')}</button>
+        title="${t('inboxDeleteAria')}" aria-label="${t('inboxDeleteAria')}">${window.TaskFlowUI.icon('trash')}</button>
     </span>
   </div>`;
   }
@@ -92,7 +92,7 @@
     </header>
     ${inbox.length ? `<div class="inbox-list" role="list">${list}</div>` : ''}
     ${empty}
-    ${inbox.length ? `<button type="button" class="btn-add-today" data-action="inbox-add" data-testid="inbox-add" aria-label="${t('inboxAddTask')}">＋ ${t('inboxAddTask')}</button>` : ''}
+    ${inbox.length ? `<button type="button" class="btn-add-today" data-action="inbox-add" data-testid="inbox-add" aria-label="${t('inboxAddTask')}">${window.TaskFlowUI.icon('plus')}<span>${t('inboxAddTask')}</span></button>` : ''}
   </div>`;
   }
 
