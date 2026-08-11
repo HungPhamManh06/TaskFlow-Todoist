@@ -85,3 +85,31 @@
 - ♿ **A11y hardening** (P2.3) — audit harness, khôi phục focus cho task drawer.
 - 📱 **Mobile QA suite** — real-device QA + sửa lỗi touch/menu phát hiện được.
 - 🔁 **Module extractions từ `app.js`** (#28–#40): focus.js, pomo.js, … — xem [`appjs-responsibility-map.md`](appjs-responsibility-map.md).
+
+---
+
+## Personal Growth & Reflection — P1: Daily Reflection
+
+- ✍️ **Daily Reflection** (P1) — module `js/reflection.js`, lưu `planner-reflections-daily` (key `YYYY-MM-DD`).
+- ⚡ **Quick Reflection** — mood 5 mức (radiogroup, reuse `MOODS` + mirror sang `planner-mood` để heatmap nhất quán) + 2 ô ngắn (điều tốt / điều muốn cải thiện) + nút Lưu.
+- 🧠 **Deep Reflection** — modal 4 câu hỏi (vui / chưa tốt / tiếp tục phát huy / cải thiện) + ô "điều quan trọng nhất ngày mai", autosave debounce 500ms.
+- 📊 **Daily summary strip** (Phase 11) — trước form reflection: tasks `x/y`, habits `x/y`, Focus thời gian, % mục tiêu tháng.
+- 📜 **Reflection history** (Phase 21) — nhóm theo tháng, click mở lại entry để xem/sửa.
+- 🔌 **Sync/export tự động** — key `planner-*` mới đồng bộ + nằm trong JSON export/backup như mọi key khác, không cần đổi backend (whole-key JSONB).
+- 🧪 Kiểm chứng: unit 307/0 (15 test mới `phase11-reflection.test.mjs`), E2E Chromium đầy đủ + scenario `reflection` (3 viewport) + Firefox/WebKit OK, a11y 62/0, mobile QA 262 checks, Lighthouse không hồi quy.
+
+## Personal Growth & Reflection — P2: Monthly Life Pillars + Monthly Focus
+
+- 🗂 **Trụ cột tháng** (P2) — module `js/pillars.js` (window.TaskFlowPillars), dữ liệu `state.pillars = [{ id, name, icon, hidden, focus }]` additive trong month state.
+- 🏗 **Template 3 trụ cột mặc định** — Cơ thể / Việc chính / Tương tác (i18n vi/en), migration additive qua `ensurePillars` ở `loadState`/`loadMonthStateOrCreate`/`save()` + `defaultState`/`emptyState`; dữ liệu tháng cũ giữ nguyên, id ổn định `p1/p2/p3` (an toàn cho sync/carry-over).
+- ✏️ **CRUD trụ cột** — đổi tên, đổi icon (grid 16 emoji, radiogroup), ẩn/hiện (giữ dữ liệu), thêm trụ cột riêng, xoá (confirm), reset về template mặc định (confirm); modal `pillarEditModal` qua `TaskFlowUI.openDialog`.
+- 🎯 **Monthly Focus** — mỗi trụ cột 1 ô focus, autosave debounce `saveSoon()` qua input listener (pattern reflection); hiển thị trong goals widget (Overview tháng) phía trên mục tiêu tháng cũ — legacy `monthlyGoals` giữ nguyên song song theo quyết định P0.
+- 🧪 Kiểm chứng: unit 327/0 (20 test mới `phase12-pillars.test.mjs`), E2E Chromium đầy đủ + scenario `pillars` (13 scenario × 5 viewport) + Firefox/WebKit OK, a11y 62/0, CSS verifier 0 diffs, mobile QA 262 checks, Lighthouse không hồi quy (app-mobile 76–77, nhiễu).
+
+## Personal Growth & Reflection — P3: Monthly Metrics
+
+- 📊 **Monthly Metric model** — mở rộng `js/pillars.js`: `state.pillars[].metrics = [{ id, title, type: HABIT|MANUAL|CUSTOM, linkedHabitId, target: { mode: daily|perWeek|perMonth|custom, value }, days: [bool × ngày tháng] }]`.
+- 🔗 **Metric ↔ Habit** — `type: HABIT` + `linkedHabitId`: progress đếm ngày habit đã tick trong tháng (skipDays không tính), habit bị xoá → fallback MANUAL (dữ liệu metric không mất).
+- 📆 **Target theo day-count thật** — daily → số ngày tháng (28/29/30/31, không hard-code 30); perWeek → ceil(value × ngày/7); perMonth/custom → value.
+- ⏱ **MANUAL/CUSTOM** — ô ngày tự đánh dấu (day-strip), toggle qua dispatcher, re-render chỉ dòng (giữ scroll).
+- 🧪 Kiểm chứng: unit 349/0 (22 test mới `phase13-metrics.test.mjs`: target modes 28/30/31/leap, HABIT link, habit bị xoá, MANUAL toggle, migration), E2E Chromium đầy đủ + scenario `metrics` + Firefox/WebKit OK, a11y 62/0, CSS verifier 0 diffs, minify 59 file, Lighthouse không hồi quy (app-mobile 76 — đợt đo 70/73 là nhiễu máy, lặp lại 3 run xác nhận).

@@ -64,9 +64,9 @@
   <link rel="stylesheet" href="css/app-shell.min.css?v=17" />
   <!-- styles-critical: tập con boot (shell + Today + modals + theme/dark) giữ trên critical path.
        styles-deferred (phần còn lại của styles.css): nạp sau first paint (media=print swap) — vẫn trong SW cache cho offline. -->
-  <link rel="stylesheet" href="css/styles-critical.min.css?v=3" />
-  <link rel="stylesheet" href="css/styles-deferred.min.css?v=3" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=3" /></noscript>
+  <link rel="stylesheet" href="css/styles-critical.min.css?v=5" />
+  <link rel="stylesheet" href="css/styles-deferred.min.css?v=5" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=5" /></noscript>
 </head>
 
 <body>
@@ -558,6 +558,46 @@
     </div>
   </div>
 
+  <!-- ===== Daily Reflection — Deep (P1) ===== -->
+  <div class="report-modal" id="reflectionModal" hidden data-testid="reflection-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="reflectionDialogTitle">
+      <button type="button" class="sync-close" data-action="reflection-deep-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h2 class="sync-modal-title" id="reflectionDialogTitle"><span data-i18n="reflectDeepTitle">Reflection đầy đủ</span></h2>
+      <div id="reflectionDeepContent" class="reflection-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== Daily Reflection — History (P1) ===== -->
+  <div class="report-modal" id="reflectionHistoryModal" hidden data-testid="reflection-history-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="reflectionHistoryDialogTitle">
+      <button type="button" class="sync-close" data-action="reflection-history-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h2 class="sync-modal-title" id="reflectionHistoryDialogTitle"><span data-i18n="reflectHistory">Lịch sử</span></h2>
+      <div id="reflectionHistoryContent" class="reflection-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== Monthly Life Pillars — edit/add (P2) ===== -->
+  <div class="report-modal" id="pillarEditModal" hidden data-testid="pillar-edit-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="pillarEditDialogTitle">
+      <button type="button" class="sync-close" data-action="pillar-edit-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h2 class="sync-modal-title" id="pillarEditDialogTitle"><span data-i18n="pillarEditTitle">Sửa trụ cột</span></h2>
+      <div id="pillarEditContent" class="pillar-edit-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== Monthly Metric — edit/add (P3) ===== -->
+  <div class="report-modal" id="metricEditModal" hidden data-testid="metric-edit-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="metricEditDialogTitle">
+      <button type="button" class="sync-close" data-action="metric-edit-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn">✕</button>
+      <h2 class="sync-modal-title" id="metricEditDialogTitle"><span data-i18n="metricEditTitle">Thêm metric</span></h2>
+      <div id="metricEditContent" class="pillar-edit-body"></div>
+    </div>
+  </div>
+
   <!-- ===== Thống kê tương quan focus × task (Phase 9) ===== -->
   <div class="report-modal stats-modal" id="statsModal" hidden data-testid="stats-modal">
     <div class="report-modal-card stats-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="statsDialogTitle">
@@ -654,7 +694,7 @@
   <script src="js/widget.min.js?v=1"></script>
   <script src="js/xp.min.js?v=1"></script>
   <script src="js/streak-ui.min.js?v=1"></script>
-  <script src="js/today.min.js?v=1"></script>
+  <script src="js/today.min.js?v=2"></script>
   <script src="js/report-ui.min.js?v=1"></script>
   <script src="js/upcoming.min.js?v=1"></script>
   <script src="js/focus-stats.min.js?v=1"></script>
@@ -668,7 +708,7 @@
   <script src="js/sync.min.js?v=3"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=1"></script>
-  <script src="js/i18n.min.js?v=1"></script>
+  <script src="js/i18n.min.js?v=3"></script>
   <script src="js/storage.min.js?v=1"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
@@ -690,7 +730,9 @@
   <script src="js/mood.min.js?v=1"></script>
   <script src="js/remind-ui.min.js?v=1"></script>
   <script src="js/popups.min.js?v=1"></script>
-  <script src="js/app.min.js?v=158"></script>
+  <script src="js/reflection.min.js?v=1"></script>
+  <script src="js/pillars.min.js?v=1"></script>
+  <script src="js/app.min.js?v=161"></script>
 </body>
 
 </html>

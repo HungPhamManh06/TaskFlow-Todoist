@@ -1,6 +1,6 @@
 # TaskFlow — P2.3 Accessibility Audit
 
-_Generated 2026-08-10 21:55 · browser: chromium · desktop 1440x900 + mobile 390x844 (touch) + reduced-motion comparison_
+_Generated 2026-08-11 09:13 · browser: chromium · desktop 1440x900 + mobile 390x844 (touch) + reduced-motion comparison_
 
 **Result: 62 PASS / 0 FAIL**
 

@@ -1,6 +1,6 @@
 # P1.10 — Mobile Real-Device QA (simulated)
 
-> Simulated in Playwright (chromium, headless) at 2026-08-10 17:40 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
+> Simulated in Playwright (chromium, headless) at 2026-08-11 08:45 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
 
 Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 (large mobile), 768x1024 (tablet — the app's mobile layout is `max-width: 767px`, so 768 exercises the desktop/tablet layout).
 
@@ -32,7 +32,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 360x800 (small Android) | quick add | #quickAddInput input font-size >= 16px (iOS zoom) | PASS | (16.8px) |
 | 360x800 (small Android) | quick add | task created (count +1) | PASS | (5 -> 6) |
 | 360x800 (small Android) | overflow | after quick add | PASS |  |
-| 360x800 (small Android) | today | last task not hidden behind nav | PASS | (taskBottom=-124, navTop=736) |
+| 360x800 (small Android) | today | last task not hidden behind nav | PASS | (taskBottom=-716, navTop=736) |
 | 360x800 (small Android) | today | .today-task .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 360x800 (small Android) | today | .today-habit .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 360x800 (small Android) | upcoming | view renders (.upcoming-page) | PASS |  |
@@ -100,7 +100,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 390x844 (common mobile) | quick add | #quickAddInput input font-size >= 16px (iOS zoom) | PASS | (16.8px) |
 | 390x844 (common mobile) | quick add | task created (count +1) | PASS | (5 -> 6) |
 | 390x844 (common mobile) | overflow | after quick add | PASS |  |
-| 390x844 (common mobile) | today | last task not hidden behind nav | PASS | (taskBottom=-80, navTop=780) |
+| 390x844 (common mobile) | today | last task not hidden behind nav | PASS | (taskBottom=-624, navTop=780) |
 | 390x844 (common mobile) | today | .today-task .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 390x844 (common mobile) | today | .today-habit .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 390x844 (common mobile) | upcoming | view renders (.upcoming-page) | PASS |  |
@@ -168,7 +168,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 412x915 (large mobile) | quick add | #quickAddInput input font-size >= 16px (iOS zoom) | PASS | (16.8px) |
 | 412x915 (large mobile) | quick add | task created (count +1) | PASS | (5 -> 6) |
 | 412x915 (large mobile) | overflow | after quick add | PASS |  |
-| 412x915 (large mobile) | today | last task not hidden behind nav | PASS | (taskBottom=-9, navTop=851) |
+| 412x915 (large mobile) | today | last task not hidden behind nav | PASS | (taskBottom=-553, navTop=851) |
 | 412x915 (large mobile) | today | .today-task .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 412x915 (large mobile) | today | .today-habit .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 412x915 (large mobile) | upcoming | view renders (.upcoming-page) | PASS |  |

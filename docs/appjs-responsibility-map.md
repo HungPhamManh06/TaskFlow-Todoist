@@ -38,6 +38,7 @@
 | `xp.js` (TaskFlowXP) | `xpTotal` (private), `loadXP, saveXP, xpLevelInfo, addXP, removeXP, renderXP, habitPct, dayPct, donutSVG, checkboxHTML` | XP + pure render helpers (extraction #32) |
 | `streak-ui.js` (TaskFlowStreakUI) | `weekHabitPct, weekCompareHTML, dayAggregateAt, heatHeroHTML, heatRibbonHTML, habitMiniHTML, habitHeatCardHTML, shareTopInfo, canvasCircle, streakCardBlob, doShareStreak` | streak/heatmap renderers + share card (extraction #33) |
 | `today.js` (TaskFlowToday) | `todayGreeting, todayWeekdayLabel, renderToday, totalFocusMinutesToday, taskRowHTML` | Today render (default boot view — extraction #34) |
+| `reflection.js` (TaskFlowReflection) | `dailyKey, normalizeEntry, summaryFrom, groupByMonth` (pure), `loadReflections, saveReflections, getEntry, setEntry`, `reflectionCardHTML, rerenderCard, dailySummaryData, setMood, saveQuickFromCard, onFieldInput, openDeepReflection, closeDeepReflection, saveDeepFromModal, openHistoryEntry, openHistory, closeHistory, historyHTML` | Daily Reflection (P1: quick + deep + summary + history, `planner-reflections-daily` — feature module, boot destructure `loadReflections`) |
 | `report-ui.js` (TaskFlowReportUI) | `monthlyReportData, renderReportModal, open/closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, open/closeWeekReportModal, weekReportCardBlob, doShareWeekReport` | month/week report UI (extraction #35) |
 | `upcoming.js` (TaskFlowUpcoming) | `setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate` | Upcoming view (extraction #36); `upcomingRange` là state riêng của module |
 | `focus-stats.js` (TaskFlowFocusStats) | `pomoDaySecs, focusWeekMinutes, focusMonthMinutes, topFocusTasksInWeek, topFocusTasksInMonth, taskFocusMinLabel` (+ private `taskFocusSecsInRange`) | focus/pomo stats helpers (extraction #37) |
@@ -144,6 +145,9 @@ Nếu làm cả 5: app.js ≈ **4.800–4.900 dòng** (−~1.000 nữa, tổng �
 | #39 (đề xuất) | `js/focus.js` — A28 focus mode | ⏳ |
 | #40 (đề xuất) | `js/pomo.js` — A18 pomodoro timer (+ A19 → focus-stats.js) | ⏳ |
 | #41 | `js/stats-ui.js` — A20 stats modal (lazy qua `runLazyModule`, P1.2 opt#3) | ✅ `commit` (P1.2 series) |
+| P1 feature | `js/reflection.js` — Daily Reflection (quick/deep/summary/history, `planner-reflections-daily` + mirror mood) | ✅ P1 (Personal Growth series) |
+| P2 feature | `js/pillars.js` — Monthly Life Pillars (template 3 trụ cột + CRUD + Monthly Focus, `state.pillars`) | ✅ P2 (Personal Growth series) |
+| P3 feature | `js/pillars.js` — Monthly Metrics (HABIT/MANUAL/CUSTOM, linkedHabitId, day-count target, `state.pillars[].metrics`) | ✅ P3 (Personal Growth series) |
 | #42 (đề xuất) | `js/sync-forms.js` — A33+A34 sync/onboarding glue | ⏳ |
 | sau #42 | **DỪNG extraction** — chuyển sang QA cuối | ⏳ |
 

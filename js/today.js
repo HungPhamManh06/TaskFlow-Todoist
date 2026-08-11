@@ -113,6 +113,7 @@
         </section>
       </aside>
     </div>
+    ${window.TaskFlowReflection ? window.TaskFlowReflection.reflectionCardHTML() : ''}
   </div>`;
   }
 

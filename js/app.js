@@ -178,6 +178,9 @@ function loadMonthStateOrCreate(y, m) {
       restorePlan(prev);
     }
   }
+  // Migration additive (P2): đảm bảo pillars tồn tại trước khi trả về cho UI
+  // (tháng cũ không có pillars → điền template mặc định theo ngôn ngữ hiện tại).
+  if (window.TaskFlowPillars) window.TaskFlowPillars.ensurePillars(s);
   return s;
 }
 
@@ -568,6 +571,17 @@ let moodMap = {};
 // trực tiếp); module resolve qua global lexical lúc gọi. Giữ alias để call-sites không đổi.
 if (!window.TaskFlowMood) throw new Error('TaskFlowMood missing — js/mood.js failed to load');
 const { loadMood, saveMood, moodCardHTML, openMoodPicker, closeMoodPicker, rerenderMoodCard } = window.TaskFlowMood;
+// Daily Reflection (P1) — module js/reflection.js (window.TaskFlowReflection).
+// Giữ alias để call-sites không đổi: loadReflections gọi ở boot, dispatcher
+// reflection-* gọi qua window.TaskFlowReflection (pattern mood.js/backup.js).
+if (!window.TaskFlowReflection) throw new Error('TaskFlowReflection missing — js/reflection.js failed to load');
+const { loadReflections } = window.TaskFlowReflection;
+// Monthly Life Pillars (P2) — module js/pillars.js (window.TaskFlowPillars). Module
+// thuần: nhận state qua tham số; dispatcher + input listener gọi qua
+// window.TaskFlowPillars (pattern reflection.js). defaultState/emptyState/loadState/
+// loadMonthStateOrCreate/save() gọi defaultTemplate/ensurePillars để migration additive
+// (dữ liệu tháng cũ không có pillars → tự điền template 3 trụ cột theo ngôn ngữ hiện tại).
+if (!window.TaskFlowPillars) throw new Error('TaskFlowPillars missing — js/pillars.js failed to load');
 
 // date key generators (pomoDateKey, moodDateKey) được tách sang js/keys.js
 // (window.TaskFlowKeys). pomoDateKey giữ signature; moodDateKey nhận (d, y, m) —
@@ -666,6 +680,7 @@ function defaultState() {
     goalTab: 'priority',
     monthKey: monthKey(PLAN_YEAR, PLAN_MONTH),
     monthlyGoals: GOAL_DEFS.map(([text, kind, done], i) => ({ id: 'g' + i, text, kind, done })),
+    pillars: window.TaskFlowPillars.defaultTemplate(),
     habits: HABIT_DEFS.map(([name, target], i) => ({ id: 'h' + i, name, target, days: seedHabitDays(target) })),
     weeks: WEEK_PATTERNS.slice(0, NUM_WEEKS).map((wd, wi) => {
       const start = PLAN_START;
@@ -702,6 +717,8 @@ function loadState() {
     if (s.monthKey !== monthKey(PLAN_YEAR, PLAN_MONTH) || s.weeks.length !== NUM_WEEKS) return null;
     if (!s.reflections || !Array.isArray(s.reflections.weeks) || s.reflections.weeks.length !== NUM_WEEKS) s.reflections = defaultState().reflections;
     if (!s.goalTab) s.goalTab = 'priority';
+    // Migration additive (P2): tháng cũ chưa có pillars → điền template mặc định.
+    window.TaskFlowPillars.ensurePillars(s);
     if (typeof s.currentWeek !== 'number' || s.currentWeek < 1 || s.currentWeek > NUM_WEEKS) s.currentWeek = 1;
     // Migration: vị trí Xem ngày (tuần + ngày trong tuần) — mặc định về hôm nay nếu hợp lệ
     const tiMig = nowInfo(PLAN_START, NUM_DAYS);
@@ -770,6 +787,7 @@ function emptyState() {
     goalTab: 'priority',
     monthKey: monthKey(PLAN_YEAR, PLAN_MONTH),
     monthlyGoals: [],
+    pillars: window.TaskFlowPillars.defaultTemplate(),
     habits: [],
     weeks: Array.from({ length: NUM_WEEKS }, (_, wi) => {
       const start = PLAN_START;
@@ -835,6 +853,8 @@ const { loadInbox, saveInbox, renderInbox, inboxTargetForDate, handleInboxAction
 let inbox = loadInbox();
 
 function save() {
+  // Migration additive (P2): state luôn có pillars hợp lệ trước khi serialize.
+  if (window.TaskFlowPillars) window.TaskFlowPillars.ensurePillars(state);
   try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(state)); } catch (e) { /* ẩn */ }
   if (window.Sync) window.Sync.push(monthKey(PLAN_YEAR, PLAN_MONTH));
   backupAfterSave();
@@ -1100,12 +1120,35 @@ function sceneCardHTML() {
   </div>`;
 }
 
+// P2: re-render chỉ block trụ cột (giữ scroll/focus của trang Overview) sau khi
+// pillar CRUD / đổi focus — không renderOverview() toàn bộ.
+function rerenderPillars() {
+  const host = document.querySelector('[data-role="pillars-block"]');
+  if (host) host.innerHTML = window.TaskFlowPillars.pillarsBlockHTML(state);
+}
+
+// P3: re-render chỉ 1 metric row (sau khi toggle ô ngày manual) — không render
+// lại cả block để giữ focus/scroll trong day strip.
+function updateMetricRow(state, metricId) {
+  const host = document.querySelector(`[data-testid="metric-row"][data-metric-id="${metricId}"]`);
+  if (!host) return;
+  const p = (Array.isArray(state.pillars) ? state.pillars : []).find((x) => x
+    && Array.isArray(x.metrics) && x.metrics.some((mm) => mm && mm.id === metricId));
+  const m = p && Array.isArray(p.metrics) ? p.metrics.find((x) => x && x.id === metricId) : null;
+  if (!p || !m) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = window.TaskFlowPillars.metricRowHTML(state, p, m);
+  const fresh = tmp.firstElementChild;
+  if (fresh) host.replaceWith(fresh);
+}
+
 function goalsPanelHTML(ms) {
   const pct = ms.pct;
   const priGoals = state.monthlyGoals.filter((g) => g.kind === 'priority');
   const regGoals = state.monthlyGoals.filter((g) => g.kind === 'regular');
   
   return `<div class="card goals-panel">
+    <div data-role="pillars-block" class="pillars-block-host">${window.TaskFlowPillars.pillarsBlockHTML(state)}</div>
     <div class="goals-top">
       <div class="goals-info sub">
         <div class="big-pct" data-role="big-pct">${pct}%</div>
@@ -4302,6 +4345,92 @@ document.addEventListener('click', (e) => {
     trackEvent('mood_clear', { day: +el.dataset.day });
     closeMoodPicker();
     rerenderMoodCard();
+  } else if (act === 'reflection-mood') {
+    window.TaskFlowReflection.setMood(el.dataset.mood);
+  } else if (act === 'reflection-save-quick') {
+    window.TaskFlowReflection.saveQuickFromCard();
+  } else if (act === 'reflection-deep') {
+    window.TaskFlowReflection.openDeepReflection();
+  } else if (act === 'reflection-deep-save') {
+    window.TaskFlowReflection.saveDeepFromModal();
+  } else if (act === 'reflection-deep-close') {
+    window.TaskFlowReflection.closeDeepReflection();
+  } else if (act === 'reflection-history') {
+    window.TaskFlowReflection.openHistory();
+  } else if (act === 'reflection-history-close') {
+    window.TaskFlowReflection.closeHistory();
+  } else if (act === 'reflection-history-open') {
+    window.TaskFlowReflection.openHistoryEntry(el.dataset.key);
+  } else if (act === 'pillar-add') {
+    window.TaskFlowPillars.openPillarEdit(null, el);
+  } else if (act === 'pillar-edit') {
+    window.TaskFlowPillars.openPillarEdit(el.dataset.id, el);
+  } else if (act === 'pillar-edit-close') {
+    window.TaskFlowPillars.closePillarEdit();
+  } else if (act === 'pillar-save') {
+    const res = window.TaskFlowPillars.applyPillarEdit(state);
+    if (res.ok) {
+      save();
+      trackEvent('pillar_save');
+      rerenderPillars();
+      TaskFlowUI.toast(t('pillarSaved'), 'success');
+    }
+  } else if (act === 'pillar-delete') {
+    const p = window.TaskFlowPillars.pillarById(state, el.dataset.id);
+    if (p && confirm(t('pillarDeleteConfirm', { name: p.name }))) {
+      window.TaskFlowPillars.removePillar(state, p.id);
+      window.TaskFlowPillars.closePillarEdit();
+      save();
+      trackEvent('pillar_delete');
+      rerenderPillars();
+      TaskFlowUI.toast(t('pillarDeleted'), 'success');
+    }
+  } else if (act === 'pillar-toggle') {
+    const p = window.TaskFlowPillars.togglePillarHidden(state, el.dataset.id);
+    if (p) {
+      save();
+      trackEvent('pillar_toggle');
+      rerenderPillars();
+      TaskFlowUI.toast(t(p.hidden ? 'pillarHiddenT' : 'pillarShownT'), 'info');
+    }
+  } else if (act === 'metric-add') {
+    window.TaskFlowPillars.openMetricEdit(null, el.dataset.pillarId, el);
+  } else if (act === 'metric-edit') {
+    window.TaskFlowPillars.openMetricEdit(el.dataset.id, null, el);
+  } else if (act === 'metric-edit-close') {
+    window.TaskFlowPillars.closeMetricEdit();
+  } else if (act === 'metric-save') {
+    const res = window.TaskFlowPillars.applyMetricEdit(state);
+    if (res.ok) {
+      save();
+      trackEvent('metric_save');
+      rerenderPillars();
+      TaskFlowUI.toast(t('metricSaved'), 'success');
+    }
+  } else if (act === 'metric-delete') {
+    const m = window.TaskFlowPillars.metricById(state, el.dataset.id);
+    if (m && confirm(t('metricDeleteConfirm', { name: m.title }))) {
+      window.TaskFlowPillars.removeMetric(state, m.id);
+      window.TaskFlowPillars.closeMetricEdit();
+      save();
+      trackEvent('metric_delete');
+      rerenderPillars();
+      TaskFlowUI.toast(t('metricDeleted'), 'success');
+    }
+  } else if (act === 'metric-day') {
+    // P3: toggle ô ngày manual — chỉ re-render row (giữ focus/scroll trong day strip)
+    const m = window.TaskFlowPillars.toggleMetricDay(state, el.dataset.id, el.dataset.day);
+    save();
+    trackEvent('metric_day');
+    if (m) updateMetricRow(state, m.id);
+  } else if (act === 'pillars-reset') {
+    if (confirm(t('pillarsResetConfirm'))) {
+      window.TaskFlowPillars.resetPillars(state);
+      save();
+      trackEvent('pillars_reset');
+      rerenderPillars();
+      TaskFlowUI.toast(t('pillarsResetDone'), 'success');
+    }
   } else if (act === 'import-csv') {
     togglePop('dataPop');
     const fi = document.getElementById('importFile');
@@ -4495,6 +4624,13 @@ document.addEventListener('input', (e) => {
     // Phase 5: text trong Task Detail Drawer — lưu trực tiếp (blur cũng cập nhật row qua bindTaskDetailEvents)
     const g = getTaskDetailTarget();
     if (g) { g.tk.text = t.innerText; saveTaskDetailStateSoon(); }
+  } else if (t.dataset.reflectField) {
+    // Daily Reflection (P1): autosave debounce cho quick fields + deep modal
+    window.TaskFlowReflection.onFieldInput(t);
+  } else if (t.dataset.pillarFocus) {
+    // Monthly Focus (P2): lưu focus của trụ cột (debounce saveSoon như các ô text khác)
+    window.TaskFlowPillars.setFocus(state, t.dataset.pillarFocus, t.value);
+    saveSoon();
   } else if (t.dataset.role === 'w-goal-text') {
     state.weeks[+t.dataset.week - 1].goals[+t.dataset.id].text = t.innerText;
     save();
@@ -5195,6 +5331,7 @@ renderClock();
 buildNav();
 updateUndoButtons();
 loadMood();
+loadReflections();
 loadXP();
 carryOverRepeatTasks();
 renderXP();

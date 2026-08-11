@@ -662,6 +662,232 @@ def focus_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def reflection_checks(browser, base, width, height, errors, screenshot):
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"reflection {width}px: {error}"))
+    load_app(page, base)
+    page.evaluate("setView('today')")
+    page.wait_for_selector('[data-testid="today-view"] .today-page', state="visible")
+    page.wait_for_selector('[data-testid="reflection-card"]', state="visible")
+
+    # Summary strip hiển thị 4 ô
+    assert page.locator('[data-testid="reflection-card"] .reflect-summary-cell').count() == 4
+
+    # Mood picker: radiogroup + 5 nút
+    mood_group = page.locator('[data-testid="reflection-card"] [role="radiogroup"]')
+    assert mood_group.count() == 1
+    mood_btns = page.locator('[data-testid="reflection-card"] [role="radio"]')
+    assert mood_btns.count() == 5
+
+    # Chọn mood → aria-checked + lưu planner-mood
+    mood_btns.nth(3).click()
+    page.wait_for_timeout(200)
+    assert page.locator('[data-testid="reflection-card"] [role="radio"][aria-checked="true"]').count() == 1
+    stored = page.evaluate("JSON.parse(localStorage.getItem('planner-mood') || '{}')")
+    assert any(v == 3 for v in stored.values()), "mood phải mirror sang planner-mood"
+
+    # Quick fields + save → entry trong planner-reflections-daily
+    page.locator('[data-reflect-field="quickGood"]').fill("Viết được unit test")
+    page.locator('[data-reflect-field="quickImprove"]').fill("Dậy sớm hơn")
+    page.locator('[data-testid="reflection-save-quick"]').click()
+    page.wait_for_timeout(300)
+    entries = page.evaluate("JSON.parse(localStorage.getItem('planner-reflections-daily') || '{}')")
+    today_key = page.evaluate(
+        "(() => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })()"
+    )
+    assert today_key in entries, "entry hôm nay phải tồn tại"
+    assert entries[today_key]["quickGood"] == "Viết được unit test"
+    assert entries[today_key]["quickImprove"] == "Dậy sớm hơn"
+
+    # Deep modal: mở, gõ, lưu
+    page.locator('[data-testid="reflection-deep-open"]').click()
+    page.wait_for_selector('[data-testid="reflection-modal"]', state="visible")
+    page.locator('#reflectionDeepContent [data-reflect-field="good"]').fill("Hoàn thành P1")
+    page.locator('#reflectionDeepContent [data-reflect-field="tomorrow"]').fill("Làm P2")
+    page.locator('[data-testid="reflection-deep-save"]').click()
+    page.wait_for_selector('[data-testid="reflection-modal"]:visible', state="detached")
+    entries = page.evaluate("JSON.parse(localStorage.getItem('planner-reflections-daily') || '{}')")
+    assert entries[today_key]["good"] == "Hoàn thành P1"
+    assert entries[today_key]["tomorrow"] == "Làm P2"
+
+    # History: entry hiển thị + mở lại deep
+    page.locator('[data-testid="reflection-history-btn"]').click()
+    page.wait_for_selector('[data-testid="reflection-history-modal"]', state="visible")
+    assert page.locator('[data-testid="reflection-history-modal"] .reflect-history-item').count() >= 1
+    assert page.locator('[data-testid="reflection-history-modal"] .reflect-history-preview').first.inner_text().strip() != ""
+    page.locator('[data-testid="reflection-history-modal"] [data-action="reflection-history-close"]').click()
+    page.wait_for_selector('[data-testid="reflection-history-modal"]:visible', state="detached")
+
+    assert_no_page_overflow(page, f"reflection {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def pillars_checks(browser, base, width, height, errors, screenshot):
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"pillars {width}px: {error}"))
+    load_app(page, base)
+
+    # Đảm bảo goals widget hiển thị (có pillars block)
+    page.evaluate("""
+      () => {
+        const ids = ['goals', 'mood', 'habits', 'date-card', 'weekly-chart', 'scene-card', 'streak-heatmap', 'badges'];
+        localStorage.setItem('planner-widgets-overview', JSON.stringify(
+          ids.map((id, order) => ({ id, order, visible: true }))
+        ));
+      }
+    """)
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector('[data-testid="pillars-block"]', state="visible")
+
+    # Migration additive: state mặc định có 3 trụ cột template (Cơ thể/Việc chính/Tương tác)
+    assert page.locator('[data-testid="pillar-card"]').count() == 3, "phải có 3 trụ cột mặc định"
+    names = page.locator('[data-testid="pillar-card"] .pillar-name').all_inner_texts()
+    assert any("Cơ thể" in n for n in names), f"thiếu trụ cột Cơ thể: {names}"
+    assert any("Việc chính" in n for n in names), f"thiếu trụ cột Việc chính: {names}"
+    assert any("Tương tác" in n for n in names), f"thiếu trụ cột Tương tác: {names}"
+    stored = page.evaluate("JSON.parse(localStorage.getItem('planner-2026-8') || 'null')")
+    if stored:
+        assert isinstance(stored.get("pillars"), list) and len(stored["pillars"]) >= 3, "month state phải có pillars"
+
+    # Monthly Focus: gõ vào ô focus → autosave vào localStorage
+    focus_input = page.locator('[data-pillar-focus]').first
+    focus_input.fill("Duy trì năng lượng ổn định")
+    page.wait_for_timeout(600)  # saveSoon debounce 350ms
+    month_key = page.evaluate("window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth())")
+    focus_stored = page.evaluate(
+        f"(() => {{ const s = JSON.parse(localStorage.getItem('{month_key}') || '{{}}'); return (s.pillars||[]).map(p => p.focus); }})()"
+    )
+    assert any(f == "Duy trì năng lượng ổn định" for f in focus_stored), f"focus phải được lưu: {focus_stored}"
+
+    # Sửa trụ cột qua modal: đổi tên + icon
+    page.locator('[data-testid="pillar-card"] [data-action="pillar-edit"]').first.click()
+    page.wait_for_selector('[data-testid="pillar-edit-modal"]:visible', state="visible")
+    name_input = page.locator('[data-role="pillar-name"]')
+    name_input.fill("Sức khỏe")
+    page.locator('[data-pillar-icon="🏃"]').click()
+    page.locator('[data-action="pillar-save"]').click()
+    page.wait_for_selector('[data-testid="pillar-edit-modal"]:visible', state="detached")
+    assert page.locator('[data-testid="pillar-card"] .pillar-name', has_text="Sức khỏe").count() == 1, "trụ cột phải được đổi tên"
+    assert page.locator('[data-testid="pillar-card"] .pillar-icon', has_text="🏃").count() == 1, "icon phải được đổi"
+
+    # Thêm trụ cột mới
+    page.locator('[data-action="pillar-add"]').click()
+    page.wait_for_selector('[data-testid="pillar-edit-modal"]:visible', state="visible")
+    page.locator('[data-role="pillar-name"]').fill("Học tập")
+    page.locator('[data-pillar-icon="📚"]').click()
+    page.locator('[data-action="pillar-save"]').click()
+    page.wait_for_selector('[data-testid="pillar-edit-modal"]:visible', state="detached")
+    assert page.locator('[data-testid="pillar-card"]').count() == 4, "sau khi thêm phải có 4 trụ cột"
+
+    # Ẩn trụ cột → 3 hiển thị, localStorage hidden=true
+    page.locator('[data-testid="pillar-card"] [data-action="pillar-toggle"]').first.click()
+    page.wait_for_timeout(200)
+    assert page.locator('[data-testid="pillar-card"]').count() == 3, "trụ cột ẩn không render"
+    hidden_stored = page.evaluate(
+        f"(() => {{ const s = JSON.parse(localStorage.getItem('{month_key}') || '{{}}'); return (s.pillars||[]).filter(p => p.hidden).length; }})()"
+    )
+    assert hidden_stored == 1, f"phải có đúng 1 trụ cột hidden: {hidden_stored}"
+
+    # Reset template → 3 trụ cột mặc định
+    page.once("dialog", lambda dialog: dialog.accept())
+    page.locator('[data-action="pillars-reset"]').click()
+    page.wait_for_timeout(300)
+    assert page.locator('[data-testid="pillar-card"]').count() == 3
+    names_after = page.locator('[data-testid="pillar-card"] .pillar-name').all_inner_texts()
+    assert any("Cơ thể" in n for n in names_after), "reset phải khôi phục template mặc định"
+
+    assert_no_page_overflow(page, f"pillars {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def metrics_checks(browser, base, width, height, errors, screenshot):
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"metrics {width}px: {error}"))
+    load_app(page, base)
+    page.evaluate("""
+      () => {
+        const ids = ['goals', 'mood', 'habits', 'date-card', 'weekly-chart', 'scene-card', 'streak-heatmap', 'badges'];
+        localStorage.setItem('planner-widgets-overview', JSON.stringify(
+          ids.map((id, order) => ({ id, order, visible: true }))
+        ));
+      }
+    """)
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector('[data-testid="pillars-block"]', state="visible")
+    num_days = page.evaluate("NUM_DAYS")
+
+    # 1) Thêm metric HABIT liên kết habit đầu tiên, target daily
+    page.locator('[data-testid="pillar-card"] [data-action="metric-add"]').first.click()
+    page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="visible")
+    page.locator('[data-role="metric-title"]').fill("Ngủ đủ")
+    page.locator('[data-metric-type="HABIT"]').click()
+    page.locator('[data-role="metric-habit"]').select_option(index=1)
+    page.locator('[data-action="metric-save"]').click()
+    page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="detached")
+    row = page.locator('[data-testid="metric-row"]', has_text="Ngủ đủ")
+    assert row.count() == 1, "metric HABIT phải render trong pillar card"
+    assert row.locator('[role="progressbar"]').count() == 1, "phải có progress bar"
+    linked = page.evaluate("""(() => {
+      const k = window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth());
+      const s = JSON.parse(localStorage.getItem(k) || '{}');
+      const m = (s.pillars && s.pillars[0] && s.pillars[0].metrics || [])[0];
+      return m ? { type: m.type, linked: m.linkedHabitId || null, id: m.id } : null;
+    })()""")
+    assert linked and linked["type"] == "HABIT" and linked["linked"], "metric phải lưu type HABIT + linkedHabitId"
+
+    # 2) Progress theo habit: chỉ tick ngày 0 → reload → 1/NUM_DAYS
+    page.evaluate("""((habId) => {
+      const k = window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth());
+      const s = JSON.parse(localStorage.getItem(k) || '{}');
+      const h = s.habits.find(x => x.id === habId);
+      if (h) h.days = [true].concat(Array(Math.max(1, h.days.length - 1)).fill(false));
+      localStorage.setItem(k, JSON.stringify(s));
+    })""", linked["linked"])
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector('[data-testid="pillars-block"]', state="visible")
+    row = page.locator('[data-testid="metric-row"]', has_text="Ngủ đủ")
+    assert f"1/{num_days}" in row.locator(".metric-num").inner_text(), \
+        f"progress habit phải là 1/{num_days}: {row.locator('.metric-num').inner_text()}"
+
+    # 3) Metric MANUAL: day strip 31 ô, click 2 ô → 2/NUM_DAYS
+    page.locator('[data-testid="pillar-card"] [data-action="metric-add"]').first.click()
+    page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="visible")
+    page.locator('[data-role="metric-title"]').fill("Đọc sách")
+    page.locator('[data-action="metric-save"]').click()  # MANUAL mặc định, daily
+    page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="detached")
+    mrow = page.locator('[data-testid="metric-row"]', has_text="Đọc sách")
+    assert mrow.count() == 1
+    cells = mrow.locator(".metric-day-cell")
+    assert cells.count() == num_days, f"day strip phải có {num_days} ô, có {cells.count()}"
+    cells.nth(0).click()
+    cells.nth(5).click()
+    page.wait_for_timeout(250)
+    assert f"2/{num_days}" in mrow.locator(".metric-num").inner_text(), \
+        f"manual progress phải là 2/{num_days}: {mrow.locator('.metric-num').inner_text()}"
+    assert mrow.locator('.metric-day-cell[aria-pressed="true"]').count() == 2, "2 ô ngày phải được đánh dấu"
+
+    # 4) Sửa metric (đổi tên) qua modal
+    mrow.locator('[data-action="metric-edit"]').click()
+    page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="visible")
+    page.locator('[data-role="metric-title"]').fill("Đọc 20 phút")
+    page.locator('[data-action="metric-save"]').click()
+    page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="detached")
+    assert page.locator('[data-testid="metric-row"]', has_text="Đọc 20 phút").count() == 1, "metric phải được đổi tên"
+
+    # 5) Xoá metric
+    row2 = page.locator('[data-testid="metric-row"]', has_text="Đọc 20 phút")
+    page.once("dialog", lambda dialog: dialog.accept())
+    row2.locator('[data-action="metric-delete"]').click()
+    page.wait_for_timeout(300)
+    assert page.locator('[data-testid="metric-row"]', has_text="Đọc 20 phút").count() == 0, "metric phải bị xoá"
+
+    assert_no_page_overflow(page, f"metrics {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -742,6 +968,9 @@ def main():
                     ("dialogs", dialog_checks),
                     ("focus", focus_checks),
                     ("dark-overview", dark_overview_checks),
+                    ("reflection", reflection_checks),
+                    ("pillars", pillars_checks),
+                    ("metrics", metrics_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
