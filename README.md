@@ -50,9 +50,7 @@
 
 | Tổng quan tháng (Overview) — desktop | Today — mobile |
 |---|---|
-| ![TaskFlow desktop](<img width="1866" height="948" alt="image" src="https://github.com/user-attachments/assets/ac9e44ee-880a-44a3-9919-0929fba2b0d2" />
-) | ![TaskFlow mobile](<img width="404" height="844" alt="image" src="https://github.com/user-attachments/assets/5852356b-6e95-403c-a1d8-024f18e46637" />
-) |
+| <img src="https://github.com/user-attachments/assets/ac9e44ee-880a-44a3-9919-0929fba2b0d2" alt="TaskFlow desktop" width="700"> | <img src="https://github.com/user-attachments/assets/5852356b-6e95-403c-a1d8-024f18e46637" alt="TaskFlow mobile" width="260"> |
 
 ---
 
