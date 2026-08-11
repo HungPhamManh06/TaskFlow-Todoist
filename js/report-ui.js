@@ -50,6 +50,14 @@
     const r = monthlyReportData();
     const topName = r.top ? esc(r.top.h.name) : '—';
     const recName = r.rec ? esc(r.rec.h.name) : '—';
+    const { buildMonthlyReviewModel, monthlyReviewHTML } = window.TaskFlowMonthlyReview;
+    const monthlyReviewModel = buildMonthlyReviewModel(state, {
+      year: PLAN_YEAR,
+      month: PLAN_MONTH,
+      monthDays: NUM_DAYS,
+      metricProgress: window.TaskFlowPillars.metricProgress,
+      legacyPrompts: REFLECT_PROMPTS_MONTH(),
+    });
     el.innerHTML = `
     <div class="report-head">
       <div class="donut-wrap"><div class="donut">${donutSVG(r.goalPct, 96, 12, '#C24E28')}</div>
@@ -69,7 +77,8 @@
     <div class="report-focus">
       <div class="report-focus-head"><b>🎯 ${r.focusTotal}p</b><span>${t('reportFocusMonth')}</span>${r.topTask ? `<span class="report-focus-top">${t('reportFocusTop')}: ${esc((r.topTask.tk.text || '…').slice(0, 20))} · ${taskFocusMinLabel(r.topTask.secs)}</span>` : ''}</div>
       ${focusReportBars(r.focusByWeek, (i) => String(i + 1))}
-    </div>`;
+    </div>
+    ${monthlyReviewHTML(monthlyReviewModel, { t, esc })}`;
   }
 
   function openReportModal() {

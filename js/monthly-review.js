@@ -104,11 +104,72 @@
     };
   }
 
+  function updateMonthlyReviewField(state, field, value, updatedAt) {
+    if (!state || !['achievement', 'learned', 'continue', 'stop', 'start'].includes(field)) return null;
+    const review = ensureMonthlyReview(state);
+    review[field] = typeof value === 'string' ? value : '';
+    review.updatedAt = typeof updatedAt === 'string' ? updatedAt : new Date().toISOString();
+    return review;
+  }
+
+  function monthlyReviewHTML(model, options) {
+    const data = model && typeof model === 'object' ? model : {};
+    const t = options && typeof options.t === 'function' ? options.t : (key) => key;
+    const esc = options && typeof options.esc === 'function' ? options.esc : (value) => String(value ?? '');
+    const review = normalizeMonthlyReview(data.review);
+    const pillars = Array.isArray(data.pillars) ? data.pillars : [];
+    const fields = [
+      ['achievement', 'monthlyReviewAchievement'],
+      ['learned', 'monthlyReviewLearned'],
+      ['continue', 'monthlyReviewContinue'],
+      ['stop', 'monthlyReviewStop'],
+      ['start', 'monthlyReviewStart'],
+    ];
+    const fieldHTML = fields.map(([field, key]) => {
+      const id = `monthly-review-${field}`;
+      return `<label class="monthly-review-field" for="${id}"><span>${t(key)}</span><textarea id="${id}" data-monthly-review-field="${field}" maxlength="1200">${esc(review[field])}</textarea></label>`;
+    }).join('');
+    const pillarHTML = pillars.length ? pillars.map((pillar) => `<article class="monthly-review-pillar">
+      <div class="monthly-review-pillar-head"><span><span aria-hidden="true">${esc(pillar.icon || '')}</span>${esc(pillar.name || '')}</span><strong>${pillar.pct}%</strong></div>
+      <div class="monthly-review-progress" role="progressbar" aria-label="${esc(pillar.name || '')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pillar.pct}"><span style="width:${pillar.pct}%"></span></div>
+      <div class="monthly-review-insights"><span>${t('monthlyReviewStrongest')}: <strong>${esc(pillar.strongest && pillar.strongest.title || '')}</strong></span><span>${t('monthlyReviewAttention')}: <strong>${esc(pillar.attention && pillar.attention.title || '')}</strong></span></div>
+    </article>`).join('') : `<p class="monthly-review-empty">${t('monthlyReviewNoData')}</p>`;
+    const legacy = Array.isArray(data.legacy) ? data.legacy : [];
+    const legacyHTML = legacy.length ? `<details class="monthly-review-legacy" data-testid="monthly-review-legacy"><summary>${t('monthlyReviewLegacy')}</summary>${legacy.map((item) => `<div><strong>${esc(item.prompt || '')}</strong><p>${esc(item.answer || '')}</p></div>`).join('')}</details>` : '';
+    const overall = Number.isFinite(data.overall) ? `${data.overall}%` : '—';
+    return `<section class="card monthly-review-card" data-testid="monthly-review" aria-labelledby="monthlyReviewTitle">
+      <div class="monthly-review-head"><div><p>${t('monthlyReviewOverall')}</p><h3 id="monthlyReviewTitle">${t('monthlyReviewTitle')}</h3></div><strong class="monthly-review-overall">${overall}</strong><span class="monthly-review-status" data-testid="monthly-review-status" role="status" aria-live="polite">${review.updatedAt ? t('monthlyReviewSaved') : ''}</span></div>
+      <div class="monthly-review-pillars">${pillarHTML}</div>
+      <div class="monthly-review-fields">${fieldHTML}</div>
+      ${legacyHTML}
+    </section>`;
+  }
+
+  let savedStatusTimer = null;
+  function setMonthlyReviewStatus(text) {
+    if (typeof document === 'undefined') return;
+    const el = document.querySelector('[data-testid="monthly-review-status"]');
+    if (el) el.textContent = typeof text === 'string' ? text : '';
+  }
+
+  function scheduleMonthlyReviewSaved(callback, delay) {
+    clearTimeout(savedStatusTimer);
+    savedStatusTimer = setTimeout(() => {
+      savedStatusTimer = null;
+      if (typeof callback === 'function') callback();
+    }, Number.isFinite(delay) && delay >= 0 ? delay : 450);
+    return savedStatusTimer;
+  }
+
   return {
     emptyMonthlyReview,
     normalizeMonthlyReview,
     ensureMonthlyReview,
     monthlyPillarScores,
     buildMonthlyReviewModel,
+    updateMonthlyReviewField,
+    monthlyReviewHTML,
+    setMonthlyReviewStatus,
+    scheduleMonthlyReviewSaved,
   };
 });

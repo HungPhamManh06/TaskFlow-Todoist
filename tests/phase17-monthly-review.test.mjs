@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const Pillars = require('../js/pillars.js');
@@ -12,7 +13,15 @@ const {
   ensureMonthlyReview,
   monthlyPillarScores,
   buildMonthlyReviewModel,
+  monthlyReviewHTML,
+  updateMonthlyReviewField,
 } = MonthlyReview;
+
+const APP_JS = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+const REPORT_UI = readFileSync(new URL('../js/report-ui.js', import.meta.url), 'utf8');
+const I18N = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+const STYLES = readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
+const DEFERRED = readFileSync(new URL('../css/styles-deferred.css', import.meta.url), 'utf8');
 
 const context = {
   year: 2026,
@@ -122,4 +131,72 @@ test('buildMonthlyReviewModel separates legacy answers from new reflection', () 
   assert.equal(model.review.achievement, 'New achievement');
   assert.deepEqual(model.legacy, [{ prompt: 'Old one', answer: 'Legacy answer' }]);
   assert.equal(model.overall, 45);
+});
+
+const copy = {
+  monthlyReviewTitle: 'Monthly Review',
+  monthlyReviewOverall: 'Overall',
+  monthlyReviewNoData: 'Not enough data yet.',
+  monthlyReviewStrongest: 'Strongest',
+  monthlyReviewAttention: 'Needs attention',
+  monthlyReviewAchievement: 'Biggest achievement?',
+  monthlyReviewLearned: 'Most important lesson?',
+  monthlyReviewContinue: 'Continue',
+  monthlyReviewStop: 'Stop',
+  monthlyReviewStart: 'Start',
+  monthlyReviewLegacy: 'Previous monthly reflection',
+  monthlyReviewSaving: 'Saving…',
+  monthlyReviewSaved: 'Saved',
+};
+const t = (key, vars = {}) => String(copy[key] || key).replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? '');
+const esc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+test('monthlyReviewHTML renders accessible progress, five fields and legacy notes', () => {
+  const state = fixture();
+  state.monthlyReview = { achievement: '<Win>' };
+  const html = monthlyReviewHTML(buildMonthlyReviewModel(state, context), { t, esc });
+  assert.match(html, /data-testid="monthly-review"/);
+  assert.match(html, /role="progressbar"[^>]*aria-valuenow="65"/);
+  ['achievement', 'learned', 'continue', 'stop', 'start'].forEach((field) => {
+    assert.match(html, new RegExp(`data-monthly-review-field="${field}"`));
+  });
+  assert.match(html, /monthly-review-legacy/);
+  assert.match(html, /&lt;Win&gt;/);
+});
+
+test('monthlyReviewHTML keeps reflection writable when no scores exist', () => {
+  const html = monthlyReviewHTML(buildMonthlyReviewModel({ pillars: [] }, context), { t, esc });
+  assert.match(html, /Not enough data yet/);
+  assert.match(html, /data-monthly-review-field="start"/);
+});
+
+test('updateMonthlyReviewField edits only approved fields and timestamps the record', () => {
+  const state = {};
+  assert.equal(updateMonthlyReviewField(state, 'achievement', 'Finished', '2026-08-11T14:00:00.000Z').achievement, 'Finished');
+  assert.equal(state.monthlyReview.updatedAt, '2026-08-11T14:00:00.000Z');
+  assert.equal(updateMonthlyReviewField(state, 'future', 'No', 'later'), null);
+});
+
+test('app state migrates and saves additive monthlyReview', () => {
+  assert.match(APP_JS, /TaskFlowMonthlyReview missing/);
+  assert.ok((APP_JS.match(/monthlyReview:\s*emptyMonthlyReview\(\)/g) || []).length >= 2);
+  assert.match(APP_JS, /ensureMonthlyReview\(s\)/);
+  assert.match(APP_JS, /ensureMonthlyReview\(state\)/);
+  assert.match(APP_JS, /dataset\.monthlyReviewField/);
+  assert.match(APP_JS, /updateMonthlyReviewField\(/);
+});
+
+test('monthly report composes the new review model', () => {
+  assert.match(REPORT_UI, /buildMonthlyReviewModel\(/);
+  assert.match(REPORT_UI, /monthlyReviewHTML\(/);
+});
+
+test('Monthly Review has VI/EN copy and mirrored responsive styles', () => {
+  ['monthlyReviewTitle', 'monthlyReviewAchievement', 'monthlyReviewContinue', 'monthlyReviewStop', 'monthlyReviewStart'].forEach((key) => {
+    assert.ok((I18N.match(new RegExp(`${key}:`, 'g')) || []).length >= 2, `missing ${key}`);
+  });
+  assert.match(STYLES, /\.monthly-review-card/);
+  assert.match(DEFERRED, /\.monthly-review-card/);
+  assert.match(STYLES, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.monthly-review-fields/);
+  assert.match(DEFERRED, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.monthly-review-fields/);
 });

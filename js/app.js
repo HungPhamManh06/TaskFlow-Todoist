@@ -181,6 +181,7 @@ function loadMonthStateOrCreate(y, m) {
   // Migration additive (P2): đảm bảo pillars tồn tại trước khi trả về cho UI
   // (tháng cũ không có pillars → điền template mặc định theo ngôn ngữ hiện tại).
   if (window.TaskFlowPillars) window.TaskFlowPillars.ensurePillars(s);
+  if (window.TaskFlowMonthlyReview) window.TaskFlowMonthlyReview.ensureMonthlyReview(s);
   return s;
 }
 
@@ -583,6 +584,12 @@ const {
   emptyReview, ensureWeeklyReviews, buildWeeklyReviewModel, weeklyReviewHTML,
   updateReviewField, setSaveStatus: setWeeklyReviewSaveStatus, scheduleSavedStatus,
 } = window.TaskFlowWeeklyReview;
+// Monthly Review (P7) — additive month-state reflection composed by report-ui.js.
+if (!window.TaskFlowMonthlyReview) throw new Error('TaskFlowMonthlyReview missing — js/monthly-review.js failed to load');
+const {
+  emptyMonthlyReview, ensureMonthlyReview, updateMonthlyReviewField,
+  setMonthlyReviewStatus, scheduleMonthlyReviewSaved,
+} = window.TaskFlowMonthlyReview;
 // Monthly Life Pillars (P2) — module js/pillars.js (window.TaskFlowPillars). Module
 // thuần: nhận state qua tham số; dispatcher + input listener gọi qua
 // window.TaskFlowPillars (pattern reflection.js). defaultState/emptyState/loadState/
@@ -712,6 +719,7 @@ function defaultState() {
       weeks: WEEK_PATTERNS.slice(0, NUM_WEEKS).map(() => ['', '', '', '']),
     },
     weeklyReviews: Array.from({ length: NUM_WEEKS }, () => emptyReview()),
+    monthlyReview: emptyMonthlyReview(),
   };
 }
 
@@ -726,6 +734,7 @@ function loadState() {
     if (s.monthKey !== monthKey(PLAN_YEAR, PLAN_MONTH) || s.weeks.length !== NUM_WEEKS) return null;
     if (!s.reflections || !Array.isArray(s.reflections.weeks) || s.reflections.weeks.length !== NUM_WEEKS) s.reflections = defaultState().reflections;
     ensureWeeklyReviews(s, NUM_WEEKS);
+    ensureMonthlyReview(s);
     if (!s.goalTab) s.goalTab = 'priority';
     // Migration additive (P2): tháng cũ chưa có pillars → điền template mặc định.
     window.TaskFlowPillars.ensurePillars(s);
@@ -828,6 +837,7 @@ function emptyState() {
       weeks: Array.from({ length: NUM_WEEKS }, () => ['', '', '', '']),
     },
     weeklyReviews: Array.from({ length: NUM_WEEKS }, () => emptyReview()),
+    monthlyReview: emptyMonthlyReview(),
   };
 }
 
@@ -868,6 +878,7 @@ function save() {
   // Migration additive (P2): state luôn có pillars hợp lệ trước khi serialize.
   if (window.TaskFlowPillars) window.TaskFlowPillars.ensurePillars(state);
   ensureWeeklyReviews(state, NUM_WEEKS);
+  ensureMonthlyReview(state);
   try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(state)); } catch (e) { /* ẩn */ }
   if (window.Sync) window.Sync.push(monthKey(PLAN_YEAR, PLAN_MONTH));
   backupAfterSave();
@@ -4655,7 +4666,14 @@ function flushPendingSaves() {
 
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.weekReviewField) {
+  if (t.dataset.monthlyReviewField) {
+    const updated = updateMonthlyReviewField(state, t.dataset.monthlyReviewField, t.value, new Date().toISOString());
+    if (updated) {
+      setMonthlyReviewStatus(window.TaskFlowI18N.t('monthlyReviewSaving'));
+      saveSoon();
+      scheduleMonthlyReviewSaved(() => setMonthlyReviewStatus(window.TaskFlowI18N.t('monthlyReviewSaved')), 450);
+    }
+  } else if (t.dataset.weekReviewField) {
     const weekIndex = Number(t.dataset.weekIndex);
     const priorityIndex = t.dataset.priorityIndex === undefined ? null : Number(t.dataset.priorityIndex);
     const updated = updateReviewField(

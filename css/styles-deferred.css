@@ -5341,3 +5341,143 @@ body.focus-mode .container { padding: 0; }
     grid-column: 1;
   }
 }
++
+/* ===== Monthly Review (P7 Personal Growth) ===== */
+.monthly-review-card {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  margin-top: var(--space-4);
+}
+
+.monthly-review-head,
+.monthly-review-pillar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.monthly-review-head p,
+.monthly-review-head h3 {
+  margin: 0;
+}
+
+.monthly-review-head p,
+.monthly-review-field > span,
+.monthly-review-insights,
+.monthly-review-status,
+.monthly-review-empty {
+  color: var(--color-text-muted);
+  font: 600 var(--text-xs) / 1.4 var(--font-body);
+}
+
+.monthly-review-overall {
+  color: var(--color-accent);
+  font: 800 var(--text-2xl) / 1 var(--font-body);
+}
+
+.monthly-review-pillars,
+.monthly-review-pillar {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.monthly-review-pillar {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+
+.monthly-review-pillar-head {
+  color: var(--color-text);
+  font: 700 var(--text-sm) / 1.35 var(--font-body);
+}
+
+.monthly-review-pillar-head > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.monthly-review-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-surface-elevated);
+}
+
+.monthly-review-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+}
+
+.monthly-review-insights {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.monthly-review-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.monthly-review-field {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.monthly-review-field textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: var(--space-3);
+  resize: vertical;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-elevated);
+  color: var(--color-text);
+  font: 500 var(--text-sm) / 1.5 var(--font-body);
+}
+
+.monthly-review-legacy {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+  color: var(--color-text);
+}
+
+.monthly-review-legacy summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font: 700 var(--text-sm) / 1.35 var(--font-body);
+}
+
+.monthly-review-legacy p {
+  margin: var(--space-1) 0 var(--space-3);
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 600px) {
+  .monthly-review-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .monthly-review-head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .monthly-review-insights {
+    flex-direction: column;
+  }
+}
