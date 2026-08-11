@@ -1,6 +1,6 @@
 # TaskFlow — P2.3 Accessibility Audit
 
-_Generated 2026-08-11 13:29 · browser: chromium · desktop 1440x900 + mobile 390x844 (touch) + reduced-motion comparison_
+_Generated 2026-08-11 14:36 · browser: chromium · desktop 1440x900 + mobile 390x844 (touch) + reduced-motion comparison_
 
 **Result: 62 PASS / 0 FAIL**
 
@@ -51,10 +51,10 @@ _Generated 2026-08-11 13:29 · browser: chromium · desktop 1440x900 + mobile 39
 | Auth (profile) | Escape closes | PASS |  |
 | Cross-cutting | focus-visible ring on keyboard focus | PASS | ({'style': 'solid', 'width': '3px'}) |
 | Cross-cutting | active desktop nav tab aria-current=page | PASS | (=page) |
-| Cross-cutting | contrast primary CTA text >= 4.5:1 | PASS | (6.24:1) |
-| Cross-cutting | contrast muted text >= 4.5:1 | PASS | (4.82:1) |
-| Cross-cutting | contrast field error text >= 4.5:1 | PASS | (5.47:1) |
-| Cross-cutting | contrast search input text >= 4.5:1 | PASS | (10.07:1) |
+| Cross-cutting | contrast primary CTA text >= 4.5:1 | PASS | (5.40:1) |
+| Cross-cutting | contrast muted text >= 4.5:1 | PASS | (4.97:1) |
+| Cross-cutting | contrast field error text >= 4.5:1 | PASS | (4.78:1) |
+| Cross-cutting | contrast search input text >= 4.5:1 | PASS | (13.28:1) |
 | Cross-cutting | no horizontal overflow | PASS |  |
 | desktop overall | no horizontal overflow | PASS |  |
 | More Sheet | dialog semantics (role/aria-modal/aria-labelledby) | PASS |  |

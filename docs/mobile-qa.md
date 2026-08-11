@@ -1,10 +1,10 @@
 # P1.10 — Mobile Real-Device QA (simulated)
 
-> Simulated in Playwright (chromium, headless) at 2026-08-11 13:30 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
+> Simulated in Playwright (chromium, headless) at 2026-08-11 14:36 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
 
 Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 (large mobile), 768x1024 (tablet — the app's mobile layout is `max-width: 767px`, so 768 exercises the desktop/tablet layout).
 
-**0 FAIL / 262 checks**
+**0 FAIL / 318 checks**
 
 ## Results
 
@@ -32,7 +32,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 360x800 (small Android) | quick add | #quickAddInput input font-size >= 16px (iOS zoom) | PASS | (16.8px) |
 | 360x800 (small Android) | quick add | task created (count +1) | PASS | (5 -> 6) |
 | 360x800 (small Android) | overflow | after quick add | PASS |  |
-| 360x800 (small Android) | today | last task not hidden behind nav | PASS | (taskBottom=-716, navTop=736) |
+| 360x800 (small Android) | today | last task not hidden behind nav | PASS | (taskBottom=-724, navTop=736) |
 | 360x800 (small Android) | today | .today-task .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 360x800 (small Android) | today | .today-habit .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 360x800 (small Android) | upcoming | view renders (.upcoming-page) | PASS |  |
@@ -71,6 +71,20 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 360x800 (small Android) | dark mode | toggle enables | PASS |  |
 | 360x800 (small Android) | overflow | dark mode | PASS |  |
 | 360x800 (small Android) | dark mode | toggle disables | PASS |  |
+| 360x800 (small Android) | reflection | quick card renders | PASS |  |
+| 360x800 (small Android) | reflection | 5 mood radios | PASS | (5) |
+| 360x800 (small Android) | reflection | field [data-reflect-field="quickGood"] present | PASS |  |
+| 360x800 (small Android) | reflection | [data-reflect-field="quickGood"] input font-size >= 16px (iOS zoom) | PASS | (16px) |
+| 360x800 (small Android) | reflection | field [data-reflect-field="quickImprove"] present | PASS |  |
+| 360x800 (small Android) | reflection | [data-reflect-field="quickImprove"] input font-size >= 16px (iOS zoom) | PASS | (16px) |
+| 360x800 (small Android) | reflection | mood select highlights | PASS | (on=1) |
+| 360x800 (small Android) | reflection | quick save persists entry | PASS |  |
+| 360x800 (small Android) | overflow | reflection card | PASS |  |
+| 360x800 (small Android) | reflection | deep modal opens | PASS |  |
+| 360x800 (small Android) | reflection | deep textareas (good/bad/cont/improve) | PASS | (4) |
+| 360x800 (small Android) | reflection | deep modal fits viewport | PASS | (h=634px) |
+| 360x800 (small Android) | reflection | history opens | PASS |  |
+| 360x800 (small Android) | reflection | history lists saved entry | PASS | (items=1) |
 | 360x800 (small Android) | legal | privacy.html loads + has h1 | PASS | (Chính sách bảo mật — TaskFlow) |
 | 360x800 (small Android) | legal | privacy.html no horizontal overflow | PASS |  |
 | 360x800 (small Android) | legal | terms.html loads + has h1 | PASS | (Điều khoản sử dụng — TaskFlow) |
@@ -100,7 +114,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 390x844 (common mobile) | quick add | #quickAddInput input font-size >= 16px (iOS zoom) | PASS | (16.8px) |
 | 390x844 (common mobile) | quick add | task created (count +1) | PASS | (5 -> 6) |
 | 390x844 (common mobile) | overflow | after quick add | PASS |  |
-| 390x844 (common mobile) | today | last task not hidden behind nav | PASS | (taskBottom=-624, navTop=780) |
+| 390x844 (common mobile) | today | last task not hidden behind nav | PASS | (taskBottom=-632, navTop=780) |
 | 390x844 (common mobile) | today | .today-task .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 390x844 (common mobile) | today | .today-habit .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 390x844 (common mobile) | upcoming | view renders (.upcoming-page) | PASS |  |
@@ -139,6 +153,20 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 390x844 (common mobile) | dark mode | toggle enables | PASS |  |
 | 390x844 (common mobile) | overflow | dark mode | PASS |  |
 | 390x844 (common mobile) | dark mode | toggle disables | PASS |  |
+| 390x844 (common mobile) | reflection | quick card renders | PASS |  |
+| 390x844 (common mobile) | reflection | 5 mood radios | PASS | (5) |
+| 390x844 (common mobile) | reflection | field [data-reflect-field="quickGood"] present | PASS |  |
+| 390x844 (common mobile) | reflection | [data-reflect-field="quickGood"] input font-size >= 16px (iOS zoom) | PASS | (16px) |
+| 390x844 (common mobile) | reflection | field [data-reflect-field="quickImprove"] present | PASS |  |
+| 390x844 (common mobile) | reflection | [data-reflect-field="quickImprove"] input font-size >= 16px (iOS zoom) | PASS | (16px) |
+| 390x844 (common mobile) | reflection | mood select highlights | PASS | (on=1) |
+| 390x844 (common mobile) | reflection | quick save persists entry | PASS |  |
+| 390x844 (common mobile) | overflow | reflection card | PASS |  |
+| 390x844 (common mobile) | reflection | deep modal opens | PASS |  |
+| 390x844 (common mobile) | reflection | deep textareas (good/bad/cont/improve) | PASS | (4) |
+| 390x844 (common mobile) | reflection | deep modal fits viewport | PASS | (h=665px) |
+| 390x844 (common mobile) | reflection | history opens | PASS |  |
+| 390x844 (common mobile) | reflection | history lists saved entry | PASS | (items=1) |
 | 390x844 (common mobile) | legal | privacy.html loads + has h1 | PASS | (Chính sách bảo mật — TaskFlow) |
 | 390x844 (common mobile) | legal | privacy.html no horizontal overflow | PASS |  |
 | 390x844 (common mobile) | legal | terms.html loads + has h1 | PASS | (Điều khoản sử dụng — TaskFlow) |
@@ -168,7 +196,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 412x915 (large mobile) | quick add | #quickAddInput input font-size >= 16px (iOS zoom) | PASS | (16.8px) |
 | 412x915 (large mobile) | quick add | task created (count +1) | PASS | (5 -> 6) |
 | 412x915 (large mobile) | overflow | after quick add | PASS |  |
-| 412x915 (large mobile) | today | last task not hidden behind nav | PASS | (taskBottom=-553, navTop=851) |
+| 412x915 (large mobile) | today | last task not hidden behind nav | PASS | (taskBottom=-561, navTop=851) |
 | 412x915 (large mobile) | today | .today-task .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 412x915 (large mobile) | today | .today-habit .checkbox hit area >= 44px (off-center click toggles) | PASS |  |
 | 412x915 (large mobile) | upcoming | view renders (.upcoming-page) | PASS |  |
@@ -207,6 +235,20 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 412x915 (large mobile) | dark mode | toggle enables | PASS |  |
 | 412x915 (large mobile) | overflow | dark mode | PASS |  |
 | 412x915 (large mobile) | dark mode | toggle disables | PASS |  |
+| 412x915 (large mobile) | reflection | quick card renders | PASS |  |
+| 412x915 (large mobile) | reflection | 5 mood radios | PASS | (5) |
+| 412x915 (large mobile) | reflection | field [data-reflect-field="quickGood"] present | PASS |  |
+| 412x915 (large mobile) | reflection | [data-reflect-field="quickGood"] input font-size >= 16px (iOS zoom) | PASS | (16px) |
+| 412x915 (large mobile) | reflection | field [data-reflect-field="quickImprove"] present | PASS |  |
+| 412x915 (large mobile) | reflection | [data-reflect-field="quickImprove"] input font-size >= 16px (iOS zoom) | PASS | (16px) |
+| 412x915 (large mobile) | reflection | mood select highlights | PASS | (on=1) |
+| 412x915 (large mobile) | reflection | quick save persists entry | PASS |  |
+| 412x915 (large mobile) | overflow | reflection card | PASS |  |
+| 412x915 (large mobile) | reflection | deep modal opens | PASS |  |
+| 412x915 (large mobile) | reflection | deep textareas (good/bad/cont/improve) | PASS | (4) |
+| 412x915 (large mobile) | reflection | deep modal fits viewport | PASS | (h=714px) |
+| 412x915 (large mobile) | reflection | history opens | PASS |  |
+| 412x915 (large mobile) | reflection | history lists saved entry | PASS | (items=1) |
 | 412x915 (large mobile) | legal | privacy.html loads + has h1 | PASS | (Chính sách bảo mật — TaskFlow) |
 | 412x915 (large mobile) | legal | privacy.html no horizontal overflow | PASS |  |
 | 412x915 (large mobile) | legal | terms.html loads + has h1 | PASS | (Điều khoản sử dụng — TaskFlow) |
@@ -265,6 +307,20 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 768x1024 (tablet) | dark mode | toggle enables | PASS |  |
 | 768x1024 (tablet) | overflow | dark mode | PASS |  |
 | 768x1024 (tablet) | dark mode | toggle disables | PASS |  |
+| 768x1024 (tablet) | reflection | quick card renders | PASS |  |
+| 768x1024 (tablet) | reflection | 5 mood radios | PASS | (5) |
+| 768x1024 (tablet) | reflection | field [data-reflect-field="quickGood"] present | PASS |  |
+| 768x1024 (tablet) | reflection | [data-reflect-field="quickGood"] input font-size >= 16px (iOS zoom) | PASS | (16px) |
+| 768x1024 (tablet) | reflection | field [data-reflect-field="quickImprove"] present | PASS |  |
+| 768x1024 (tablet) | reflection | [data-reflect-field="quickImprove"] input font-size >= 16px (iOS zoom) | PASS | (16px) |
+| 768x1024 (tablet) | reflection | mood select highlights | PASS | (on=1) |
+| 768x1024 (tablet) | reflection | quick save persists entry | PASS |  |
+| 768x1024 (tablet) | overflow | reflection card | PASS |  |
+| 768x1024 (tablet) | reflection | deep modal opens | PASS |  |
+| 768x1024 (tablet) | reflection | deep textareas (good/bad/cont/improve) | PASS | (4) |
+| 768x1024 (tablet) | reflection | deep modal fits viewport | PASS | (h=694px) |
+| 768x1024 (tablet) | reflection | history opens | PASS |  |
+| 768x1024 (tablet) | reflection | history lists saved entry | PASS | (items=1) |
 | 768x1024 (tablet) | legal | privacy.html loads + has h1 | PASS | (Chính sách bảo mật — TaskFlow) |
 | 768x1024 (tablet) | legal | privacy.html no horizontal overflow | PASS |  |
 | 768x1024 (tablet) | legal | terms.html loads + has h1 | PASS | (Điều khoản sử dụng — TaskFlow) |

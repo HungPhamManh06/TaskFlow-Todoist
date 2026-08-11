@@ -864,7 +864,7 @@
 /* Nút thêm thói quen */
 .btn-habit-add {
   background: var(--accent-btn, var(--terracotta));
-  color: #fff;
+  color: var(--color-on-accent);
   border: none;
   border-radius: 999px;
   font-family: var(--font-brand);
@@ -952,12 +952,13 @@
 }
 .hm-rb-cell:hover { transform: scale(1.3); }
 .hm-rb-cell.hm-empty { background: transparent; }
+/* Sage Mist heatmap (P5): habits = nhiều mức sage opacity, không orange, không bright green */
 .hm-rb-cell.hm-l0 { background: rgba(var(--ink-rgb),.07); }
-.hm-rb-cell.hm-l1 { background: #FBE4CE; }
-.hm-rb-cell.hm-l2 { background: #F7C79B; }
-.hm-rb-cell.hm-l3 { background: #EE9E66; }
-.hm-rb-cell.hm-l4 { background: #E0753F; }
-.hm-rb-cell.hm-l5 { background: #C24E28; }
+.hm-rb-cell.hm-l1 { background: #e4ede6; }
+.hm-rb-cell.hm-l2 { background: #cbdcd0; }
+.hm-rb-cell.hm-l3 { background: #a9c4af; }
+.hm-rb-cell.hm-l4 { background: #82a98e; }
+.hm-rb-cell.hm-l5 { background: #55735d; }
 .hm-rb-cell.today { outline: 2px solid var(--ink); outline-offset: 1px; box-shadow: 0 0 0 3px rgba(255,253,248,.85); z-index: 1; }
 
 .hm-legend { display: flex; align-items: center; gap: 5px; margin: 12px 0 14px; font-size: 10px; font-weight: 800; color: var(--ink-soft); }
@@ -1620,7 +1621,7 @@ sup.remind-dot {
 .tag-filter-bar .tag-chip.active {
   background: var(--accent-deep);
   border-color: var(--accent-deep);
-  color: #fff;
+  color: var(--color-on-accent);
 }
 .tag-edit-input { flex: 1 1 100%; margin-top: 4px; }
 
@@ -3649,10 +3650,10 @@ body.focus-mode .container { padding: 0; }
 }
 
 .reflect-summary {
-  background: var(--color-surface-muted);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
 }
 
 .reflect-summary-title {
@@ -3745,9 +3746,10 @@ body.focus-mode .container { padding: 0; }
 }
 
 .reflect-input {
-  border: 1px solid var(--color-control-border);
+  /* Visual Theme P5: journal-like — giấy mềm, border warm, không form kỹ thuật */
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-input);
-  background: var(--color-surface-elevated);
+  background: var(--color-surface-muted);
   color: var(--color-text);
   font: 500 var(--text-md) / 1.3 var(--font-body);
   padding: var(--space-2) var(--space-3);
@@ -3759,15 +3761,16 @@ body.focus-mode .container { padding: 0; }
 }
 
 .reflect-textarea {
-  border: 1px solid var(--color-control-border);
+  /* Visual Theme P5: journal-like — textarea rộng, giấy mềm, border minimal */
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-input);
-  background: var(--color-surface-elevated);
+  background: var(--color-surface-muted);
   color: var(--color-text);
-  font: 500 var(--text-md) / 1.4 var(--font-body);
-  padding: var(--space-2) var(--space-3);
+  font: 500 var(--text-md) / 1.5 var(--font-body);
+  padding: var(--space-3);
   width: 100%;
   resize: vertical;
-  min-height: 72px;
+  min-height: 96px;
 }
 
 .reflect-quick-actions {
@@ -3930,10 +3933,22 @@ body.focus-mode .container { padding: 0; }
 }
 
 .pillar-card {
+  /* Visual Theme P5: pillar phân biệt bằng left border + progress màu semantic
+     (Cơ thể sage / Việc chính orange / Tương tác muted blue) — không nền màu mạnh */
   border: 1px solid var(--color-border);
+  border-inline-start: 3px solid var(--color-accent);
   border-radius: var(--radius-card);
   background: var(--color-surface);
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+}
+
+/* Template 3 trụ cột: p1 Cơ thể → sage, p2 Việc chính → orange (default),
+   p3 Tương tác → muted blue. Pillar do user thêm (p4+) giữ accent. */
+.pillar-card[data-pillar-id="p1"] {
+  border-inline-start-color: var(--color-positive);
+}
+.pillar-card[data-pillar-id="p3"] {
+  border-inline-start-color: var(--color-info);
 }
 
 .pillar-head {
@@ -4158,6 +4173,14 @@ body.focus-mode .container { padding: 0; }
   border-radius: 999px;
   background: var(--color-accent);
   transition: width .2s ease;
+}
+
+/* Metric bar theo màu pillar (P5) */
+.pillar-card[data-pillar-id="p1"] .metric-bar-fill {
+  background: var(--color-positive);
+}
+.pillar-card[data-pillar-id="p3"] .metric-bar-fill {
+  background: var(--color-info);
 }
 
 .metric-day-strip {
@@ -4783,7 +4806,7 @@ body.focus-mode .container { padding: 0; }
   line-height: 1.5;
 }
 .cal-cell:hover .cal-focus,
-.cal-cell:focus-within .cal-focus { color: #fff; background: var(--color-accent); }
+.cal-cell:focus-within .cal-focus { color: var(--color-on-accent); background: var(--color-accent); }
 
 .report-quarters {
   margin-top: 14px;

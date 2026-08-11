@@ -45,7 +45,7 @@
 
 .button[data-variant="primary"] {
   border-color: var(--color-accent);
-  color: #fffdf9;
+  color: var(--color-on-accent);
   background: var(--color-accent);
 }
 
@@ -56,8 +56,8 @@
 }
 
 .button[data-variant="primary"]:hover {
-  color: #fffdf9;
-  background: #994329;
+  color: var(--color-on-accent);
+  background: var(--color-accent-hover);
 }
 
 .button:active,
@@ -96,6 +96,14 @@
   color: var(--color-text);
   background: var(--color-surface);
   font: inherit;
+  transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+/* Amber Hearth input focus: accent border + soft accent ring (Zen Linen).
+   Keyboard ring (focus-visible outline) vẫn do rule toàn cục đảm nhiệm. */
+.field > :is(input, select, textarea):focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent);
 }
 
 .field-hint,
@@ -214,7 +222,7 @@ body:has([data-ui-layer="open"]) {
 }
 .toast-action:hover {
   background: var(--color-accent);
-  color: #fffdf9;
+  color: var(--color-on-accent);
 }
 
 button:focus-visible,

@@ -1,25 +1,40 @@
-/* TaskFlow Refined semantic foundations. View-specific styles stay in styles.css. */
+/* TaskFlow Refined semantic foundations. View-specific styles stay in styles.css.
+   Visual theme (Visual Theme Refinement): 60% Zen Linen (warm paper surfaces) +
+   25% Amber Hearth (burnt-orange actions) + 15% Sage Mist (growth/success).
+   ALL colors flow from these tokens — no parallel palette. */
 :root,
 :root[data-theme="cream"] {
   color-scheme: light;
 
-  --color-canvas: #f4f0e9;
-  --color-sidebar: #fbf9f5;
-  --color-surface: #fffdf9;
-  --color-surface-muted: #f8f4ed;
+  /* Zen Linen surfaces — warm paper, cream, elevated white */
+  --color-canvas: #f4f0e8;
+  --color-sidebar: #faf7f1;
+  --color-surface: #fffdf8;
+  --color-surface-muted: #f7f2e9;
   --color-surface-elevated: #ffffff;
-  --color-text: #342f2b;
-  --color-text-secondary: #524a42;
-  --color-text-muted: #70685f;
-  --color-border: #e4ddd4;
-  --color-control-border: #81756b;
-  --color-accent: #9e4428;
-  --color-accent-soft: #f3e1d9;
+
+  /* Charcoal-brown typography (Zen Linen) */
+  --color-text: #332f2a;
+  --color-text-secondary: #544d45;
+  --color-text-muted: #6e665c;
+
+  /* Warm beige borders */
+  --color-border: #e3dace;
+  --color-control-border: #8a7e72;
+
+  /* Amber Hearth — burnt-orange primary action */
+  --color-accent: #a84f2e;
+  --color-accent-hover: #913f24;
+  --color-accent-soft: #f4e3d9;
   --color-focus: #963c25;
-  --color-positive: #47705a;
-  --color-warning: #92691f;
-  --color-danger: #a53f3f;
-  --color-info: #3f6f82;
+  --color-on-accent: #fffdf8;
+
+  /* Sage Mist — success / growth */
+  --color-positive: #55735d;
+  --color-positive-soft: #e3eee5;
+  --color-warning: #8f6a20;
+  --color-danger: #a6504a;
+  --color-info: #547687;
 
   --font-brand: "Nunito", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-body: "Nunito", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -50,54 +65,65 @@
   --radius-panel: var(--radius-modal);
   --radius-pill: 999px;
 
-  --shadow-floating: 0 18px 48px rgb(52 47 43 / .14);
-  --shadow-panel: 0 1px 2px rgb(52 47 43 / .05), 0 10px 26px rgb(52 47 43 / .08);
+  /* Soft linen shadows — low-contrast, warm-neutral tint (Zen Linen) */
+  --shadow-sm: 0 1px 2px rgb(52 47 43 / .05);
+  --shadow-panel: 0 1px 2px rgb(52 47 43 / .05), 0 8px 24px rgb(52 47 43 / .07);
+  --shadow-floating: 0 8px 24px rgb(52 47 43 / .07), 0 18px 48px rgb(52 47 43 / .12);
   --focus-ring: 0 0 0 3px var(--color-focus);
   --motion-fast: 140ms;
   --motion-standard: 220ms;
   --ease-standard: cubic-bezier(.2, .7, .2, 1);
 }
 
+/* Mint — Sage Mist inspired: cool sage neutrals, same TaskFlow orange accent */
 :root[data-theme="mint"] {
-  --color-canvas: #edf3ee;
-  --color-sidebar: #f7faf7;
-  --color-surface: #fcfefc;
-  --color-surface-muted: #f0f6f1;
+  --color-canvas: #ebf1eb;
+  --color-sidebar: #f6faf6;
+  --color-surface: #fcfefb;
+  --color-surface-muted: #f0f5f0;
   --color-surface-elevated: #ffffff;
-  --color-text: #2e3933;
+  --color-text: #2e3a32;
   --color-text-secondary: #4a554e;
   --color-text-muted: #5f6b64;
-  --color-border: #d7e2da;
-  --color-control-border: #748078;
-  --color-accent: #9e4428;
-  --color-accent-soft: #f3e1d9;
+  --color-border: #d5e0d7;
+  --color-control-border: #75817a;
+  --color-accent: #a84f2e;
+  --color-accent-hover: #913f24;
+  --color-accent-soft: #f4e3d9;
   --color-focus: #963c25;
+  --color-on-accent: #fffdf8;
   --color-positive: #3f7156;
+  --color-positive-soft: #e3efe6;
   --color-warning: #89651f;
   --color-danger: #a43f3f;
   --color-info: #3d6f7d;
 }
 
+/* Lavender — quiet reflection / soft productivity */
 :root[data-theme="lavender"] {
-  --color-canvas: #f1eff5;
-  --color-sidebar: #faf9fc;
-  --color-surface: #fefcff;
-  --color-surface-muted: #f4f1f7;
+  --color-canvas: #f0eef4;
+  --color-sidebar: #f9f8fb;
+  --color-surface: #fdfcff;
+  --color-surface-muted: #f3f1f7;
   --color-surface-elevated: #ffffff;
   --color-text: #37333d;
   --color-text-secondary: #57525f;
-  --color-text-muted: #706a78;
-  --color-border: #dfdae5;
+  --color-text-muted: #6f6a78;
+  --color-border: #dfdbe5;
   --color-control-border: #7b7483;
-  --color-accent: #9e4428;
-  --color-accent-soft: #f3e1d9;
+  --color-accent: #a84f2e;
+  --color-accent-hover: #913f24;
+  --color-accent-soft: #f4e3d9;
   --color-focus: #963c25;
+  --color-on-accent: #fffdf8;
   --color-positive: #4a705b;
+  --color-positive-soft: #e4efe7;
   --color-warning: #8d6721;
   --color-danger: #a33f47;
   --color-info: #4b6985;
 }
 
+/* Peach — Amber Hearth inspired: warm amber neutrals */
 :root[data-theme="peach"] {
   --color-canvas: #f7eee8;
   --color-sidebar: #fff9f5;
@@ -106,40 +132,52 @@
   --color-surface-elevated: #ffffff;
   --color-text: #3d302b;
   --color-text-secondary: #5d4f48;
-  --color-text-muted: #786a63;
+  --color-text-muted: #74665e;
   --color-border: #ead9cf;
   --color-control-border: #88736a;
-  --color-accent: #9e4428;
-  --color-accent-soft: #f3e1d9;
+  --color-accent: #a84f2e;
+  --color-accent-hover: #913f24;
+  --color-accent-soft: #f4e3d9;
   --color-focus: #963c25;
+  --color-on-accent: #fffdf8;
   --color-positive: #4b7059;
+  --color-positive-soft: #e4efe7;
   --color-warning: #90661e;
   --color-danger: #a43e3e;
   --color-info: #416e80;
 }
 
+/* Dark mode — warm, never pure black (Zen Linen at night) */
 :root[data-dark="true"] {
   color-scheme: dark;
 
-  --color-canvas: #1b1917;
-  --color-sidebar: #211e1b;
-  --color-surface: #27231f;
-  --color-surface-muted: #302b26;
-  --color-surface-elevated: #2e2a25;
-  --color-text: #f4eee7;
-  --color-text-secondary: #ddd3c8;
-  --color-text-muted: #c4b9ae;
-  --color-border: #49413a;
+  --color-canvas: #1c1916;
+  --color-sidebar: #221e1a;
+  --color-surface: #28231e;
+  --color-surface-muted: #312b25;
+  --color-surface-elevated: #342e28;
+  --color-text: #f3ece3;
+  --color-text-secondary: #d9cfc3;
+  --color-text-muted: #b5a99c;
+  --color-border: #4b4239;
   --color-control-border: #776b61;
-  --color-accent: #e08362;
-  --color-accent-soft: #3d2820;
+
+  /* Amber Hearth at night — amber surfaces carry dark-brown text (6.14:1) */
+  --color-accent: #e08763;
+  --color-accent-hover: #d97a4e;
+  --color-accent-soft: #432a21;
   --color-focus: #f09a78;
-  --color-positive: #82b795;
-  --color-warning: #d7ad58;
-  --color-danger: #e58b86;
-  --color-info: #83b4c8;
-  --shadow-floating: 0 20px 52px rgb(0 0 0 / .42);
-  --shadow-panel: 0 1px 2px rgb(0 0 0 / .4), 0 12px 30px rgb(0 0 0 / .35);
+  --color-on-accent: #2a1c12;
+
+  --color-positive: #89ae91;
+  --color-positive-soft: #2c3a30;
+  --color-warning: #d1a95a;
+  --color-danger: #dd8880;
+  --color-info: #84aaba;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / .3);
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / .35), 0 8px 24px rgb(0 0 0 / .32);
+  --shadow-floating: 0 8px 24px rgb(0 0 0 / .38), 0 20px 52px rgb(0 0 0 / .42);
   --focus-ring: 0 0 0 3px var(--color-focus);
 }
 

@@ -3,39 +3,44 @@
    ============================================================ */
 
 :root {
-  --bg-main: #EFE6D5;
-  --bg-grid: rgba(120, 100, 80, .065);
-  --ink: #4A403A;
-  --ink-rgb: 74, 64, 58;
+  /* Legacy kawaii palette → ALIASED to semantic tokens (Visual Theme Refinement P2):
+     every legacy var now points at the tokens.css palette so one source of truth
+     drives the whole app. Derived rgba vars (bg-grid/ink-soft/ink-light/card-border)
+     keep their formulas and follow --ink-rgb automatically. Decorative day-header,
+     brick and tag colors stay literal (identity). */
+  --bg-main: var(--color-canvas);
+  --bg-grid: rgba(var(--ink-rgb), .065);
+  --ink: var(--color-text);
+  --ink-rgb: 51, 47, 42;  /* = #332F2A (--color-text) */
   --ink-soft: rgba(var(--ink-rgb), .78);
   --ink-light: rgba(var(--ink-rgb), .45);
-  
-  --card-bg: #FAF3E6;
+
+  --card-bg: var(--color-surface);
   --card-border: rgba(var(--ink-rgb), .3);
-  --header-bg: rgba(239, 230, 213, .94);
+  --header-bg: rgba(244, 240, 232, .94);
   --brick-top-a: #C2DEF0;
   --brick-top-b: #A8CFE8;
   --brick-bot-a: #E2D3BD;
   --brick-bot-b: rgba(143, 121, 97, .4);
-  
+
   --pink-tag: #F59890;
   --blue-tag: #8EBCDF;
   --yellow-ref: #F7D970;
   --yellow-ref-bg: #FFF5D6;
-  --peach-bar: #F8C1AF;
-  --terracotta: #C88570;
-  --accent-deep: #C24E28;
-  --accent-btn: #C24E28;  /* nền nút CTA: chữ trắng 4.76:1 (dark: #B3482A = 5.42:1) */
+  --peach-bar: var(--color-accent-soft);
+  --terracotta: var(--color-accent);
+  --accent-deep: var(--color-accent);
+  --accent-btn: var(--color-accent);  /* CTA nền: chữ var(--color-on-accent) — light 5.41:1, dark 6.14:1 */
   --olive-donut: #686957;
   --note-header: #F49B74;
 
   /* Bề mặt — dùng cho dark mode */
-  --surface: #FFFDF8;
-  --surface-2: #F2E4CE;
-  --surface-hover: #FFF4D4;
-  --panel-habit: #F3E7D2;
-  --panel-goals: #C5BEAB;
-  --ink-solid: #4A403A;
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-muted);
+  --surface-hover: var(--color-surface-muted);
+  --panel-habit: var(--color-surface-muted);
+  --panel-goals: var(--color-surface-muted);
+  --ink-solid: var(--color-text);
 
   /* Day Header Colors */
   --day-mon: #E3DB76;
@@ -1329,7 +1334,7 @@ textarea:focus-visible,
 /* Nút thêm thói quen */
 .btn-habit-add {
   background: var(--accent-btn, var(--terracotta));
-  color: #fff;
+  color: var(--color-on-accent);
   border: none;
   border-radius: 999px;
   font-family: var(--font-brand);
@@ -1435,12 +1440,13 @@ textarea:focus-visible,
 }
 .hm-rb-cell:hover { transform: scale(1.3); }
 .hm-rb-cell.hm-empty { background: transparent; }
+/* Sage Mist heatmap (P5): habits = nhiều mức sage opacity, không orange, không bright green */
 .hm-rb-cell.hm-l0 { background: rgba(var(--ink-rgb),.07); }
-.hm-rb-cell.hm-l1 { background: #FBE4CE; }
-.hm-rb-cell.hm-l2 { background: #F7C79B; }
-.hm-rb-cell.hm-l3 { background: #EE9E66; }
-.hm-rb-cell.hm-l4 { background: #E0753F; }
-.hm-rb-cell.hm-l5 { background: #C24E28; }
+.hm-rb-cell.hm-l1 { background: #e4ede6; }
+.hm-rb-cell.hm-l2 { background: #cbdcd0; }
+.hm-rb-cell.hm-l3 { background: #a9c4af; }
+.hm-rb-cell.hm-l4 { background: #82a98e; }
+.hm-rb-cell.hm-l5 { background: #55735d; }
 .hm-rb-cell.today { outline: 2px solid var(--ink); outline-offset: 1px; box-shadow: 0 0 0 3px rgba(255,253,248,.85); z-index: 1; }
 
 .hm-legend { display: flex; align-items: center; gap: 5px; margin: 12px 0 14px; font-size: 10px; font-weight: 800; color: var(--ink-soft); }
@@ -1870,7 +1876,7 @@ textarea:focus-visible,
   font-family: var(--font-brand);
   font-weight: 800;
   font-size: 16px;
-  color: #fff;
+  color: var(--color-on-accent);
   border: none;
   border-radius: 999px;
   cursor: pointer;
@@ -2442,7 +2448,7 @@ textarea:focus-visible,
   cursor: pointer;
   transition: transform .15s ease, box-shadow .15s ease;
 }
-.sync-actions .pop-btn.primary { background: var(--accent-btn, var(--terracotta)); border-color: transparent; color: #fff; }
+.sync-actions .pop-btn.primary { background: var(--accent-btn, var(--terracotta)); border-color: transparent; color: var(--color-on-accent); }
 .sync-actions .pop-btn:hover,
 .sync-logout:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(60, 48, 38, .14); }
 
@@ -2843,16 +2849,17 @@ sup.remind-dot {
 
 :root[data-dark="true"] {
   color-scheme: dark;
-  --bg-main: #221C16;
-  --bg-grid: rgba(243, 232, 213, .05);
-  --ink: #F2E8D5;
-  --ink-rgb: 243, 232, 213;
-  --ink-soft: #C9BDA6;
-  --ink-light: rgba(243, 232, 213, .45);
+  /* Legacy palette → aliased to dark semantic tokens (P2) */
+  --bg-main: var(--color-canvas);
+  --bg-grid: rgba(var(--ink-rgb), .05);
+  --ink: var(--color-text);
+  --ink-rgb: 243, 236, 227;  /* = #F3ECE3 (--color-text dark) */
+  --ink-soft: var(--color-text-muted);
+  --ink-light: rgba(var(--ink-rgb), .45);
 
-  --card-bg: #322A21;
-  --card-border: rgba(243, 232, 213, .26);
-  --header-bg: rgba(34, 28, 22, .94);
+  --card-bg: var(--color-surface);
+  --card-border: rgba(var(--ink-rgb), .26);
+  --header-bg: rgba(28, 25, 22, .94);
   --brick-top-a: #2E4356;
   --brick-top-b: #3A556C;
   --brick-bot-a: #4A3A2A;
@@ -2862,19 +2869,21 @@ sup.remind-dot {
   --blue-tag: #44667E;
   --yellow-ref: #8A7426;
   --yellow-ref-bg: #3A3020;
-  --peach-bar: #8E4428;  /* tối hơn để chữ ink #F2E8D5 đạt 5.74:1 */
-  --terracotta: #C88570;
-  --accent-deep: #E07A50;
-  --accent-btn: #B3482A;  /* nền nút CTA dark: chữ trắng 5.42:1 */
+  --peach-bar: var(--color-accent-soft);
+  --terracotta: var(--color-accent);
+  --accent-deep: var(--color-accent);
+  --accent-btn: var(--color-accent);  /* CTA dark: chữ var(--color-on-accent) 6.14:1 */
   --olive-donut: #A8A390;
   --note-header: #8A4E34;
 
   /* Bề mặt tối */
-  --surface: #3A3127;
-  --surface-2: #453A2C;
-  --surface-hover: #463A2A;
-  --panel-habit: #3A3026;
-  --panel-goals: #453C31;
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-muted);
+  --surface-hover: var(--color-surface-muted);
+  --panel-habit: var(--color-surface-muted);
+  --panel-goals: var(--color-surface-muted);
+  /* Fill solid đằng sau glyph trắng (checkbox ✓, streak badge, q-head): giữ tối
+     trong dark — KHÔNG alias sang --color-text (sẽ thành cream, chữ trắng mất). */
   --ink-solid: #4A403A;
 
   --day-mon: #6E6230;
@@ -2887,11 +2896,12 @@ sup.remind-dot {
 }
 
 :root[data-dark="true"][data-theme="mint"] {
-  --bg-main: #1E2B22;
-  --bg-grid: rgba(200, 235, 215, .05);
-  --card-bg: #2A3A2F;
-  --card-border: rgba(200, 235, 215, .26);
-  --header-bg: rgba(30, 43, 34, .94);
+  /* Theme variant: chỉ thay neutral palette (Sage Mist) — accent giữ TaskFlow orange */
+  --bg-main: var(--color-canvas);
+  --bg-grid: rgba(var(--ink-rgb), .05);
+  --card-bg: var(--color-surface);
+  --card-border: rgba(var(--ink-rgb), .26);
+  --header-bg: rgba(24, 32, 27, .94);
   --brick-top-a: #2F5540;
   --brick-top-b: #3D6B52;
   --brick-bot-a: #2E4A38;
@@ -2900,16 +2910,16 @@ sup.remind-dot {
   --blue-tag: #3E7A86;
   --yellow-ref: #6E8A2A;
   --yellow-ref-bg: #2E3A20;
-  --peach-bar: #3E6E52;  /* chữ ink đạt 4.86:1 */
-  --terracotta: #7FB48C;
-  --accent-btn: #3E6E52;  /* nền nút CTA dark (mint): chữ trắng 5.90:1 */
+  --peach-bar: var(--color-accent-soft);
+  --terracotta: var(--color-accent);
+  --accent-btn: var(--color-accent);  /* CTA dark (mint): chữ var(--color-on-accent) */
   --olive-donut: #8FA897;
   --note-header: #5E8F70;
-  --surface: #2E3E33;
-  --surface-2: #384A3D;
-  --surface-hover: #38493B;
-  --panel-habit: #2C3A31;
-  --panel-goals: #37483C;
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-muted);
+  --surface-hover: var(--color-surface-muted);
+  --panel-habit: var(--color-surface-muted);
+  --panel-goals: var(--color-surface-muted);
   --day-mon: #4E6A3A;
   --day-tue: #4A6A52;
   --day-wed: #4E6A3A;
@@ -2920,11 +2930,12 @@ sup.remind-dot {
 }
 
 :root[data-dark="true"][data-theme="lavender"] {
-  --bg-main: #262130;
-  --bg-grid: rgba(220, 210, 245, .05);
-  --card-bg: #342B40;
-  --card-border: rgba(220, 210, 245, .26);
-  --header-bg: rgba(38, 33, 48, .94);
+  /* Theme variant: chỉ thay neutral palette — accent giữ TaskFlow orange */
+  --bg-main: var(--color-canvas);
+  --bg-grid: rgba(var(--ink-rgb), .05);
+  --card-bg: var(--color-surface);
+  --card-border: rgba(var(--ink-rgb), .26);
+  --header-bg: rgba(28, 26, 33, .94);
   --brick-top-a: #3E3560;
   --brick-top-b: #4E4280;
   --brick-bot-a: #3A3350;
@@ -2933,16 +2944,16 @@ sup.remind-dot {
   --blue-tag: #4E6E9E;
   --yellow-ref: #8A7A3A;
   --yellow-ref-bg: #3A3426;
-  --peach-bar: #584A8E;  /* chữ ink đạt 5.6:1 */
-  --terracotta: #9E86C0;
-  --accent-btn: #4E4280;  /* nền nút CTA dark (lavender): chữ trắng 5.62:1 */
+  --peach-bar: var(--color-accent-soft);
+  --terracotta: var(--color-accent);
+  --accent-btn: var(--color-accent);  /* CTA dark (lavender): chữ var(--color-on-accent) */
   --olive-donut: #9E90B8;
   --note-header: #7A62A8;
-  --surface: #3A3048;
-  --surface-2: #463A56;
-  --surface-hover: #463A52;
-  --panel-habit: #372E44;
-  --panel-goals: #423850;
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-muted);
+  --surface-hover: var(--color-surface-muted);
+  --panel-habit: var(--color-surface-muted);
+  --panel-goals: var(--color-surface-muted);
   --day-mon: #5E5290;
   --day-tue: #6E528E;
   --day-wed: #5E5290;
@@ -2953,11 +2964,12 @@ sup.remind-dot {
 }
 
 :root[data-dark="true"][data-theme="peach"] {
-  --bg-main: #2A2019;
-  --bg-grid: rgba(242, 210, 180, .05);
-  --card-bg: #3A2E22;
-  --card-border: rgba(242, 210, 180, .26);
-  --header-bg: rgba(42, 32, 25, .94);
+  /* Theme variant: chỉ thay neutral palette (Amber warm) — accent giữ TaskFlow orange */
+  --bg-main: var(--color-canvas);
+  --bg-grid: rgba(var(--ink-rgb), .05);
+  --card-bg: var(--color-surface);
+  --card-border: rgba(var(--ink-rgb), .26);
+  --header-bg: rgba(33, 25, 22, .94);
   --brick-top-a: #6E4A38;
   --brick-top-b: #8A5A3E;
   --brick-bot-a: #4A3A2E;
@@ -2966,16 +2978,16 @@ sup.remind-dot {
   --blue-tag: #8A6E4E;
   --yellow-ref: #A08A3A;
   --yellow-ref-bg: #3E3626;
-  --peach-bar: #8A4E30;  /* chữ ink đạt 5.38:1 */
-  --terracotta: #C88570;
-  --accent-btn: #8A4E30;  /* nền nút CTA dark (peach): chữ trắng 6.54:1 */
+  --peach-bar: var(--color-accent-soft);
+  --terracotta: var(--color-accent);
+  --accent-btn: var(--color-accent);  /* CTA dark (peach): chữ var(--color-on-accent) */
   --olive-donut: #A89880;
   --note-header: #C07050;
-  --surface: #3E3226;
-  --surface-2: #4A3C2E;
-  --surface-hover: #4A3C2C;
-  --panel-habit: #3A3026;
-  --panel-goals: #47392E;
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-muted);
+  --surface-hover: var(--color-surface-muted);
+  --panel-habit: var(--color-surface-muted);
+  --panel-goals: var(--color-surface-muted);
   --day-mon: #8A7440;
   --day-tue: #8A523E;
   --day-wed: #8A7440;
@@ -3044,6 +3056,11 @@ sup.remind-dot {
 :root[data-dark="true"] .hm-hero-rec b,
 :root[data-dark="true"] .hm-rb-tag.show { color: #E0B54E; }
 :root[data-dark="true"] .hm-rb-cell.hm-l0 { background: rgba(243, 232, 213, .06); }
+:root[data-dark="true"] .hm-rb-cell.hm-l1 { background: rgba(137, 174, 145, .18); }
+:root[data-dark="true"] .hm-rb-cell.hm-l2 { background: rgba(137, 174, 145, .36); }
+:root[data-dark="true"] .hm-rb-cell.hm-l3 { background: rgba(137, 174, 145, .54); }
+:root[data-dark="true"] .hm-rb-cell.hm-l4 { background: rgba(137, 174, 145, .72); }
+:root[data-dark="true"] .hm-rb-cell.hm-l5 { background: #89ae91; }
 :root[data-dark="true"] .hm-rb-cell.today { box-shadow: 0 0 0 3px rgba(34, 28, 22, .9); }
 :root[data-dark="true"] .hm-delta.up { background: rgba(160, 180, 130, .18); color: #C4D6A8; }
 :root[data-dark="true"] .hm-delta.down { background: rgba(224, 90, 70, .18); color: #E8A090; }
@@ -3239,7 +3256,7 @@ sup.remind-dot {
 .tag-filter-bar .tag-chip.active {
   background: var(--accent-deep);
   border-color: var(--accent-deep);
-  color: #fff;
+  color: var(--color-on-accent);
 }
 .tag-edit-input { flex: 1 1 100%; margin-top: 4px; }
 
@@ -3794,7 +3811,7 @@ body.focus-mode .container { padding: 0; }
 /* Ô điểm danh ngày nay / đã check — tint terracotta tối */
 :root[data-dark="true"] .habit-table .day-cell:has(.checkbox[aria-checked="true"]) { background: rgba(224, 122, 80, .26); }
 :root[data-dark="true"] .habit-table .day-cell.today { background: rgba(224, 122, 80, .18); }
-:root[data-dark="true"] .habit-table thead .day-num.today { background: var(--accent-btn); color: #fff; }
+:root[data-dark="true"] .habit-table thead .day-num.today { background: var(--accent-btn); color: var(--color-on-accent); }
 
 /* Phase 7.3 — Habit heatmap năm */
 .year-heat-card { margin-top: 16px; padding: 12px; }
@@ -3807,14 +3824,14 @@ body.focus-mode .container { padding: 0; }
 .year-heat-card .yhm-cell.l3 { background: rgba(243, 154, 130, .75); }
 .year-heat-card .yhm-cell.l4 { background: var(--terracotta); }
 
-/* Heatmap ribbon — giữ thang tăng dần, tint tối hơn cho hợp nền */
-:root[data-dark="true"] .hm-rb-cell.hm-l1 { background: rgba(224, 122, 80, .22); }
-:root[data-dark="true"] .hm-rb-cell.hm-l2 { background: rgba(224, 122, 80, .4); }
-:root[data-dark="true"] .hm-rb-cell.hm-l3 { background: rgba(224, 122, 80, .6); }
-:root[data-dark="true"] .hm-rb-cell.hm-l4 { background: rgba(224, 122, 80, .8); }
-:root[data-dark="true"] .hm-rb-cell.hm-l5 { background: #C24E28; }
-:root[data-dark="true"] .hm-mini-cell.on { background: rgba(224, 122, 80, .78); }
-:root[data-dark="true"] .hm-streak-badge b { color: #E88A5E; }
+/* Heatmap ribbon — thang sage (Sage Mist), tint tối hơn cho hợp nền */
+:root[data-dark="true"] .hm-rb-cell.hm-l1 { background: rgba(137, 174, 145, .18); }
+:root[data-dark="true"] .hm-rb-cell.hm-l2 { background: rgba(137, 174, 145, .38); }
+:root[data-dark="true"] .hm-rb-cell.hm-l3 { background: rgba(137, 174, 145, .58); }
+:root[data-dark="true"] .hm-rb-cell.hm-l4 { background: rgba(137, 174, 145, .78); }
+:root[data-dark="true"] .hm-rb-cell.hm-l5 { background: #89ae91; }
+:root[data-dark="true"] .hm-mini-cell.on { background: rgba(137, 174, 145, .78); }
+:root[data-dark="true"] .hm-streak-badge b { color: #D1A95A; }
 
 /* Input trong modal đồng bộ */
 :root[data-dark="true"] .sync-form input { background: var(--surface-2); }
@@ -3886,14 +3903,14 @@ body.focus-mode .container { padding: 0; }
   :root[data-dark="true"] .hm-hero-rec b,
   :root[data-dark="true"] .hm-rb-tag.show { color: #B98A1F; }
   :root[data-dark="true"] .hm-rb-cell.hm-l0 { background: rgba(74, 64, 58, .07); }
-  :root[data-dark="true"] .hm-rb-cell.hm-l1 { background: #FBE4CE; }
-  :root[data-dark="true"] .hm-rb-cell.hm-l2 { background: #F7C79B; }
-  :root[data-dark="true"] .hm-rb-cell.hm-l3 { background: #EE9E66; }
-  :root[data-dark="true"] .hm-rb-cell.hm-l4 { background: #E0753F; }
-  :root[data-dark="true"] .hm-rb-cell.hm-l5 { background: #C24E28; }
+  :root[data-dark="true"] .hm-rb-cell.hm-l1 { background: #E4EDE6; }
+  :root[data-dark="true"] .hm-rb-cell.hm-l2 { background: #C4D9C8; }
+  :root[data-dark="true"] .hm-rb-cell.hm-l3 { background: #9CBEa4; }
+  :root[data-dark="true"] .hm-rb-cell.hm-l4 { background: #76A184; }
+  :root[data-dark="true"] .hm-rb-cell.hm-l5 { background: #55735D; }
   :root[data-dark="true"] .hm-rb-cell.today { box-shadow: 0 0 0 3px rgba(255, 253, 248, .85); }
-  :root[data-dark="true"] .hm-mini-cell.on { background: #E0753F; }
-  :root[data-dark="true"] .hm-streak-badge b { color: #C24E28; }
+  :root[data-dark="true"] .hm-mini-cell.on { background: #76A184; }
+  :root[data-dark="true"] .hm-streak-badge b { color: #8F6A20; }
   :root[data-dark="true"] .hm-delta.up { background: rgba(102, 104, 84, .2); color: #4d5340; }
   :root[data-dark="true"] .hm-delta.down { background: rgba(192, 57, 43, .14); color: #c0392b; }
   :root[data-dark="true"] .hm-delta.flat { background: rgba(74, 64, 58, .1); }
@@ -6194,7 +6211,8 @@ body.focus-mode .container { padding: 0; }
 }
 
 .today-card {
-  background: var(--color-surface-elevated);
+  /* Visual Theme P4: card là surface cream ấm (Zen Linen), không phải trắng tinh */
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: var(--space-5);
@@ -6274,7 +6292,8 @@ body.focus-mode .container { padding: 0; }
 }
 
 .today-task.done .task-text {
-  color: var(--color-text-muted);
+  /* Sage Mist: việc hoàn thành = trạng thái sage (growth), không chỉ muted */
+  color: var(--color-positive);
   text-decoration: line-through;
 }
 
@@ -6358,7 +6377,8 @@ body.focus-mode .container { padding: 0; }
 }
 
 .today-habit.done .today-habit-name {
-  color: var(--color-text-muted);
+  /* Sage Mist: habit hoàn thành = sage */
+  color: var(--color-positive);
   text-decoration: line-through;
 }
 
@@ -6427,10 +6447,10 @@ body.focus-mode .container { padding: 0; }
 }
 
 .reflect-summary {
-  background: var(--color-surface-muted);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
 }
 
 .reflect-summary-title {
@@ -6523,9 +6543,10 @@ body.focus-mode .container { padding: 0; }
 }
 
 .reflect-input {
-  border: 1px solid var(--color-control-border);
+  /* Visual Theme P5: journal-like — giấy mềm, border warm, không form kỹ thuật */
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-input);
-  background: var(--color-surface-elevated);
+  background: var(--color-surface-muted);
   color: var(--color-text);
   font: 500 var(--text-md) / 1.3 var(--font-body);
   padding: var(--space-2) var(--space-3);
@@ -6537,15 +6558,16 @@ body.focus-mode .container { padding: 0; }
 }
 
 .reflect-textarea {
-  border: 1px solid var(--color-control-border);
+  /* Visual Theme P5: journal-like — textarea rộng, giấy mềm, border minimal */
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-input);
-  background: var(--color-surface-elevated);
+  background: var(--color-surface-muted);
   color: var(--color-text);
-  font: 500 var(--text-md) / 1.4 var(--font-body);
-  padding: var(--space-2) var(--space-3);
+  font: 500 var(--text-md) / 1.5 var(--font-body);
+  padding: var(--space-3);
   width: 100%;
   resize: vertical;
-  min-height: 72px;
+  min-height: 96px;
 }
 
 .reflect-quick-actions {
@@ -6708,10 +6730,22 @@ body.focus-mode .container { padding: 0; }
 }
 
 .pillar-card {
+  /* Visual Theme P5: pillar phân biệt bằng left border + progress màu semantic
+     (Cơ thể sage / Việc chính orange / Tương tác muted blue) — không nền màu mạnh */
   border: 1px solid var(--color-border);
+  border-inline-start: 3px solid var(--color-accent);
   border-radius: var(--radius-card);
   background: var(--color-surface);
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+}
+
+/* Template 3 trụ cột: p1 Cơ thể → sage, p2 Việc chính → orange (default),
+   p3 Tương tác → muted blue. Pillar do user thêm (p4+) giữ accent. */
+.pillar-card[data-pillar-id="p1"] {
+  border-inline-start-color: var(--color-positive);
+}
+.pillar-card[data-pillar-id="p3"] {
+  border-inline-start-color: var(--color-info);
 }
 
 .pillar-head {
@@ -6936,6 +6970,14 @@ body.focus-mode .container { padding: 0; }
   border-radius: 999px;
   background: var(--color-accent);
   transition: width .2s ease;
+}
+
+/* Metric bar theo màu pillar (P5) */
+.pillar-card[data-pillar-id="p1"] .metric-bar-fill {
+  background: var(--color-positive);
+}
+.pillar-card[data-pillar-id="p3"] .metric-bar-fill {
+  background: var(--color-info);
 }
 
 .metric-day-strip {
@@ -7644,7 +7686,7 @@ body.focus-mode .container { padding: 0; }
   line-height: 1.5;
 }
 .cal-cell:hover .cal-focus,
-.cal-cell:focus-within .cal-focus { color: #fff; background: var(--color-accent); }
+.cal-cell:focus-within .cal-focus { color: var(--color-on-accent); background: var(--color-accent); }
 
 .report-quarters {
   margin-top: 14px;
