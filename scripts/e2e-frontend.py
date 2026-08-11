@@ -1,7 +1,7 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 15 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 16 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
@@ -992,6 +992,102 @@ def task_focus_metrics_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def daily_alignment_checks(browser, base, width, height, errors, screenshot):
+    """P5: Today derives linked real tasks/habits and groups shared items by pillar."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"daily-alignment {width}px: {error}"))
+    load_app(page, base)
+
+    seeded = page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const start = new Date(year, month, 1 - offset);
+      const delta = Math.floor((new Date(year, month, now.getDate()) - start) / 86400000);
+      const week = Math.floor(delta / 7) + 1;
+      const day = delta % 7;
+      const dayIndex = now.getDate() - 1;
+      const dayState = state.weeks[week - 1].days[day];
+
+      while (dayState.tasks.length < 2) {
+        dayState.tasks.push({ text: '', kind: 'normal', done: false, tags: [], linkedMetricIds: [] });
+      }
+      dayState.tasks.forEach(task => { task.linkedMetricIds = []; task.done = false; });
+      dayState.tasks[0].text = 'P5 shared task';
+      dayState.tasks[0].linkedMetricIds = ['p5-task-body', 'p5-focus-work'];
+      dayState.tasks[1].text = 'P5 unlinked task';
+
+      if (!Array.isArray(state.habits)) state.habits = [];
+      if (!state.habits.length) {
+        state.habits.push({ id: 'p5-habit', name: '', days: [], skipDays: [], target: 100 });
+      }
+      const habit = state.habits[0];
+      habit.id = habit.id || 'p5-habit';
+      habit.name = 'P5 linked habit';
+      if (!Array.isArray(habit.days)) habit.days = [];
+      habit.days[dayIndex] = false;
+      habit.skipDays = (Array.isArray(habit.skipDays) ? habit.skipDays : []).filter(index => index !== dayIndex);
+
+      state.pillars.forEach(pillar => { pillar.metrics = []; });
+      state.pillars[0].hidden = false;
+      state.pillars[1].hidden = false;
+      state.pillars[0].metrics = [
+        { id: 'p5-task-body', title: 'P5 Body task', type: 'TASK', target: { mode: 'perMonth', value: 1 } },
+        { id: 'p5-habit-body', title: 'P5 Body habit', type: 'HABIT', linkedHabitId: habit.id, target: { mode: 'daily', value: 1 } },
+      ];
+      state.pillars[1].metrics = [
+        { id: 'p5-focus-work', title: 'P5 Work focus', type: 'FOCUS', target: { mode: 'perMonth', value: 30 } },
+      ];
+      localStorage.setItem(key, JSON.stringify(state));
+      return { week, day, dayIndex, habitId: habit.id };
+    }""")
+
+    page.goto(f"{base}/app.html?view=today", wait_until="networkidle")
+    card = page.locator('[data-testid="daily-alignment"]')
+    assert card.is_visible()
+    assert card.locator('[data-testid="alignment-pillar"]').count() == 2
+    shared = card.locator('[data-testid="alignment-item"][data-alignment-kind="task"]', has_text='P5 shared task')
+    assert shared.count() == 2
+    assert card.get_by_text('P5 unlinked task').count() == 0
+
+    shared.first.locator('[role="checkbox"]').click()
+    shared = card.locator('[data-testid="alignment-item"][data-alignment-kind="task"]', has_text='P5 shared task')
+    assert shared.locator('[role="checkbox"][aria-checked="true"]').count() == 2
+    task_selector = (
+        f'[data-role="today-task-list"] [data-action="task"]'
+        f'[data-week="{seeded["week"]}"][data-day="{seeded["day"]}"][data-task="0"]'
+    )
+    assert page.locator(task_selector).get_attribute('aria-checked') == 'true'
+
+    habit_item = card.locator('[data-testid="alignment-item"][data-alignment-kind="habit"]', has_text='P5 linked habit')
+    habit_item.locator('[role="checkbox"]').click()
+    habit_selector = (
+        f'[data-role="today-habit-list"] [data-action="habit"]'
+        f'[data-id="{seeded["habitId"]}"][data-day="{seeded["dayIndex"]}"]'
+    )
+    assert page.locator(habit_selector).get_attribute('aria-checked') == 'true'
+
+    page.reload(wait_until="networkidle")
+    card = page.locator('[data-testid="daily-alignment"]')
+    assert card.locator('[data-alignment-kind="task"] [role="checkbox"][aria-checked="true"]').count() == 2
+    assert card.locator('[data-alignment-kind="habit"] [role="checkbox"][aria-checked="true"]').count() == 1
+    if width <= 390:
+        for item in card.locator('[data-testid="alignment-item"]').all():
+            assert item.bounding_box()['height'] >= 44
+    assert_no_page_overflow(page, f"daily-alignment {width}px")
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"daily-alignment dark {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -1027,7 +1123,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1076,6 +1172,7 @@ def main():
                     ("pillars", pillars_checks),
                     ("metrics", metrics_checks),
                     ("task-focus-metrics", task_focus_metrics_checks),
+                    ("daily-alignment", daily_alignment_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1113,6 +1210,9 @@ def main():
             elif args.view == "task-focus-metrics":
                 task_focus_metrics_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 task_focus_metrics_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "daily-alignment":
+                daily_alignment_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                daily_alignment_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

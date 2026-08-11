@@ -2158,6 +2158,7 @@ function goDay(offset) {
 // loadPomoLog, pomoDateKey, window.TaskFlowUI, emptyStateHTML, taskFocusSecs/taskFocusLog,
 // carriedDateLabel, state, viewedMonth, tagFilter, PLAN_*/NUM_DAYS) resolve qua global
 // lexical tại thời điểm GỌI — pattern mood.js/popups.js.
+if (!window.TaskFlowAlignment) throw new Error('TaskFlowAlignment missing — js/alignment.js failed to load');
 if (!window.TaskFlowToday) throw new Error('TaskFlowToday missing — js/today.js failed to load');
 const { todayGreeting, todayWeekdayLabel, renderToday, totalFocusMinutesToday, taskRowHTML } = window.TaskFlowToday;
 

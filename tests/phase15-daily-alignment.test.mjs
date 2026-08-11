@@ -1,7 +1,7 @@
 // TaskFlow — P5 Daily Alignment: pure collector and Today integration coverage.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Alignment from '../js/alignment.js';
@@ -11,6 +11,12 @@ const TODAY_JS = readFileSync(path.join(ROOT, 'js/today.js'), 'utf8');
 const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
 const STYLES = readFileSync(path.join(ROOT, 'css/styles.css'), 'utf8');
 const STYLES_DEFERRED = readFileSync(path.join(ROOT, 'css/styles-deferred.css'), 'utf8');
+const APP = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+const E2E = readFileSync(path.join(ROOT, 'scripts/e2e-frontend.py'), 'utf8');
+const alignmentMinPath = path.join(ROOT, 'js/alignment.min.js');
+const ALIGNMENT_MIN = existsSync(alignmentMinPath) ? readFileSync(alignmentMinPath, 'utf8') : '';
 const context = { inTodayMonth: true, week: 1, day: 0, dayIndex: 9 };
 
 function monthState() {
@@ -118,4 +124,18 @@ test('Daily Alignment copy and responsive styles exist in both source stylesheet
   });
   assert.match(STYLES_DEFERRED, /\.today-alignment-item[\s\S]{0,180}min-height:\s*44px/);
   assert.match(STYLES_DEFERRED, /@media \(max-width:\s*719px\)[\s\S]*\.today-alignment-groups/);
+});
+
+test('P5 production assets load alignment before Today and cache it offline', () => {
+  assert.ok(APP.indexOf('js/alignment.min.js?v=1') < APP.indexOf('js/today.min.js?v=3'));
+  assert.match(APP_JS, /TaskFlowAlignment missing/);
+  assert.match(SW, /taskflow-v188/);
+  assert.match(SW, /\.\/js\/alignment\.min\.js/);
+  assert.match(ALIGNMENT_MIN, /collectDailyAlignment/);
+});
+
+test('P5 E2E scenario is focused and part of the release matrix', () => {
+  assert.match(E2E, /def daily_alignment_checks\(/);
+  assert.match(E2E, /\("daily-alignment", daily_alignment_checks\)/);
+  assert.match(E2E, /args\.view == "daily-alignment"/);
 });
