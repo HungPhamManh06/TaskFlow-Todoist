@@ -202,6 +202,103 @@
     }).filter(Boolean);
   }
 
+  function buildWeeklyReviewModel(state, weekIndex, options) {
+    const source = state && typeof state === 'object' ? state : {};
+    const weeks = Array.isArray(source.weeks) ? source.weeks : [];
+    const safeIndex = Number.isInteger(weekIndex) && weekIndex >= 0 ? weekIndex : 0;
+    ensureWeeklyReviews(source, Math.max(weeks.length, safeIndex + 1));
+    const week = weeks[safeIndex] && typeof weeks[safeIndex] === 'object'
+      ? weeks[safeIndex]
+      : { n: safeIndex + 1, days: [] };
+    const opts = options && typeof options === 'object' ? options : {};
+    const legacyWeeks = source.reflections && Array.isArray(source.reflections.weeks)
+      ? source.reflections.weeks
+      : [];
+    const legacyAnswers = Array.isArray(legacyWeeks[safeIndex]) ? legacyWeeks[safeIndex] : [];
+    const prompts = Array.isArray(opts.legacyPrompts) ? opts.legacyPrompts : [];
+    const legacy = legacyAnswers.map((answer, index) => ({
+      prompt: typeof prompts[index] === 'string' ? prompts[index] : '',
+      answer: typeof answer === 'string' ? answer : '',
+    })).filter((item) => item.answer.trim());
+    return {
+      weekIndex: safeIndex,
+      weekNumber: Number.isInteger(week.n) ? week.n : safeIndex + 1,
+      review: normalizeReview(source.weeklyReviews[safeIndex]),
+      summary: weeklySummary(week, source.habits, opts.focusMinutes, opts),
+      pillars: weeklyPillarScores(source, week, opts),
+      legacy,
+    };
+  }
+
+  function updateReviewField(state, weekIndex, field, value, priorityIndex, nowISO) {
+    if (!state || typeof state !== 'object' || !Number.isInteger(weekIndex) || weekIndex < 0) return null;
+    const count = Math.max(
+      weekIndex + 1,
+      Array.isArray(state.weeks) ? state.weeks.length : 0,
+      Array.isArray(state.weeklyReviews) ? state.weeklyReviews.length : 0
+    );
+    ensureWeeklyReviews(state, count);
+    const review = state.weeklyReviews[weekIndex];
+    const text = typeof value === 'string' ? value : '';
+    if (['best', 'blocker', 'learned', 'change'].includes(field)) review[field] = text;
+    else if (field === 'priority' && Number.isInteger(priorityIndex) && priorityIndex >= 0 && priorityIndex < 3) review.priorities[priorityIndex] = text;
+    else return null;
+    review.updatedAt = typeof nowISO === 'string' ? nowISO : new Date().toISOString();
+    return review;
+  }
+
+  function reviewFieldHTML(field, labelKey, review, model, options) {
+    const id = `weekly-review-${model.weekIndex}-${field}`;
+    return `<label class="weekly-review-field" for="${id}">
+      <span>${options.t(labelKey)}</span>
+      <textarea class="weekly-review-textarea" id="${id}" data-week-review-field="${field}" data-week-index="${model.weekIndex}" maxlength="1000">${options.esc(review[field] || '')}</textarea>
+    </label>`;
+  }
+
+  function weeklyReviewHTML(model, options) {
+    const data = model && typeof model === 'object' ? model : {};
+    const opts = options && typeof options === 'object' ? options : {};
+    const t = typeof opts.t === 'function' ? opts.t : (key) => key;
+    const esc = typeof opts.esc === 'function' ? opts.esc : (value) => String(value ?? '');
+    const formatFocusTime = typeof opts.formatFocusTime === 'function' ? opts.formatFocusTime : (minutes) => String(minutes || 0);
+    const renderOptions = { t, esc };
+    const review = normalizeReview(data.review);
+    const summary = data.summary && typeof data.summary === 'object' ? data.summary : {};
+    const pillars = Array.isArray(data.pillars) ? data.pillars : [];
+    const legacy = Array.isArray(data.legacy) ? data.legacy : [];
+    const weekIndex = Number.isInteger(data.weekIndex) ? data.weekIndex : 0;
+    const weekNumber = Number.isInteger(data.weekNumber) ? data.weekNumber : weekIndex + 1;
+    const fieldModel = { weekIndex };
+    const pillarHTML = pillars.length ? pillars.map((pillar) => `<div class="weekly-review-pillar" data-testid="weekly-review-pillar">
+      <div class="weekly-review-pillar-head"><span><span aria-hidden="true">${esc(pillar.icon || '')}</span>${esc(pillar.name || '')}</span><strong>${pillar.pct}%</strong></div>
+      <div class="weekly-review-pillar-bar" role="progressbar" aria-label="${esc(pillar.name || '')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pillar.pct}"><span style="width:${pillar.pct}%"></span></div>
+    </div>`).join('') : `<p class="weekly-review-empty">${t('weeklyReviewNoPillars')}</p>`;
+    const legacyHTML = legacy.length ? `<details class="weekly-review-legacy" data-testid="weekly-review-legacy">
+      <summary>${t('weeklyReviewLegacy')}</summary>
+      <div>${legacy.map((item) => `<div class="weekly-review-legacy-item"><strong>${esc(item.prompt || '')}</strong><p>${esc(item.answer || '')}</p></div>`).join('')}</div>
+    </details>` : '';
+    return `<section class="card weekly-review-card" data-testid="weekly-review" aria-labelledby="weeklyReviewTitle-${weekIndex}">
+      <div class="weekly-review-head"><div><p class="week-page-eyebrow">${t('weeklyReviewSummary')}</p><h2 id="weeklyReviewTitle-${weekIndex}" class="week-section-title">${t('weeklyReviewTitle', { n: weekNumber })}</h2></div><span class="weekly-review-status" data-testid="weekly-review-status" role="status" aria-live="polite">${review.updatedAt ? t('weeklyReviewSaved') : ''}</span></div>
+      <div class="weekly-review-summary-grid" data-testid="weekly-review-summary" aria-label="${t('weeklyReviewSummary')}">
+        <div class="weekly-review-summary-cell"><span>${t('weeklyReviewTasks')}</span><strong>${t('weeklyReviewTaskValue', { done: summary.tasksDone || 0, total: summary.tasksTotal || 0, pct: summary.tasksPct || 0 })}</strong></div>
+        <div class="weekly-review-summary-cell"><span>${t('weeklyReviewHabits')}</span><strong>${t('weeklyReviewHabitValue', { done: summary.habitsDone || 0, total: summary.habitsTotal || 0, pct: summary.habitsPct || 0 })}</strong></div>
+        <div class="weekly-review-summary-cell"><span>${t('weeklyReviewFocus')}</span><strong>${esc(formatFocusTime(summary.focusMinutes || 0))}</strong></div>
+      </div>
+      <div class="weekly-review-pillars"><h3>${t('weeklyReviewPillars')}</h3>${pillarHTML}</div>
+      <div class="weekly-review-fields">
+        ${reviewFieldHTML('best', 'weeklyReviewBest', review, fieldModel, renderOptions)}
+        ${reviewFieldHTML('blocker', 'weeklyReviewBlocker', review, fieldModel, renderOptions)}
+        ${reviewFieldHTML('learned', 'weeklyReviewLearned', review, fieldModel, renderOptions)}
+        ${reviewFieldHTML('change', 'weeklyReviewChange', review, fieldModel, renderOptions)}
+      </div>
+      <fieldset class="weekly-review-priorities"><legend>${t('weeklyReviewPriorities')}</legend>${review.priorities.map((priority, index) => {
+        const id = `weekly-review-${weekIndex}-priority-${index}`;
+        return `<label class="weekly-review-priority" for="${id}"><span>${t('weeklyReviewPriority', { n: index + 1 })}</span><input id="${id}" type="text" value="${esc(priority)}" data-week-review-field="priority" data-week-index="${weekIndex}" data-priority-index="${index}" maxlength="200"></label>`;
+      }).join('')}</fieldset>
+      ${legacyHTML}
+    </section>`;
+  }
+
   return {
     emptyReview,
     normalizeReview,
@@ -211,5 +308,8 @@
     weekTarget,
     weeklyMetricProgress,
     weeklyPillarScores,
+    buildWeeklyReviewModel,
+    weeklyReviewHTML,
+    updateReviewField,
   };
 });

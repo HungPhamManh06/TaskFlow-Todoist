@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import WeeklyReview from '../js/weekly-review.js';
 
@@ -12,7 +13,14 @@ const {
   weekTarget,
   weeklyMetricProgress,
   weeklyPillarScores,
+  buildWeeklyReviewModel,
+  weeklyReviewHTML,
+  updateReviewField,
 } = WeeklyReview;
+
+const I18N_JS = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+const STYLES = readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
+const DEFERRED_STYLES = readFileSync(new URL('../css/styles-deferred.css', import.meta.url), 'utf8');
 
 const context = {
   planStart: new Date(2026, 6, 27),
@@ -214,4 +222,130 @@ test('weeklyPillarScores averages scorable metrics and omits hidden or empty pil
     { id: 'body', pct: 33, metricCount: 1 },
     { id: 'work', pct: 63, metricCount: 2 },
   ]);
+});
+
+test('buildWeeklyReviewModel keeps legacy notes separate from the new record', () => {
+  const state = {
+    weeklyReviews: [{ best: 'New win' }],
+    reflections: { weeks: [['Old win', '', 'Old gratitude', 'Old goals']] },
+    weeks: [fullWeek],
+    habits: [],
+    pillars: [],
+  };
+  const model = buildWeeklyReviewModel(state, 0, {
+    ...augustContext,
+    focusMinutes: 30,
+    legacyPrompts: ['Old Q1', 'Old Q2', 'Old Q3', 'Old Q4'],
+  });
+  assert.equal(model.review.best, 'New win');
+  assert.deepEqual(model.legacy.map((item) => item.answer), ['Old win', 'Old gratitude', 'Old goals']);
+  assert.deepEqual(state.reflections.weeks[0], ['Old win', '', 'Old gratitude', 'Old goals']);
+});
+
+test('updateReviewField edits only allowed fields and one priority', () => {
+  const state = { weeklyReviews: [] };
+  updateReviewField(state, 1, 'blocker', 'Meetings', null, '2026-08-11T12:00:00.000Z');
+  updateReviewField(state, 1, 'priority', 'Ship P6', 2, '2026-08-11T12:01:00.000Z');
+  assert.equal(state.weeklyReviews[1].blocker, 'Meetings');
+  assert.equal(state.weeklyReviews[1].priorities[2], 'Ship P6');
+  assert.equal(state.weeklyReviews[1].updatedAt, '2026-08-11T12:01:00.000Z');
+  assert.equal(updateReviewField(state, 1, 'unknown', 'x', null, 'now'), null);
+  assert.equal(updateReviewField(state, 1, 'priority', 'x', 3, 'now'), null);
+});
+
+const copy = {
+  weeklyReviewTitle: 'Week {n} · Review',
+  weeklyReviewSummary: 'Weekly summary',
+  weeklyReviewTasks: 'Tasks',
+  weeklyReviewHabits: 'Habits',
+  weeklyReviewFocus: 'Focus',
+  weeklyReviewPillars: 'Pillar progress',
+  weeklyReviewNoPillars: 'No scorable pillars.',
+  weeklyReviewBest: 'Best thing this week?',
+  weeklyReviewBlocker: 'What got in my way?',
+  weeklyReviewLearned: 'What did I learn?',
+  weeklyReviewChange: 'What should I change?',
+  weeklyReviewPriorities: 'Next-week priorities',
+  weeklyReviewPriority: 'Priority {n}',
+  weeklyReviewSaving: 'Saving…',
+  weeklyReviewSaved: 'Saved',
+  weeklyReviewLegacy: 'Previous reflection notes',
+  weeklyReviewTaskValue: '{done}/{total} · {pct}%',
+  weeklyReviewHabitValue: '{done}/{total} · {pct}%',
+};
+
+function tr(key, vars = {}) {
+  return String(copy[key] || key).replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? ''));
+}
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
+}
+
+test('weeklyReviewHTML renders semantic summary, pillars, fields and legacy notes', () => {
+  const model = {
+    weekIndex: 0,
+    weekNumber: 1,
+    review: normalizeReview({ best: '<Win>', priorities: ['A', 'B', 'C'] }),
+    summary: { tasksDone: 2, tasksTotal: 4, tasksPct: 50, habitsDone: 3, habitsTotal: 5, habitsPct: 60, focusMinutes: 90 },
+    pillars: [{ id: 'work', name: 'Work', icon: 'W', pct: 75, metricCount: 2 }],
+    legacy: [{ prompt: 'Old Q', answer: 'Old answer' }],
+  };
+  const html = weeklyReviewHTML(model, { t: tr, esc, formatFocusTime: (minutes) => `${minutes}m` });
+  assert.match(html, /data-testid="weekly-review"/);
+  assert.match(html, /data-testid="weekly-review-summary"/);
+  assert.match(html, /data-testid="weekly-review-pillar"/);
+  assert.match(html, /data-week-review-field="best"/);
+  assert.match(html, /data-week-review-field="blocker"/);
+  assert.match(html, /data-week-review-field="learned"/);
+  assert.match(html, /data-week-review-field="change"/);
+  assert.equal((html.match(/data-week-review-field="priority"/g) || []).length, 3);
+  assert.match(html, /<details[^>]*data-testid="weekly-review-legacy"/);
+  assert.match(html, /aria-valuenow="75"/);
+  assert.match(html, /&lt;Win&gt;/);
+});
+
+test('weeklyReviewHTML keeps the review form available for an empty week', () => {
+  const html = weeklyReviewHTML({
+    weekIndex: 2,
+    weekNumber: 3,
+    review: emptyReview(),
+    summary: { tasksDone: 0, tasksTotal: 0, tasksPct: 0, habitsDone: 0, habitsTotal: 0, habitsPct: 0, focusMinutes: 0 },
+    pillars: [],
+    legacy: [],
+  }, { t: tr, esc, formatFocusTime: () => '0m' });
+  assert.match(html, /No scorable pillars/);
+  assert.equal((html.match(/<textarea/g) || []).length, 4);
+  assert.equal((html.match(/data-week-review-field="priority"/g) || []).length, 3);
+});
+
+test('Weekly Review copy exists in Vietnamese and English', () => {
+  const keys = [
+    'weeklyReviewTitle', 'weeklyReviewSummary', 'weeklyReviewTasks', 'weeklyReviewHabits',
+    'weeklyReviewFocus', 'weeklyReviewPillars', 'weeklyReviewNoPillars', 'weeklyReviewBest',
+    'weeklyReviewBlocker', 'weeklyReviewLearned', 'weeklyReviewChange', 'weeklyReviewPriorities',
+    'weeklyReviewPriority', 'weeklyReviewSaving', 'weeklyReviewSaved', 'weeklyReviewLegacy',
+    'weeklyReviewTaskValue', 'weeklyReviewHabitValue',
+  ];
+  keys.forEach((key) => {
+    assert.equal((I18N_JS.match(new RegExp(`${key}:`, 'g')) || []).length, 2, `${key} must exist in vi and en`);
+  });
+});
+
+test('Weekly Review responsive styles are mirrored in both source stylesheets', () => {
+  const selectors = [
+    '.weekly-review-card', '.weekly-review-summary-grid', '.weekly-review-summary-cell',
+    '.weekly-review-pillars', '.weekly-review-pillar', '.weekly-review-pillar-bar',
+    '.weekly-review-fields', '.weekly-review-field', '.weekly-review-textarea',
+    '.weekly-review-priorities', '.weekly-review-priority', '.weekly-review-status',
+    '.weekly-review-legacy',
+  ];
+  selectors.forEach((selector) => {
+    assert.ok(STYLES.includes(selector), `${selector} missing from styles.css`);
+    assert.ok(DEFERRED_STYLES.includes(selector), `${selector} missing from styles-deferred.css`);
+  });
+  assert.match(STYLES, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.weekly-review-fields/);
+  assert.match(DEFERRED_STYLES, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.weekly-review-fields/);
 });
