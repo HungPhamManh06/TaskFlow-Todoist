@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-11T12:37:19",
+  "generated": "2026-08-11T13:44:14",
   "results": {
     "landing-desktop": {
       "scores": {
@@ -9,11 +9,11 @@
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 576,
-        "largest-contentful-paint": 576,
-        "speed-index": 576,
+        "first-contentful-paint": 564,
+        "largest-contentful-paint": 564,
+        "speed-index": 564,
         "total-blocking-time": 0,
-        "interactive": 576,
+        "interactive": 564,
         "cumulative-layout-shift": 0.067
       }
     },
@@ -25,11 +25,11 @@
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 1667,
-        "largest-contentful-paint": 1667,
-        "speed-index": 1667,
+        "first-contentful-paint": 1684,
+        "largest-contentful-paint": 1684,
+        "speed-index": 1684,
         "total-blocking-time": 0,
-        "interactive": 1667,
+        "interactive": 1684,
         "cumulative-layout-shift": 0.067
       }
     },
@@ -41,11 +41,11 @@
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 531,
-        "largest-contentful-paint": 1321,
-        "speed-index": 592,
+        "first-contentful-paint": 527,
+        "largest-contentful-paint": 1303,
+        "speed-index": 562,
         "total-blocking-time": 0,
-        "interactive": 1321,
+        "interactive": 1303,
         "cumulative-layout-shift": 0.002
       }
     },
@@ -57,11 +57,11 @@
         "seo": 100
       },
       "cwv": {
-        "first-contentful-paint": 1812,
-        "largest-contentful-paint": 6249,
-        "speed-index": 1813,
-        "total-blocking-time": 45,
-        "interactive": 6256,
+        "first-contentful-paint": 1808,
+        "largest-contentful-paint": 6272,
+        "speed-index": 1808,
+        "total-blocking-time": 29,
+        "interactive": 6272,
         "cumulative-layout-shift": 0.0
       }
     }

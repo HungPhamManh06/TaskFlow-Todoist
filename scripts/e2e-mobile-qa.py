@@ -141,16 +141,17 @@ def check_hit_area(page, viewport, area, selector):
 
 
 def run_viewport(browser, browser_name, width, height, label, base, screenshots):
-    # Touch emulation: is_mobile requires has_touch, and without has_touch the
-    # coarse-pointer media queries don't match — row actions stay
-    # pointer-events:none and clicks get intercepted (harness artifact). The
-    # tablet (768) renders the desktop layout but a real tablet still has a
-    # coarse pointer, so it gets has_touch too (is_mobile stays mobile-only).
-    touch = browser_name == "chromium"
+    # Touch emulation: has_touch is supported on every engine and must be on so
+    # the coarse-pointer media queries (pointer: coarse / hover: none) actually
+    # match — without it, row actions stay pointer-events:none and clicks get
+    # intercepted (harness artifact). is_mobile is Chromium-only in Playwright,
+    # so Firefox/WebKit get has_touch without the device emulation; the tablet
+    # (768) renders the desktop layout but a real tablet still has a coarse
+    # pointer, so it gets has_touch too (is_mobile stays mobile-only).
     page = browser.new_page(
         viewport={"width": width, "height": height},
-        is_mobile=(width <= MOBILE_MAX and touch),
-        has_touch=touch,
+        is_mobile=(width <= MOBILE_MAX and browser_name == "chromium"),
+        has_touch=True,
     )
     page.on("pageerror", lambda error: errors.append(f"{label}: {error}"))
     mobile = width <= MOBILE_MAX

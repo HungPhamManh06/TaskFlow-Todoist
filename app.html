@@ -64,9 +64,9 @@
   <link rel="stylesheet" href="css/app-shell.min.css?v=19" />
   <!-- styles-critical: tập con boot (shell + Today + modals + theme/dark) giữ trên critical path.
        styles-deferred (phần còn lại của styles.css): nạp sau first paint (media=print swap) — vẫn trong SW cache cho offline. -->
-  <link rel="stylesheet" href="css/styles-critical.min.css?v=8" />
-  <link rel="stylesheet" href="css/styles-deferred.min.css?v=8" media="print" onload="this.media='all'" />
-  <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=8" /></noscript>
+  <link rel="stylesheet" href="css/styles-critical.min.css?v=10" />
+  <link rel="stylesheet" href="css/styles-deferred.min.css?v=10" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=10" /></noscript>
 </head>
 
 <body>
@@ -322,7 +322,7 @@
   <div class="search-modal" id="searchModal" hidden data-testid="search-modal">
     <div class="search-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="searchDialogTitle">
       <button type="button" class="sync-close" data-action="search-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="searchDialogTitle"><span data-i18n="searchTitle">Tìm kiếm xuyên tháng</span></h2>
       <input type="search" id="searchInput" class="inline-input search-input" placeholder=""
         data-i18n-placeholder="searchPh" aria-label="" data-i18n-aria="searchTitle" autocomplete="off" />
@@ -334,7 +334,7 @@
   <div class="quickadd-modal" id="quickAddModal" hidden data-testid="quick-add">
     <div class="quickadd-card dialog" role="dialog" aria-modal="true" aria-labelledby="quickAddTitle">
       <button type="button" class="sync-close" data-action="quickadd-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="quickAddTitle"><span data-i18n="quickAddTitle">Thêm công việc nhanh</span></h2>
       <input type="text" id="quickAddInput" class="inline-input quickadd-input" placeholder=""
         data-i18n-placeholder="quickAddPh" aria-label="" data-i18n-aria="quickAddTitle" autocomplete="off" maxlength="200" />
@@ -359,7 +359,7 @@
   <div class="template-modal" id="templateModal" hidden data-testid="template-modal">
     <div class="template-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="templateDialogTitle">
       <button type="button" class="sync-close" data-action="template-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="templateDialogTitle"><span data-i18n="templateTitle">Sao chép cấu trúc tháng</span></h2>
       <p class="sync-desc" data-i18n="templateDesc">Sao chép mục tiêu, thói quen &amp; cấu trúc tuần (bỏ ô tick ✓) sang tháng khác.</p>
       <div class="template-fields">
@@ -380,7 +380,7 @@
   <div class="backup-modal" id="backupModal" hidden data-testid="backup-modal">
     <div class="backup-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="backupDialogTitle">
       <button type="button" class="sync-close" data-action="backup-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="backupDialogTitle"><span data-i18n="backupRestore">Khôi phục bản sao lưu tự động</span></h2>
       <div id="backupList" class="backup-list"></div>
     </div>
@@ -392,7 +392,7 @@
       <div class="focus-head">
         <h2 class="focus-title" id="focusDialogTitle"><span data-i18n="focusOpen">Chế độ Tập trung</span></h2>
         <button type="button" class="sync-close" data-action="focus-close" aria-label="Đóng"
-          data-i18n-aria="focusClose" title="Đóng (Esc)" data-i18n-title="focusClose">✕</button>
+          data-i18n-aria="focusClose" title="Đóng (Esc)" data-i18n-title="focusClose" data-shell-icon="close"></button>
       </div>
       <div id="focusContent"></div>
     </div>
@@ -402,7 +402,7 @@
   <div class="profile-modal" id="profileModal" hidden data-testid="profile-modal">
     <div class="profile-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="profileDialogTitle">
       <button type="button" class="sync-close" data-action="profile-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="profileDialogTitle"><span data-i18n="profileTitle">Tài khoản</span></h2>
       <p class="sync-desc" id="profileUser"></p>
       <div class="profile-section">
@@ -444,7 +444,7 @@
       <div class="chat-header">
         <strong data-i18n="chatTitle">🤖 Trợ lý học tập</strong>
         <button type="button" class="sync-close" data-action="chat-close" aria-label="Đóng"
-          data-i18n-aria="closeBtn">✕</button>
+          data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       </div>
       <div class="chat-messages" id="chatMessages">
         <div class="chat-msg bot">
@@ -469,7 +469,7 @@
   <div class="report-modal" id="helpModal" hidden data-testid="help-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="helpDialogTitle">
       <button type="button" class="sync-close" data-action="help-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="helpDialogTitle"><span data-i18n="helpTitle">Hướng dẫn sử dụng</span></h2>
       <div class="help-content" id="helpContent"></div>
     </div>
@@ -478,7 +478,7 @@
   <div class="sync-modal" id="syncModal" hidden data-testid="sync-modal">
     <div class="sync-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="syncDialogTitle">
       <button type="button" class="sync-close" data-action="sync-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="syncDialogTitle"><span data-i18n="syncTitle">Đồng bộ đám mây</span></h2>
       <p class="sync-desc" data-i18n="syncDesc">Đăng nhập để đồng bộ dữ liệu giữa các thiết bị. Dữ liệu hiện tại sẽ tự
         động được nâng cấp lên đám mây.</p>
@@ -520,7 +520,7 @@
   <div class="report-modal" id="reportModal" hidden data-testid="report-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="reportDialogTitle">
       <button type="button" class="sync-close" data-action="close-report" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="reportDialogTitle"><span data-i18n="reportTitle">Báo cáo tháng</span></h2>
       <div id="reportContent"></div>
       <div class="report-actions">
@@ -534,7 +534,7 @@
   <div class="report-modal" id="weekReportModal" hidden data-testid="week-report-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="weekReportDialogTitle">
       <button type="button" class="sync-close" data-action="close-week-report" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="weekReportDialogTitle"><span data-i18n="weekReportTitle">Báo cáo tuần</span></h2>
       <div id="weekReportContent"></div>
       <div class="report-actions">
@@ -548,7 +548,7 @@
   <div class="report-modal" id="yearReportModal" hidden data-testid="year-report-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="yearReportDialogTitle">
       <button type="button" class="sync-close" data-action="close-year-report" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="yearReportDialogTitle"><span data-i18n="yearReportTitle">Báo cáo năm</span></h2>
       <div id="yearReportContent"></div>
       <div class="report-actions">
@@ -562,7 +562,7 @@
   <div class="report-modal" id="reflectionModal" hidden data-testid="reflection-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="reflectionDialogTitle">
       <button type="button" class="sync-close" data-action="reflection-deep-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="reflectionDialogTitle"><span data-i18n="reflectDeepTitle">Reflection đầy đủ</span></h2>
       <div id="reflectionDeepContent" class="reflection-modal-body"></div>
     </div>
@@ -572,7 +572,7 @@
   <div class="report-modal" id="reflectionHistoryModal" hidden data-testid="reflection-history-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="reflectionHistoryDialogTitle">
       <button type="button" class="sync-close" data-action="reflection-history-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="reflectionHistoryDialogTitle"><span data-i18n="reflectHistory">Lịch sử</span></h2>
       <div id="reflectionHistoryContent" class="reflection-modal-body"></div>
     </div>
@@ -582,7 +582,7 @@
   <div class="report-modal" id="pillarEditModal" hidden data-testid="pillar-edit-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="pillarEditDialogTitle">
       <button type="button" class="sync-close" data-action="pillar-edit-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="pillarEditDialogTitle"><span data-i18n="pillarEditTitle">Sửa trụ cột</span></h2>
       <div id="pillarEditContent" class="pillar-edit-body"></div>
     </div>
@@ -592,7 +592,7 @@
   <div class="report-modal" id="metricEditModal" hidden data-testid="metric-edit-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="metricEditDialogTitle">
       <button type="button" class="sync-close" data-action="metric-edit-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="metricEditDialogTitle"><span data-i18n="metricEditTitle">Thêm metric</span></h2>
       <div id="metricEditContent" class="pillar-edit-body"></div>
     </div>
@@ -602,7 +602,7 @@
   <div class="report-modal stats-modal" id="statsModal" hidden data-testid="stats-modal">
     <div class="report-modal-card stats-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="statsDialogTitle">
       <button type="button" class="sync-close" data-action="stats-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="statsDialogTitle"><span data-i18n="statsTitle">Thống kê</span></h2>
       <div id="statsContent"></div>
     </div>
@@ -612,7 +612,7 @@
   <div class="widget-modal" id="widgetSettingsModal" hidden data-testid="widget-settings-modal">
     <div class="widget-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="widgetDialogTitle">
       <button type="button" class="sync-close" data-action="widget-close" aria-label="Đóng"
-        data-i18n-aria="closeBtn">✕</button>
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="widgetDialogTitle"><span data-i18n="widgetSettings">Tuỳ chỉnh Widget</span></h2>
       <div id="widgetList" class="widget-list"></div>
       <div class="sync-actions">
@@ -682,7 +682,7 @@
         <h2 id="taskDrawerTitle" data-i18n="taskDetailTitle">Chi tiết task</h2>
       </div>
       <button type="button" class="task-drawer-close" data-action="task-detail-close" data-dialog-dismiss
-        data-i18n-aria="taskDetailClose" data-i18n-title="taskDetailClose" aria-label="Đóng chi tiết task" title="Đóng chi tiết task">✕</button>
+        data-i18n-aria="taskDetailClose" data-i18n-title="taskDetailClose" aria-label="Đóng chi tiết task" title="Đóng chi tiết task" data-shell-icon="close"></button>
     </div>
     <div class="task-drawer-body" data-role="td-body"></div>
   </aside>
@@ -694,7 +694,7 @@
   <script src="js/widget.min.js?v=1"></script>
   <script src="js/xp.min.js?v=1"></script>
   <script src="js/streak-ui.min.js?v=1"></script>
-  <script src="js/today.min.js?v=2"></script>
+  <script src="js/today.min.js?v=3"></script>
   <script src="js/report-ui.min.js?v=1"></script>
   <script src="js/upcoming.min.js?v=1"></script>
   <script src="js/focus-stats.min.js?v=1"></script>
@@ -726,13 +726,13 @@
   <script src="js/planmini.min.js?v=1"></script>
   <script src="js/clock.min.js?v=1"></script>
   <script src="js/shell.min.js?v=1"></script>
-  <script src="js/inbox.min.js?v=1"></script>
+  <script src="js/inbox.min.js?v=2"></script>
   <script src="js/mood.min.js?v=1"></script>
-  <script src="js/remind-ui.min.js?v=1"></script>
+  <script src="js/remind-ui.min.js?v=2"></script>
   <script src="js/popups.min.js?v=1"></script>
   <script src="js/reflection.min.js?v=1"></script>
-  <script src="js/pillars.min.js?v=1"></script>
-  <script src="js/app.min.js?v=161"></script>
+  <script src="js/pillars.min.js?v=2"></script>
+  <script src="js/app.min.js?v=162"></script>
 </body>
 
 </html>

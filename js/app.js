@@ -1700,7 +1700,7 @@ function yearGoalsCardHTML(gs) {
               ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}" draggable="true" data-drag="goal" data-scope="y" data-id="${g.id}" title="${t('dragHint')}">
                 ${checkboxHTML('pink', g.done, `data-action="ygoal" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, String(PLAN_YEAR)))}
                 <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="y-goal-text" data-id="${g.id}" data-placeholder="${t('yGoalPh')}" aria-label="${t('yGoalAria')}">${esc(g.text)}</span>
-                <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button>
+                <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button>
               </li>`).join('')}
               <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="y" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">＋</button></li>
             </ul>
@@ -1711,7 +1711,7 @@ function yearGoalsCardHTML(gs) {
               ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}" draggable="true" data-drag="goal" data-scope="y" data-id="${g.id}" title="${t('dragHint')}">
                 ${checkboxHTML('blue', g.done, `data-action="ygoal" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, String(PLAN_YEAR)))}
                 <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="y-goal-text" data-id="${g.id}" data-placeholder="${t('yGoalPh')}" aria-label="${t('yGoalAria')}">${esc(g.text)}</span>
-                <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button>
+                <button type="button" class="btn-del" data-action="delgoal" data-scope="y" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button>
               </li>`).join('')}
               <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="y" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">＋</button></li>
             </ul>
@@ -1826,14 +1826,14 @@ function yearMonthsHTML() {
             <div class="ym-block">
               <div class="v-strip pink"><span>${t('priLbl')}</span></div>
               <ul class="goal-items ym-items">
-                ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('pink', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, `${monthLabel(m)} ${PLAN_YEAR}`))}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button></li>`).join('')}
+                ${pri.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('pink', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, `${monthLabel(m)} ${PLAN_YEAR}`))}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button></li>`).join('')}
                 <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="ym" data-month="${m}" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">＋</button></li>
               </ul>
             </div>
             <div class="ym-block">
               <div class="v-strip blue"><span>${t('regLbl')}</span></div>
               <ul class="goal-items ym-items">
-                ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('blue', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, `${monthLabel(m)} ${PLAN_YEAR}`))}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button></li>`).join('')}
+                ${reg.map((g) => `<li class="goal-item ${g.done ? 'done' : ''}">${checkboxHTML('blue', g.done, `data-action="mgoal" data-month="${m}" data-id="${g.id}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, `${monthLabel(m)} ${PLAN_YEAR}`))}<span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="ym-goal-text" data-month="${m}" data-id="${g.id}" data-placeholder="${t('writePh')}" aria-label="${t('mGoalAria', { n: m + 1 })}">${esc(g.text)}</span><button type="button" class="btn-del" data-action="delgoal" data-scope="ym" data-month="${m}" data-id="${g.id}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button></li>`).join('')}
                 <li class="goal-item add-item"><button type="button" class="btn-add" data-action="addgoal" data-scope="ym" data-month="${m}" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">＋</button></li>
               </ul>
             </div>
@@ -1898,7 +1898,7 @@ function weekTagFilterBar() {
   if (!allTags.size) return '';
   const chips = [`<button type="button" class="tag-chip${tagFilter === null ? ' active' : ''}" data-action="tagfilter" data-tag="">${t('tagAll')}</button>`]
     .concat(Array.from(allTags).map((tg) => `<button type="button" class="tag-chip${tagFilter === tg ? ' active' : ''}" data-action="tagfilter" data-tag="${esc(tg)}">#${esc(tg)}</button>`));
-  return `<div class="tag-filter-bar"><span class="tag-filter-lbl">${t('tagFilter')}</span>${chips.join('')}${tagFilter ? `<button type="button" class="tag-chip tag-clear" data-action="tagfilter" data-tag="">✕ ${t('tagAll')}</button>` : ''}</div>`;
+  return `<div class="tag-filter-bar"><span class="tag-filter-lbl">${t('tagFilter')}</span>${chips.join('')}${tagFilter ? `<button type="button" class="tag-chip tag-clear" data-action="tagfilter" data-tag="">${window.TaskFlowUI.icon('close')} ${t('tagAll')}</button>` : ''}</div>`;
 }
 
 function renderWeek() {
@@ -2010,7 +2010,7 @@ function weeklyGoalsHTML(w) {
           ${pri.map(({ g, gi }) => `<div class="legend-goal" draggable="true" data-drag="goal" data-scope="w" data-week="${w.n}" data-id="${gi}" title="${t('dragHint')}">
             ${checkboxHTML('pink', g.done, `data-action="wgoal" data-week="${w.n}" data-id="${gi}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, t('weekN', { n: w.n })))}
             <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="w-goal-text" data-week="${w.n}" data-id="${gi}" data-placeholder="${t('yGoalPh')}" aria-label="${t('wGoalAria', { n: gi + 1 })}">${esc(g.text)}</span>
-            <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button>
+            <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button>
           </div>`).join('')}
           <div class="legend-goal"><button type="button" class="btn-add" data-action="addgoal" data-scope="w" data-week="${w.n}" data-kind="priority" aria-label="${t('addPriGoalAria')}" title="${t('addPriGoalAria')}">＋</button></div>
         </div>
@@ -2022,7 +2022,7 @@ function weeklyGoalsHTML(w) {
           ${reg.map(({ g, gi }) => `<div class="legend-goal" draggable="true" data-drag="goal" data-scope="w" data-week="${w.n}" data-id="${gi}" title="${t('dragHint')}">
             ${checkboxHTML('blue', g.done, `data-action="wgoal" data-week="${w.n}" data-id="${gi}"`, window.TaskFlowUI.checkboxLabel('goal', g.text, t('weekN', { n: w.n })))}
             <span class="g-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="w-goal-text" data-week="${w.n}" data-id="${gi}" data-placeholder="${t('yGoalPh')}" aria-label="${t('wGoalAria', { n: gi + 1 })}">${esc(g.text)}</span>
-            <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">✕</button>
+            <button type="button" class="btn-del" data-action="delgoal" data-scope="w" data-week="${w.n}" data-id="${gi}" aria-label="${t('delGoalAria')}" title="${t('delGoalAria')}">${window.TaskFlowUI.icon('close')}</button>
           </div>`).join('')}
           <div class="legend-goal"><button type="button" class="btn-add" data-action="addgoal" data-scope="w" data-week="${w.n}" data-kind="regular" aria-label="${t('addRegGoalAria')}" title="${t('addRegGoalAria')}">＋</button></div>
         </div>
@@ -2324,7 +2324,7 @@ function renderTaskDetail() {
       <div class="td-field">
         <span class="td-field-label">${t('taskDetailTags')}</span>
         <div class="td-tags">
-          ${tags.length ? tags.map((tg) => `<span class="tag-chip td-tag">#${esc(tg)}<button type="button" class="td-tag-del" data-action="td-tag-del" data-tag="${esc(tg)}" aria-label="${t('tagDelAria', { tag: tg })}" title="${t('tagDelAria', { tag: tg })}">✕</button></span>`).join('') : `<span class="td-empty">—</span>`}
+          ${tags.length ? tags.map((tg) => `<span class="tag-chip td-tag">#${esc(tg)}<button type="button" class="td-tag-del" data-action="td-tag-del" data-tag="${esc(tg)}" aria-label="${t('tagDelAria', { tag: tg })}" title="${t('tagDelAria', { tag: tg })}">${window.TaskFlowUI.icon('close')}</button></span>`).join('') : `<span class="td-empty">—</span>`}
         </div>
         <span class="td-add-row"><input type="text" data-role="td-tag-input" placeholder="${t('tagAdd')}" maxlength="40" aria-label="${t('tagAdd')}"><button type="button" class="td-add-btn" data-action="td-tag-add" aria-label="${t('tagAdd')}">＋</button></span>
       </div>
@@ -2335,7 +2335,7 @@ function renderTaskDetail() {
       <div class="td-field">
         <span class="td-field-label">${t('taskDetailSubtasks')}${subs.length ? ` <span class="td-sub-count">${subDone}/${subs.length}</span>` : ''}</span>
         <div class="td-subtasks">
-          ${subs.length ? subs.map((s, i) => `<div class="td-subtask ${s.done ? 'done' : ''}">${checkboxHTML('blue', s.done, `data-action="subtask-toggle" data-sub="${i}"`, window.TaskFlowUI.checkboxLabel('subtask', s.text, `${t('taskDetailSubtasks')} ${i + 1}`))}<span class="td-subtask-text">${esc(s.text)}</span><button type="button" class="td-subtask-del" data-action="subtask-del" data-sub="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">✕</button></div>`).join('') : `<p class="td-empty">${t('taskDetailSubtaskPh')}</p>`}
+          ${subs.length ? subs.map((s, i) => `<div class="td-subtask ${s.done ? 'done' : ''}">${checkboxHTML('blue', s.done, `data-action="subtask-toggle" data-sub="${i}"`, window.TaskFlowUI.checkboxLabel('subtask', s.text, `${t('taskDetailSubtasks')} ${i + 1}`))}<span class="td-subtask-text">${esc(s.text)}</span><button type="button" class="td-subtask-del" data-action="subtask-del" data-sub="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">${window.TaskFlowUI.icon('close')}</button></div>`).join('') : `<p class="td-empty">${t('taskDetailSubtaskPh')}</p>`}
         </div>
         <span class="td-add-row"><input type="text" data-role="td-subtask-input" placeholder="${t('taskDetailSubtaskPh')}" maxlength="120" aria-label="${t('taskDetailAddSubtask')}"><button type="button" class="td-add-btn" data-action="subtask-add" aria-label="${t('taskDetailAddSubtask')}">＋</button></span>
       </div>
@@ -2861,7 +2861,7 @@ function renderWidgetSettingsModal(view) {
     return `<div class="widget-item" draggable="true" data-widget-id="${w.id}" data-widget-order="${w.order}">
       <span class="widget-handle" data-widget-drag="${w.id}" aria-label="${esc(t('dragHint'))}">🟰</span>
       <span class="widget-name">${esc(label)}</span>
-      <button type="button" class="widget-toggle${w.visible ? ' on' : ' off'}" data-action="widget-toggle" data-widget-id="${w.id}" aria-checked="${w.visible ? 'true' : 'false'}" aria-label="${esc(w.visible ? t('widgetHide') : t('widgetShow'))}">${w.visible ? '✓' : '✕'}</button>
+      <button type="button" class="widget-toggle${w.visible ? ' on' : ' off'}" data-action="widget-toggle" data-widget-id="${w.id}" aria-checked="${w.visible ? 'true' : 'false'}" aria-label="${esc(w.visible ? t('widgetHide') : t('widgetShow'))}">${w.visible ? window.TaskFlowUI.icon('check') : window.TaskFlowUI.icon('close')}</button>
     </div>`;
   }).join('');
   // Attach drag events for reorder
@@ -3075,7 +3075,7 @@ function buildNav() {
   const desktop = document.getElementById('navTabs');
   const mobile = document.getElementById('mobileNav');
   const items = [
-    { view: 'today', icon: 'calendar', label: shellNavLabel(t('todayTxt')), id: 'tab-today', controls: 'view-today' },
+    { view: 'today', icon: 'sun', label: shellNavLabel(t('todayTxt')), id: 'tab-today', controls: 'view-today' },
     { view: 'inbox', icon: 'inbox', label: shellNavLabel(t('tabInbox')), id: 'tab-inbox', controls: 'view-inbox' },
     { view: 'upcoming', icon: 'upcoming', label: shellNavLabel(t('tabUpcoming')), id: 'tab-upcoming', controls: 'view-upcoming' },
     { view: 'overview', icon: 'overview', label: shellNavLabel(t('tabOverview')), id: 'tab-overview', controls: 'view-overview' },

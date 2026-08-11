@@ -68,7 +68,7 @@
       <button type="button" class="inbox-sched-today" data-action="inbox-today" data-task="${i}"
         title="${t('inboxTodayAria')}" aria-label="${t('inboxTodayAria')}">${t('inboxScheduleToday')}</button>
       <button type="button" class="btn-del" data-action="inbox-del" data-task="${i}"
-        title="${t('inboxDeleteAria')}" aria-label="${t('inboxDeleteAria')}">✕</button>
+        title="${t('inboxDeleteAria')}" aria-label="${t('inboxDeleteAria')}">${window.TaskFlowUI.icon('close')}</button>
     </span>
   </div>`;
   }

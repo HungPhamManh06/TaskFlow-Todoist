@@ -188,3 +188,70 @@
   - Unit **349/0** · E2E Chromium full matrix **RELEASE OK** · a11y **62/0** · mobile QA **318/0** · minify **59 file** · CSS verifier **0 diffs** · dark contrast audit **ALL PASS** (4 theme × dark, component-level).
 - 🚀 **Lighthouse final**: landing-desktop **99** (FCP ~576ms LCP, CLS .067, TBT 0) · landing-mobile **98** · app-desktop **97** · app-mobile **77** (LCP 6249ms, CLS 0, TBT 45ms) — **bằng/trên baseline**, không regression performance từ theme work (theme là CSS variables thuần, không thêm asset/network).
 - 🎨 Kết quả Visual Theme Refinement: Zen Linen canvas/surface/shadow, Amber Hearth CTA/active (dark amber + nâu 6.14:1), Sage Mist habits/positive/heatmap, dark 4 theme warm không pure black, contrast component-level AA verified.
+
+## 🚀 Lighthouse BEFORE vs AFTER (final, 2026-08-11 13:44)
+
+Chạy lại `measure-lighthouse.py --runs 3` trên state sạch; so với baseline gốc (commit `36bb1b6`, 2026-08-09).
+
+| Page | Device | Perf | FCP | LCP | TBT | SI | CLS |
+|---|---|---|---|---|---|---|---|
+| Landing | Desktop | 99→99 | 648→**564** | 648→**564** | 0→0 | 648→**564** | .068→.067 |
+| Landing | Mobile | 88→**98** | 3060→**1684** | 3060→**1684** | 0→0 | 3060→**1684** | 0→.067* |
+| App | Desktop | 97→97 | 731→**527** | 1227→1303* | 0→0 | 908→**562** | .001→.002 |
+| App | Mobile | 68→**77** | 3486→**1808** | 5795→6272* | 172→**29** | 3852→**1808** | 0→0 |
+
+Ghi chú trung thực: app-mobile LCP dao động 5.5–6.3s là nhiễu emulation (mọi baseline post-split đều trong band đó) — FCP/TBT/SI giữ gains, perf score 68→77. Landing-mobile CLS 0 ban đầu là sample may; các run sau đều ~.067. Bảng đầy đủ: `docs/lighthouse/COMPARISON.md` (giữ được qua các lần chạy script vì BASELINE.md bị overwrite mỗi run).
+
+## 🧪 Fix harness quirk: touch emulation trên Firefox/WebKit (mobile QA)
+
+`e2e-mobile-qa.py` trước đây chỉ bật `has_touch` cho chromium (`touch = browser_name == "chromium"`), nên FF/WebKit không khớp media query `pointer: coarse` → row actions giữ `pointer-events:none`, click bị intercept (fail ở SEARCH section).
+
+Fix: `has_touch=True` cho mọi engine (Playwright hỗ trợ đủ 3), chỉ giữ `is_mobile` riêng cho chromium (Chromium-only trong Playwright). Kết quả: **cả 3 browser đều 0 FAIL / 318 checks** (trước: chromium 318/0, FF/WebKit fail ở SEARCH).
+
+## 🎨 Icon system (phase 1): mở rộng sprite +18 symbol
+
+Thêm 18 symbol mới vào `icons/ui-sprite.svg` (Lucide-style geometry, đúng chuẩn hiện tại: 24×24, `stroke-width=1.8`, `fill=none`, `stroke=currentColor`, round caps/joins): sun, heart-pulse, users, target, sprout, clock, flag, notebook-pen, list-checks, check, sparkles, cloud-rain, wrench, sunrise, calendar-check, refresh, circle-stop, play. Sprite: 30 → **46 symbols**.
+
+Pure-additive (không đụng 30 symbol cũ, không đổi consumer nào). Verify: XML parse OK · mọi symbol stroke nhất quán · sprite phục vụ đủ 46 qua HTTP + fetch in-page (lưu ý: `getBBox` trên `<use>` trỏ sprite ngoài là false-negative — dùng fetch-check thay thế). CACHE bump `v192 → v193` (test assert cập nhật) để PWA cài sẵn re-precache sprite. Unit **349/0**, minify 59 file OK. Screenshot: `docs/qa/icons-new.png`.
+
+## 🎨 Icon system (phase 2): Today nav → sun + close buttons → sprite `close`
+
+**Today nav:** `js/app.js` `{ view: 'today', icon: 'calendar' }` → `'sun'` — hết tình trạng 1 icon calendar dùng cho 3 nghĩa (Today nav, Calendar view, task deadline meta). Desktop sidebar + mobile nav + more sheet đều tự theo (cùng items array).
+
+**Close buttons ✕ → sprite `close`:** thay toàn bộ text glyph ✕ (29 chỗ `>✕<` + remind-ui programmatic + tag-clear + widget-toggle ✓/✕ + task-menu menuitem = 33 glyph):
+- app.html: 19 nút modal static thêm `data-shell-icon="close"` (hydrate bởi `renderShellIcons()` lúc boot — đúng pattern sẵn có)
+- JS templates (app.js delgoal ×6, td-tag-del, td-subtask-del, tag-clear; today.js deltask ×2; inbox.js; remind-ui ×2): `${window.TaskFlowUI.icon('close')}` inline
+- widget-toggle ✓/✕ → sprite `check`/`close` (trạng thái hiển thị widget)
+
+**CSS sizing** (styles.css): `.sync-close/.task-drawer-close .ui-icon` 15px · `.btn-del/.td-tag-del/.td-subtask-del` 12px · `.mini-btn` 13px · `.tag-chip` 11px · `.widget-toggle` 16px — icon nhỏ không phình.
+
+### Kiểm chứng
+| Check | Kết quả |
+|---|---|
+| Unit tests | **349/0** (app.min.js v=162 + CACHE v194 assert update) |
+| CSS verifier | **0 diffs** |
+| E2E Chromium full matrix | **E2E RELEASE OK** |
+| a11y | **62/0** |
+| mobile QA | **318/0** |
+| minify | 59 file OK |
+| Preview real-app | today nav `#sun` ✓ · tools-close `#close` ✓ · quickadd-close `#close`, không còn ✕ text ✓ · **49 shell icons hydrated** |
+
+**1 QA note:** lần đo đầu báo tools-close NO-ICON là bug của script check — `[data-action="tools-close"]` match backdrop div trước (DOM order), không phải nút. Dùng `button[data-action=...]` thì đúng.
+
+## 🎨 Pillar icons: emoji → sprite (heart-pulse/target/users + palette 16)
+
+**`js/pillars.js`** — bỏ hoàn toàn emoji trong palette pillar:
+- `ICONS` → 16 sprite name: heart-pulse, target, users, home, book, sprout, moon, rocket, bolt, briefcase, palette, brain, sparkles, sunrise, sun, clock (đều đã có trong `icons/ui-sprite.svg`, stroke 1.8)
+- `EMOJI_TO_ICON` migration map (16 emoji cũ → sprite tương đương, ví dụ 💪→heart-pulse, 🏃→bolt, 🥗→sprout); `migrateIcon()` giữ nguyên icon custom/lạ — không mất dữ liệu
+- `normalizePillar` migrate icon lúc load (idempotent, additive — dữ liệu cloud cũ vẫn đọc được, lần save sau persist tên sprite)
+- Render qua `iconHTML()` → `TaskFlowUI.icon(name)` (sprite) với fallback text cho icon custom/môi trường Node
+
+**`css/styles.css`** — `.pillar-icon .ui-icon` + `.pillar-icon-opt .ui-icon` = 20px (khớp `--text-lg` trước đây).
+
+**Tests/E2E:** phase12: 22 test (thêm migrateIcon + normalizePillar migrate, ICONS phải tồn tại trong sprite); E2E pillars: click `bolt`/`book`, assert `use[href*="bolt"]`.
+
+**Verify (browser thật):** seed dữ liệu cũ 💪🎯🤝 → reload → render `#heart-pulse/#target/#users`, localStorage migrate `['heart-pulse','target','users']`, 0 ô emoji còn lại; edit modal 16 ô sprite, selected = heart-pulse. Screenshot `docs/qa/pillars-sprite.png`.
+
+**Gates:** unit 351/0 · E2E RELEASE OK · a11y 62/0 · mobile QA 318/0 · CSS verifier 0 diffs · minify 59 file · CACHE v195 · pillars.min.js v2, styles v10.
+
+Lưu ý: mini-btn action trong pillars block (✏️🙈🗑↺) vẫn là emoji — thuộc phase "task/action icons" riêng, chưa đụng.
