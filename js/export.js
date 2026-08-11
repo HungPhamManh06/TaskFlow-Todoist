@@ -29,7 +29,7 @@
   }
 
   function collectAllData(legacyKey) {
-    const out = { app: 'taskflow-todoist', version: 1, exportedAt: new Date().toISOString(), keys: {} };
+    const out = { app: 'taskflow-todoist', version: 2, exportedAt: new Date().toISOString(), keys: {} };
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
@@ -37,6 +37,51 @@
       }
     } catch (e) { /* ẩn */ }
     return out;
+  }
+
+  function migrations() {
+    if (typeof globalThis !== 'undefined' && globalThis.TaskFlowDataMigrations) return globalThis.TaskFlowDataMigrations;
+    if (typeof require === 'function') return require('./data-migrations.js');
+    throw new Error('data-migrations-missing');
+  }
+
+  function prepareImport(raw) {
+    let parsed;
+    try { parsed = typeof raw === 'string' ? JSON.parse(raw) : raw; }
+    catch (e) { return { ok: false, errors: ['invalid-json'] }; }
+    const M = migrations();
+    const check = M.validateSnapshot(parsed);
+    if (!check.ok) return { ok: false, errors: check.errors };
+    try {
+      const fromVersion = parsed.version == null ? 1 : Number(parsed.version);
+      const snapshot = M.migrateSnapshot(parsed);
+      return {
+        ok: true,
+        snapshot,
+        preview: { fromVersion, toVersion: M.VERSION, keyCount: Object.keys(snapshot.keys).length },
+      };
+    } catch (e) {
+      return { ok: false, errors: e.errors || [e.message || 'migration-failed'] };
+    }
+  }
+
+  function applySnapshotTransactional(snapshot, storage) {
+    const target = storage || localStorage;
+    const keys = Object.keys(snapshot.keys || {});
+    const before = {};
+    keys.forEach((key) => { before[key] = target.getItem(key); });
+    try {
+      keys.forEach((key) => target.setItem(key, snapshot.keys[key]));
+      return { ok: true, keyCount: keys.length };
+    } catch (error) {
+      keys.forEach((key) => {
+        try {
+          if (before[key] === null) target.removeItem(key);
+          else target.setItem(key, before[key]);
+        } catch (rollbackError) { /* best effort for a broken storage provider */ }
+      });
+      return { ok: false, error };
+    }
   }
 
   function exportJSON(legacyKey) {
@@ -176,5 +221,5 @@
     return rows;
   }
 
-  return { downloadFile, collectAllData, exportJSON, exportCSV, exportICS };
+  return { downloadFile, collectAllData, prepareImport, applySnapshotTransactional, exportJSON, exportCSV, exportICS };
 });

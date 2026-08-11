@@ -482,6 +482,7 @@
       <h2 class="sync-modal-title" id="syncDialogTitle"><span data-i18n="syncTitle">Đồng bộ đám mây</span></h2>
       <p class="sync-desc" data-i18n="syncDesc">Đăng nhập để đồng bộ dữ liệu giữa các thiết bị. Dữ liệu hiện tại sẽ tự
         động được nâng cấp lên đám mây.</p>
+      <p class="sync-desc" data-i18n="syncPrivacy">Đồng bộ là tùy chọn. Dữ liệu trên máy chủ không được mã hóa đầu-cuối; cơ chế last-write-wins có thể thay thế chỉnh sửa đồng thời cũ hơn.</p>
       <p class="sync-status" id="syncStatus"></p>
       <button type="button" class="pop-btn sync-google" data-action="sync-google">
         <svg class="sync-g-logo" aria-hidden="true" viewBox="0 0 48 48">
@@ -711,6 +712,7 @@
        runLazyModule() trong app.js — không nằm trong chuỗi script boot. mood + remind-ui
        ở lại vì nằm trên đường render boot (moodCardHTML/insertBeforeTaskActions). -->
   <script src="js/config.min.js?v=1"></script>
+  <script src="js/data-migrations.min.js?v=1"></script>
   <script src="js/widget.min.js?v=1"></script>
   <script src="js/xp.min.js?v=1"></script>
   <script src="js/streak-ui.min.js?v=1"></script>
@@ -731,10 +733,10 @@
   <script src="js/plan-math.min.js?v=7"></script>
   <script src="js/plan-stats.min.js?v=3"></script>
   <script src="js/plan-carry.min.js?v=1"></script>
-  <script src="js/sync.min.js?v=3"></script>
+  <script src="js/sync.min.js?v=4"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=1"></script>
-  <script src="js/i18n.min.js?v=8"></script>
+  <script src="js/i18n.min.js?v=9"></script>
   <script src="js/storage.min.js?v=2"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
@@ -744,7 +746,7 @@
   <script src="js/remind.min.js?v=1"></script>
   <script src="js/theme.min.js?v=1"></script>
   <script src="js/analytics.min.js?v=1"></script>
-  <script src="js/export.min.js?v=2"></script>
+  <script src="js/export.min.js?v=3"></script>
   <script src="js/streak.min.js?v=1"></script>
   <script src="js/goals.min.js?v=1"></script>
   <script src="js/fab.min.js?v=1"></script>
@@ -758,7 +760,7 @@
   <script src="js/popups.min.js?v=1"></script>
   <script src="js/reflection.min.js?v=1"></script>
   <script src="js/pillars.min.js?v=1"></script>
-  <script src="js/app.min.js?v=165"></script>
+  <script src="js/app.min.js?v=166"></script>
 </body>
 
 </html>

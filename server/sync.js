@@ -5,6 +5,8 @@ const { initDb } = require('./db');
 const { authMiddleware } = require('./auth');
 
 const router = express.Router();
+const KEY_RE = /^planner-[A-Za-z0-9._-]{1,120}$/;
+const MAX_DATA_BYTES = 512 * 1024;
 router.use(authMiddleware);
 
 // ---- GET /api/sync → [{key, data, updated_at}] (toàn bộ dữ liệu user) ----
@@ -24,9 +26,14 @@ router.get('/', async (req, res) => {
 // ---- POST /api/sync {key, data} → upsert 1 key ----
 router.post('/', async (req, res) => {
   try {
-    const key = String(req.body.key || '').trim();
-    if (!key) return res.status(400).json({ error: 'no-key' });
-    const data = req.body.data === undefined ? {} : req.body.data;
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const key = String(body.key || '').trim();
+    if (!KEY_RE.test(key)) return res.status(400).json({ error: 'invalid-key' });
+    const data = body.data === undefined ? {} : body.data;
+    const encoded = JSON.stringify(data);
+    if (Buffer.byteLength(encoded, 'utf8') > MAX_DATA_BYTES) {
+      return res.status(413).json({ error: 'payload-too-large' });
+    }
     const p = initDb();
     const r = await p.query(
       `insert into planner_state (user_id, key, data)
@@ -34,7 +41,7 @@ router.post('/', async (req, res) => {
        on conflict (user_id, key)
        do update set data = excluded.data, updated_at = now()
        returning updated_at`,
-      [req.user.id, key, JSON.stringify(data)]
+      [req.user.id, key, encoded]
     );
     res.json({ updated_at: r.rows[0].updated_at });
   } catch (e) {

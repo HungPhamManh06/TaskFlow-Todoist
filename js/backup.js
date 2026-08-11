@@ -22,13 +22,15 @@ function rotateBackup(data) {
     idx = ((idx % BACKUP_SLOTS) + BACKUP_SLOTS) % BACKUP_SLOTS;
     localStorage.setItem('planner-backup-idx', String(idx));
     localStorage.setItem(backupSlotKey(idx), JSON.stringify({ savedAt: new Date().toISOString(), data }));
+    return true;
   } catch (e) {
     // Hết quota: xoá toàn bộ slot cũ rồi thử lại 1 lần
     try {
       for (let i = 0; i < BACKUP_SLOTS; i++) localStorage.removeItem(backupSlotKey(i));
       localStorage.setItem(backupSlotKey(0), JSON.stringify({ savedAt: new Date().toISOString(), data }));
       localStorage.setItem('planner-backup-idx', '0');
-    } catch (e2) { /* ẩn */ }
+      return true;
+    } catch (e2) { return false; }
   }
 }
 let lastBackupTs = 0;

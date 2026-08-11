@@ -164,3 +164,12 @@
 - 🙂 **Mood trend trung thực** — ưu tiên mood trong Daily Reflection, fallback dữ liệu mood cũ, chỉ hiển thị phân bố và hướng khi có ít nhất ba ngày hợp lệ.
 - 🌐 **Report production** — layout hai cột desktop/một cột mobile, dark mode, modal lịch sử có focus semantics, asset mới được precache offline trong service worker `v192`.
 - 🧪 **Kiểm chứng checkpoint P9** — unit P7–P9 89/89 và frontend 134/134; E2E Report Growth desktop/mobile PASS với balance 60%, ngưỡng 30/90, ba filter, mở Daily detail, dark mode và không tràn ngang.
+
+## Personal Growth & Reflection — P10: Data Lifecycle
+
+- 🧬 **Schema v2 có migration an toàn** — month state được thêm `schemaVersion: 2` khi đọc/ghi; snapshot v1 và state chưa version được nâng cấp thuần, idempotent, giữ nguyên ID, `linkedMetricIds`, focus log, reflection và mọi trường tương lai chưa biết.
+- 📦 **Export/import đầy đủ** — JSON export mang `version: 2` và gom mỗi `planner-*` cùng legacy key đúng một lần; import xác thực, hiển thị số key/version trước khi xác nhận, lưu backup hiện tại trước khi ghi và rollback toàn bộ key đã chạm nếu storage lỗi.
+- 🚫 **Từ chối dữ liệu không an toàn** — snapshot sai app/key/value, JSON hỏng hoặc version tương lai đều không được ghi và không reload; giao diện trả thông báo Việt/Anh riêng cho backup từ phiên bản mới hơn.
+- ☁️ **Hợp đồng sync được siết chặt** — backend chỉ nhận key `/^planner-[A-Za-z0-9._-]{1,120}$/`, giới hạn JSON 512 KiB với lỗi 400/413 rõ ràng, giữ nguyên JSONB và per-key last-write-wins; state v2 push/pull không mất trường tương lai.
+- 🔐 **Minh bạch quyền riêng tư** — UI nêu rõ sync là tùy chọn, server không mã hóa đầu-cuối, last-write-wins có thể thay thế chỉnh sửa đồng thời cũ hơn và reflection không được gửi tới analytics, AI hay bên thứ ba.
+- 🧪 **Kiểm chứng hoàn tất P7–P10** — unit 466/466, sync 8/8, server security 5/5, focused Data Lifecycle E2E desktop/mobile PASS, Chromium release 21 scenario × 5 viewport PASS, smoke PASS, mobile QA 262/262, accessibility 62/62, DOM audit PASS, critical CSS 0 diff và minify 66/66 file.

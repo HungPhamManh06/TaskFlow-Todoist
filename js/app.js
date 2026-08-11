@@ -164,7 +164,13 @@ function loadMonthStateOrCreate(y, m) {
   try {
     const raw = localStorage.getItem('planner-' + y + '-' + (m + 1));
     if (raw) {
-      const parsed = JSON.parse(raw);
+      const source = JSON.parse(raw);
+      const parsed = window.TaskFlowDataMigrations
+        ? window.TaskFlowDataMigrations.migrateMonthState(source, { year: y, month: m + 1 })
+        : source;
+      if (window.TaskFlowDataMigrations && source.schemaVersion !== window.TaskFlowDataMigrations.VERSION) {
+        try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(parsed)); } catch (e) { /* read still succeeds */ }
+      }
       if (parsed && Array.isArray(parsed.monthlyGoals)) s = parsed;
     }
   } catch (e) { /* ẩn */ }
@@ -488,30 +494,30 @@ function applyRecurrence() {
 // extraction 30/R8). collectAllData/exportJSON nhận LEGACY_KEY tham số — downloadFile
 // giữ signature. Giữ alias để call-sites không đổi.
 if (!window.TaskFlowExport) throw new Error('TaskFlowExport missing — js/export.js failed to load');
-const { downloadFile, collectAllData, exportJSON, exportCSV, exportICS } = window.TaskFlowExport;
+const { downloadFile, collectAllData, prepareImport, applySnapshotTransactional, exportJSON, exportCSV, exportICS } = window.TaskFlowExport;
 
 function importJSONFile(file) {
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
-      const data = JSON.parse(reader.result);
-      if (!data || data.app !== 'taskflow-todoist' || !data.keys || typeof data.keys !== 'object') throw new Error('bad');
-      if (!confirm(t('importConfirm'))) return;
+      const prepared = prepareImport(reader.result);
+      if (!prepared.ok) {
+        const messageKey = prepared.errors.includes('unsupported-version') ? 'importFutureError' : 'importError';
+        TaskFlowUI.toast(t(messageKey), 'error');
+        return;
+      }
+      const preview = prepared.preview;
+      if (!confirm(t('importConfirm', { n: preview.keyCount, from: preview.fromVersion, to: preview.toVersion }))) return;
       // Phase 5: chốt bản sao lưu dữ liệu hiện tại trước khi ghi đè (an toàn dữ liệu).
       // Snapshot lấy ĐỒNG BỘ ngay trước khi ghi đè rồi ghi slot bất đồng bộ qua module lazy.
       let importSnapshot = null;
-      try { importSnapshot = collectAllData(LEGACY_KEY); } catch (e) { /* ẩn */ }
-      if (importSnapshot) {
-        ensureLazyModule('js/backup.min.js')
-          .then(() => {
-            try { window.TaskFlowBackup.rotateBackup(importSnapshot); } catch (e) { /* ẩn */ }
-          })
-          .catch(() => { /* ẩn: backup là best-effort */ });
-      }
-      Object.keys(data.keys).forEach((k) => {
-        try { localStorage.setItem(k, data.keys[k]); } catch (e) { /* ẩn */ }
-      });
+      try { importSnapshot = collectAllData(LEGACY_KEY); } catch (e) { throw new Error('backup-capture-failed'); }
+      await ensureLazyModule('js/backup.min.js');
+      if (!window.TaskFlowBackup.rotateBackup(importSnapshot)) throw new Error('backup-write-failed');
+      const applied = applySnapshotTransactional(prepared.snapshot, localStorage);
+      if (!applied.ok) throw applied.error || new Error('import-write-failed');
       TaskFlowUI.toast(t('importOk'), 'success');
+      trackEvent('import_json', { version: prepared.snapshot.version, keys: preview.keyCount });
       location.reload();
     } catch (e) {
       TaskFlowUI.toast(t('importError'), 'error');
@@ -737,7 +743,10 @@ function loadState() {
     // Chỉ dùng dữ liệu legacy cho khách vãng lai; tài khoản đã đăng nhập không kế thừa key cũ
     if (!raw && monthKey(PLAN_YEAR, PLAN_MONTH) === 'planner-2026-1' && !hasAccount()) raw = localStorage.getItem(LEGACY_KEY);
     if (!raw) return null;
-    const s = JSON.parse(raw);
+    if (!window.TaskFlowDataMigrations) throw new Error('TaskFlowDataMigrations missing');
+    const parsedState = JSON.parse(raw);
+    const schemaDirty = parsedState.schemaVersion !== window.TaskFlowDataMigrations.VERSION;
+    const s = window.TaskFlowDataMigrations.migrateMonthState(parsedState, { year: PLAN_YEAR, month: PLAN_MONTH + 1 });
     if (!s || !Array.isArray(s.monthlyGoals) || !Array.isArray(s.habits) || !Array.isArray(s.weeks)) return null;
     if (s.monthKey !== monthKey(PLAN_YEAR, PLAN_MONTH) || s.weeks.length !== NUM_WEEKS) return null;
     if (!s.reflections || !Array.isArray(s.reflections.weeks) || s.reflections.weeks.length !== NUM_WEEKS) s.reflections = defaultState().reflections;
@@ -767,7 +776,7 @@ function loadState() {
       });
     });
     // Lưu uid mới sinh ngay (không gọi save() — state global đang trong TDZ lúc load khởi động)
-    if (tasksDirty) {
+    if (tasksDirty || schemaDirty) {
       try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(s)); } catch (e) { /* ẩn */ }
     }
     // Đồng bộ streak với số tích ✓: khi xem tháng hiện tại, tự bỏ tick các ngày tương lai

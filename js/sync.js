@@ -15,7 +15,7 @@
 
   var META_KEY = 'planner-sync-meta';
   var TOKEN_KEY = 'planner-token';
-  var DATA_KEY_RE = /^planner-/;
+  var DATA_KEY_RE = /^planner-[A-Za-z0-9._-]{1,120}$/;
 
   var cfg = (typeof API_CONFIG !== 'undefined' && API_CONFIG) || {};
   var base = String(cfg.url || '').replace(/\/+$/, '');

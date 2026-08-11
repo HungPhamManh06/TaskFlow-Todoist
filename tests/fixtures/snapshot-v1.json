@@ -1,0 +1,14 @@
+{
+  "app": "taskflow-todoist",
+  "version": 1,
+  "exportedAt": "2026-08-01T00:00:00.000Z",
+  "keys": {
+    "planner-2026-8": "{\"view\":\"overview\",\"monthlyGoals\":[{\"id\":\"goal-old\",\"text\":\"Legacy goal\",\"futureGoalField\":true}],\"habits\":[{\"id\":\"habit-old\",\"name\":\"Walk\",\"days\":[true],\"linkedMetricIds\":[\"metric-habit\"]}],\"weeks\":[{\"n\":1,\"days\":[{\"date\":\"1/8\",\"tasks\":[{\"uid\":\"task-old\",\"text\":\"Legacy task\",\"linkedMetricIds\":[\"metric-task\"],\"focusLog\":[{\"minutes\":25}]}]}]}],\"pillars\":[{\"id\":\"pillar-old\",\"metrics\":[{\"id\":\"metric-task\",\"type\":\"TASK\"}]}],\"reflections\":{\"overview\":[\"Kept reflection\"],\"weeks\":[[\"Week reflection\"]]},\"futureMonthField\":{\"kept\":true}}",
+    "planner-reflections-daily": "{\"2026-08-01\":{\"mood\":4,\"good\":\"Kept daily reflection\",\"futureEntryField\":true}}",
+    "planner-mood": "{\"2026-08-01\":4}",
+    "january-planner-2026": "{\"legacy\":true}"
+  },
+  "futureSnapshotField": {
+    "kept": true
+  }
+}

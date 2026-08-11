@@ -1,11 +1,12 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 20 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 21 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
 import http.server
+import json
 import os
 import socketserver
 import sys
@@ -1495,6 +1496,88 @@ def report_growth_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def data_lifecycle_checks(browser, base, width, height, errors, screenshot):
+    """P10: export v2, import/migrate v1 through the UI, reload and preserve growth links."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"data-lifecycle {width}px: {error}"))
+    page.on("dialog", lambda dialog: dialog.accept())
+    load_app(page, base)
+
+    seeded = page.evaluate("""() => {
+      const now = new Date();
+      const key = window.TaskFlowShell.monthKey(now.getFullYear(), now.getMonth());
+      const state = JSON.parse(localStorage.getItem(key));
+      delete state.schemaVersion;
+      state.futureP10Field = { kept: true };
+      state.weeks[0].days[0].tasks.push({
+        uid: 'p10-task-old', text: 'P10 linked legacy task', done: true,
+        linkedMetricIds: ['p10-metric-task'], focusLog: [{ minutes: 25 }],
+      });
+      state.pillars = [{
+        id: 'p10-pillar', name: 'P10 Pillar', hidden: false,
+        metrics: [{ id: 'p10-metric-task', title: 'P10 Metric', type: 'TASK' }],
+      }];
+      const snapshot = {
+        app: 'taskflow-todoist', version: 1, exportedAt: new Date().toISOString(),
+        keys: {
+          [key]: JSON.stringify(state),
+          'planner-reflections-daily': JSON.stringify({
+            '2026-08-11': { mood: 4, good: 'P10 preserved reflection', futureEntry: true },
+          }),
+          'planner-mood': JSON.stringify({ '2026-08-11': 4 }),
+          'january-planner-2026': JSON.stringify({ legacy: 'P10 legacy kept' }),
+        },
+        futureSnapshotField: { kept: true },
+      };
+      return { key, raw: JSON.stringify(snapshot) };
+    }""")
+
+    # Real UI export must emit the complete v2 snapshot.
+    if width <= 767:
+        page.locator('#mobileNav [data-action="more"]').click()
+        page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+        page.locator('#moreSheet [data-action="tools-open"]').click()
+    else:
+        page.locator('[data-action="tools-open"]:visible').first.click()
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
+    page.locator('[data-action="data-toggle"]').click()
+    with page.expect_download() as download_info:
+        page.locator('[data-action="export-json"]').click()
+    with open(download_info.value.path(), encoding="utf-8") as exported_file:
+        exported = json.load(exported_file)
+    assert exported['version'] == 2
+    assert len(exported['keys']) == len(set(exported['keys']))
+    assert seeded['key'] in exported['keys']
+
+    # Import the v1 fixture through the hidden file input; confirmation previews and reloads.
+    with page.expect_navigation(wait_until="networkidle"):
+        page.locator('#importFile').set_input_files({
+            "name": "taskflow-v1-backup.json",
+            "mimeType": "application/json",
+            "buffer": seeded['raw'].encode('utf-8'),
+        })
+    restored = page.evaluate("""key => {
+      const state = JSON.parse(localStorage.getItem(key));
+      const task = state.weeks[0].days[0].tasks.find(item => item.uid === 'p10-task-old');
+      const daily = JSON.parse(localStorage.getItem('planner-reflections-daily'));
+      const backups = Array.from({ length: 7 }, (_, i) => localStorage.getItem('planner-backup-' + i)).filter(Boolean);
+      return { state, task, daily, backups: backups.length };
+    }""", seeded['key'])
+    assert restored['state']['schemaVersion'] == 2
+    assert restored['state']['futureP10Field']['kept'] is True
+    assert restored['task']['linkedMetricIds'] == ['p10-metric-task']
+    assert restored['task']['focusLog'][0]['minutes'] == 25
+    assert restored['daily']['2026-08-11']['good'] == 'P10 preserved reflection'
+    assert restored['backups'] >= 1
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"data-lifecycle dark {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -1530,7 +1613,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1584,6 +1667,7 @@ def main():
                     ("monthly-review", monthly_review_checks),
                     ("month-carryover", month_carryover_checks),
                     ("report-growth", report_growth_checks),
+                    ("data-lifecycle", data_lifecycle_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1636,6 +1720,9 @@ def main():
             elif args.view == "report-growth":
                 report_growth_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 report_growth_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "data-lifecycle":
+                data_lifecycle_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                data_lifecycle_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access
@@ -1653,7 +1740,7 @@ def main():
         return 1
     label = "RELEASE" if args.all else "LANDING" if args.landing else "DIALOGS" if args.dialogs else args.view.upper()
     # Stable focused-output markers asserted by phase tests:
-    # E2E WEEKLY-REVIEW OK / E2E MONTHLY-REVIEW OK / E2E MONTH-CARRYOVER OK / E2E REPORT-GROWTH OK
+    # E2E WEEKLY-REVIEW OK / E2E MONTHLY-REVIEW OK / E2E MONTH-CARRYOVER OK / E2E REPORT-GROWTH OK / E2E DATA-LIFECYCLE OK
     print(f"E2E {label} OK")
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0
