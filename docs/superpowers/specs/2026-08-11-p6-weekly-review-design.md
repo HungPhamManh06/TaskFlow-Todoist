@@ -1,7 +1,7 @@
 # P6 Weekly Review Design
 
-**Date:** 2026-08-11  
-**Status:** Approved  
+**Date:** 2026-08-11
+**Status:** Approved
 **Branch:** `codex/p4-task-focus-metrics`
 
 ## Goal
@@ -242,4 +242,3 @@ Run the full unit suite, sync tests, minification check, full Chromium E2E matri
 - Next Month Carry-over.
 - New navigation or a separate review dashboard.
 - Sending reflection content to an external AI or API.
-
