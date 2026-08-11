@@ -46,5 +46,55 @@
     }).filter((group) => group.items.length > 0);
   }
 
-  return { collectDailyAlignment };
+  function alignmentItemHTML(item, options) {
+    const escape = options.esc;
+    const dayLabel = options.dayLabel || '';
+    if (item.kind === 'task') {
+      const task = item.task || {};
+      const done = task.done === true;
+      const attrs = `data-action="task" data-week="${item.week}" data-day="${item.day}" data-task="${item.taskIndex}"`;
+      const checkbox = options.checkboxHTML('', done, attrs, options.checkboxLabel('task', task.text || '', dayLabel));
+      return `<div class="today-alignment-item${done ? ' done' : ''}" data-testid="alignment-item" data-alignment-kind="task" data-alignment-key="${escape(item.key)}">
+        ${checkbox}<span class="today-alignment-text">${escape(task.text || '')}</span>
+      </div>`;
+    }
+    const habit = item.habit || {};
+    const done = Array.isArray(habit.days) && habit.days[item.dayIndex] === true;
+    const attrs = `data-action="habit" data-id="${escape(habit.id || '')}" data-day="${item.dayIndex}"`;
+    const checkbox = options.checkboxHTML('', done, attrs, options.checkboxLabel('habit', habit.name || '', dayLabel));
+    return `<div class="today-alignment-item${done ? ' done' : ''}" data-testid="alignment-item" data-alignment-kind="habit" data-alignment-key="${escape(item.key)}">
+      ${checkbox}<span class="today-alignment-text">${escape(habit.name || '')}</span>
+    </div>`;
+  }
+
+  function alignmentGroupHTML(group, options) {
+    const items = Array.isArray(group && group.items) ? group.items : [];
+    const pillar = group && group.pillar ? group.pillar : {};
+    const done = items.filter((item) => item.kind === 'task'
+      ? item.task && item.task.done === true
+      : item.habit && Array.isArray(item.habit.days) && item.habit.days[item.dayIndex] === true).length;
+    return `<section class="today-alignment-pillar" data-testid="alignment-pillar" aria-label="${options.esc(pillar.name || '')}">
+      <div class="today-alignment-pillar-head">
+        <span class="today-alignment-pillar-name"><span aria-hidden="true">${options.esc(pillar.icon || '')}</span>${options.esc(pillar.name || '')}</span>
+        <span class="today-alignment-count">${options.t('todayAlignmentCount', { done, total: items.length })}</span>
+      </div>
+      <div class="today-alignment-list">${items.map((item) => alignmentItemHTML(item, options)).join('')}</div>
+    </section>`;
+  }
+
+  function alignmentCardHTML(groups, options) {
+    const list = Array.isArray(groups) ? groups : [];
+    const opts = options || {};
+    const body = opts.inTodayMonth === false
+      ? `<p class="today-alignment-empty">${opts.t('todayAlignmentUnavailable')}</p>`
+      : list.length
+        ? list.map((group) => alignmentGroupHTML(group, opts)).join('')
+        : `<p class="today-alignment-empty">${opts.t('todayAlignmentEmpty')}</p>`;
+    return `<section class="today-card today-alignment-card" data-testid="daily-alignment" aria-labelledby="dailyAlignmentTitle">
+      <div class="today-card-head"><h2 class="today-card-title" id="dailyAlignmentTitle">${opts.t('todayAlignmentTitle')}</h2></div>
+      <div class="today-alignment-groups">${body}</div>
+    </section>`;
+  }
+
+  return { collectDailyAlignment, alignmentCardHTML };
 });

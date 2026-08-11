@@ -3560,6 +3560,89 @@ body.focus-mode .container { padding: 0; }
   color: var(--color-text-muted);
 }
 
+.today-alignment-card {
+  padding-block: var(--space-4);
+  min-width: 0;
+}
+
+.today-alignment-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.today-alignment-pillar {
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+
+.today-alignment-pillar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.today-alignment-pillar-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-text);
+  font: 700 var(--text-sm) / 1.3 var(--font-body);
+}
+
+.today-alignment-count {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font: 600 var(--text-xs) / 1.2 var(--font-body);
+  white-space: nowrap;
+}
+
+.today-alignment-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.today-alignment-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  min-width: 0;
+}
+
+.today-alignment-text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font: 500 var(--text-sm) / 1.35 var(--font-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-alignment-item.done .today-alignment-text {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.today-alignment-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-text-muted);
+  font: 500 var(--text-sm) / 1.5 var(--font-body);
+}
+
+@media (max-width: 719px) {
+  .today-alignment-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ===== Daily Reflection (P1) ===== */
 .today-reflection-card {
   width: 100%;

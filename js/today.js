@@ -6,7 +6,7 @@
 //   t, esc, dateLocale, fmtDeadline, dayLabel (TaskFlowI18N/TaskFlowUtil), checkboxHTML
 //   (TaskFlowXP), nowInfo (TaskFlowClock), habitStreakCached (TaskFlowStreak),
 //   formatFocusTime (TaskFlowUtil), loadPomoLog (TaskFlowStorage), pomoDateKey (TaskFlowKeys),
-//   window.TaskFlowUI, emptyStateHTML, taskFocusSecs/taskFocusLog, carriedDateLabel,
+//   window.TaskFlowUI, window.TaskFlowAlignment, emptyStateHTML, taskFocusSecs/taskFocusLog, carriedDateLabel,
 //   state, viewedMonth, tagFilter, PLAN_START/NUM_DAYS/PLAN_YEAR/PLAN_MONTH
 // Đều nằm trong global lexical của app.js (script load sau) hoặc window — resolve runtime.
 (function (root, factory) {
@@ -46,6 +46,20 @@
     const habitIdx = viewedMonth === null && ti.inRange ? new Date().getDate() - 1 : -1;
     const habitsToday = habits.filter((h) => habitIdx >= 0 && !(Array.isArray(h.skipDays) && h.skipDays.includes(habitIdx)));
     const habitsDone = habitsToday.filter((h) => Array.isArray(h.days) && h.days[habitIdx] === true).length;
+    const alignmentGroups = window.TaskFlowAlignment.collectDailyAlignment(state, {
+      inTodayMonth,
+      week: ti.week,
+      day: ti.dayInWeek,
+      dayIndex: habitIdx,
+    });
+    const alignmentHTML = window.TaskFlowAlignment.alignmentCardHTML(alignmentGroups, {
+      inTodayMonth,
+      dayLabel: todayWeekdayLabel(),
+      t,
+      esc,
+      checkboxHTML,
+      checkboxLabel: window.TaskFlowUI.checkboxLabel,
+    });
 
     const taskRows = tasks.length
       ? tasks.map((tk, i) => {
@@ -80,6 +94,7 @@
       <p class="today-greeting">${esc(todayGreeting())}</p>
       <h1 class="today-date">${esc(todayWeekdayLabel())}</h1>
     </header>
+    ${alignmentHTML}
     <div class="today-grid">
       <div class="today-main">
         <section class="today-card today-tasks-card" aria-label="${t('todayTasksTitle')}">
