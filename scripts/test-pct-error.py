@@ -54,8 +54,8 @@ def main():
         page.wait_for_timeout(2000)
         errors_at_year = len(errors) - errors_at_load - errors_at_overview
 
-        # Week 1
-        page.locator('#tab-week-1').click()
+        # Current week (the tab id is dynamic: #tab-week-{currentWeek})
+        page.locator('[data-nav-view="week"]:visible').first.click()
         page.wait_for_timeout(2000)
         errors_at_week = len(errors) - errors_at_load - errors_at_overview - errors_at_year
 
