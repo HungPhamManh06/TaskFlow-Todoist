@@ -3560,7 +3560,7 @@ body.focus-mode .container { padding: 0; }
   color: var(--color-text-muted);
 }
 
-.today-alignment-card {
+.today-card.today-alignment-card {
   padding-block: var(--space-4);
   min-width: 0;
 }
