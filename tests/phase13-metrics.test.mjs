@@ -50,7 +50,7 @@ test('normalizeMetric: giữ HABIT + linkedHabitId hợp lệ; xoá link nếu k
 });
 
 test('normalizeMetric: type lạ → MANUAL; target mode lạ → daily', () => {
-  const m = normalizeMetric({ title: 'x', type: 'TASK', target: { mode: 'weird', value: 3 } });
+  const m = normalizeMetric({ title: 'x', type: 'UNKNOWN', target: { mode: 'weird', value: 3 } });
   assert.equal(m.type, 'MANUAL');
   assert.equal(m.target.mode, 'daily');
 });

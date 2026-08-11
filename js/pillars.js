@@ -141,10 +141,25 @@
 
   /* ================= P3 — Monthly Metrics ================= */
 
+  // Liên kết metric nằm trên task để đi theo task khi chuyển ngày trong cùng tháng.
+  // Dữ liệu legacy không có field này được xem như mảng rỗng; giá trị rác/trùng bị bỏ.
+  function normalizeTaskMetricIds(task) {
+    const ids = task && Array.isArray(task.linkedMetricIds) ? task.linkedMetricIds : [];
+    return [...new Set(ids
+      .filter((id) => typeof id === 'string' && id.trim())
+      .map((id) => id.trim()))];
+  }
+
+  function setTaskMetricIds(task, ids) {
+    if (!task || typeof task !== 'object') return [];
+    task.linkedMetricIds = normalizeTaskMetricIds({ linkedMetricIds: ids });
+    return task.linkedMetricIds;
+  }
+
   // Chuẩn hoá 1 metric — điền default cho field thiếu (migration / dữ liệu cũ).
   function normalizeMetric(m) {
     if (!m || typeof m !== 'object') return null;
-    const type = (m.type === 'HABIT' || m.type === 'CUSTOM') ? m.type : 'MANUAL';
+    const type = ['HABIT', 'MANUAL', 'CUSTOM', 'TASK', 'FOCUS'].includes(m.type) ? m.type : 'MANUAL';
     const target = (m.target && typeof m.target === 'object' && m.target.mode)
       ? m.target
       : { mode: 'daily', value: 1 };
@@ -159,6 +174,7 @@
       },
       days: Array.isArray(m.days) ? m.days : [],
       createdAt: typeof m.createdAt === 'string' ? m.createdAt : null,
+      ...(type === 'FOCUS' ? { unit: 'minutes' } : {}),
     };
   }
 
@@ -188,23 +204,56 @@
     }
   }
 
+  // Thu thập task trong một month state. Duyệt phòng thủ để dữ liệu cũ/rỗng không crash.
+  function monthTasks(state) {
+    if (!state || !Array.isArray(state.weeks)) return [];
+    const tasks = [];
+    state.weeks.forEach((week) => {
+      if (!week || !Array.isArray(week.days)) return;
+      week.days.forEach((day) => {
+        if (day && Array.isArray(day.tasks)) tasks.push(...day.tasks.filter(Boolean));
+      });
+    });
+    return tasks;
+  }
+
   // Số ngày đã hoàn thành của metric trong tháng.
   // HABIT: đếm ngày habit liên kết tick ✓ (habit bị xoá → 0).
   // MANUAL/CUSTOM: đếm ô ngày tự đánh dấu trong metric.days.
-  function metricDone(habits, metric) {
+  function metricDone(source, metric, context) {
     const m = normalizeMetric(metric);
+    const habits = Array.isArray(source) ? source : (source && Array.isArray(source.habits) ? source.habits : []);
     if (m.type === 'HABIT') {
-      const h = (Array.isArray(habits) ? habits : []).find((x) => x && x.id === m.linkedHabitId);
+      const h = habits.find((x) => x && x.id === m.linkedHabitId);
       if (!h || !Array.isArray(h.days)) return 0;
       return h.days.filter(Boolean).length;
+    }
+    if (m.type === 'TASK') {
+      return monthTasks(source).filter((task) => task.done === true
+        && normalizeTaskMetricIds(task).includes(m.id)).length;
+    }
+    if (m.type === 'FOCUS') {
+      const year = context && Number.isFinite(+context.year) ? Math.round(+context.year) : null;
+      const month = context && Number.isFinite(+context.month) ? Math.round(+context.month) : null;
+      if (year === null || month === null || month < 0 || month > 11) return 0;
+      const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+      let totalSecs = 0;
+      monthTasks(source).forEach((task) => {
+        if (!normalizeTaskMetricIds(task).includes(m.id) || !Array.isArray(task.focusLog)) return;
+        task.focusLog.forEach((entry) => {
+          const secs = entry && Number.isFinite(+entry.secs) ? +entry.secs : 0;
+          if (entry && typeof entry.d === 'string' && entry.d.startsWith(prefix) && secs > 0) totalSecs += secs;
+        });
+      });
+      return Math.floor(totalSecs / 60);
     }
     return Array.isArray(m.days) ? m.days.filter(Boolean).length : 0;
   }
 
   // Progress tổng hợp: { done, target, pct } — pct giới hạn 0-100, target 0 → 0.
-  function metricProgress(habits, metric, monthDays) {
+  function metricProgress(source, metric, monthDays, context) {
     const target = metricTarget(metric, monthDays);
-    const done = Math.min(metricDone(habits, metric), Math.max(1, target));
+    const done = Math.max(0, metricDone(source, metric, context));
     return { done, target, pct: target > 0 ? Math.min(100, Math.round(done / target * 100)) : 0 };
   }
 
@@ -582,6 +631,8 @@
     defaultTemplate,
     normalizePillar,
     normalizeMetric,
+    normalizeTaskMetricIds,
+    setTaskMetricIds,
     ensurePillars,
     pillarById,
     metricById,
@@ -592,6 +643,7 @@
     setFocus,
     resetPillars,
     metricTarget,
+    monthTasks,
     metricDone,
     metricProgress,
     addMetric,
