@@ -1,7 +1,8 @@
 /* TaskFlow Refined marketing surface. Shared semantic values live in tokens.css. */
 :root {
-  --landing-action-bg: #a9472d;
-  --landing-action-hover: #913a25;
+  /* TaskFlow brand accent — burnt orange (Amber Hearth), khớp --color-accent light */
+  --landing-action-bg: #a84f2e;
+  --landing-action-hover: #913f24;
 }
 
 * { box-sizing: border-box; }
@@ -239,12 +240,12 @@ a { color: inherit; }
   border: 1px solid var(--color-border);
   border-radius: 20px;
   background: var(--color-surface);
-  box-shadow: 0 28px 72px rgb(52 47 43 / .18);
+  box-shadow: var(--shadow-floating);
   overflow: hidden;
   transform: rotate(1deg);
 }
 
-:root[data-dark="true"] .product-preview { box-shadow: 0 28px 72px rgb(0 0 0 / .42); }
+:root[data-dark="true"] .product-preview { box-shadow: 0 24px 60px rgb(0 0 0 / .35); }
 
 .preview-window-bar {
   height: 38px;
@@ -328,15 +329,16 @@ a { color: inherit; }
 .section-intro > p:last-child { margin: 18px auto 0; color: var(--color-text-muted); font-size: 17px; }
 
 .feature-narrative { border-top: 1px solid var(--color-border); }
-.feature-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; }
+.feature-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; }
 .feature-card {
   position: relative;
   min-height: 260px;
   grid-column: span 2;
-  padding: 28px;
+  padding: 30px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
 }
 .feature-card-wide { grid-column: span 4; }
 .feature-card-accent { color: #fff; background: var(--landing-action-bg); border-color: var(--landing-action-bg); }

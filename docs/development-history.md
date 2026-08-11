@@ -113,3 +113,78 @@
 - 📆 **Target theo day-count thật** — daily → số ngày tháng (28/29/30/31, không hard-code 30); perWeek → ceil(value × ngày/7); perMonth/custom → value.
 - ⏱ **MANUAL/CUSTOM** — ô ngày tự đánh dấu (day-strip), toggle qua dispatcher, re-render chỉ dòng (giữ scroll).
 - 🧪 Kiểm chứng: unit 349/0 (22 test mới `phase13-metrics.test.mjs`: target modes 28/30/31/leap, HABIT link, habit bị xoá, MANUAL toggle, migration), E2E Chromium đầy đủ + scenario `metrics` + Firefox/WebKit OK, a11y 62/0, CSS verifier 0 diffs, minify 59 file, Lighthouse không hồi quy (app-mobile 76 — đợt đo 70/73 là nhiễu máy, lặp lại 3 run xác nhận).
+
+## Visual Theme Refinement — P1: Token palette (Zen Linen × Amber Hearth × Sage Mist)
+
+- 🎨 **New semantic token palette** (css/tokens.css only, no component CSS yet): 60% Zen Linen warm paper surfaces + 25% Amber Hearth burnt-orange actions + 15% Sage Mist growth/success.
+- 🧩 **New tokens:** `--color-on-accent` (dark mode: dark-brown text on amber 6.14:1 — fixes the old 2.77:1 white-on-amber dark button failure at the token layer), `--color-accent-hover`, `--color-positive-soft`, `--shadow-sm`; shadows softened to low-contrast linen system.
+- 🎭 **4 themes re-tinted to the same design language** (accent stays TaskFlow orange for brand consistency): cream = Zen Linen, mint = sage, lavender = quiet reflection, peach = amber warm; dark mode = warm browns, never pure black.
+- 🔤 Contrast-verified every theme × dark: muted/secondary ≥4.5, control/focus ≥3.0, on-accent ≥3.0 — 0 fails across all 8 combos (hardening tests + fresh computation).
+- 📄 tokens.css minified (6.6KB → 4.2KB), app.html tokens.min.css?v=8, sw.js CACHE v187.
+- 🧪 Kiểm chứng: unit 349/0 (version asserts updated), a11y 62/0, CSS verifier 6 view × 6 combo 0 diffs, minify --check 59 file OK, E2E overview + dialogs OK, preview visual QA light/dark × cream/mint/lavender/peach all render correct.
+- ⏭ **P1 scope note:** legacy kawaii palette in styles.css `:root` (--ink 315×, --card-bg, --accent-btn #C24E28...) still shadows token changes in legacy views — aliasing to semantic tokens is the first step of P2.
+
+## Visual Theme Refinement — P2: Legacy alias + buttons/inputs/cards (Amber Hearth)
+
+- 🔗 **Alias legacy kawaii palette → semantic tokens** (css/styles.css `:root` + dark base + 3 dark variants): `--ink → var(--color-text)`, `--ink-rgb` = rgb của text mới (51,47,42 light / 243,236,227 dark), `--card-bg → var(--color-surface)`, `--bg-main → var(--color-canvas)`, `--accent-deep/--accent-btn/--terracotta → var(--color-accent)`, `--peach-bar → var(--color-accent-soft)`, `--surface*/--panel-* → surface-muted`. Derived rgba vars (bg-grid/ink-soft/card-border) giữ formula → tự theo ink-rgb. Decorative day-header/brick/tag giữ literal (identity). `--ink-solid` giữ literal dark (#4A403A) vì là fill đằng sau glyph trắng.
+- 🟠 **Buttons (Amber Hearth):** primary CTA + skip-link + toast-action + tag-chip + cal-focus + habit-add chuyển `#fff/#fffdf9 → var(--color-on-accent)`; hover `#994329/#9c3d24/#b3482a → var(--color-accent-hover)`; dark override block app-shell token-driven. **Dark button giờ là chữ nâu đậm #2A1C12 trên amber #E08763 = 6.14:1** (fix lỗi cũ white-on-amber 2.77:1).
+- 📝 **Inputs:** focus = accent border + soft accent ring (color-mix 16%) — Amber Hearth focus, keyboard ring vẫn do rule toàn cục.
+- 🔢 Version bumps: components v7, app-shell v18, styles-critical/deferred v6, sw CACHE v188; re-split + re-minify + verify.
+- 🧪 Kiểm chứng: unit 349/0, CSS verifier 6 view × 6 combo **0 diffs**, E2E Chromium đầy đủ RELEASE OK, FF + WebKit (reflection/pillars/metrics) OK, a11y 62/0, mobile QA 262/0, minify --check 59 file, preview visual QA light/dark — progress bar hbar giờ là gradient accent #A84F2E, legacy vars resolve đúng (--ink #332f2a, --card-bg #fffdf8).
+
+## Visual Theme Refinement — P3: Sidebar + topbar (Zen Linen shell)
+
+- 🧰 **Topbar de-glass:** bỏ `backdrop-filter: blur(14px)` + nền glass → giấy warm `color-mix(canvas 94%, surface)`, border dưới mảnh hơn `color-mix(border 70%, transparent)` — hết cảm giác "toolbar kỹ thuật". Mobile nav giữ blur(16px) (bottom sheet cần phân lớp nội dung cuộn qua).
+- 🎨 **Sidebar:** active nav đã có soft accent bg + orange icon (từ a11y P2.3) — giữ nguyên; hover warm muted surface, inactive neutral không border, collapsed giữ behavior.
+- 🟠 **Add button:** `.app-primary-action.button-primary` đã orange (P2); dark mobile FAB giữ `#b3482a` + white + (5.42:1) — có chủ đích (glyph trắng trên nền terracotta đậm).
+- 🔢 Version bumps: app-shell v19, sw CACHE v189; re-minify.
+- 🧪 Kiểm chứng: unit 349/0, CSS verifier 0 diffs, a11y 62/0, E2E overview + dialogs OK, preview computed-style xác nhận topbar backdrop none + nền warm, active nav accent-soft + accent text, dark FAB đúng.
+
+## Visual Theme Refinement — P4: Today + task surfaces
+
+- 🃏 **Today card = surface cream ấm** (`--color-surface` thay vì `--color-surface-elevated` trắng tinh) + border warm `--color-border` + shadow-panel nhẹ — Zen Linen.
+- ✅ **Completed task/habit = sage status** (Sage Mist): `.today-task.done .task-text` và `.today-habit.done .today-habit-name` chuyển `--color-text-muted` → `--color-positive` (light `#55735D`, dark `#89AE91`) + giữ line-through — hoàn thành giờ đọc là "growth" không chỉ "mờ đi".
+- 🟠 **Progress:** `.today-progress-fill` giữ accent orange (primary task context = orange per Amber Hearth); sage dành cho completed status.
+- 👋 Greeting đã accent nhẹ từ trước (`--color-accent`) — giữ.
+- 🔢 Version bumps: styles-critical/deferred v7, sw CACHE v190; re-split + re-minify + verify.
+- 🧪 Kiểm chứng: unit 349/0, CSS verifier 0 diffs, a11y 62/0, E2E overview + dialogs OK, mobile QA 262/0, minify --check 59 file, preview: toggle task → done text sage `#55735D` light / `#89AE91` dark + card surface cream.
+
+## Visual P5 — Reflection / Monthly Goals / Habits polish (Zen Linen × Amber Hearth × Sage Mist)
+
+- 📖 **Reflection journal-like**: `.reflect-quick` layout thoáng (flex column, gap), `.reflect-textarea` nền `--color-surface-muted` + border warm `--color-border` + radius-input — không còn cảm giác admin form; mood row radiogroup giữ.
+- 🎨 **Pillar semantic colors** (qua `data-pillar-id` — không đổi logic): p1 Cơ thể → sage (`border-inline-start: var(--color-positive)` + metric bar sage), p2 Việc chính → TaskFlow orange (default), p3 Tương tác → muted info blue. Pillar user thêm (p4+) giữ accent. Dùng border + metric bar, không dùng 3 nền mạnh.
+- 🌿 **Habits sage heatmap**: thang `hm-l1..l5` chuyển orange → sage (light `#e4ede6 → #55735d`; dark `rgba(137,174,145,.18) → #89ae91`) — cập nhật cả 3 chỗ (light, dark override, `@media print`); `hm-mini-cell.on` + `hm-streak-badge` theo sage/amber. Không bright green.
+- 🔢 Version bumps: styles v8, sw CACHE v191; re-split + re-minify + verify.
+- 🧪 Kiểm chứng: unit 349/0, CSS verifier 0 diffs, a11y 62/0, E2E Chromium full matrix RELEASE OK, mobile QA 262/0, minify --check 59 file, preview: pillar border p1 sage `#55735D`/dark `#89AE91` · p2 orange · p3 info blue, heatmap ribbon dark = 5 mức sage, reflection journal render, 0 console errors.
+
+## Visual P6 — Landing page polish (Zen Linen × Amber Hearth)
+
+- 🟠 **CTA burnt orange**: `--landing-action-bg` `#a9472d` → **`#a84f2e`** (khớp `--color-accent` light — hết 2 màu orange), hover `#913a25` → **`#913f24`** (`--color-accent-hover`). White text 5.49:1 ✓ (test bắt buộc hex + ≥4.5 giữ nguyên).
+- 🖼 **Screenshot frame**: `.product-preview` shadow nặng `0 28px 72px / .18` → **`--shadow-floating`** (linen nhẹ `0 8px 24px / .07 + 0 18px 48px / .12`); dark override giảm `.42 → .35`. Border warm `--color-border` giữ.
+- 🃏 **Feature cards**: gap `16 → 20px`, padding `28 → 30px`, thêm `--shadow-sm` nhẹ — "less shadow, more spacing" đúng brief; border warm giữ.
+- 🧱 **Footer**: đã neutral (`--color-sidebar` + border-top) — giữ. CTA band cuối `#403934` warm dark giữ (không phải accent).
+- 🔢 Version bumps: landing.css v9 → v10, sw CACHE v191 → v192; re-minify landing.min.css.
+- 🧪 Kiểm chứng: unit 349/0 (test landing action hex+contrast vẫn pass), E2E overview OK, a11y 62/0, minify --check 59 file, preview: light — canvas linen `#F4F0E8`, CTA `#A84F2E`+white, footer `#FAF7F1`; dark — CTA giữ `#A84F2E`+white 5.49 ✓, preview shadow dark.
+
+## Visual P7 — Dark mode QA toàn diện (4 theme × dark, component-level)
+
+- 🎯 **Audit mới `scripts/audit-dark-contrast.py`**: đo computed styles THẬT (không phải token) cho từng component đã polish ở P2-P6, trên cả 4 theme (cream/mint/lavender/peach) × dark, so WCAG AA (text 4.5:1, non-text 3:1). App: primary btn, reflect-input ×2, today-card title, mood btn on, muted text, done task sage, pillar border p1/p2/p3 + focus input + name, heatmap l1/l5 vs card. Landing: primary, skip, feature-accent, cta-final text + eyebrow, hero lead, footer.
+- ✅ **Kết quả: ALL PASS (0 dưới AA)** — nổi bật: primary btn dark amber `#E08763` + nâu `#2A1C12` = **6.14:1** · pillar border sage/orange/blue 5.58–6.10:1 (≥3) · heatmap sage 8.53:1 · done task sage 8.53:1 · landing primary 5.49:1 · cta-final 11.33:1 · eyebrow 5.82:1 · hero lead 7.60:1. Không cần sửa CSS nào ở P7.
+- 🔍 **Phương pháp**: seed mood + done task qua click (state fresh không có `.on`/`.done` → đã xử lý bằng cách click thật rồi đo); heatmap so với nền `.habit-heat-card`; pillar/heatmap đo ở view overview (không phải today).
+- 📸 Screenshots dark 4 theme (today + overview) → `docs/qa/dark-{theme}-*.png`.
+- 🧪 Kiểm chứng: unit 349/0, a11y 62/0, CSS verifier 0 diffs, E2E overview OK, minify --check 59 file, preview theme-switch dark resolve đúng 4 canvas, 0 console errors.
+
+## Visual P8 — Mobile QA toàn diện (360x800 / 390x844 / 412x915)
+
+- 📱 **Mở rộng `scripts/e2e-mobile-qa.py` thêm 14 check reflection/viewport**: quick card renders, 5 mood radios, quickGood/quickImprove present + font-size ≥16px (iOS zoom), mood select highlights (click → `.on`), quick save persists entry (verify localStorage `planner-reflections-daily`), deep modal opens + 4 textareas + fits viewport + closes, history opens + lists saved entry + closes, overflow checks. Bottom nav/More sheet/Quick Add/Task Drawer đã cover sẵn từ trước.
+- ✅ **MOBILE QA: 318 checks / 0 FAIL** (tăng từ 262 → 318) trên chromium — 3 viewport 360x800/390x844/412x915 + tablet 768x1024; **0 pageerrors**.
+- 🎨 Palette Zen Linen mới không gây regression: không overflow, touch target ≥44px, input ≥16px trên mọi viewport.
+- 🌐 **FF/WebKit**: reflection block verify riêng (quick card 5 moods + deep modal 4 textareas + history opens) — **OK cả 2 browser**. Lưu ý: full mobile-qa suite chỉ chạy touch emulation cho chromium (`touch = browser_name == "chromium"`) — FF/WebKit fail ở SEARCH section là quirk pre-existing của harness (element intercept pointer events), không phải do reflection hay palette.
+- 🧪 Kiểm chứng: unit 349/0, a11y 62/0 (More Sheet mobile: dialog semantics, focus, tab trap, names), E2E Chromium full matrix RELEASE OK, mobile QA 318/0.
+
+## Visual Theme Refinement — FINAL VERIFICATION (sau P8)
+
+- ✅ Toàn bộ 9 phase (P0 audit → P8 mobile QA) hoàn thành; final battery trên trạng thái sạch:
+  - Unit **349/0** · E2E Chromium full matrix **RELEASE OK** · a11y **62/0** · mobile QA **318/0** · minify **59 file** · CSS verifier **0 diffs** · dark contrast audit **ALL PASS** (4 theme × dark, component-level).
+- 🚀 **Lighthouse final**: landing-desktop **99** (FCP ~576ms LCP, CLS .067, TBT 0) · landing-mobile **98** · app-desktop **97** · app-mobile **77** (LCP 6249ms, CLS 0, TBT 45ms) — **bằng/trên baseline**, không regression performance từ theme work (theme là CSS variables thuần, không thêm asset/network).
+- 🎨 Kết quả Visual Theme Refinement: Zen Linen canvas/surface/shadow, Amber Hearth CTA/active (dark amber + nâu 6.14:1), Sage Mist habits/positive/heatmap, dark 4 theme warm không pure black, contrast component-level AA verified.

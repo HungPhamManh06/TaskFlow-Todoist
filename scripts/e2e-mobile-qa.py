@@ -403,6 +403,59 @@ def run_viewport(browser, browser_name, width, height, label, base, screenshots)
         page.locator('#toolsDrawer [data-action="tools-close"]').click()
         wait('[data-testid="tools-drawer"]', state="hidden")
 
+        # ---------- REFLECTION (P8: quick card + deep modal + history) ----------
+        nav_today = page.locator('#mobileNav [data-nav-view="today"]') if mobile else page.locator('#desktopSidebar [data-nav-view="today"]')
+        nav_today.click()
+        wait('[data-testid="reflection-card"]', state="visible", timeout=5000)
+        record(vp, "reflection", "quick card renders", True)
+        mood_count = page.locator('[data-testid="reflection-card"] .reflect-mood-btn').count()
+        record(vp, "reflection", "5 mood radios", mood_count == 5, f"({mood_count})")
+        for sel in ('[data-reflect-field="quickGood"]', '[data-reflect-field="quickImprove"]'):
+            record(vp, "reflection", f"field {sel} present", page.locator(sel).count() == 1)
+            check_input_font_size(page, vp, "reflection", sel)
+        # Mood click -> aria-checked flips
+        page.locator('[data-testid="reflection-card"] .reflect-mood-btn').nth(3).click()
+        checked = page.locator('[data-testid="reflection-card"] .reflect-mood-btn.on').count()
+        record(vp, "reflection", "mood select highlights", checked == 1, f"(on={checked})")
+        # Fill + save quick -> entry persisted
+        page.locator('[data-reflect-field="quickGood"]').fill(f"QA good {width}x{height}")
+        page.locator('[data-reflect-field="quickImprove"]').fill("QA improve")
+        page.locator('[data-testid="reflection-save-quick"]').click()
+        page.wait_for_timeout(400)
+        saved = page.evaluate(
+            """() => {
+              const key = 'planner-reflections-daily';
+              try {
+                const raw = localStorage.getItem(key);
+                if (!raw) return false;
+                const map = JSON.parse(raw);
+                return Object.values(map).some(e => e && e.quickGood && e.quickGood.startsWith('QA good'));
+              } catch (e) { return false; }
+            }"""
+        )
+        record(vp, "reflection", "quick save persists entry", saved)
+        assert_no_overflow(page, vp, "reflection card")
+        # Deep modal opens with textareas, closes cleanly
+        page.locator('[data-testid="reflection-deep-open"]').click()
+        wait('[data-testid="reflection-modal"]', state="visible")
+        ta_count = page.locator('#reflectionDeepContent textarea').count()
+        record(vp, "reflection", "deep modal opens", True)
+        record(vp, "reflection", "deep textareas (good/bad/cont/improve)", ta_count == 4, f"({ta_count})")
+        deep_box = page.locator('[data-testid="reflection-modal"] .dialog').bounding_box()
+        record(vp, "reflection", "deep modal fits viewport",
+               deep_box is not None and deep_box["height"] <= height and deep_box["width"] <= width,
+               f"(h={round(deep_box['height'])}px)" if deep_box else "")
+        page.locator('[data-action="reflection-deep-close"]').click()
+        wait('[data-testid="reflection-modal"]', state="hidden")
+        # History shows the saved entry
+        page.locator('[data-testid="reflection-history-btn"]').click()
+        wait('[data-testid="reflection-history-modal"]', state="visible")
+        items = page.locator('[data-testid="reflection-history-modal"] .reflect-history-item').count()
+        record(vp, "reflection", "history opens", True)
+        record(vp, "reflection", "history lists saved entry", items >= 1, f"(items={items})")
+        page.locator('[data-action="reflection-history-close"]').click()
+        wait('[data-testid="reflection-history-modal"]', state="hidden")
+
         # ---------- LEGAL pages ----------
         for legal in LEGAL_PAGES:
             p2 = browser.new_page(viewport={"width": width, "height": height})
