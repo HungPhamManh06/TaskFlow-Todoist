@@ -5,9 +5,16 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Pillars from '../js/pillars.js';
+import PlanMath from '../js/plan-math.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
+const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+const QUICK_ADD_JS = readFileSync(path.join(ROOT, 'js/quick-add.js'), 'utf8');
+const INBOX_JS = readFileSync(path.join(ROOT, 'js/inbox.js'), 'utf8');
+const PLAN_CARRY_JS = readFileSync(path.join(ROOT, 'js/plan-carry.js'), 'utf8');
+const CSS = readFileSync(path.join(ROOT, 'css/styles.css'), 'utf8');
+const DEFERRED_CSS = readFileSync(path.join(ROOT, 'css/styles-deferred.css'), 'utf8');
 
 const {
   normalizeMetric,
@@ -180,4 +187,63 @@ test('i18n contains task/focus metric labels and unit copy in vi and en', () => 
     const matches = I18N_JS.match(new RegExp(`${key}: '`, 'g'));
     assert.equal(matches && matches.length, 2, `${key} must exist in vi and en`);
   });
+});
+
+test('task lifecycle: same-month move preserves metric links', () => {
+  const linked = { uid: 't1', kind: 'regular', linkedMetricIds: ['m1', 'm2'] };
+  const result = PlanMath.moveTaskAcrossDays([linked], [], 0, 'regular');
+  assert.deepEqual(result.tasksFrom, []);
+  assert.deepEqual(result.tasksTo[0].linkedMetricIds, ['m1', 'm2']);
+});
+
+test('task lifecycle: duplicate, recurrence and carry-over explicitly clear metric links', () => {
+  assert.match(APP_JS, /task-duplicate[\s\S]{0,700}linkedMetricIds:\s*\[\]/);
+  assert.match(APP_JS, /plan\.copies\.forEach[\s\S]{0,250}linkedMetricIds\s*=\s*\[\]/);
+  assert.match(PLAN_CARRY_JS, /copy:\s*Object\.assign[\s\S]{0,650}linkedMetricIds:\s*\[\]/);
+});
+
+test('task migration normalizes legacy links without replacing the task object', () => {
+  assert.match(APP_JS, /setTaskMetricIds\(tk,\s*tk\.linkedMetricIds\)/);
+  assert.doesNotMatch(APP_JS, /tk\s*=\s*\{[^}]*linkedMetricIds/);
+});
+
+test('all direct task creation modules initialize empty metric links', () => {
+  assert.match(APP_JS, /today-addtask[\s\S]{0,500}linkedMetricIds:\s*\[\]/);
+  assert.match(APP_JS, /act === 'addtask'[\s\S]{0,500}linkedMetricIds:\s*\[\]/);
+  assert.match(QUICK_ADD_JS, /uid:\s*newTaskUid\(\)[\s\S]{0,300}linkedMetricIds:\s*\[\]/);
+  assert.match(INBOX_JS, /inbox\.push\([\s\S]{0,300}linkedMetricIds:\s*\[\]/);
+});
+
+test('Task Detail renders an accessible multi-metric link group for scheduled tasks', () => {
+  assert.match(APP_JS, /function taskMetricLinksHTML\(/);
+  assert.match(APP_JS, /<fieldset[^>]*data-role="td-linked-metrics"/);
+  assert.match(APP_JS, /<legend[^>]*>\$\{t\('taskLinkedMetrics'\)\}/);
+  assert.match(APP_JS, /data-action="td-metric-link"/);
+  assert.match(APP_JS, /visiblePillars\(monthState\)/);
+  assert.match(APP_JS, /normalizeTaskMetricIds\(task\)/);
+  assert.match(APP_JS, /taskMetricLinksHTML\(taskDetailState\(\),\s*tk,\s*inInbox\)/);
+});
+
+test('Task Detail metric links persist multiple checked ids and refresh metric UI', () => {
+  assert.match(APP_JS, /querySelectorAll\('\[data-action="td-metric-link"\]:checked'\)/);
+  assert.match(APP_JS, /setTaskMetricIds\(g\.tk,\s*ids\)/);
+  assert.match(APP_JS, /saveTaskDetailState\(\)/);
+  assert.match(APP_JS, /rerenderPillars\(\)/);
+});
+
+test('Task Detail metric links include localized empty/inbox states in vi and en', () => {
+  ['taskLinkedMetrics', 'taskLinkedMetricsEmpty', 'taskLinkedMetricsInbox', 'taskLinkedMetricAria'].forEach((key) => {
+    const matches = I18N_JS.match(new RegExp(`${key}: '`, 'g'));
+    assert.equal(matches && matches.length, 2, `${key} must exist in vi and en`);
+  });
+  assert.match(APP_JS, /taskLinkedMetricsInbox/);
+  assert.match(APP_JS, /taskLinkedMetricsEmpty/);
+});
+
+test('Task Detail metric link styles are responsive and mirrored in deferred CSS', () => {
+  ['.td-linked-metrics', '.td-metric-option', '.td-metric-pillar'].forEach((selector) => {
+    assert.match(CSS, new RegExp(selector.replace('.', '\\.')));
+    assert.match(DEFERRED_CSS, new RegExp(selector.replace('.', '\\.')));
+  });
+  assert.match(CSS, /@media \(max-width:\s*600px\)[\s\S]*\.td-metric-option[\s\S]*min-height:\s*44px/);
 });

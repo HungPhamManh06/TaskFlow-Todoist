@@ -477,7 +477,7 @@ function applyRecurrence() {
   if (!todayDay) return;
   const plan = window.PlanMath.planRecurrence(state.weeks, ti.dayIdx);
   plan.mark.forEach((t) => { t._recurred = true; });
-  plan.copies.forEach((c) => { c.uid = newTaskUid(); todayDay.tasks.push(c); });
+  plan.copies.forEach((c) => { c.uid = newTaskUid(); c.linkedMetricIds = []; todayDay.tasks.push(c); });
 }
 
 /* ============================ Xuất / Nhập dữ liệu ============================ */
@@ -582,6 +582,7 @@ const { loadReflections } = window.TaskFlowReflection;
 // loadMonthStateOrCreate/save() gọi defaultTemplate/ensurePillars để migration additive
 // (dữ liệu tháng cũ không có pillars → tự điền template 3 trụ cột theo ngôn ngữ hiện tại).
 if (!window.TaskFlowPillars) throw new Error('TaskFlowPillars missing — js/pillars.js failed to load');
+const { visiblePillars, normalizeTaskMetricIds, setTaskMetricIds } = window.TaskFlowPillars;
 
 // date key generators (pomoDateKey, moodDateKey) được tách sang js/keys.js
 // (window.TaskFlowKeys). pomoDateKey giữ signature; moodDateKey nhận (d, y, m) —
@@ -639,7 +640,7 @@ function importCSVFile(file) {
         chunk.tasks.forEach((tk) => {
           const w = s.weeks[tk.week - 1];
           const d = w && w.days[tk.day - 1];
-          if (w && d) d.tasks.push({ uid: newTaskUid(), kind: tk.kind, done: tk.done, text: tk.text, tags: [], remind: { enabled: false, time: '20:00' } });
+          if (w && d) d.tasks.push({ uid: newTaskUid(), kind: tk.kind, done: tk.done, text: tk.text, tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } });
         });
         saveMonthState(PLAN_YEAR, m - 1, s);
         // Tháng đang xem: đồng bộ vào state in-memory để setView/save() không ghi đè bản đã merge.
@@ -732,6 +733,7 @@ function loadState() {
       (w.days || []).forEach((d) => {
         (d.tasks || []).forEach((tk) => {
           if (!Array.isArray(tk.tags)) tk.tags = [];
+          window.TaskFlowPillars.setTaskMetricIds(tk, tk.linkedMetricIds);
           if (!tk.remind || typeof tk.remind !== 'object') tk.remind = { enabled: false, time: '20:00' };
           if (typeof tk.repeat === 'undefined') tk.repeat = null;
           if (typeof tk.uid !== 'string') { tk.uid = newTaskUid(); tasksDirty = true; }
@@ -798,11 +800,11 @@ function emptyState() {
           const dt = new Date(start.getTime() + (wi * 7 + di) * 86400000);
           return {
             tasks: [
-              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
             ],
             date: `${dt.getDate()}/${dt.getMonth() + 1}`,
             yy: dt.getFullYear() % 100,
@@ -2251,6 +2253,35 @@ function refreshTaskRowAfterEdit() {
   saveTaskDetailState();
 }
 
+function taskMetricLinksHTML(monthState, task, inInbox) {
+  const selected = new Set(normalizeTaskMetricIds(task));
+  const pillars = inInbox ? [] : visiblePillars(monthState)
+    .map((pillar) => ({ ...pillar, metrics: Array.isArray(pillar.metrics) ? pillar.metrics.filter(Boolean) : [] }))
+    .filter((pillar) => pillar.metrics.length);
+  let content = '';
+  if (inInbox) {
+    content = `<p class="td-empty">${t('taskLinkedMetricsInbox')}</p>`;
+  } else if (!pillars.length) {
+    content = `<p class="td-empty">${t('taskLinkedMetricsEmpty')}</p>`;
+  } else {
+    content = pillars.map((pillar) => `<div class="td-metric-pillar">
+      <span class="td-metric-pillar-name"><span aria-hidden="true">${esc(pillar.icon)}</span>${esc(pillar.name)}</span>
+      <div class="td-metric-options">
+        ${pillar.metrics.map((metric) => `<label class="td-metric-option">
+          <input type="checkbox" data-action="td-metric-link" data-metric-id="${esc(metric.id)}"
+            ${selected.has(metric.id) ? 'checked' : ''}
+            aria-label="${t('taskLinkedMetricAria', { pillar: pillar.name, metric: metric.title })}">
+          <span>${esc(metric.title) || t('metricUntitled')}</span>
+        </label>`).join('')}
+      </div>
+    </div>`).join('');
+  }
+  return `<fieldset class="td-linked-metrics" data-role="td-linked-metrics">
+    <legend>${t('taskLinkedMetrics')}</legend>
+    ${content}
+  </fieldset>`;
+}
+
 function renderTaskDetail() {
   const drawer = document.getElementById('taskDrawer');
   const body = drawer && drawer.querySelector('[data-role="td-body"]');
@@ -2321,6 +2352,7 @@ function renderTaskDetail() {
           </select>
         </label>
       </div>
+      ${taskMetricLinksHTML(taskDetailState(), tk, inInbox)}
       <div class="td-field">
         <span class="td-field-label">${t('taskDetailTags')}</span>
         <div class="td-tags">
@@ -2436,6 +2468,18 @@ function bindTaskDetailEvents(drawer) {
       save();
     });
   }
+  drawer.querySelectorAll('[data-action="td-metric-link"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const g = getTaskDetailTarget();
+      if (!g) return;
+      const ids = Array.from(drawer.querySelectorAll('[data-action="td-metric-link"]:checked'))
+        .map((item) => item.dataset.metricId);
+      setTaskMetricIds(g.tk, ids);
+      saveTaskDetailState();
+      if (state.view === 'overview') rerenderPillars();
+      trackEvent('link_task_metric', { count: ids.length });
+    });
+  });
 }
 
 /* ============================ Phase 2: Tìm kiếm xuyên tháng ============================ */
@@ -2603,7 +2647,7 @@ function copyMonthTemplate() {
             const dt = new Date(PLAN_START.getTime() + (wi * 7 + di) * 86400000);
             const sd = (sw.days && sw.days[di]) || {};
             return {
-              tasks: (sd.tasks || []).map((tk) => ({ uid: newTaskUid(), kind: tk.kind, done: false, text: tk.text || '', tags: Array.isArray(tk.tags) ? tk.tags.slice() : [] })),
+              tasks: (sd.tasks || []).map((tk) => ({ uid: newTaskUid(), kind: tk.kind, done: false, text: tk.text || '', tags: Array.isArray(tk.tags) ? tk.tags.slice() : [], linkedMetricIds: [] })),
               date: `${dt.getDate()}/${dt.getMonth() + 1}`,
               yy: dt.getFullYear() % 100,
               sticky: sd.sticky || null,
@@ -3948,7 +3992,7 @@ document.addEventListener('click', (e) => {
     if (!ti.inRange) return;
     const w = state.weeks[ti.week - 1];
     const d = w.days[ti.dayInWeek];
-    d.tasks.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
+    d.tasks.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } });
     renderToday();
     save();
     trackEvent('create_task', { scope: 'today' });
@@ -3958,7 +4002,7 @@ document.addEventListener('click', (e) => {
   } else if (act === 'addtask') {
     const w = state.weeks[+el.dataset.week - 1];
     const d = w.days[+el.dataset.day];
-    d.tasks.push({ uid: newTaskUid(), kind: el.dataset.kind, done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
+    d.tasks.push({ uid: newTaskUid(), kind: el.dataset.kind, done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } });
     renderWeek();
     save();
     trackEvent('create_task', { kind: el.dataset.kind });
@@ -4030,7 +4074,7 @@ document.addEventListener('click', (e) => {
     const src = d.tasks[+el.dataset.task];
     if (src) {
       // Bản nhân bản là task mới — không kế thừa carriedFrom (badge ↳ dồn) hay trạng thái done
-      const copy = { ...src, uid: newTaskUid(), done: false, text: src.text, carriedFrom: undefined };
+      const copy = { ...src, uid: newTaskUid(), done: false, text: src.text, carriedFrom: undefined, linkedMetricIds: [] };
       d.tasks.push(copy);
       if (state.view === 'today') renderToday();
       else renderWeek();

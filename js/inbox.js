@@ -123,7 +123,7 @@
   }
 
   function addInboxTask(inbox) {
-    inbox.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' }, inbox: true });
+    inbox.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' }, inbox: true });
     saveInbox(inbox);
     renderInbox(inbox);
     trackEvent('create_task', { scope: 'inbox' });
