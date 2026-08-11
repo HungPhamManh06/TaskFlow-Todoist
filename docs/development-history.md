@@ -121,3 +121,11 @@
 - 🔗 **Liên kết nhiều metric** — mỗi task lịch tháng có `linkedMetricIds: string[]`; Task Detail cung cấp nhóm checkbox truy cập được, cho phép một task liên kết đồng thời nhiều metric TASK/FOCUS.
 - 🧭 **Quy tắc vòng đời** — di chuyển trong cùng tháng giữ liên kết; duplicate, recurrence và carry-over chủ động xoá liên kết để tránh cộng nhầm vào metric tháng nguồn.
 - 🧪 **Kiểm chứng** — unit 372/0, sync 7/7, E2E Chromium đầy đủ 15 scenario × 5 viewport và scenario P4 chuyên biệt desktop/mobile, mobile QA 262/262, a11y 62/62, CSS verifier 0 diffs, minify 59/59 file.
+
+## Personal Growth & Reflection — P5: Daily Alignment
+
+- 🧭 **Daily Alignment trong Today** — một thẻ gọn theo từng trụ cột, đặt phía trên lịch hôm nay để chỉ ra các hành động cần làm ngay.
+- 🔗 **Dữ liệu dẫn xuất, không tạo bản sao** — metric HABIT hiển thị habit được liên kết nếu hôm nay không bị bỏ qua; metric TASK/FOCUS chỉ hiển thị các task hôm nay được liên kết trực tiếp với metric đó; MANUAL/CUSTOM không tạo hành động.
+- ♻️ **Khử trùng lặp đúng phạm vi** — cùng một task chỉ xuất hiện một lần trong một trụ cột, nhưng vẫn có thể xuất hiện ở nhiều trụ cột khi được liên kết hợp lệ; trạng thái hoàn thành tiếp tục dùng chính task/habit gốc.
+- 📱 **Responsive + accessibility** — bố cục xếp dọc trên mobile, giữ nguyên các action hiện có và bổ sung test id ổn định cho kiểm thử trình duyệt.
+- 🧪 **Kiểm chứng** — unit 382/382, sync 7/7, E2E Chromium đầy đủ 16 scenario × 5 viewport và scenario P5 chuyên biệt desktop/mobile, mobile QA 262/262, a11y 62/62, CSS verifier 0 diffs, minify 60/60 file.
