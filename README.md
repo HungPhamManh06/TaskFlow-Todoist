@@ -94,14 +94,15 @@ Khi chưa đăng nhập, dữ liệu mặc định được lưu cục bộ tron
 ### 📅 Tổng quan tháng
 - Thẻ thông tin tháng/năm/tuần hiện tại + đồng hồ thời gian thực
 - Biểu đồ tiến độ **6 tuần** dạng cột
-- Panel **Mục tiêu tháng** với donut tiến độ, bảng thống kê, danh sách mục tiêu ưu tiên/thường (thêm/sửa/xoá)
+- 🏛️ **Monthly Life Pillars** — 3 trụ cột mặc định (Cơ thể · Việc chính · Tương tác), mỗi trụ 1 **Monthly Focus** + metric có tiến độ **/ngày thật** (đúng day-count tháng)
 - **Habit tracker 31 ngày** với cột sticky, ô tick + biểu đồ phần trăm từng thói quen (thêm/đổi tên/xoá)
 - 🎯 **Mục tiêu habit tùy chỉnh** — mỗi thói quen có mục tiêu ngày riêng (mặc định 100%), phần trăm tính theo mục tiêu
 - 🗓️ **Sao chép thói quen sang tháng sau** — giữ nguyên tên + mục tiêu, bảng tick tháng mới trống
-- Panel **Reflection** 4 câu hỏi (viết được, lưu tự động)
+- 🪞 **Daily Reflection** — Quick (mood + 2 ô) và Deep (5 câu, autosave)
 
-### 📊 Báo cáo tháng & Huy hiệu
+### 📊 Báo cáo & Huy hiệu
 - 📄 **Báo cáo tháng** — 1 cú nhấn: % mục tiêu, số ngày đạt, tổng streak 🔥, kỷ lục 🏆, điểm danh, thói quen đạt tốt nhất
+- ⚖️ **Cân bằng trụ cột & mood trend** — tiến độ từng trụ cột (Cơ thể · Việc chính · Tương tác) trong báo cáo, kèm trend tâm trạng tự báo cáo theo tuần
 - 📤 **Chia sẻ ảnh báo cáo** — tạo ảnh 1080×1080 (donut + thống kê), chia sẻ trực tiếp hoặc tải về `taskflow-report.png`
 - 🏅 **Huy hiệu** — 🔥 7 ngày liên tiếp, 🔥🔥 30 ngày, 🏆 kỷ lục 14 ngày, 🎯 hoàn thành mọi mục tiêu, 💯 mọi thói quen đạt 100%, 📅 điểm danh 15 ngày — tự trao khi xem tháng hiện tại, lưu vĩnh viễn
 
