@@ -9,6 +9,9 @@ const {
   ensureWeeklyReviews,
   weekCalendarDays,
   weeklySummary,
+  weekTarget,
+  weeklyMetricProgress,
+  weeklyPillarScores,
 } = WeeklyReview;
 
 const context = {
@@ -103,4 +106,112 @@ test('weeklySummary tolerates empty and malformed input', () => {
     habitsPct: 0,
     focusMinutes: 0,
   });
+});
+
+test('weekTarget prorates all modes without rounding the target', () => {
+  assert.equal(weekTarget({ target: { mode: 'daily', value: 99 } }, 2, 31), 2);
+  assert.equal(weekTarget({ target: { mode: 'perWeek', value: 7 } }, 2, 31), 2);
+  assert.equal(weekTarget({ target: { mode: 'perMonth', value: 31 } }, 2, 31), 2);
+  assert.equal(weekTarget({ target: { mode: 'custom', value: 15.5 } }, 2, 31), 1);
+});
+
+test('weekTarget handles February, leap-year February and 31-day proportions', () => {
+  assert.equal(weekTarget({ target: { mode: 'perMonth', value: 28 } }, 7, 28), 7);
+  assert.equal(weekTarget({ target: { mode: 'perMonth', value: 29 } }, 7, 29), 7);
+  assert.equal(weekTarget({ target: { mode: 'perMonth', value: 31 } }, 7, 31), 7);
+  assert.equal(weekTarget({ target: { mode: 'perMonth', value: 0 } }, 7, 31), 7 / 31);
+  assert.equal(weekTarget({ target: { mode: 'perMonth', value: 2 } }, 0, 31), null);
+});
+
+const augustContext = {
+  planStart: new Date(2026, 7, 3),
+  year: 2026,
+  month: 7,
+  monthDays: 31,
+};
+
+const fullWeek = {
+  n: 1,
+  days: Array.from({ length: 7 }, (_, day) => ({ tasks: day === 0 ? [
+    {
+      text: 'Linked task done', done: true, linkedMetricIds: ['m-task', 'm-focus'],
+      focusLog: [
+        { d: '2026-08-03', secs: 3600 },
+        { d: '2026-08-04', secs: 1800 },
+        { d: '2026-08-15', secs: 7200 },
+      ],
+    },
+    { text: 'Linked task open', done: false, linkedMetricIds: ['m-task'], focusLog: [] },
+    {
+      text: 'Unrelated done', done: true, linkedMetricIds: ['other'],
+      focusLog: [{ d: '2026-08-04', secs: 7200 }],
+    },
+  ] : [] })),
+};
+
+const habitDays = Array(31).fill(false);
+habitDays[2] = true;
+habitDays[3] = true;
+
+const habitMetric = {
+  id: 'm-habit', type: 'HABIT', linkedHabitId: 'h1',
+  target: { mode: 'daily', value: 1 },
+};
+const taskMetric = { id: 'm-task', type: 'TASK', target: { mode: 'perWeek', value: 2 } };
+const focusMetric = { id: 'm-focus', type: 'FOCUS', target: { mode: 'perWeek', value: 120 } };
+const manualMetric = {
+  id: 'm-manual', type: 'MANUAL', target: { mode: 'perWeek', value: 7 },
+  days: [false, false, true, true, true, false, false],
+};
+
+const metricState = {
+  habits: [{ id: 'h1', days: habitDays, skipDays: [4] }],
+  weeks: [fullWeek],
+  pillars: [
+    { id: 'body', name: 'Body', icon: 'B', metrics: [habitMetric] },
+    { id: 'work', name: 'Work', icon: 'W', metrics: [taskMetric, focusMetric] },
+    { id: 'hidden', name: 'Hidden', hidden: true, metrics: [manualMetric] },
+    { id: 'empty', name: 'Empty', metrics: [] },
+  ],
+};
+
+test('weeklyMetricProgress scores HABIT and excludes skipped days from daily target', () => {
+  assert.deepEqual(weeklyMetricProgress(metricState, fullWeek, habitMetric, augustContext), {
+    done: 2, target: 6, pct: 33,
+  });
+});
+
+test('weeklyMetricProgress scores MANUAL and CUSTOM checked days', () => {
+  assert.deepEqual(weeklyMetricProgress(metricState, fullWeek, manualMetric, augustContext), {
+    done: 3, target: 7, pct: 43,
+  });
+  assert.deepEqual(weeklyMetricProgress(metricState, fullWeek, { ...manualMetric, type: 'CUSTOM' }, augustContext), {
+    done: 3, target: 7, pct: 43,
+  });
+});
+
+test('weeklyMetricProgress TASK counts only completed linked non-blank tasks', () => {
+  assert.deepEqual(weeklyMetricProgress(metricState, fullWeek, taskMetric, augustContext), {
+    done: 1, target: 2, pct: 50,
+  });
+});
+
+test('weeklyMetricProgress FOCUS sums linked task logs only inside the selected week', () => {
+  assert.deepEqual(weeklyMetricProgress(metricState, fullWeek, focusMetric, augustContext), {
+    done: 90, target: 120, pct: 75,
+  });
+});
+
+test('weeklyMetricProgress omits stale links, unsupported types and invalid input', () => {
+  assert.equal(weeklyMetricProgress(metricState, fullWeek, { ...habitMetric, linkedHabitId: 'missing' }, augustContext), null);
+  assert.equal(weeklyMetricProgress(metricState, fullWeek, { type: 'UNKNOWN' }, augustContext), null);
+  assert.equal(weeklyMetricProgress(null, null, null, augustContext), null);
+});
+
+test('weeklyPillarScores averages scorable metrics and omits hidden or empty pillars', () => {
+  const scores = weeklyPillarScores(metricState, fullWeek, augustContext);
+  assert.deepEqual(scores.map((p) => ({ id: p.id, pct: p.pct, metricCount: p.metricCount })), [
+    { id: 'body', pct: 33, metricCount: 1 },
+    { id: 'work', pct: 63, metricCount: 2 },
+  ]);
 });

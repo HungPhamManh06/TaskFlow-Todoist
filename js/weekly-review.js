@@ -97,11 +97,119 @@
     };
   }
 
+  function weekTarget(metric, eligibleDays, monthDays) {
+    const rawTarget = metric && metric.target && typeof metric.target === 'object' ? metric.target : {};
+    const modes = ['daily', 'perWeek', 'perMonth', 'custom'];
+    const mode = modes.includes(rawTarget.mode) ? rawTarget.mode : 'daily';
+    const numericValue = Number(rawTarget.value);
+    const value = Number.isFinite(numericValue) && numericValue > 0 ? numericValue : 1;
+    if (!Number.isFinite(eligibleDays) || eligibleDays <= 0) return null;
+    let target;
+    if (mode === 'daily') target = eligibleDays;
+    else if (mode === 'perWeek') target = value * eligibleDays / 7;
+    else target = Number.isFinite(monthDays) && monthDays > 0 ? value * eligibleDays / monthDays : 0;
+    return Number.isFinite(target) && target > 0 ? target : null;
+  }
+
+  function linkedMetricIds(task) {
+    return task && Array.isArray(task.linkedMetricIds)
+      ? task.linkedMetricIds.filter((id) => typeof id === 'string')
+      : [];
+  }
+
+  function weekTasks(days) {
+    return days.flatMap((day) => {
+      const tasks = day.record && Array.isArray(day.record.tasks) ? day.record.tasks : [];
+      return tasks.filter((task) => task && typeof task.text === 'string' && task.text.trim());
+    });
+  }
+
+  function resultFrom(done, target) {
+    if (!Number.isFinite(target) || target <= 0) return null;
+    const safeDone = Number.isFinite(done) && done > 0 ? done : 0;
+    return {
+      done: safeDone,
+      target,
+      pct: Math.min(100, Math.max(0, Math.round((safeDone / target) * 100))),
+    };
+  }
+
+  function weeklyMetricProgress(state, week, metric, context) {
+    if (!state || typeof state !== 'object' || !metric || typeof metric !== 'object') return null;
+    const days = weekCalendarDays(week, context);
+    const inMonthDays = days.filter((day) => day.inMonth);
+    const eligibleDays = inMonthDays.length;
+    const monthDays = context && Number(context.monthDays);
+    const type = typeof metric.type === 'string' ? metric.type : '';
+
+    if (type === 'HABIT') {
+      const habits = Array.isArray(state.habits) ? state.habits : [];
+      const habit = habits.find((item) => item && item.id === metric.linkedHabitId);
+      if (!habit) return null;
+      const available = inMonthDays.filter((day) => !Array.isArray(habit.skipDays) || !habit.skipDays.includes(day.dayIndex));
+      const done = available.filter((day) => Array.isArray(habit.days) && habit.days[day.dayIndex] === true).length;
+      const mode = metric.target && metric.target.mode;
+      const target = mode === 'daily' || !['perWeek', 'perMonth', 'custom'].includes(mode)
+        ? (available.length || null)
+        : weekTarget(metric, eligibleDays, monthDays);
+      return resultFrom(done, target);
+    }
+
+    if (type === 'MANUAL' || type === 'CUSTOM') {
+      const done = inMonthDays.filter((day) => Array.isArray(metric.days) && metric.days[day.dayIndex] === true).length;
+      return resultFrom(done, weekTarget(metric, eligibleDays, monthDays));
+    }
+
+    if ((type === 'TASK' || type === 'FOCUS') && typeof metric.id !== 'string') return null;
+    const tasks = weekTasks(days).filter((task) => linkedMetricIds(task).includes(metric.id));
+
+    if (type === 'TASK') {
+      const done = tasks.filter((task) => task.done === true).length;
+      return resultFrom(done, weekTarget(metric, eligibleDays, monthDays));
+    }
+
+    if (type === 'FOCUS') {
+      if (!inMonthDays.length) return null;
+      const startKey = inMonthDays[0].dateKey;
+      const endKey = inMonthDays[inMonthDays.length - 1].dateKey;
+      const seconds = tasks.reduce((total, task) => {
+        const log = Array.isArray(task.focusLog) ? task.focusLog : [];
+        return total + log.reduce((sum, entry) => {
+          if (!entry || typeof entry.d !== 'string' || entry.d < startKey || entry.d > endKey) return sum;
+          const secs = Number(entry.secs);
+          return sum + (Number.isFinite(secs) && secs > 0 ? secs : 0);
+        }, 0);
+      }, 0);
+      return resultFrom(Math.round(seconds / 60), weekTarget(metric, eligibleDays, monthDays));
+    }
+
+    return null;
+  }
+
+  function weeklyPillarScores(state, week, context) {
+    const pillars = state && Array.isArray(state.pillars) ? state.pillars : [];
+    return pillars.filter((pillar) => pillar && pillar.hidden !== true).map((pillar) => {
+      const metrics = Array.isArray(pillar.metrics) ? pillar.metrics : [];
+      const results = metrics.map((metric) => weeklyMetricProgress(state, week, metric, context)).filter(Boolean);
+      if (!results.length) return null;
+      return {
+        id: pillar.id,
+        name: pillar.name,
+        icon: pillar.icon,
+        pct: Math.round(results.reduce((sum, result) => sum + result.pct, 0) / results.length),
+        metricCount: results.length,
+      };
+    }).filter(Boolean);
+  }
+
   return {
     emptyReview,
     normalizeReview,
     ensureWeeklyReviews,
     weekCalendarDays,
     weeklySummary,
+    weekTarget,
+    weeklyMetricProgress,
+    weeklyPillarScores,
   };
 });
