@@ -1,6 +1,6 @@
 # TaskFlow Lighthouse baseline
 
-Generated: 2026-08-11 12:37:19 · server http://127.0.0.1:53535 · 3 run(s) per combo · lighthouse@13.4.1
+Generated: 2026-08-11 13:44:14 · server http://127.0.0.1:62768 · 3 run(s) per combo · lighthouse@13.4.1
 
 ## landing-desktop
 
@@ -11,11 +11,11 @@ Generated: 2026-08-11 12:37:19 · server http://127.0.0.1:53535 · 3 run(s) per 
 
 ### Core Web Vitals
 
-- first-contentful-paint: 576
-- largest-contentful-paint: 576
-- speed-index: 576
+- first-contentful-paint: 564
+- largest-contentful-paint: 564
+- speed-index: 564
 - total-blocking-time: 0
-- interactive: 576
+- interactive: 564
 - cumulative-layout-shift: 0.067
 
 ## landing-mobile
@@ -27,11 +27,11 @@ Generated: 2026-08-11 12:37:19 · server http://127.0.0.1:53535 · 3 run(s) per 
 
 ### Core Web Vitals
 
-- first-contentful-paint: 1667
-- largest-contentful-paint: 1667
-- speed-index: 1667
+- first-contentful-paint: 1684
+- largest-contentful-paint: 1684
+- speed-index: 1684
 - total-blocking-time: 0
-- interactive: 1667
+- interactive: 1684
 - cumulative-layout-shift: 0.067
 
 ## app-desktop
@@ -43,11 +43,11 @@ Generated: 2026-08-11 12:37:19 · server http://127.0.0.1:53535 · 3 run(s) per 
 
 ### Core Web Vitals
 
-- first-contentful-paint: 531
-- largest-contentful-paint: 1321
-- speed-index: 592
+- first-contentful-paint: 527
+- largest-contentful-paint: 1303
+- speed-index: 562
 - total-blocking-time: 0
-- interactive: 1321
+- interactive: 1303
 - cumulative-layout-shift: 0.002
 
 ## app-mobile
@@ -59,10 +59,10 @@ Generated: 2026-08-11 12:37:19 · server http://127.0.0.1:53535 · 3 run(s) per 
 
 ### Core Web Vitals
 
-- first-contentful-paint: 1812
-- largest-contentful-paint: 6249
-- speed-index: 1813
-- total-blocking-time: 45
-- interactive: 6256
+- first-contentful-paint: 1808
+- largest-contentful-paint: 6272
+- speed-index: 1808
+- total-blocking-time: 29
+- interactive: 6272
 - cumulative-layout-shift: 0.0
 

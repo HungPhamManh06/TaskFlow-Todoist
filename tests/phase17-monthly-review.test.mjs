@@ -207,11 +207,11 @@ test('Monthly Review has VI/EN copy and mirrored responsive styles', () => {
 test('Monthly Review production assets load before report/app and cache offline', () => {
   const monthlyIndex = APP_HTML.indexOf('js/monthly-review.min.js?v=2');
   const reportIndex = APP_HTML.indexOf('js/report-ui.min.js?v=3');
-  const appIndex = APP_HTML.indexOf('js/app.min.js?v=166');
+  const appIndex = APP_HTML.indexOf('js/app.min.js?v=167');
   assert.ok(monthlyIndex >= 0 && reportIndex > monthlyIndex && appIndex > reportIndex);
   assert.match(APP_HTML, /js\/i18n\.min\.js\?v=9/);
-  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=11/g) || []).length, 2);
-  assert.match(SW, /const CACHE = 'taskflow-v194'/);
+  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=12/g) || []).length, 2);
+  assert.match(SW, /const CACHE = 'taskflow-v196'/);
   assert.match(SW, /'\.\/js\/monthly-review\.min\.js'/);
 });
 

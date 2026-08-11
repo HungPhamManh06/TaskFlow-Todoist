@@ -766,17 +766,17 @@ def pillars_checks(browser, base, width, height, errors, screenshot):
     page.wait_for_selector('[data-testid="pillar-edit-modal"]:visible', state="visible")
     name_input = page.locator('[data-role="pillar-name"]')
     name_input.fill("Sức khỏe")
-    page.locator('[data-pillar-icon="🏃"]').click()
+    page.locator('[data-pillar-icon="bolt"]').click()
     page.locator('[data-action="pillar-save"]').click()
     page.wait_for_selector('[data-testid="pillar-edit-modal"]:visible', state="detached")
     assert page.locator('[data-testid="pillar-card"] .pillar-name', has_text="Sức khỏe").count() == 1, "trụ cột phải được đổi tên"
-    assert page.locator('[data-testid="pillar-card"] .pillar-icon', has_text="🏃").count() == 1, "icon phải được đổi"
+    assert page.locator('[data-testid="pillar-card"] .pillar-icon use[href*="bolt"]').count() == 1, "icon phải được đổi"
 
     # Thêm trụ cột mới
     page.locator('[data-action="pillar-add"]').click()
     page.wait_for_selector('[data-testid="pillar-edit-modal"]:visible', state="visible")
     page.locator('[data-role="pillar-name"]').fill("Học tập")
-    page.locator('[data-pillar-icon="📚"]').click()
+    page.locator('[data-pillar-icon="book"]').click()
     page.locator('[data-action="pillar-save"]').click()
     page.wait_for_selector('[data-testid="pillar-edit-modal"]:visible', state="detached")
     assert page.locator('[data-testid="pillar-card"]').count() == 4, "sau khi thêm phải có 4 trụ cột"

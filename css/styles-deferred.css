@@ -1212,6 +1212,15 @@
 .badge-item .badge-name { font-size: 12px; font-weight: 700; color: #4A403A; }
 .badge-item .badge-when { font-size: 11px; color: #8A7A6B; }
 .badge-item.locked { opacity: .45; filter: grayscale(1); }
+/* Icon glyphs (icon-system): kích thước sprite icon theo nút nhỏ (thay text ✕) */
+.sync-close .ui-icon,
+.task-drawer-close .ui-icon { width: 15px; height: 15px; }
+.btn-del .ui-icon,
+.td-tag-del .ui-icon,
+.td-subtask-del .ui-icon { width: 12px; height: 12px; }
+.mini-btn .ui-icon { width: 13px; height: 13px; }
+.tag-chip .ui-icon { width: 11px; height: 11px; }
+.widget-toggle .ui-icon { width: 16px; height: 16px; }
 .sync-status[data-status="ready"]     { color: #3d8b47; background: rgba(111, 191, 115, .14); }
 .sync-status[data-status="connecting"],
 .sync-status[data-status="syncing"]   { color: #a4742a; background: rgba(244, 185, 66, .16); }
@@ -3963,6 +3972,11 @@ body.focus-mode .container { padding: 0; }
   line-height: 1;
 }
 
+.pillar-icon .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+
 .pillar-name {
   flex: 1;
   min-width: 0;
@@ -4053,6 +4067,11 @@ body.focus-mode .container { padding: 0; }
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
   box-shadow: 0 0 0 2px var(--color-accent-soft);
+}
+
+.pillar-icon-opt .ui-icon {
+  width: 20px;
+  height: 20px;
 }
 
 .pillar-hidden-row {

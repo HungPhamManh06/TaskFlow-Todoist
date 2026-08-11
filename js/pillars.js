@@ -27,13 +27,42 @@
   'use strict';
 
   // Palette icon mặc định (user có thể chọn icon khác khi sửa/thêm trụ cột).
-  const ICONS = ['💪', '🎯', '🤝', '🏠', '📚', '🧘', '🚀', '🏃', '💼', '🎨', '🥗', '💤', '⚡', '🧠', '🌱', '❤️'];
+  // Sprite icons từ icons/ui-sprite.svg (stroke 1.8, rounded line) — không còn emoji.
+  const ICONS = ['heart-pulse', 'target', 'users', 'home', 'book', 'sprout',
+    'moon', 'rocket', 'bolt', 'briefcase', 'palette', 'brain',
+    'sparkles', 'sunrise', 'sun', 'clock'];
+
+  // Migration: dữ liệu pillar cũ (trước khi chuyển sprite) lưu emoji → sprite
+  // tương đương. Chỉ map emoji đã từng nằm trong palette; icon lạ (custom) giữ
+  // nguyên — không mất dữ liệu, không phá dữ liệu cloud cũ.
+  const EMOJI_TO_ICON = {
+    '💪': 'heart-pulse', '🎯': 'target', '🤝': 'users', '🏠': 'home',
+    '📚': 'book', '🧘': 'sprout', '🚀': 'rocket', '🏃': 'bolt',
+    '💼': 'briefcase', '🎨': 'palette', '🥗': 'sprout', '💤': 'moon',
+    '⚡': 'bolt', '🧠': 'brain', '🌱': 'sprout', '❤️': 'heart-pulse',
+  };
+
+  // Emoji cũ → sprite tương đương; giá trị khác (custom) giữ nguyên.
+  function migrateIcon(icon) {
+    if (typeof icon !== 'string' || !icon) return icon;
+    return EMOJI_TO_ICON[icon] || icon;
+  }
+
+  // Render icon: sprite nếu tên nằm trong palette (browser có TaskFlowUI);
+  // fallback text cho icon custom / môi trường Node (unit test không có DOM).
+  function iconHTML(name) {
+    if (typeof name === 'string' && name && ICONS.includes(name)
+        && typeof TaskFlowUI !== 'undefined' && TaskFlowUI.icon) {
+      return TaskFlowUI.icon(name);
+    }
+    return esc(name || '');
+  }
 
   // Template mặc định: 3 trụ cột (tên lấy từ i18n theo ngôn ngữ hiện tại).
   const TEMPLATE = [
-    { labelKey: 'pillarBody', icon: '💪' },
-    { labelKey: 'pillarWork', icon: '🎯' },
-    { labelKey: 'pillarSocial', icon: '🤝' },
+    { labelKey: 'pillarBody', icon: 'heart-pulse' },
+    { labelKey: 'pillarWork', icon: 'target' },
+    { labelKey: 'pillarSocial', icon: 'users' },
   ];
 
   function defaultT(key, vars) {
@@ -64,7 +93,7 @@
     return {
       id: typeof p.id === 'string' && p.id ? p.id : 'pp' + Date.now() + i,
       name: typeof p.name === 'string' && p.name.trim() ? p.name : (i < TEMPLATE.length ? tr(TEMPLATE[i].labelKey) : tr('pillarBody')),
-      icon: typeof p.icon === 'string' && p.icon ? p.icon : ICONS[i % ICONS.length],
+      icon: typeof p.icon === 'string' && p.icon ? migrateIcon(p.icon) : ICONS[i % ICONS.length],
       hidden: p.hidden === true,
       focus: typeof p.focus === 'string' ? p.focus : '',
       metrics: Array.isArray(p.metrics) ? p.metrics.map(normalizeMetric).filter(Boolean) : [],
@@ -376,7 +405,7 @@
     const metrics = Array.isArray(p.metrics) ? p.metrics : [];
     return `<article class="pillar-card" data-pillar-id="${esc(p.id)}" data-testid="pillar-card">
       <div class="pillar-head">
-        <span class="pillar-icon" aria-hidden="true">${esc(p.icon)}</span>
+        <span class="pillar-icon" aria-hidden="true">${iconHTML(p.icon)}</span>
         <span class="pillar-name">${esc(p.name)}</span>
         <div class="pillar-actions">
           <button type="button" class="mini-btn" data-action="pillar-edit" data-id="${esc(p.id)}" title="${t('pillarEdit')}" aria-label="${t('pillarEdit')}">✏️</button>
@@ -431,7 +460,7 @@
       <label class="pillar-edit-field">
         <span class="pillar-edit-label">${tr('pillarIconLbl')}</span>
         <div class="pillar-icon-grid" role="radiogroup" aria-label="${tr('pillarIconLbl')}">
-          ${ICONS.map((ic) => `<button type="button" role="radio" aria-checked="${ic === icon ? 'true' : 'false'}" class="pillar-icon-opt${ic === icon ? ' on' : ''}" data-pillar-icon="${ic}" title="${ic}" aria-label="${ic}">${ic}</button>`).join('')}
+          ${ICONS.map((ic) => `<button type="button" role="radio" aria-checked="${ic === icon ? 'true' : 'false'}" class="pillar-icon-opt${ic === icon ? ' on' : ''}" data-pillar-icon="${ic}" title="${ic}" aria-label="${ic}">${iconHTML(ic)}</button>`).join('')}
         </div>
       </label>
       <label class="pillar-edit-field">
@@ -656,6 +685,7 @@
 
   return {
     ICONS,
+    migrateIcon,
     defaultTemplate,
     normalizePillar,
     normalizeMetric,

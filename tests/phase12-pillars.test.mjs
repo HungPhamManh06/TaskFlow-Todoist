@@ -16,7 +16,7 @@ const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
 const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 
 const {
-  ICONS, defaultTemplate, normalizePillar, ensurePillars, pillarById,
+  ICONS, migrateIcon, defaultTemplate, normalizePillar, ensurePillars, pillarById,
   visiblePillars, upsertPillar, removePillar, togglePillarHidden, setFocus, resetPillars,
 } = Pillars;
 
@@ -31,9 +31,9 @@ test('defaultTemplate: 3 trụ cột mặc định theo translator', () => {
   assert.equal(tpl[0].name, 'Body');
   assert.equal(tpl[1].name, 'Main Work');
   assert.equal(tpl[2].name, 'Relationships');
-  assert.equal(tpl[0].icon, '💪');
-  assert.equal(tpl[1].icon, '🎯');
-  assert.equal(tpl[2].icon, '🤝');
+  assert.equal(tpl[0].icon, 'heart-pulse');
+  assert.equal(tpl[1].icon, 'target');
+  assert.equal(tpl[2].icon, 'users');
   tpl.forEach((p, i) => {
     assert.equal(p.id, 'p' + (i + 1));
     assert.equal(p.hidden, false);
@@ -66,7 +66,8 @@ test('ensurePillars: pillars đã có → giữ nguyên, chỉ chuẩn hoá fiel
   assert.equal(state.pillars.length, 1);
   assert.equal(state.pillars[0].id, 'px');
   assert.equal(state.pillars[0].name, 'Học tập');
-  assert.equal(state.pillars[0].icon, '📚');
+  // migration: emoji cũ → sprite tương đương
+  assert.equal(state.pillars[0].icon, 'book');
   // field thiếu được điền default
   assert.equal(state.pillars[0].hidden, false);
   assert.equal(state.pillars[0].focus, '');
@@ -77,15 +78,41 @@ test('ensurePillars: pillar thiếu tên/icon → fallback template theo index',
   ensurePillars(state, tr);
   assert.equal(state.pillars.length, 2);
   assert.equal(state.pillars[0].name, 'Body');
-  assert.equal(state.pillars[0].icon, '💪');
+  assert.equal(state.pillars[0].icon, 'heart-pulse');
   assert.equal(state.pillars[1].name, 'Tên');
-  assert.equal(state.pillars[1].icon, '🎯');
+  assert.equal(state.pillars[1].icon, 'target');
 });
 
-test('normalizePillar: giữ nguyên dữ liệu hợp lệ', () => {
+test('normalizePillar: giữ nguyên dữ liệu hợp lệ (icon sprite giữ nguyên)', () => {
+  const p = normalizePillar({ id: 'p1', name: 'Cơ thể', icon: 'bolt', hidden: true, focus: 'Duy trì' }, 0, tr);
+  assert.equal(p.name, 'Cơ thể');
+  assert.equal(p.icon, 'bolt');
+  assert.equal(p.hidden, true);
+  assert.equal(p.focus, 'Duy trì');
+});
+
+test('migrateIcon: emoji cũ → sprite tương đương, icon custom giữ nguyên', () => {
+  assert.equal(migrateIcon('💪'), 'heart-pulse');
+  assert.equal(migrateIcon('🎯'), 'target');
+  assert.equal(migrateIcon('🤝'), 'users');
+  assert.equal(migrateIcon('🏠'), 'home');
+  assert.equal(migrateIcon('📚'), 'book');
+  assert.equal(migrateIcon('🏃'), 'bolt');
+  assert.equal(migrateIcon('💼'), 'briefcase');
+  assert.equal(migrateIcon('🎨'), 'palette');
+  assert.equal(migrateIcon('🧠'), 'brain');
+  assert.equal(migrateIcon('🌱'), 'sprout');
+  // icon lạ / custom / thiếu → giữ nguyên, không mất dữ liệu
+  assert.equal(migrateIcon('✨'), '✨');
+  assert.equal(migrateIcon('xyz'), 'xyz');
+  assert.equal(migrateIcon(''), '');
+  assert.equal(migrateIcon(null), null);
+});
+
+test('normalizePillar: emoji cũ được migrate qua normalizePillar', () => {
   const p = normalizePillar({ id: 'p1', name: 'Cơ thể', icon: '🏃', hidden: true, focus: 'Duy trì' }, 0, tr);
   assert.equal(p.name, 'Cơ thể');
-  assert.equal(p.icon, '🏃');
+  assert.equal(p.icon, 'bolt');
   assert.equal(p.hidden, true);
   assert.equal(p.focus, 'Duy trì');
 });
@@ -94,20 +121,20 @@ test('normalizePillar: giữ nguyên dữ liệu hợp lệ', () => {
 
 test('upsertPillar: thêm pillar mới với id sinh tự động', () => {
   const state = { pillars: defaultTemplate(tr) };
-  const p = upsertPillar(state, { name: 'Học tập', icon: '📚' });
+  const p = upsertPillar(state, { name: 'Học tập', icon: 'book' });
   assert.ok(p);
   assert.ok(p.id);
   assert.equal(state.pillars.length, 4);
   assert.equal(state.pillars[3].name, 'Học tập');
-  assert.equal(state.pillars[3].icon, '📚');
+  assert.equal(state.pillars[3].icon, 'book');
 });
 
 test('upsertPillar: cập nhật pillar có sẵn (không duplicate)', () => {
   const state = { pillars: defaultTemplate(tr) };
-  const p = upsertPillar(state, { id: 'p1', name: 'Sức khỏe', icon: '🏃', hidden: true });
+  const p = upsertPillar(state, { id: 'p1', name: 'Sức khỏe', icon: 'bolt', hidden: true });
   assert.equal(state.pillars.length, 3);
   assert.equal(state.pillars[0].name, 'Sức khỏe');
-  assert.equal(state.pillars[0].icon, '🏃');
+  assert.equal(state.pillars[0].icon, 'bolt');
   assert.equal(state.pillars[0].hidden, true);
 });
 
@@ -147,8 +174,8 @@ test('setFocus: cập nhật focus của đúng pillar; pillar lạ bị bỏ qu
 
 test('resetPillars: khôi phục template mặc định (xoá pillar tùy chỉnh)', () => {
   const state = { pillars: [
-    { id: 'c1', name: 'Tùy chỉnh', icon: '🎨', hidden: false, focus: 'x' },
-    { id: 'p2', name: 'Giữ tên?', icon: '🎯', hidden: true, focus: 'y' },
+    { id: 'c1', name: 'Tùy chỉnh', icon: 'palette', hidden: false, focus: 'x' },
+    { id: 'p2', name: 'Giữ tên?', icon: 'target', hidden: true, focus: 'y' },
   ] };
   resetPillars(state, tr);
   assert.equal(state.pillars.length, 3);
@@ -173,11 +200,16 @@ test('visiblePillars: bỏ pillar ẩn, giữ thứ tự', () => {
   assert.deepEqual(visiblePillars(state).map((p) => p.id), ['a', 'c']);
 });
 
-test('ICONS: palette có icon mặc định của template', () => {
-  assert.ok(ICONS.includes('💪'));
-  assert.ok(ICONS.includes('🎯'));
-  assert.ok(ICONS.includes('🤝'));
+test('ICONS: palette sprite có icon mặc định của template', () => {
+  assert.ok(ICONS.includes('heart-pulse'));
+  assert.ok(ICONS.includes('target'));
+  assert.ok(ICONS.includes('users'));
   assert.ok(ICONS.length >= 12);
+  // mọi icon trong palette phải tồn tại trong sprite
+  const sprite = readFileSync(path.join(ROOT, 'icons/ui-sprite.svg'), 'utf8');
+  ICONS.forEach((ic) => {
+    assert.ok(sprite.includes('id="' + ic + '"'), `sprite thiếu symbol #${ic}`);
+  });
 });
 
 /* ---------------- Wiring assertions (app.html / sw.js / i18n) ---------------- */

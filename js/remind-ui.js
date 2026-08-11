@@ -68,7 +68,7 @@
       <div class="remind-item">
         <span class="remind-item-name">${esc(r.kind === 'habit' ? '🔔 ' + r.name : '📋 ' + r.name)}</span>
         <span class="remind-item-time">${esc(r.time)}</span>
-        <button type="button" class="mini-btn" data-action="remind-off-item" data-kind="${r.kind}" ${r.kind === 'habit' ? `data-id="${esc(r.id)}"` : `data-week="${r.week}" data-day="${esc(r.day)}" data-task="${r.task}"`} title="${t('remindOffItem')}" aria-label="${t('remindOffItem')}">✕</button>
+        <button type="button" class="mini-btn" data-action="remind-off-item" data-kind="${r.kind}" ${r.kind === 'habit' ? `data-id="${esc(r.id)}"` : `data-week="${r.week}" data-day="${esc(r.day)}" data-task="${r.task}"`} title="${t('remindOffItem')}" aria-label="${t('remindOffItem')}">${window.TaskFlowUI.icon('close')}</button>
       </div>`).join('')
       : `<p class="pop-note">${t('remindListEmpty')}</p>`;
   }
@@ -104,7 +104,7 @@
     const off = document.createElement('button');
     off.type = 'button';
     off.className = 'mini-btn';
-    off.textContent = '✕';
+    off.innerHTML = window.TaskFlowUI.icon('close');
     wrap.appendChild(input);
     wrap.appendChild(save);
     wrap.appendChild(off);
