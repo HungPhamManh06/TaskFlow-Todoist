@@ -1,7 +1,7 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 11 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 15 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
@@ -888,6 +888,110 @@ def metrics_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def task_focus_metrics_checks(browser, base, width, height, errors, screenshot):
+    """P4: TASK aggregates many linked tasks; FOCUS uses only linked-task logs."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"task-focus-metrics {width}px: {error}"))
+    load_app(page, base)
+
+    # Create both metric types through the real editor.
+    first_pillar = page.locator('[data-testid="pillar-card"]').first
+    for title, metric_type, target in (("P4 Tasks", "TASK", "2"), ("P4 Focus", "FOCUS", "30")):
+        first_pillar.locator('[data-action="metric-add"]').click()
+        page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="visible")
+        page.locator('[data-role="metric-title"]').fill(title)
+        page.locator(f'[data-metric-type="{metric_type}"]').click()
+        page.locator('[data-role="metric-target-value"]').fill(target)
+        page.locator('[data-action="metric-save"]').click()
+        page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="detached")
+
+    metric_ids = page.evaluate("""() => {
+      const now = new Date();
+      const key = window.TaskFlowShell.monthKey(now.getFullYear(), now.getMonth());
+      const state = JSON.parse(localStorage.getItem(key));
+      const metrics = state.pillars.flatMap(p => p.metrics || []);
+      return {
+        key,
+        task: metrics.find(m => m.title === 'P4 Tasks').id,
+        focus: metrics.find(m => m.title === 'P4 Focus').id,
+      };
+    }""")
+
+    # Give three real scheduled tasks stable labels and a clean P4 baseline.
+    page.evaluate("""({ key }) => {
+      const state = JSON.parse(localStorage.getItem(key));
+      const tasks = state.weeks.flatMap(w => w.days.flatMap(d => d.tasks || []));
+      if (tasks.length < 3) throw new Error('P4 E2E requires three scheduled tasks');
+      ['P4 linked focus', 'P4 linked task', 'P4 unlinked focus'].forEach((text, index) => {
+        tasks[index].text = text;
+        tasks[index].done = false;
+        tasks[index].linkedMetricIds = [];
+        tasks[index].focusLog = [];
+      });
+      localStorage.setItem(key, JSON.stringify(state));
+    }""", metric_ids)
+
+    page.goto(f"{base}/app.html?view=week&w=1", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="week-view"] .week-page', state="visible")
+
+    def link_task(task_text, metric_titles):
+        row = page.locator('.task-row', has_text=task_text).first
+        row.hover()
+        row.locator('[data-action="task-menu"]').click()
+        row.locator('[data-action="task-detail"]').click()
+        page.wait_for_selector('[data-role="td-linked-metrics"]', state="visible")
+        group = page.locator('[data-role="td-linked-metrics"]')
+        for metric_title in metric_titles:
+            group.locator('.td-metric-option', has_text=metric_title).locator('input').check()
+        page.locator('[data-testid="task-drawer"] [data-action="task-detail-close"]').click()
+
+    link_task('P4 linked focus', ('P4 Tasks', 'P4 Focus'))
+    link_task('P4 linked task', ('P4 Tasks',))
+
+    # Complete one linked task through the real task toggle.
+    first_row = page.locator('.task-row', has_text='P4 linked focus').first
+    first_row.locator('[data-action="task"]').click()
+
+    page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="pillars-block"]', state="visible")
+    task_row = page.locator('[data-testid="metric-row"]', has_text='P4 Tasks')
+    assert '1/2' in task_row.locator('.metric-num').inner_text()
+
+    # Inject duration only: the production focus timer already writes this same focusLog shape.
+    # The unlinked task deliberately has more time and must not affect the metric.
+    page.evaluate("""({ key }) => {
+      const state = JSON.parse(localStorage.getItem(key));
+      const tasks = state.weeks.flatMap(w => w.days.flatMap(d => d.tasks || []));
+      const day = new Date();
+      const date = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+      tasks.find(t => t.text === 'P4 linked focus').focusLog = [{ d: date, secs: 2400 }];
+      tasks.find(t => t.text === 'P4 unlinked focus').focusLog = [{ d: date, secs: 7200 }];
+      localStorage.setItem(key, JSON.stringify(state));
+    }""", metric_ids)
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector('[data-testid="pillars-block"]', state="visible")
+    focus_row = page.locator('[data-testid="metric-row"]', has_text='P4 Focus')
+    assert '40/30' in focus_row.locator('.metric-num').inner_text(), focus_row.inner_text()
+
+    # Reload persistence + mobile/dark compatible Task Detail.
+    page.goto(f"{base}/app.html?view=week&w=1", wait_until="networkidle")
+    linked_row = page.locator('.task-row', has_text='P4 linked focus').first
+    linked_row.hover()
+    linked_row.locator('[data-action="task-menu"]').click()
+    linked_row.locator('[data-action="task-detail"]').click()
+    group = page.locator('[data-role="td-linked-metrics"]')
+    assert group.locator('[data-action="td-metric-link"]:checked').count() == 2
+    if width <= 390:
+        for option in group.locator('.td-metric-option').all():
+            assert option.bounding_box()['height'] >= 44
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"task-focus-metrics {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -923,7 +1027,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -971,6 +1075,7 @@ def main():
                     ("reflection", reflection_checks),
                     ("pillars", pillars_checks),
                     ("metrics", metrics_checks),
+                    ("task-focus-metrics", task_focus_metrics_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1005,6 +1110,9 @@ def main():
             elif args.view == "taskdetail":
                 taskdetail_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 taskdetail_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "task-focus-metrics":
+                task_focus_metrics_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                task_focus_metrics_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

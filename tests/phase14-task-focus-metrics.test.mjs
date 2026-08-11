@@ -15,6 +15,12 @@ const INBOX_JS = readFileSync(path.join(ROOT, 'js/inbox.js'), 'utf8');
 const PLAN_CARRY_JS = readFileSync(path.join(ROOT, 'js/plan-carry.js'), 'utf8');
 const CSS = readFileSync(path.join(ROOT, 'css/styles.css'), 'utf8');
 const DEFERRED_CSS = readFileSync(path.join(ROOT, 'css/styles-deferred.css'), 'utf8');
+const APP_HTML = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+const APP_MIN = readFileSync(path.join(ROOT, 'js/app.min.js'), 'utf8');
+const PILLARS_MIN = readFileSync(path.join(ROOT, 'js/pillars.min.js'), 'utf8');
+const I18N_MIN = readFileSync(path.join(ROOT, 'js/i18n.min.js'), 'utf8');
+const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+const E2E = readFileSync(path.join(ROOT, 'scripts/e2e-frontend.py'), 'utf8');
 
 const {
   normalizeMetric,
@@ -246,4 +252,27 @@ test('Task Detail metric link styles are responsive and mirrored in deferred CSS
     assert.match(DEFERRED_CSS, new RegExp(selector.replace('.', '\\.')));
   });
   assert.match(CSS, /@media \(max-width:\s*600px\)[\s\S]*\.td-metric-option[\s\S]*min-height:\s*44px/);
+});
+
+test('P4 minified bundles contain task/focus metric implementation and load in order', () => {
+  assert.ok(APP_HTML.indexOf('js/pillars.min.js') < APP_HTML.indexOf('js/app.min.js'));
+  assert.match(APP_MIN, /td-metric-link/);
+  assert.match(PILLARS_MIN, /normalizeTaskMetricIds/);
+  assert.match(I18N_MIN, /taskLinkedMetrics/);
+});
+
+test('P4 service worker cache is bumped and precaches changed bundles', () => {
+  const version = +(SW.match(/taskflow-v(\d+)/) || [])[1];
+  assert.ok(version > 186, `cache version must be above P3 v186, got ${version}`);
+  ['app.min.js', 'pillars.min.js', 'i18n.min.js', 'styles-deferred.min.css'].forEach((asset) => {
+    assert.match(SW, new RegExp(asset.replace('.', '\\.')));
+  });
+});
+
+test('P4 E2E scenario is available as a focused view and in the full matrix', () => {
+  assert.match(E2E, /def task_focus_metrics_checks\(/);
+  assert.match(E2E, /"task-focus-metrics"/);
+  assert.match(E2E, /\("task-focus-metrics",\s*task_focus_metrics_checks\)/);
+  assert.match(E2E, /data-role="td-linked-metrics"/);
+  assert.match(E2E, /data-action="td-metric-link"/);
 });

@@ -113,3 +113,11 @@
 - 📆 **Target theo day-count thật** — daily → số ngày tháng (28/29/30/31, không hard-code 30); perWeek → ceil(value × ngày/7); perMonth/custom → value.
 - ⏱ **MANUAL/CUSTOM** — ô ngày tự đánh dấu (day-strip), toggle qua dispatcher, re-render chỉ dòng (giữ scroll).
 - 🧪 Kiểm chứng: unit 349/0 (22 test mới `phase13-metrics.test.mjs`: target modes 28/30/31/leap, HABIT link, habit bị xoá, MANUAL toggle, migration), E2E Chromium đầy đủ + scenario `metrics` + Firefox/WebKit OK, a11y 62/0, CSS verifier 0 diffs, minify 59 file, Lighthouse không hồi quy (app-mobile 76 — đợt đo 70/73 là nhiễu máy, lặp lại 3 run xác nhận).
+
+## Personal Growth & Reflection — P4: Task + Focus Metric Integration
+
+- ✅ **TASK metric** — một metric tổng hợp số task đã hoàn thành từ nhiều task được liên kết; task không liên kết không làm thay đổi tiến độ.
+- ⏱ **FOCUS metric** — cộng tổng số phút trong `focusLog` của riêng các task liên kết, giới hạn đúng tháng đang xem; thời gian từ task không liên kết bị loại khỏi phép tính.
+- 🔗 **Liên kết nhiều metric** — mỗi task lịch tháng có `linkedMetricIds: string[]`; Task Detail cung cấp nhóm checkbox truy cập được, cho phép một task liên kết đồng thời nhiều metric TASK/FOCUS.
+- 🧭 **Quy tắc vòng đời** — di chuyển trong cùng tháng giữ liên kết; duplicate, recurrence và carry-over chủ động xoá liên kết để tránh cộng nhầm vào metric tháng nguồn.
+- 🧪 **Kiểm chứng** — unit 372/0, sync 7/7, E2E Chromium đầy đủ 15 scenario × 5 viewport và scenario P4 chuyên biệt desktop/mobile, mobile QA 262/262, a11y 62/62, CSS verifier 0 diffs, minify 59/59 file.
