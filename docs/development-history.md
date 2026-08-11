@@ -146,3 +146,12 @@
 - ✍️ **Continue / Stop / Start** — năm trường reflection tháng autosave trong `state.monthlyReview`; tháng trống vẫn viết được và có trạng thái lưu truy cập được.
 - 🧳 **Tương thích reflection cũ** — `state.reflections.overview` không bị chuyển nghĩa hoặc xoá; câu trả lời cũ hiển thị trong disclosure riêng.
 - 🧪 **Kiểm chứng checkpoint P7** — unit 424/424, sync 7/7, E2E Monthly Review desktop/mobile PASS, CSS verifier 0 diffs, minify 62/62 file.
+
+## Personal Growth & Reflection — P8: Next Month Carry-over
+
+- 🧭 **Chọn rõ trước khi chuyển** — launcher ở cuối Monthly Review mở dialog bắt đầu với mọi mục chưa chọn; người dùng chọn độc lập trụ cột, Monthly Focus, habit và từng metric rồi xem trước chính xác nội dung sẽ tạo hoặc bỏ qua.
+- 🔗 **Liên kết an toàn** — HABIT metric bắt buộc habit nguồn được chọn hoặc đã tồn tại ở tháng đích; ID mới chống va chạm và `linkedHabitId` được remap sang habit đích.
+- 🧼 **Khởi đầu sạch** — chỉ cấu trúc đã chọn được sao chép; task, goal, tiến độ ngày, skip day, reminder đang bật, focus log, weekly/monthly review đều không đi theo.
+- 🛡️ **Không ghi đè** — habit/trụ cột tương đương ở tháng đích được giữ nguyên; lỗi quota không điều hướng và không thay đổi dữ liệu đích.
+- 🌐 **Production-ready** — song ngữ Việt/Anh, dialog rộng trên desktop và một cột trên mobile, asset offline cache `v191` và scenario E2E riêng trong ma trận release.
+- 🧪 **Kiểm chứng checkpoint P8** — hồi quy P4–P8 93/93, sync 7/7, E2E carry-over desktop/mobile PASS, minify 63/63 file; kiểm tra trực quan light/dark và mobile không tràn ngang.

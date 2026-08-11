@@ -21,6 +21,8 @@ const MONTHLY_REVIEW_JS = readFileSync(new URL('../js/monthly-review.js', import
 const I18N = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
 const STYLES = readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
 const DEFERRED = readFileSync(new URL('../css/styles-deferred.css', import.meta.url), 'utf8');
+const SW = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+const E2E = readFileSync(new URL('../scripts/e2e-frontend.py', import.meta.url), 'utf8');
 
 function sourceFixture() {
   return {
@@ -230,4 +232,23 @@ test('P8 has VI/EN copy and mirrored responsive styles', () => {
   assert.match(DEFERRED, /\.month-carry-grid/);
   assert.match(STYLES, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.month-carry-grid/);
   assert.match(DEFERRED, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.month-carry-grid/);
+});
+
+test('P8 production assets load before monthly review/app and cache offline', () => {
+  const carryIndex = APP_HTML.indexOf('js/month-carryover.min.js?v=1');
+  const monthlyIndex = APP_HTML.indexOf('js/monthly-review.min.js?v=2');
+  const appIndex = APP_HTML.indexOf('js/app.min.js?v=164');
+  assert.ok(carryIndex >= 0 && monthlyIndex > carryIndex && appIndex > monthlyIndex);
+  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=7/);
+  assert.match(APP_HTML, /js\/storage\.min\.js\?v=2/);
+  assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=9/g) || []).length, 2);
+  assert.match(SW, /const CACHE = 'taskflow-v191'/);
+  assert.match(SW, /'\.\/js\/month-carryover\.min\.js'/);
+});
+
+test('P8 E2E is focused and part of the release matrix', () => {
+  assert.match(E2E, /def month_carryover_checks\(/);
+  assert.match(E2E, /\("month-carryover", month_carryover_checks\)/);
+  assert.match(E2E, /args\.view == "month-carryover"/);
+  assert.match(E2E, /E2E MONTH-CARRYOVER OK/);
 });

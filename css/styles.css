@@ -8419,6 +8419,7 @@ body.focus-mode .container { padding: 0; }
 }
 
 /* P8 — explicit next-month carry-over */
+#monthCarryModal .report-modal-card { width: min(880px, calc(100vw - 32px)); max-width: 880px; max-height: min(88vh, 820px); overflow-y: auto; }
 .monthly-review-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
 .month-carry-body { display: grid; gap: 16px; }
 .month-carry-intro, .month-carry-empty { margin: 0; color: var(--color-text-muted); }
@@ -8441,6 +8442,7 @@ body.focus-mode .container { padding: 0; }
 .month-carry-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 
 @media (max-width: 600px) {
+  #monthCarryModal .report-modal-card { width: min(100% - 24px, 440px); max-width: 440px; max-height: calc(100vh - 32px); }
   .month-carry-grid { grid-template-columns: minmax(0, 1fr); }
   .month-carry-actions .button { flex: 1 1 140px; min-height: 44px; }
 }

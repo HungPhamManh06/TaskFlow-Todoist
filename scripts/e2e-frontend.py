@@ -1,7 +1,7 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 18 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 19 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
@@ -1295,6 +1295,130 @@ def monthly_review_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def month_carryover_checks(browser, base, width, height, errors, screenshot):
+    """P8: carry only selected structures, preserve destination, remap and reset."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"month-carryover {width}px: {error}"))
+    load_app(page, base)
+
+    seeded = page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const next = window.TaskFlowMonthCarryover.nextMonth(year, month);
+      const sourceKey = window.TaskFlowShell.monthKey(year, month);
+      const destinationKey = window.TaskFlowShell.monthKey(next.year, next.month);
+      const state = JSON.parse(localStorage.getItem(sourceKey));
+      const sourceDays = new Date(year, month + 1, 0).getDate();
+      const destinationDays = new Date(next.year, next.month + 1, 0).getDate();
+      state.habits = [{
+        id: 'p8-habit', name: 'P8 Exercise', target: 80,
+        days: Array(sourceDays).fill(true), skipDays: [1, 2],
+        remind: { enabled: true, time: '07:00' }, future: 'source-habit',
+      }];
+      state.pillars = [{
+        id: 'p8-pillar', name: 'P8 Body', icon: 'B', hidden: false,
+        focus: 'P8 Strong month', future: 'source-pillar', metrics: [{
+          id: 'p8-metric', title: 'P8 Exercise metric', type: 'HABIT',
+          linkedHabitId: 'p8-habit', target: { mode: 'perMonth', value: 12 },
+          days: Array(sourceDays).fill(true), future: 'source-metric',
+        }],
+      }];
+      state.weeks.forEach(week => week.days.forEach(day => { day.tasks = []; }));
+      state.weeks[0].days[0].tasks = [{
+        uid: 'p8-source-task', text: 'P8 source task must not copy', kind: 'priority', done: true,
+        tags: [], linkedMetricIds: ['p8-metric'], remind: { enabled: false, time: '20:00' },
+      }];
+      localStorage.setItem(sourceKey, JSON.stringify(state));
+
+      const destination = structuredClone(state);
+      destination.monthKey = destinationKey;
+      const firstWeekOffset = (new Date(next.year, next.month, 1).getDay() + 6) % 7;
+      const destinationWeekCount = Math.ceil((firstWeekOffset + destinationDays) / 7);
+      destination.habits = [{
+        id: 'p8-existing-habit', name: 'P8 Existing habit', target: 55,
+        days: Array(destinationDays).fill(false), skipDays: [], future: 'destination-habit',
+      }];
+      destination.pillars = [{
+        id: 'p8-existing-pillar', name: 'P8 Existing pillar', icon: 'E', hidden: true,
+        focus: 'Keep destination', metrics: [], future: 'destination-pillar',
+      }];
+      const dayTemplate = structuredClone(state.weeks[0].days[0]);
+      destination.weeks = Array.from({ length: destinationWeekCount }, (_, weekIndex) => ({
+        n: weekIndex + 1, goals: [],
+        days: Array.from({ length: 7 }, () => ({ ...structuredClone(dayTemplate), tasks: [] })),
+      }));
+      destination.reflections.weeks = Array.from({ length: destinationWeekCount }, () => ['', '', '', '']);
+      destination.weeklyReviews = Array.from({ length: destinationWeekCount }, () => ({}));
+      destination.weeks[0].days[0].tasks = [{
+        uid: 'p8-existing-task', text: 'P8 existing destination task', kind: 'regular', done: false,
+        tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' }, future: 'destination-task',
+      }];
+      localStorage.setItem(destinationKey, JSON.stringify(destination));
+      return { destinationKey, destinationDays };
+    }""")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    page.locator('[data-action="month-carry-open"]').click()
+    modal = page.locator('[data-testid="month-carry-modal"]')
+    assert modal.is_visible()
+    assert modal.locator('[data-carry-kind]:checked').count() == 0
+    assert modal.locator('[data-action="month-carry-apply"]').is_disabled()
+
+    for kind, item_id in (
+        ('pillar', 'p8-pillar'), ('focus', 'p8-pillar'),
+        ('habit', 'p8-habit'), ('metric', 'p8-metric'),
+    ):
+        modal.locator(f'[data-carry-kind="{kind}"][data-carry-id="{item_id}"]').check()
+    modal.locator('[data-action="month-carry-preview"]').click()
+    preview = modal.locator('[data-testid="month-carry-preview"]')
+    assert 'P8 Body' in preview.inner_text()
+    assert 'P8 Exercise' in preview.inner_text()
+    assert modal.locator('[data-action="month-carry-apply"]').is_enabled()
+    assert_no_page_overflow(page, f"month-carryover modal {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    modal.locator('[data-action="month-carry-apply"]').click()
+    assert modal.is_hidden()
+
+    carried = page.evaluate("""({ key }) => {
+      const saved = JSON.parse(localStorage.getItem(key));
+      const habit = saved.habits.find(item => item.name === 'P8 Exercise');
+      const pillar = saved.pillars.find(item => item.name === 'P8 Body');
+      const metric = pillar && pillar.metrics.find(item => item.title === 'P8 Exercise metric');
+      return {
+        habit, pillar, metric,
+        habitNames: saved.habits.map(item => item.name),
+        pillarNames: saved.pillars.map(item => item.name),
+        existingHabit: saved.habits.find(item => item.id === 'p8-existing-habit'),
+        existingPillar: saved.pillars.find(item => item.id === 'p8-existing-pillar'),
+        taskTexts: saved.weeks.flatMap(week => week.days.flatMap(day => day.tasks.map(task => task.text))),
+      };
+    }""", {'key': seeded['destinationKey']})
+    assert carried['habit'], f"carried habit missing: {carried}"
+    assert carried['pillar'], f"carried pillar missing: {carried}"
+    assert carried['metric'], f"carried metric missing: {carried}"
+    assert carried['habit']['id'] != 'p8-habit'
+    assert carried['habit']['days'] == [False] * seeded['destinationDays']
+    assert carried['habit']['skipDays'] == []
+    assert carried['habit']['remind']['enabled'] is False
+    assert carried['metric']['linkedHabitId'] == carried['habit']['id']
+    assert carried['metric']['days'] == [False] * seeded['destinationDays']
+    assert carried['pillar']['focus'] == 'P8 Strong month'
+    assert carried['existingHabit']['future'] == 'destination-habit'
+    assert carried['existingHabit']['target'] == 55
+    assert carried['existingPillar']['focus'] == 'Keep destination'
+    assert carried['existingPillar']['hidden'] is True
+    assert carried['taskTexts'] == ['P8 existing destination task']
+
+    page.reload(wait_until="networkidle")
+    assert page.evaluate("key => !!JSON.parse(localStorage.getItem(key)).pillars.find(p => p.name === 'P8 Body')", seeded['destinationKey'])
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"month-carryover dark {width}px")
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -1330,7 +1454,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1382,6 +1506,7 @@ def main():
                     ("daily-alignment", daily_alignment_checks),
                     ("weekly-review", weekly_review_checks),
                     ("monthly-review", monthly_review_checks),
+                    ("month-carryover", month_carryover_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1428,6 +1553,9 @@ def main():
             elif args.view == "monthly-review":
                 monthly_review_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 monthly_review_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "month-carryover":
+                month_carryover_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                month_carryover_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access
@@ -1444,7 +1572,9 @@ def main():
         print("PAGE ERRORS:", errors[:8])
         return 1
     label = "RELEASE" if args.all else "LANDING" if args.landing else "DIALOGS" if args.dialogs else args.view.upper()
-    print(f"E2E {label} OK")  # Focused output includes E2E WEEKLY-REVIEW OK / E2E MONTHLY-REVIEW OK
+    # Stable focused-output markers asserted by phase tests:
+    # E2E WEEKLY-REVIEW OK / E2E MONTHLY-REVIEW OK / E2E MONTH-CARRYOVER OK
+    print(f"E2E {label} OK")
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0
 
