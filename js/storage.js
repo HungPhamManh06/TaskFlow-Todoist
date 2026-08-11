@@ -20,8 +20,9 @@
   }
 
   function saveMonthState(y, m, s) {
-    try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(s)); } catch (e) { /* ẩn */ }
+    try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(s)); } catch (e) { return false; }
     if (typeof window !== 'undefined' && window.Sync) window.Sync.push('planner-' + y + '-' + (m + 1));
+    return true;
   }
 
   function loadPomoLog() {

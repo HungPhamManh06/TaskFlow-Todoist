@@ -142,6 +142,7 @@
       <div class="monthly-review-pillars">${pillarHTML}</div>
       <div class="monthly-review-fields">${fieldHTML}</div>
       ${legacyHTML}
+      <div class="monthly-review-actions"><button type="button" class="button button-primary" data-action="month-carry-open">${t('monthCarryOpen')}</button></div>
     </section>`;
   }
 

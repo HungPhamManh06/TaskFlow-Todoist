@@ -1,16 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const Carry = require('../js/month-carryover.js');
+const Storage = require('../js/storage.js');
 
 const {
   nextMonth,
   normalizeCarrySelection,
   buildCarryPreview,
   applyCarryover,
+  carryDialogHTML,
 } = Carry;
+
+const APP_HTML = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+const APP_JS = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+const MONTHLY_REVIEW_JS = readFileSync(new URL('../js/monthly-review.js', import.meta.url), 'utf8');
+const I18N = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+const STYLES = readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
+const DEFERRED = readFileSync(new URL('../css/styles-deferred.css', import.meta.url), 'utf8');
 
 function sourceFixture() {
   return {
@@ -156,4 +166,68 @@ test('malformed source records are skipped without crashing', () => {
   const preview = buildCarryPreview(source, destinationFixture(), { pillarIds: ['p'], habitIds: ['x'] }, { monthDays: 30 });
   assert.equal(preview.ok, true);
   assert.deepEqual(preview.create, []);
+});
+
+const copy = {
+  monthCarryTitle: 'Next month plan', monthCarryIntro: 'Choose what to carry.',
+  monthCarryPillars: 'Pillars', monthCarryFocus: 'Monthly Focus', monthCarryHabits: 'Habits',
+  monthCarryMetrics: 'Metrics', monthCarryPreview: 'Preview', monthCarryCreate: 'Create next month',
+  monthCarryNothing: 'Nothing selected.', monthCarryWillCreate: 'Will create', monthCarryWillSkip: 'Will skip',
+  monthCarryMissingHabit: 'Select the linked habit.', monthCarryMissingPillar: 'Select the pillar.',
+};
+const t = (key) => copy[key] || key;
+const esc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+test('carryDialogHTML starts fully unselected and renders exact preview groups', () => {
+  const preview = buildCarryPreview(sourceFixture(), destinationFixture(), fullSelection, { monthDays: 30 });
+  const html = carryDialogHTML(sourceFixture(), fullSelection, preview, { t, esc });
+  assert.match(html, /data-carry-kind="pillar" data-carry-id="p-body"/);
+  assert.match(html, /data-carry-kind="habit" data-carry-id="h-gym"/);
+  assert.match(html, /data-carry-kind="metric" data-carry-id="m-habit"/);
+  assert.match(html, /data-testid="month-carry-preview"/);
+  assert.match(html, /Will create/);
+  const empty = carryDialogHTML(sourceFixture(), normalizeCarrySelection(null), buildCarryPreview(sourceFixture(), destinationFixture(), null), { t, esc });
+  assert.doesNotMatch(empty, /checked/);
+  assert.match(empty, /Nothing selected/);
+});
+
+test('carryDialogHTML renders dependency errors and disables apply', () => {
+  const selection = { ...fullSelection, habitIds: [] };
+  const preview = buildCarryPreview(sourceFixture(), destinationFixture(), selection, { monthDays: 30 });
+  const html = carryDialogHTML(sourceFixture(), selection, preview, { t, esc });
+  assert.match(html, /Select the linked habit/);
+  assert.match(html, /data-action="month-carry-apply"[^>]*disabled/);
+});
+
+test('saveMonthState reports success and storage failure', () => {
+  const previous = globalThis.localStorage;
+  globalThis.localStorage = { setItem() {} };
+  try {
+    assert.equal(Storage.saveMonthState(2026, 8, { habits: [] }), true);
+    globalThis.localStorage = { setItem() { throw new Error('quota'); } };
+    assert.equal(Storage.saveMonthState(2026, 8, { habits: [] }), false);
+  } finally {
+    globalThis.localStorage = previous;
+  }
+});
+
+test('P8 dialog, dispatcher, destination persistence and launcher are wired', () => {
+  assert.match(APP_HTML, /id="monthCarryModal"[^>]*data-testid="month-carry-modal"/);
+  assert.match(APP_JS, /TaskFlowMonthCarryover missing/);
+  ['month-carry-open', 'month-carry-preview', 'month-carry-apply', 'month-carry-close'].forEach((action) => {
+    assert.match(APP_JS, new RegExp(`act === '${action}'`));
+  });
+  assert.match(APP_JS, /saveMonthState\(monthCarryTarget\.year, monthCarryTarget\.month/);
+  assert.match(APP_JS, /openMonth\(PLAN_MONTH \+ 1\)/);
+  assert.match(MONTHLY_REVIEW_JS, /data-action="month-carry-open"/);
+});
+
+test('P8 has VI/EN copy and mirrored responsive styles', () => {
+  ['monthCarryTitle', 'monthCarryPreview', 'monthCarryCreate', 'monthCarryMissingHabit'].forEach((key) => {
+    assert.ok((I18N.match(new RegExp(`${key}:`, 'g')) || []).length >= 2, `missing ${key}`);
+  });
+  assert.match(STYLES, /\.month-carry-grid/);
+  assert.match(DEFERRED, /\.month-carry-grid/);
+  assert.match(STYLES, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.month-carry-grid/);
+  assert.match(DEFERRED, /@media[^{}]*\(max-width:\s*600px\)[\s\S]*?\.month-carry-grid/);
 });

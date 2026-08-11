@@ -590,6 +590,12 @@ const {
   emptyMonthlyReview, ensureMonthlyReview, updateMonthlyReviewField,
   setMonthlyReviewStatus, scheduleMonthlyReviewSaved,
 } = window.TaskFlowMonthlyReview;
+// P8 — explicit, previewed carry-over of planning structures into next month.
+if (!window.TaskFlowMonthCarryover) throw new Error('TaskFlowMonthCarryover missing — js/month-carryover.js failed to load');
+const {
+  nextMonth: nextCarryMonth, normalizeCarrySelection, buildCarryPreview,
+  applyCarryover, carryDialogHTML,
+} = window.TaskFlowMonthCarryover;
 // Monthly Life Pillars (P2) — module js/pillars.js (window.TaskFlowPillars). Module
 // thuần: nhận state qua tham số; dispatcher + input listener gọi qua
 // window.TaskFlowPillars (pattern reflection.js). defaultState/emptyState/loadState/
@@ -1357,6 +1363,83 @@ const { psStart, shortMonth } = window.TaskFlowPlanMini;
 // trackEvent) resolve qua global lexical tại thời điểm GỌI — pattern mood.js/popups.js.
 if (!window.TaskFlowReportUI) throw new Error('TaskFlowReportUI missing — js/report-ui.js failed to load');
 const { monthlyReportData, renderReportModal, openReportModal, closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, openWeekReportModal, closeWeekReportModal, weekReportCardBlob, doShareWeekReport } = window.TaskFlowReportUI;
+
+let monthCarryTarget = null;
+let monthCarryDestination = null;
+let monthCarrySelection = normalizeCarrySelection(null);
+
+function createEmptyMonthState(y, m) {
+  const previous = capturePlan();
+  try {
+    initPlan(new Date(y, m, 1));
+    const destination = emptyState();
+    // A newly created destination must not silently contain template pillars:
+    // the preview and final state contain only structures explicitly selected.
+    destination.pillars = [];
+    return destination;
+  } finally {
+    restorePlan(previous);
+  }
+}
+
+function readMonthCarrySelection() {
+  const selected = normalizeCarrySelection(null);
+  document.querySelectorAll('#monthCarryContent [data-carry-kind]:checked').forEach((input) => {
+    const id = input.dataset.carryId || '';
+    if (!id) return;
+    if (input.dataset.carryKind === 'pillar') selected.pillarIds.push(id);
+    else if (input.dataset.carryKind === 'focus') selected.focusPillarIds.push(id);
+    else if (input.dataset.carryKind === 'habit') selected.habitIds.push(id);
+    else if (input.dataset.carryKind === 'metric') selected.metricIds.push(id);
+  });
+  return normalizeCarrySelection(selected);
+}
+
+function renderMonthCarry(preview) {
+  const content = document.getElementById('monthCarryContent');
+  if (!content || !monthCarryTarget || !monthCarryDestination) return;
+  const nextPreview = preview || buildCarryPreview(state, monthCarryDestination, monthCarrySelection, {
+    monthDays: new Date(monthCarryTarget.year, monthCarryTarget.month + 1, 0).getDate(),
+  });
+  content.innerHTML = carryDialogHTML(state, monthCarrySelection, nextPreview, { t, esc });
+}
+
+function openMonthCarry(trigger) {
+  monthCarryTarget = nextCarryMonth(PLAN_YEAR, PLAN_MONTH);
+  monthCarryDestination = monthStateRaw(monthCarryTarget.year, monthCarryTarget.month)
+    || createEmptyMonthState(monthCarryTarget.year, monthCarryTarget.month);
+  monthCarrySelection = normalizeCarrySelection(null);
+  closeReportModal();
+  renderMonthCarry();
+  TaskFlowUI.openDialog('monthCarryModal', trigger);
+}
+
+function previewMonthCarry() {
+  monthCarrySelection = readMonthCarrySelection();
+  renderMonthCarry();
+}
+
+function applyMonthCarry() {
+  monthCarrySelection = readMonthCarrySelection();
+  const context = { monthDays: new Date(monthCarryTarget.year, monthCarryTarget.month + 1, 0).getDate() };
+  const result = applyCarryover(state, monthCarryDestination, monthCarrySelection, context);
+  if (!result.ok) {
+    renderMonthCarry(result.preview);
+    return;
+  }
+  const saved = saveMonthState(monthCarryTarget.year, monthCarryTarget.month, result.state);
+  if (!saved) {
+    TaskFlowUI.toast(t('monthCarrySaveError'), 'error');
+    return;
+  }
+  TaskFlowUI.closeDialog('monthCarryModal');
+  TaskFlowUI.toast(t('monthCarrySuccess'), 'success');
+  openMonth(PLAN_MONTH + 1);
+}
+
+function closeMonthCarry() {
+  TaskFlowUI.closeDialog('monthCarryModal');
+}
 
 /* ---------- Huy hiệu 🎖️ ---------- */
 const BADGE_DEFS = [
@@ -4370,6 +4453,14 @@ document.addEventListener('click', (e) => {
     closeReportModal();
   } else if (act === 'share-report') {
     doShareReport();
+  } else if (act === 'month-carry-open') {
+    openMonthCarry(el);
+  } else if (act === 'month-carry-preview') {
+    previewMonthCarry();
+  } else if (act === 'month-carry-apply') {
+    applyMonthCarry();
+  } else if (act === 'month-carry-close') {
+    closeMonthCarry();
   } else if (act === 'week-report') {
     openWeekReportModal();
   } else if (act === 'close-week-report') {
@@ -5149,6 +5240,8 @@ document.addEventListener('click', (e) => {
   if (m && !m.hidden && e.target === m) closeSyncModal();
   const r = document.getElementById('reportModal');
   if (r && !r.hidden && e.target === r) closeReportModal();
+  const mc = document.getElementById('monthCarryModal');
+  if (mc && !mc.hidden && e.target === mc) closeMonthCarry();
   const wr = document.getElementById('weekReportModal');
   if (wr && !wr.hidden && e.target === wr) closeWeekReportModal();
   const yr = document.getElementById('yearReportModal');

@@ -193,5 +193,44 @@
     return { ok: true, state, preview, errors: [], idMap };
   }
 
-  return { nextMonth, normalizeCarrySelection, buildCarryPreview, applyCarryover };
+  function carryDialogHTML(source, rawSelection, rawPreview, options) {
+    const selection = normalizeCarrySelection(rawSelection);
+    const preview = rawPreview && typeof rawPreview === 'object' ? rawPreview : { ok: true, create: [], skip: [], errors: [] };
+    const t = options && typeof options.t === 'function' ? options.t : (key) => key;
+    const esc = options && typeof options.esc === 'function' ? options.esc : (value) => String(value ?? '');
+    const src = sourceModel(source);
+    const checked = (list, id) => list.includes(id) ? ' checked' : '';
+    const itemLabel = (item) => `${item.kind === 'focus' ? t('monthCarryFocus') : item.kind === 'habit' ? t('monthCarryHabitOne') : item.kind === 'metric' ? t('monthCarryMetricOne') : t('monthCarryPillarOne')}: ${esc(item.title || '')}`;
+    const previewList = (items) => items.length ? `<ul>${items.map((item) => `<li>${itemLabel(item)}</li>`).join('')}</ul>` : '';
+    const errors = (Array.isArray(preview.errors) ? preview.errors : []).map((error) => `<li>${t(error.code === 'missing-habit' ? 'monthCarryMissingHabit' : 'monthCarryMissingPillar')}</li>`).join('');
+    const habits = src.habits.length ? src.habits.map((habit) => `<label class="month-carry-option"><input type="checkbox" data-carry-kind="habit" data-carry-id="${esc(habit.id)}"${checked(selection.habitIds, habit.id)}><span>${esc(habit.name.trim())}</span></label>`).join('') : `<p class="month-carry-empty">${t('monthCarryNoHabits')}</p>`;
+    const pillars = src.pillars.length ? src.pillars.map((pillar) => {
+      const metrics = (Array.isArray(pillar.metrics) ? pillar.metrics : []).filter((metric) => metric && typeof metric.id === 'string' && normalizedName(metric.title));
+      return `<article class="month-carry-pillar">
+        <label class="month-carry-option month-carry-pillar-option"><input type="checkbox" data-carry-kind="pillar" data-carry-id="${esc(pillar.id)}"${checked(selection.pillarIds, pillar.id)}><span>${esc(pillar.icon || '')} ${esc(pillar.name.trim())}</span></label>
+        <label class="month-carry-option"><input type="checkbox" data-carry-kind="focus" data-carry-id="${esc(pillar.id)}"${checked(selection.focusPillarIds, pillar.id)}><span>${t('monthCarryFocus')}: ${esc(pillar.focus || '—')}</span></label>
+        <div class="month-carry-metrics">${metrics.map((metric) => `<label class="month-carry-option"><input type="checkbox" data-carry-kind="metric" data-carry-id="${esc(metric.id)}"${checked(selection.metricIds, metric.id)}><span>${esc(metric.title.trim())} · ${esc(metric.type || '')}</span></label>`).join('') || `<p class="month-carry-empty">${t('monthCarryNoMetrics')}</p>`}</div>
+      </article>`;
+    }).join('') : `<p class="month-carry-empty">${t('monthCarryNoPillars')}</p>`;
+    const hasChanges = Array.isArray(preview.create) && preview.create.length > 0;
+    return `<div class="month-carry-body">
+      <p class="month-carry-intro">${t('monthCarryIntro')}</p>
+      <div class="month-carry-grid">
+        <fieldset><legend>${t('monthCarryPillars')}</legend>${pillars}</fieldset>
+        <fieldset><legend>${t('monthCarryHabits')}</legend>${habits}</fieldset>
+      </div>
+      <div class="month-carry-preview" data-testid="month-carry-preview">
+        <h3>${t('monthCarryPreview')}</h3>
+        ${hasChanges ? `<section><h4>${t('monthCarryWillCreate')}</h4>${previewList(preview.create)}</section>` : `<p class="month-carry-empty">${t('monthCarryNothing')}</p>`}
+        ${Array.isArray(preview.skip) && preview.skip.length ? `<section><h4>${t('monthCarryWillSkip')}</h4>${previewList(preview.skip)}</section>` : ''}
+        ${errors ? `<ul class="month-carry-errors" role="alert">${errors}</ul>` : ''}
+      </div>
+      <div class="month-carry-actions">
+        <button type="button" class="button" data-action="month-carry-preview">${t('monthCarryPreview')}</button>
+        <button type="button" class="button button-primary" data-action="month-carry-apply"${!preview.ok || !hasChanges ? ' disabled' : ''}>${t('monthCarryCreate')}</button>
+      </div>
+    </div>`;
+  }
+
+  return { nextMonth, normalizeCarrySelection, buildCarryPreview, applyCarryover, carryDialogHTML };
 });
