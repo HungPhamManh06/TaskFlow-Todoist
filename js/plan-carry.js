@@ -78,6 +78,7 @@
               repeat: null,
               _recurred: undefined, // không kế thừa flag tạm của bản gốc (applyRecurrence)
               tags: Array.isArray(tk.tags) ? tk.tags.slice() : [],
+              linkedMetricIds: [], // metric thuộc tháng nguồn — task carry mới không kế thừa link
               remind: tk.remind && typeof tk.remind === 'object' ? Object.assign({}, tk.remind) : { enabled: false, time: '20:00' },
             }),
           });

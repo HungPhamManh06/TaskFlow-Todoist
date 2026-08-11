@@ -91,6 +91,7 @@
       done: false,
       text,
       tags: [],
+      linkedMetricIds: [],
       remind: { enabled: false, time: timeVal },
     };
     if (durIn && durIn.value !== '') tk.duration = Math.max(0, +durIn.value || 0);

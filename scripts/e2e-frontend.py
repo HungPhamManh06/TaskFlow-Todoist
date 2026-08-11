@@ -1,11 +1,12 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 11 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 21 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
 import http.server
+import json
 import os
 import socketserver
 import sys
@@ -888,6 +889,695 @@ def metrics_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def task_focus_metrics_checks(browser, base, width, height, errors, screenshot):
+    """P4: TASK aggregates many linked tasks; FOCUS uses only linked-task logs."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"task-focus-metrics {width}px: {error}"))
+    load_app(page, base)
+
+    # Create both metric types through the real editor.
+    first_pillar = page.locator('[data-testid="pillar-card"]').first
+    for title, metric_type, target in (("P4 Tasks", "TASK", "2"), ("P4 Focus", "FOCUS", "30")):
+        first_pillar.locator('[data-action="metric-add"]').click()
+        page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="visible")
+        page.locator('[data-role="metric-title"]').fill(title)
+        page.locator(f'[data-metric-type="{metric_type}"]').click()
+        page.locator('[data-role="metric-target-value"]').fill(target)
+        page.locator('[data-action="metric-save"]').click()
+        page.wait_for_selector('[data-testid="metric-edit-modal"]:visible', state="detached")
+
+    metric_ids = page.evaluate("""() => {
+      const now = new Date();
+      const key = window.TaskFlowShell.monthKey(now.getFullYear(), now.getMonth());
+      const state = JSON.parse(localStorage.getItem(key));
+      const metrics = state.pillars.flatMap(p => p.metrics || []);
+      return {
+        key,
+        task: metrics.find(m => m.title === 'P4 Tasks').id,
+        focus: metrics.find(m => m.title === 'P4 Focus').id,
+      };
+    }""")
+
+    # Give three real scheduled tasks stable labels and a clean P4 baseline.
+    page.evaluate("""({ key }) => {
+      const state = JSON.parse(localStorage.getItem(key));
+      const tasks = state.weeks.flatMap(w => w.days.flatMap(d => d.tasks || []));
+      if (tasks.length < 3) throw new Error('P4 E2E requires three scheduled tasks');
+      ['P4 linked focus', 'P4 linked task', 'P4 unlinked focus'].forEach((text, index) => {
+        tasks[index].text = text;
+        tasks[index].done = false;
+        tasks[index].linkedMetricIds = [];
+        tasks[index].focusLog = [];
+      });
+      localStorage.setItem(key, JSON.stringify(state));
+    }""", metric_ids)
+
+    page.goto(f"{base}/app.html?view=week&w=1", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="week-view"] .week-page', state="visible")
+
+    def link_task(task_text, metric_titles):
+        row = page.locator('.task-row', has_text=task_text).first
+        row.hover()
+        row.locator('[data-action="task-menu"]').click()
+        row.locator('[data-action="task-detail"]').click()
+        page.wait_for_selector('[data-role="td-linked-metrics"]', state="visible")
+        group = page.locator('[data-role="td-linked-metrics"]')
+        for metric_title in metric_titles:
+            group.locator('.td-metric-option', has_text=metric_title).locator('input').check()
+        page.locator('[data-testid="task-drawer"] [data-action="task-detail-close"]').click()
+
+    link_task('P4 linked focus', ('P4 Tasks', 'P4 Focus'))
+    link_task('P4 linked task', ('P4 Tasks',))
+
+    # Complete one linked task through the real task toggle.
+    first_row = page.locator('.task-row', has_text='P4 linked focus').first
+    first_row.locator('[data-action="task"]').click()
+
+    page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="pillars-block"]', state="visible")
+    task_row = page.locator('[data-testid="metric-row"]', has_text='P4 Tasks')
+    assert '1/2' in task_row.locator('.metric-num').inner_text()
+
+    # Inject duration only: the production focus timer already writes this same focusLog shape.
+    # The unlinked task deliberately has more time and must not affect the metric.
+    page.evaluate("""({ key }) => {
+      const state = JSON.parse(localStorage.getItem(key));
+      const tasks = state.weeks.flatMap(w => w.days.flatMap(d => d.tasks || []));
+      const day = new Date();
+      const date = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+      tasks.find(t => t.text === 'P4 linked focus').focusLog = [{ d: date, secs: 2400 }];
+      tasks.find(t => t.text === 'P4 unlinked focus').focusLog = [{ d: date, secs: 7200 }];
+      localStorage.setItem(key, JSON.stringify(state));
+    }""", metric_ids)
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector('[data-testid="pillars-block"]', state="visible")
+    focus_row = page.locator('[data-testid="metric-row"]', has_text='P4 Focus')
+    assert '40/30' in focus_row.locator('.metric-num').inner_text(), focus_row.inner_text()
+
+    # Reload persistence + mobile/dark compatible Task Detail.
+    page.goto(f"{base}/app.html?view=week&w=1", wait_until="networkidle")
+    linked_row = page.locator('.task-row', has_text='P4 linked focus').first
+    linked_row.hover()
+    linked_row.locator('[data-action="task-menu"]').click()
+    linked_row.locator('[data-action="task-detail"]').click()
+    group = page.locator('[data-role="td-linked-metrics"]')
+    assert group.locator('[data-action="td-metric-link"]:checked').count() == 2
+    if width <= 390:
+        for option in group.locator('.td-metric-option').all():
+            assert option.bounding_box()['height'] >= 44
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"task-focus-metrics {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def daily_alignment_checks(browser, base, width, height, errors, screenshot):
+    """P5: Today derives linked real tasks/habits and groups shared items by pillar."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"daily-alignment {width}px: {error}"))
+    load_app(page, base)
+
+    seeded = page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const start = new Date(year, month, 1 - offset);
+      const delta = Math.floor((new Date(year, month, now.getDate()) - start) / 86400000);
+      const week = Math.floor(delta / 7) + 1;
+      const day = delta % 7;
+      const dayIndex = now.getDate() - 1;
+      const dayState = state.weeks[week - 1].days[day];
+
+      while (dayState.tasks.length < 2) {
+        dayState.tasks.push({ text: '', kind: 'normal', done: false, tags: [], linkedMetricIds: [] });
+      }
+      dayState.tasks.forEach(task => { task.linkedMetricIds = []; task.done = false; });
+      dayState.tasks[0].text = 'P5 shared task';
+      dayState.tasks[0].linkedMetricIds = ['p5-task-body', 'p5-focus-work'];
+      dayState.tasks[1].text = 'P5 unlinked task';
+
+      if (!Array.isArray(state.habits)) state.habits = [];
+      if (!state.habits.length) {
+        state.habits.push({ id: 'p5-habit', name: '', days: [], skipDays: [], target: 100 });
+      }
+      const habit = state.habits[0];
+      habit.id = habit.id || 'p5-habit';
+      habit.name = 'P5 linked habit';
+      if (!Array.isArray(habit.days)) habit.days = [];
+      habit.days[dayIndex] = false;
+      habit.skipDays = (Array.isArray(habit.skipDays) ? habit.skipDays : []).filter(index => index !== dayIndex);
+
+      state.pillars.forEach(pillar => { pillar.metrics = []; });
+      state.pillars[0].hidden = false;
+      state.pillars[1].hidden = false;
+      state.pillars[0].metrics = [
+        { id: 'p5-task-body', title: 'P5 Body task', type: 'TASK', target: { mode: 'perMonth', value: 1 } },
+        { id: 'p5-habit-body', title: 'P5 Body habit', type: 'HABIT', linkedHabitId: habit.id, target: { mode: 'daily', value: 1 } },
+      ];
+      state.pillars[1].metrics = [
+        { id: 'p5-focus-work', title: 'P5 Work focus', type: 'FOCUS', target: { mode: 'perMonth', value: 30 } },
+      ];
+      localStorage.setItem(key, JSON.stringify(state));
+      return { week, day, dayIndex, habitId: habit.id };
+    }""")
+
+    page.goto(f"{base}/app.html?view=today", wait_until="networkidle")
+    card = page.locator('[data-testid="daily-alignment"]')
+    assert card.is_visible()
+    assert card.locator('[data-testid="alignment-pillar"]').count() == 2
+    shared = card.locator('[data-testid="alignment-item"][data-alignment-kind="task"]', has_text='P5 shared task')
+    assert shared.count() == 2
+    assert card.get_by_text('P5 unlinked task').count() == 0
+
+    shared.first.locator('[role="checkbox"]').click()
+    shared = card.locator('[data-testid="alignment-item"][data-alignment-kind="task"]', has_text='P5 shared task')
+    assert shared.locator('[role="checkbox"][aria-checked="true"]').count() == 2
+    task_selector = (
+        f'[data-role="today-task-list"] [data-action="task"]'
+        f'[data-week="{seeded["week"]}"][data-day="{seeded["day"]}"][data-task="0"]'
+    )
+    assert page.locator(task_selector).get_attribute('aria-checked') == 'true'
+
+    habit_item = card.locator('[data-testid="alignment-item"][data-alignment-kind="habit"]', has_text='P5 linked habit')
+    habit_item.locator('[role="checkbox"]').click()
+    habit_selector = (
+        f'[data-role="today-habit-list"] [data-action="habit"]'
+        f'[data-id="{seeded["habitId"]}"][data-day="{seeded["dayIndex"]}"]'
+    )
+    assert page.locator(habit_selector).get_attribute('aria-checked') == 'true'
+
+    page.reload(wait_until="networkidle")
+    card = page.locator('[data-testid="daily-alignment"]')
+    assert card.locator('[data-alignment-kind="task"] [role="checkbox"][aria-checked="true"]').count() == 2
+    assert card.locator('[data-alignment-kind="habit"] [role="checkbox"][aria-checked="true"]').count() == 1
+    if width <= 390:
+        for item in card.locator('[data-testid="alignment-item"]').all():
+            assert item.bounding_box()['height'] >= 44
+    assert_no_page_overflow(page, f"daily-alignment {width}px")
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"daily-alignment dark {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def weekly_review_checks(browser, base, width, height, errors, screenshot):
+    """P6: Week review derives weekly evidence and persists isolated reflection fields."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"weekly-review {width}px: {error}"))
+    load_app(page, base)
+
+    seeded = page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const planStart = new Date(year, month, 1 - offset);
+      const weekIndex = Math.min(1, state.weeks.length - 1);
+      const week = state.weeks[weekIndex];
+      const start = new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + weekIndex * 7);
+      const dateKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const inMonth = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+        return { i, date, dayIndex: date.getMonth() === month ? date.getDate() - 1 : -1 };
+      }).filter(item => item.dayIndex >= 0);
+
+      week.days.forEach(day => { day.tasks = []; });
+      week.days[0].tasks = [
+        {
+          uid: 'p6-done', text: 'P6 linked done', kind: 'priority', done: true,
+          tags: [], linkedMetricIds: ['p6-task', 'p6-focus'],
+          focusLog: [{ d: dateKey(inMonth[0].date), secs: 5400 }],
+          remind: { enabled: false, time: '20:00' },
+        },
+        {
+          uid: 'p6-open', text: 'P6 linked open', kind: 'regular', done: false,
+          tags: [], linkedMetricIds: ['p6-task'], focusLog: [],
+          remind: { enabled: false, time: '20:00' },
+        },
+        {
+          uid: 'p6-unrelated', text: 'P6 unrelated done', kind: 'regular', done: true,
+          tags: [], linkedMetricIds: ['other'],
+          focusLog: [{ d: dateKey(inMonth[0].date), secs: 7200 }],
+          remind: { enabled: false, time: '20:00' },
+        },
+      ];
+
+      const habit = state.habits[0] || { id: 'p6-habit', name: 'P6 habit', days: [], skipDays: [], target: 100 };
+      if (!state.habits.length) state.habits.push(habit);
+      habit.id = habit.id || 'p6-habit';
+      habit.name = 'P6 habit';
+      habit.days = Array.isArray(habit.days) ? habit.days : [];
+      habit.skipDays = [];
+      inMonth.forEach(item => { habit.days[item.dayIndex] = false; });
+      inMonth.slice(0, 2).forEach(item => { habit.days[item.dayIndex] = true; });
+
+      state.pillars.forEach(pillar => { pillar.metrics = []; pillar.hidden = false; });
+      state.pillars[0].metrics = [{
+        id: 'p6-habit-metric', title: 'P6 Habit', type: 'HABIT', linkedHabitId: habit.id,
+        target: { mode: 'daily', value: 1 },
+      }];
+      state.pillars[1].metrics = [
+        { id: 'p6-task', title: 'P6 Tasks', type: 'TASK', target: { mode: 'perWeek', value: 2 } },
+        { id: 'p6-focus', title: 'P6 Focus', type: 'FOCUS', target: { mode: 'perWeek', value: 120 } },
+      ];
+      state.weeklyReviews = [];
+      state.reflections.weeks[weekIndex] = ['P6 old win', '', 'P6 old gratitude', 'P6 old goals'];
+      localStorage.setItem(key, JSON.stringify(state));
+
+      const pomo = {};
+      pomo[dateKey(inMonth[0].date)] = { secs: 5400, count: 1 };
+      localStorage.setItem('planner-pomo-log', JSON.stringify(pomo));
+      return { week: weekIndex + 1, weekCount: state.weeks.length, legacy: 'P6 old gratitude' };
+    }""")
+
+    page.goto(f'{base}/app.html?view=week&w={seeded["week"]}', wait_until="networkidle")
+    card = page.locator('[data-testid="weekly-review"]')
+    assert card.is_visible()
+    summary = card.locator('[data-testid="weekly-review-summary"]')
+    assert '2/3' in summary.inner_text()
+    assert summary.locator('strong').nth(2).inner_text().strip() not in ('', '0', '0m', '0p')
+    assert card.locator('[data-testid="weekly-review-pillar"]').count() == 2
+    work_bar = card.locator('[data-testid="weekly-review-pillar"]').nth(1).locator('[role="progressbar"]')
+    assert work_bar.get_attribute('aria-valuenow') == '63'
+
+    values = {
+        'best': 'P6 best answer',
+        'blocker': 'P6 blocker answer',
+        'learned': 'P6 learned answer',
+        'change': 'P6 change answer',
+    }
+    for field, value in values.items():
+        card.locator(f'[data-week-review-field="{field}"]').fill(value)
+    for index, value in enumerate(('P6 priority one', 'P6 priority two', 'P6 priority three')):
+        card.locator(f'[data-week-review-field="priority"][data-priority-index="{index}"]').fill(value)
+    page.wait_for_timeout(600)
+    assert card.locator('[data-testid="weekly-review-status"]').inner_text().strip()
+
+    page.reload(wait_until="networkidle")
+    card = page.locator('[data-testid="weekly-review"]')
+    for field, value in values.items():
+        assert card.locator(f'[data-week-review-field="{field}"]').input_value() == value
+    for index, value in enumerate(('P6 priority one', 'P6 priority two', 'P6 priority three')):
+        assert card.locator(f'[data-week-review-field="priority"][data-priority-index="{index}"]').input_value() == value
+    legacy = card.locator('[data-testid="weekly-review-legacy"]')
+    legacy.locator('summary').click()
+    assert seeded['legacy'] in legacy.inner_text()
+
+    next_week = min(seeded['week'] + 1, seeded['weekCount'])
+    if next_week != seeded['week']:
+        page.goto(f'{base}/app.html?view=week&w={next_week}', wait_until="networkidle")
+        other = page.locator('[data-testid="weekly-review"]')
+        assert other.locator('[data-week-review-field="best"]').input_value() == ''
+        page.goto(f'{base}/app.html?view=week&w={seeded["week"]}', wait_until="networkidle")
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"weekly-review dark {width}px")
+    page.screenshot(path=screenshot, full_page=True)
+    page.close()
+
+
+def monthly_review_checks(browser, base, width, height, errors, screenshot):
+    """P7: Monthly Review derives real pillar scores and persists structured reflection."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"monthly-review {width}px: {error}"))
+    load_app(page, base)
+
+    page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const monthDays = new Date(year, month + 1, 0).getDate();
+      state.weeks.forEach(week => week.days.forEach(day => { day.tasks = []; }));
+      state.weeks[0].days[0].tasks = [{
+        uid: 'p7-linked', text: 'P7 linked task', kind: 'priority', done: true,
+        tags: [], linkedMetricIds: ['p7-task', 'p7-focus'],
+        focusLog: [{ d: `${year}-${String(month + 1).padStart(2, '0')}-01`, secs: 3600 }],
+        remind: { enabled: false, time: '20:00' },
+      }, {
+        uid: 'p7-unlinked', text: 'P7 unlinked task', kind: 'regular', done: true,
+        tags: [], linkedMetricIds: [],
+        focusLog: [{ d: `${year}-${String(month + 1).padStart(2, '0')}-01`, secs: 7200 }],
+        remind: { enabled: false, time: '20:00' },
+      }];
+      state.habits = [{
+        id: 'p7-habit', name: 'P7 Gym', target: 100,
+        days: Array.from({ length: monthDays }, (_, i) => i < 8), skipDays: [],
+      }];
+      state.pillars = [{
+        id: 'p7-body', name: 'P7 Body', icon: 'B', hidden: false, focus: '', metrics: [
+          { id: 'p7-gym', title: 'P7 Gym', type: 'HABIT', linkedHabitId: 'p7-habit', target: { mode: 'perMonth', value: 10 } },
+          { id: 'p7-sleep', title: 'P7 Sleep', type: 'MANUAL', days: Array.from({ length: monthDays }, (_, i) => i < 10), target: { mode: 'perMonth', value: 20 } },
+        ],
+      }, {
+        id: 'p7-work', name: 'P7 Work', icon: 'W', hidden: false, focus: '', metrics: [
+          { id: 'p7-task', title: 'P7 Delivery', type: 'TASK', target: { mode: 'perMonth', value: 2 } },
+          { id: 'p7-focus', title: 'P7 Focus', type: 'FOCUS', target: { mode: 'perMonth', value: 120 } },
+        ],
+      }];
+      state.monthlyReview = {};
+      state.reflections.overview = ['P7 legacy achievement', '', '', ''];
+      localStorage.setItem(key, JSON.stringify(state));
+    }""")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    card = page.locator('[data-testid="monthly-review"]')
+    assert card.is_visible()
+    assert card.locator('[role="progressbar"]').count() == 2
+    body_score = card.locator('[role="progressbar"]').nth(0).get_attribute('aria-valuenow')
+    assert body_score == '65', f"expected P7 Body 65, got {body_score}; card={card.inner_text()}"
+    assert card.locator('[role="progressbar"]').nth(1).get_attribute('aria-valuenow') == '50'
+    assert card.locator('.monthly-review-overall').inner_text().strip() == '58%'
+    assert 'P7 Gym' in card.inner_text()
+    assert 'P7 Sleep' in card.inner_text()
+
+    values = {
+        'achievement': 'P7 achievement',
+        'learned': 'P7 learned',
+        'continue': 'P7 continue',
+        'stop': 'P7 stop',
+        'start': 'P7 start',
+    }
+    for field, value in values.items():
+        card.locator(f'[data-monthly-review-field="{field}"]').fill(value)
+    page.wait_for_timeout(650)
+    assert card.locator('[data-testid="monthly-review-status"]').inner_text().strip()
+
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    card = page.locator('[data-testid="monthly-review"]')
+    for field, value in values.items():
+        assert card.locator(f'[data-monthly-review-field="{field}"]').input_value() == value
+    legacy = card.locator('[data-testid="monthly-review-legacy"]')
+    legacy.locator('summary').click()
+    assert 'P7 legacy achievement' in legacy.inner_text()
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"monthly-review dark {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def month_carryover_checks(browser, base, width, height, errors, screenshot):
+    """P8: carry only selected structures, preserve destination, remap and reset."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"month-carryover {width}px: {error}"))
+    load_app(page, base)
+
+    seeded = page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const next = window.TaskFlowMonthCarryover.nextMonth(year, month);
+      const sourceKey = window.TaskFlowShell.monthKey(year, month);
+      const destinationKey = window.TaskFlowShell.monthKey(next.year, next.month);
+      const state = JSON.parse(localStorage.getItem(sourceKey));
+      const sourceDays = new Date(year, month + 1, 0).getDate();
+      const destinationDays = new Date(next.year, next.month + 1, 0).getDate();
+      state.habits = [{
+        id: 'p8-habit', name: 'P8 Exercise', target: 80,
+        days: Array(sourceDays).fill(true), skipDays: [1, 2],
+        remind: { enabled: true, time: '07:00' }, future: 'source-habit',
+      }];
+      state.pillars = [{
+        id: 'p8-pillar', name: 'P8 Body', icon: 'B', hidden: false,
+        focus: 'P8 Strong month', future: 'source-pillar', metrics: [{
+          id: 'p8-metric', title: 'P8 Exercise metric', type: 'HABIT',
+          linkedHabitId: 'p8-habit', target: { mode: 'perMonth', value: 12 },
+          days: Array(sourceDays).fill(true), future: 'source-metric',
+        }],
+      }];
+      state.weeks.forEach(week => week.days.forEach(day => { day.tasks = []; }));
+      state.weeks[0].days[0].tasks = [{
+        uid: 'p8-source-task', text: 'P8 source task must not copy', kind: 'priority', done: true,
+        tags: [], linkedMetricIds: ['p8-metric'], remind: { enabled: false, time: '20:00' },
+      }];
+      localStorage.setItem(sourceKey, JSON.stringify(state));
+
+      const destination = structuredClone(state);
+      destination.monthKey = destinationKey;
+      const firstWeekOffset = (new Date(next.year, next.month, 1).getDay() + 6) % 7;
+      const destinationWeekCount = Math.ceil((firstWeekOffset + destinationDays) / 7);
+      destination.habits = [{
+        id: 'p8-existing-habit', name: 'P8 Existing habit', target: 55,
+        days: Array(destinationDays).fill(false), skipDays: [], future: 'destination-habit',
+      }];
+      destination.pillars = [{
+        id: 'p8-existing-pillar', name: 'P8 Existing pillar', icon: 'E', hidden: true,
+        focus: 'Keep destination', metrics: [], future: 'destination-pillar',
+      }];
+      const dayTemplate = structuredClone(state.weeks[0].days[0]);
+      destination.weeks = Array.from({ length: destinationWeekCount }, (_, weekIndex) => ({
+        n: weekIndex + 1, goals: [],
+        days: Array.from({ length: 7 }, () => ({ ...structuredClone(dayTemplate), tasks: [] })),
+      }));
+      destination.reflections.weeks = Array.from({ length: destinationWeekCount }, () => ['', '', '', '']);
+      destination.weeklyReviews = Array.from({ length: destinationWeekCount }, () => ({}));
+      destination.weeks[0].days[0].tasks = [{
+        uid: 'p8-existing-task', text: 'P8 existing destination task', kind: 'regular', done: false,
+        tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' }, future: 'destination-task',
+      }];
+      localStorage.setItem(destinationKey, JSON.stringify(destination));
+      return { destinationKey, destinationDays };
+    }""")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    page.locator('[data-action="month-carry-open"]').click()
+    modal = page.locator('[data-testid="month-carry-modal"]')
+    assert modal.is_visible()
+    assert modal.locator('[data-carry-kind]:checked').count() == 0
+    assert modal.locator('[data-action="month-carry-apply"]').is_disabled()
+
+    for kind, item_id in (
+        ('pillar', 'p8-pillar'), ('focus', 'p8-pillar'),
+        ('habit', 'p8-habit'), ('metric', 'p8-metric'),
+    ):
+        modal.locator(f'[data-carry-kind="{kind}"][data-carry-id="{item_id}"]').check()
+    modal.locator('[data-action="month-carry-preview"]').click()
+    preview = modal.locator('[data-testid="month-carry-preview"]')
+    assert 'P8 Body' in preview.inner_text()
+    assert 'P8 Exercise' in preview.inner_text()
+    assert modal.locator('[data-action="month-carry-apply"]').is_enabled()
+    assert_no_page_overflow(page, f"month-carryover modal {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    modal.locator('[data-action="month-carry-apply"]').click()
+    assert modal.is_hidden()
+
+    carried = page.evaluate("""({ key }) => {
+      const saved = JSON.parse(localStorage.getItem(key));
+      const habit = saved.habits.find(item => item.name === 'P8 Exercise');
+      const pillar = saved.pillars.find(item => item.name === 'P8 Body');
+      const metric = pillar && pillar.metrics.find(item => item.title === 'P8 Exercise metric');
+      return {
+        habit, pillar, metric,
+        habitNames: saved.habits.map(item => item.name),
+        pillarNames: saved.pillars.map(item => item.name),
+        existingHabit: saved.habits.find(item => item.id === 'p8-existing-habit'),
+        existingPillar: saved.pillars.find(item => item.id === 'p8-existing-pillar'),
+        taskTexts: saved.weeks.flatMap(week => week.days.flatMap(day => day.tasks.map(task => task.text))),
+      };
+    }""", {'key': seeded['destinationKey']})
+    assert carried['habit'], f"carried habit missing: {carried}"
+    assert carried['pillar'], f"carried pillar missing: {carried}"
+    assert carried['metric'], f"carried metric missing: {carried}"
+    assert carried['habit']['id'] != 'p8-habit'
+    assert carried['habit']['days'] == [False] * seeded['destinationDays']
+    assert carried['habit']['skipDays'] == []
+    assert carried['habit']['remind']['enabled'] is False
+    assert carried['metric']['linkedHabitId'] == carried['habit']['id']
+    assert carried['metric']['days'] == [False] * seeded['destinationDays']
+    assert carried['pillar']['focus'] == 'P8 Strong month'
+    assert carried['existingHabit']['future'] == 'destination-habit'
+    assert carried['existingHabit']['target'] == 55
+    assert carried['existingPillar']['focus'] == 'Keep destination'
+    assert carried['existingPillar']['hidden'] is True
+    assert carried['taskTexts'] == ['P8 existing destination task']
+
+    page.reload(wait_until="networkidle")
+    assert page.evaluate("key => !!JSON.parse(localStorage.getItem(key)).pillars.find(p => p.name === 'P8 Body')", seeded['destinationKey'])
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"month-carryover dark {width}px")
+    page.close()
+
+
+def report_growth_checks(browser, base, width, height, errors, screenshot):
+    """P9: truthful balance/guidance/mood and unified reflection filters."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"report-growth {width}px: {error}"))
+    load_app(page, base)
+    page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const days = new Date(year, month + 1, 0).getDate();
+      state.habits = [];
+      state.pillars = [{
+        id: 'p9-balance', name: 'P9 Balance', icon: 'P', hidden: false, focus: '', metrics: [
+          { id: 'p9-low', title: 'P9 Low', type: 'MANUAL', days: Array.from({ length: days }, (_, i) => i < 3), target: { mode: 'perMonth', value: 10 } },
+          { id: 'p9-high', title: 'P9 High', type: 'MANUAL', days: Array.from({ length: days }, (_, i) => i < 9), target: { mode: 'perMonth', value: 10 } },
+        ],
+      }];
+      state.weeklyReviews[0] = { best: 'P9 weekly reflection', blocker: '', learned: '', change: '', priorities: [], updatedAt: `${year}-${String(month + 1).padStart(2, '0')}-07T20:00:00.000Z` };
+      state.monthlyReview = { achievement: 'P9 monthly reflection', learned: '', continue: '', stop: '', start: '', updatedAt: `${year}-${String(month + 1).padStart(2, '0')}-10T20:00:00.000Z` };
+      localStorage.setItem(key, JSON.stringify(state));
+      const pad = value => String(value).padStart(2, '0');
+      const dates = [1, 2, 3].map(day => `${year}-${pad(month + 1)}-${pad(day)}`);
+      localStorage.setItem('planner-reflections-daily', JSON.stringify({
+        [dates[0]]: { mood: 0, good: 'P9 daily one', updatedAt: dates[0] + 'T20:00:00.000Z' },
+        [dates[1]]: { mood: 2, good: 'P9 daily two', updatedAt: dates[1] + 'T20:00:00.000Z' },
+        [dates[2]]: { mood: 4, good: 'P9 daily three', updatedAt: dates[2] + 'T20:00:00.000Z' },
+      }));
+      const previous = month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 };
+      localStorage.setItem(window.TaskFlowShell.monthKey(previous.year, previous.month), JSON.stringify({
+        monthlyReview: { achievement: 'P9 previous monthly', updatedAt: `${previous.year}-${pad(previous.month + 1)}-20T20:00:00.000Z` },
+        weeklyReviews: [],
+      }));
+    }""")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    report = page.locator('[data-testid="report-modal"]')
+    growth = report.locator('[data-testid="report-growth"]')
+    assert growth.is_visible()
+    assert growth.locator('.report-balance-progress').count() == 1
+    assert growth.locator('.report-balance-progress').get_attribute('aria-valuenow') == '60'
+    guidance = growth.locator('[data-testid="report-guidance"]').inner_text()
+    assert 'P9 Low' in guidance and '30%' in guidance
+    assert 'P9 High' in guidance and '90%' in guidance
+    assert growth.locator('[data-testid="report-mood-trend"] .report-mood-bar').count() == 5
+    assert_no_page_overflow(page, f"report-growth {width}px")
+
+    growth.locator('[data-action="report-history-open-panel"]').click()
+    history = page.locator('[data-testid="report-history-modal"]')
+    assert history.is_visible()
+    assert history.locator('[data-history-filter="daily"]').get_attribute('aria-selected') == 'true'
+    assert history.locator('.report-history-item').count() == 3
+    history.locator('[data-history-filter="weekly"]').click()
+    assert history.locator('.report-history-item').count() == 1
+    assert 'P9 weekly reflection' in history.inner_text()
+    history.locator('[data-history-filter="monthly"]').click()
+    assert history.locator('.report-history-item').count() == 2
+    history.locator('[data-history-filter="daily"]').click()
+    history.locator('.report-history-item').first.click()
+    deep = page.locator('[data-testid="reflection-modal"]')
+    assert deep.is_visible()
+    assert deep.locator('[data-reflect-field="good"]').input_value() == 'P9 daily three'
+    deep.locator('[data-action="reflection-deep-close"]').click()
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    page.wait_for_timeout(50)
+    assert page.locator('[data-testid="report-modal"] .report-modal-card').evaluate("el => el.scrollTop") == 0
+    assert_no_page_overflow(page, f"report-growth dark {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def data_lifecycle_checks(browser, base, width, height, errors, screenshot):
+    """P10: export v2, import/migrate v1 through the UI, reload and preserve growth links."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"data-lifecycle {width}px: {error}"))
+    page.on("dialog", lambda dialog: dialog.accept())
+    load_app(page, base)
+
+    seeded = page.evaluate("""() => {
+      const now = new Date();
+      const key = window.TaskFlowShell.monthKey(now.getFullYear(), now.getMonth());
+      const state = JSON.parse(localStorage.getItem(key));
+      delete state.schemaVersion;
+      state.futureP10Field = { kept: true };
+      state.weeks[0].days[0].tasks.push({
+        uid: 'p10-task-old', text: 'P10 linked legacy task', done: true,
+        linkedMetricIds: ['p10-metric-task'], focusLog: [{ minutes: 25 }],
+      });
+      state.pillars = [{
+        id: 'p10-pillar', name: 'P10 Pillar', hidden: false,
+        metrics: [{ id: 'p10-metric-task', title: 'P10 Metric', type: 'TASK' }],
+      }];
+      const snapshot = {
+        app: 'taskflow-todoist', version: 1, exportedAt: new Date().toISOString(),
+        keys: {
+          [key]: JSON.stringify(state),
+          'planner-reflections-daily': JSON.stringify({
+            '2026-08-11': { mood: 4, good: 'P10 preserved reflection', futureEntry: true },
+          }),
+          'planner-mood': JSON.stringify({ '2026-08-11': 4 }),
+          'january-planner-2026': JSON.stringify({ legacy: 'P10 legacy kept' }),
+        },
+        futureSnapshotField: { kept: true },
+      };
+      return { key, raw: JSON.stringify(snapshot) };
+    }""")
+
+    # Real UI export must emit the complete v2 snapshot.
+    if width <= 767:
+        page.locator('#mobileNav [data-action="more"]').click()
+        page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+        page.locator('#moreSheet [data-action="tools-open"]').click()
+    else:
+        page.locator('[data-action="tools-open"]:visible').first.click()
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
+    page.locator('[data-action="data-toggle"]').click()
+    with page.expect_download() as download_info:
+        page.locator('[data-action="export-json"]').click()
+    with open(download_info.value.path(), encoding="utf-8") as exported_file:
+        exported = json.load(exported_file)
+    assert exported['version'] == 2
+    assert len(exported['keys']) == len(set(exported['keys']))
+    assert seeded['key'] in exported['keys']
+
+    # Import the v1 fixture through the hidden file input; confirmation previews and reloads.
+    with page.expect_navigation(wait_until="networkidle"):
+        page.locator('#importFile').set_input_files({
+            "name": "taskflow-v1-backup.json",
+            "mimeType": "application/json",
+            "buffer": seeded['raw'].encode('utf-8'),
+        })
+    restored = page.evaluate("""key => {
+      const state = JSON.parse(localStorage.getItem(key));
+      const task = state.weeks[0].days[0].tasks.find(item => item.uid === 'p10-task-old');
+      const daily = JSON.parse(localStorage.getItem('planner-reflections-daily'));
+      const backups = Array.from({ length: 7 }, (_, i) => localStorage.getItem('planner-backup-' + i)).filter(Boolean);
+      return { state, task, daily, backups: backups.length };
+    }""", seeded['key'])
+    assert restored['state']['schemaVersion'] == 2
+    assert restored['state']['futureP10Field']['kept'] is True
+    assert restored['task']['linkedMetricIds'] == ['p10-metric-task']
+    assert restored['task']['focusLog'][0]['minutes'] == 25
+    assert restored['daily']['2026-08-11']['good'] == 'P10 preserved reflection'
+    assert restored['backups'] >= 1
+
+    page.evaluate("localStorage.setItem('planner-dark', '1')")
+    page.reload(wait_until="networkidle")
+    assert page.locator('html').get_attribute('data-dark') == 'true'
+    assert_no_page_overflow(page, f"data-lifecycle dark {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -923,7 +1613,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -971,6 +1661,13 @@ def main():
                     ("reflection", reflection_checks),
                     ("pillars", pillars_checks),
                     ("metrics", metrics_checks),
+                    ("task-focus-metrics", task_focus_metrics_checks),
+                    ("daily-alignment", daily_alignment_checks),
+                    ("weekly-review", weekly_review_checks),
+                    ("monthly-review", monthly_review_checks),
+                    ("month-carryover", month_carryover_checks),
+                    ("report-growth", report_growth_checks),
+                    ("data-lifecycle", data_lifecycle_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1005,6 +1702,27 @@ def main():
             elif args.view == "taskdetail":
                 taskdetail_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 taskdetail_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "task-focus-metrics":
+                task_focus_metrics_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                task_focus_metrics_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "daily-alignment":
+                daily_alignment_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                daily_alignment_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "weekly-review":
+                weekly_review_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                weekly_review_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "monthly-review":
+                monthly_review_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                monthly_review_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "month-carryover":
+                month_carryover_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                month_carryover_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "report-growth":
+                report_growth_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                report_growth_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "data-lifecycle":
+                data_lifecycle_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                data_lifecycle_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access
@@ -1021,6 +1739,8 @@ def main():
         print("PAGE ERRORS:", errors[:8])
         return 1
     label = "RELEASE" if args.all else "LANDING" if args.landing else "DIALOGS" if args.dialogs else args.view.upper()
+    # Stable focused-output markers asserted by phase tests:
+    # E2E WEEKLY-REVIEW OK / E2E MONTHLY-REVIEW OK / E2E MONTH-CARRYOVER OK / E2E REPORT-GROWTH OK / E2E DATA-LIFECYCLE OK
     print(f"E2E {label} OK")
     print("SCREENSHOTS:", shots["desktop"], shots["mobile"])
     return 0

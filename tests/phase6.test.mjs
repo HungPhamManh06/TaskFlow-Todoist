@@ -208,5 +208,5 @@ test('6.14: Pomodoro gộp cột phải cùng Phản ánh (week-side, không cò
   assert.match(week, /class="week-support-grid"/);
   assert.match(CSS, /\.week-support-grid\s*\{[^}]*display:\s*grid/s);
   assert.match(APP_JS, /class="card pomo-widget"/);
-  assert.match(APP_JS, /class="card reflection sub week-reflection-card"/);
+  assert.match(APP_JS, /weeklyReviewHTML\(weeklyReviewModel/);
 });

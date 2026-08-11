@@ -1,0 +1,176 @@
+// TaskFlow — P7 Monthly Review: additive schema, truthful monthly scores, model helpers.
+(function (root, factory) {
+  const api = factory(root);
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.TaskFlowMonthlyReview = api;
+})(typeof window !== 'undefined' ? window : globalThis, function (root) {
+  'use strict';
+
+  const REVIEW_FIELDS = ['achievement', 'learned', 'continue', 'stop', 'start', 'updatedAt'];
+  const SCORABLE_TYPES = new Set(['HABIT', 'MANUAL', 'CUSTOM', 'TASK', 'FOCUS']);
+
+  function emptyMonthlyReview() {
+    return { achievement: '', learned: '', continue: '', stop: '', start: '', updatedAt: '' };
+  }
+
+  function normalizeMonthlyReview(raw) {
+    const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const out = { ...source };
+    REVIEW_FIELDS.forEach((field) => { out[field] = typeof source[field] === 'string' ? source[field] : ''; });
+    return out;
+  }
+
+  function ensureMonthlyReview(state) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) return null;
+    state.monthlyReview = normalizeMonthlyReview(state.monthlyReview);
+    return state.monthlyReview;
+  }
+
+  function progressApi(context) {
+    if (context && typeof context.metricProgress === 'function') return context.metricProgress;
+    const api = root && root.TaskFlowPillars;
+    return api && typeof api.metricProgress === 'function' ? api.metricProgress : null;
+  }
+
+  function metricIsScorable(state, metric) {
+    if (!metric || !SCORABLE_TYPES.has(metric.type) || typeof metric.title !== 'string' || !metric.title.trim()) return false;
+    if (metric.type !== 'HABIT') return true;
+    return Array.isArray(state && state.habits)
+      && state.habits.some((habit) => habit && habit.id === metric.linkedHabitId);
+  }
+
+  function insightMetric(metric) {
+    if (!metric) return null;
+    return { id: metric.id, title: metric.title, pct: metric.pct, done: metric.done, target: metric.target };
+  }
+
+  function monthlyPillarScores(state, context) {
+    const source = state && typeof state === 'object' ? state : {};
+    const calc = progressApi(context);
+    const monthDays = context && Number.isFinite(+context.monthDays) && +context.monthDays > 0 ? Math.round(+context.monthDays) : 30;
+    if (!calc || !Array.isArray(source.pillars)) return [];
+    const scoreContext = {
+      year: context && Number.isFinite(+context.year) ? Math.round(+context.year) : null,
+      month: context && Number.isFinite(+context.month) ? Math.round(+context.month) : null,
+    };
+    return source.pillars.flatMap((pillar) => {
+      if (!pillar || pillar.hidden === true || !Array.isArray(pillar.metrics)) return [];
+      const metrics = pillar.metrics.flatMap((metric) => {
+        if (!metricIsScorable(source, metric)) return [];
+        const progress = calc(source, metric, monthDays, scoreContext);
+        if (!progress || !Number.isFinite(+progress.target) || +progress.target <= 0) return [];
+        return [{
+          id: typeof metric.id === 'string' ? metric.id : '',
+          title: metric.title.trim(),
+          type: metric.type,
+          pct: Math.max(0, Math.min(100, Math.round(+progress.pct || 0))),
+          done: Math.max(0, +progress.done || 0),
+          target: Math.max(0, +progress.target || 0),
+        }];
+      });
+      if (!metrics.length) return [];
+      let strongest = metrics[0];
+      let attention = metrics[0];
+      metrics.forEach((metric) => {
+        if (metric.pct > strongest.pct) strongest = metric;
+        if (metric.pct < attention.pct) attention = metric;
+      });
+      return [{
+        id: typeof pillar.id === 'string' ? pillar.id : '',
+        name: typeof pillar.name === 'string' ? pillar.name : '',
+        icon: typeof pillar.icon === 'string' ? pillar.icon : '',
+        pct: Math.round(metrics.reduce((sum, metric) => sum + metric.pct, 0) / metrics.length),
+        strongest: insightMetric(strongest),
+        attention: insightMetric(attention),
+        metrics,
+      }];
+    });
+  }
+
+  function buildMonthlyReviewModel(state, context) {
+    const source = state && typeof state === 'object' ? state : {};
+    const review = normalizeMonthlyReview(source.monthlyReview);
+    const pillars = monthlyPillarScores(source, context || {});
+    const prompts = context && Array.isArray(context.legacyPrompts) ? context.legacyPrompts : [];
+    const answers = source.reflections && Array.isArray(source.reflections.overview) ? source.reflections.overview : [];
+    const legacy = answers.flatMap((answer, index) => typeof answer === 'string' && answer.trim()
+      ? [{ prompt: typeof prompts[index] === 'string' ? prompts[index] : '', answer: answer.trim() }]
+      : []);
+    return {
+      review,
+      pillars,
+      overall: pillars.length ? Math.round(pillars.reduce((sum, pillar) => sum + pillar.pct, 0) / pillars.length) : null,
+      legacy,
+    };
+  }
+
+  function updateMonthlyReviewField(state, field, value, updatedAt) {
+    if (!state || !['achievement', 'learned', 'continue', 'stop', 'start'].includes(field)) return null;
+    const review = ensureMonthlyReview(state);
+    review[field] = typeof value === 'string' ? value : '';
+    review.updatedAt = typeof updatedAt === 'string' ? updatedAt : new Date().toISOString();
+    return review;
+  }
+
+  function monthlyReviewHTML(model, options) {
+    const data = model && typeof model === 'object' ? model : {};
+    const t = options && typeof options.t === 'function' ? options.t : (key) => key;
+    const esc = options && typeof options.esc === 'function' ? options.esc : (value) => String(value ?? '');
+    const review = normalizeMonthlyReview(data.review);
+    const pillars = Array.isArray(data.pillars) ? data.pillars : [];
+    const fields = [
+      ['achievement', 'monthlyReviewAchievement'],
+      ['learned', 'monthlyReviewLearned'],
+      ['continue', 'monthlyReviewContinue'],
+      ['stop', 'monthlyReviewStop'],
+      ['start', 'monthlyReviewStart'],
+    ];
+    const fieldHTML = fields.map(([field, key]) => {
+      const id = `monthly-review-${field}`;
+      return `<label class="monthly-review-field" for="${id}"><span>${t(key)}</span><textarea id="${id}" data-monthly-review-field="${field}" maxlength="1200">${esc(review[field])}</textarea></label>`;
+    }).join('');
+    const pillarHTML = pillars.length ? pillars.map((pillar) => `<article class="monthly-review-pillar">
+      <div class="monthly-review-pillar-head"><span><span aria-hidden="true">${esc(pillar.icon || '')}</span>${esc(pillar.name || '')}</span><strong>${pillar.pct}%</strong></div>
+      <div class="monthly-review-progress" role="progressbar" aria-label="${esc(pillar.name || '')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pillar.pct}"><span style="width:${pillar.pct}%"></span></div>
+      <div class="monthly-review-insights"><span>${t('monthlyReviewStrongest')}: <strong>${esc(pillar.strongest && pillar.strongest.title || '')}</strong></span><span>${t('monthlyReviewAttention')}: <strong>${esc(pillar.attention && pillar.attention.title || '')}</strong></span></div>
+    </article>`).join('') : `<p class="monthly-review-empty">${t('monthlyReviewNoData')}</p>`;
+    const legacy = Array.isArray(data.legacy) ? data.legacy : [];
+    const legacyHTML = legacy.length ? `<details class="monthly-review-legacy" data-testid="monthly-review-legacy"><summary>${t('monthlyReviewLegacy')}</summary>${legacy.map((item) => `<div><strong>${esc(item.prompt || '')}</strong><p>${esc(item.answer || '')}</p></div>`).join('')}</details>` : '';
+    const overall = Number.isFinite(data.overall) ? `${data.overall}%` : '—';
+    return `<section class="card monthly-review-card" data-testid="monthly-review" aria-labelledby="monthlyReviewTitle">
+      <div class="monthly-review-head"><div><p>${t('monthlyReviewOverall')}</p><h3 id="monthlyReviewTitle">${t('monthlyReviewTitle')}</h3></div><strong class="monthly-review-overall">${overall}</strong><span class="monthly-review-status" data-testid="monthly-review-status" role="status" aria-live="polite">${review.updatedAt ? t('monthlyReviewSaved') : ''}</span></div>
+      <div class="monthly-review-pillars">${pillarHTML}</div>
+      <div class="monthly-review-fields">${fieldHTML}</div>
+      ${legacyHTML}
+      <div class="monthly-review-actions"><button type="button" class="button button-primary" data-action="month-carry-open">${t('monthCarryOpen')}</button></div>
+    </section>`;
+  }
+
+  let savedStatusTimer = null;
+  function setMonthlyReviewStatus(text) {
+    if (typeof document === 'undefined') return;
+    const el = document.querySelector('[data-testid="monthly-review-status"]');
+    if (el) el.textContent = typeof text === 'string' ? text : '';
+  }
+
+  function scheduleMonthlyReviewSaved(callback, delay) {
+    clearTimeout(savedStatusTimer);
+    savedStatusTimer = setTimeout(() => {
+      savedStatusTimer = null;
+      if (typeof callback === 'function') callback();
+    }, Number.isFinite(delay) && delay >= 0 ? delay : 450);
+    return savedStatusTimer;
+  }
+
+  return {
+    emptyMonthlyReview,
+    normalizeMonthlyReview,
+    ensureMonthlyReview,
+    monthlyPillarScores,
+    buildMonthlyReviewModel,
+    updateMonthlyReviewField,
+    monthlyReviewHTML,
+    setMonthlyReviewStatus,
+    scheduleMonthlyReviewSaved,
+  };
+});

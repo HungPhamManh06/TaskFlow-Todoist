@@ -561,7 +561,7 @@ test('P11: storage.js helpers giữ nguyên behavior sau khi tách', () => {
     // saveMonthState: ghi key đúng 'planner-y-(m+1)' + không throw khi window.Sync thiếu
     Storage.saveMonthState(2026, 0, { habits: [] });
     assert.ok(store['planner-2026-1'], 'saveMonthState ghi đúng key');
-    assert.deepEqual(JSON.parse(store['planner-2026-1']), { habits: [] });
+    assert.deepEqual(JSON.parse(store['planner-2026-1']), { habits: [], schemaVersion: 2 });
     // loadPomoLog/savePomoLog round-trip
     Storage.savePomoLog({ '2026-08-09': { work: 1 } });
     assert.deepEqual(Storage.loadPomoLog(), { '2026-08-09': { work: 1 } }, 'pomo log round-trip');
@@ -733,7 +733,7 @@ test('P11: export.js helpers giữ nguyên behavior sau khi tách', () => {
     };
     const out = Export.collectAllData('january-planner-2026');
     assert.equal(out.app, 'taskflow-todoist');
-    assert.equal(out.version, 1);
+    assert.equal(out.version, 2);
     assert.ok(out.exportedAt);
     // chỉ planner-* + legacyKey, không lấy key lạ
     assert.ok('planner-x' in out.keys && 'planner-y' in out.keys);

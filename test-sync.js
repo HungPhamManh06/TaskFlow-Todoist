@@ -32,6 +32,7 @@ async function main() {
   });
   const port = server.address().port;
   const base = `http://localhost:${port}`;
+  let lifecycleToken = '';
   console.log('backend (pg-mem) đang chạy tại', base);
 
   // ---- TEST 1: chưa cấu hình → status 'off', push no-op ----
@@ -165,6 +166,7 @@ async function main() {
       body: JSON.stringify({ username: 'googleuser7', password: 'Pass123456!' })
     }).then((x) => x.json());
     assert.ok(signup.token, 'phải tạo được user cho luồng Google');
+    lifecycleToken = signup.token;
 
     // Máy đang có dữ liệu + token của tài khoản CŨ, quay về sau callback Google với token mới
     global.localStorage = mockLocalStorage({
@@ -196,8 +198,44 @@ async function main() {
     console.log('TEST 7 OK — Google OAuth: consumeRedirectToken xoá local cũ, tài khoản mới trống');
   }
 
+  // ---- TEST 8: hợp đồng P10 — key hợp lệ, giới hạn payload và state v2 ----
+  {
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + lifecycleToken };
+    const invalid = await fetch(base + '/api/sync', {
+      method: 'POST', headers, body: JSON.stringify({ key: 'not-planner', data: {} }),
+    });
+    assert.strictEqual(invalid.status, 400, 'key ngoài planner-* phải bị từ chối');
+
+    const missingBody = await fetch(base + '/api/sync', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + lifecycleToken },
+    });
+    assert.strictEqual(missingBody.status, 400, 'body trống phải trả lỗi key rõ ràng');
+
+    const longKey = await fetch(base + '/api/sync', {
+      method: 'POST', headers, body: JSON.stringify({ key: 'planner-' + 'x'.repeat(121), data: {} }),
+    });
+    assert.strictEqual(longKey.status, 400, 'key vượt giới hạn phải bị từ chối');
+
+    const oversized = await fetch(base + '/api/sync', {
+      method: 'POST', headers,
+      body: JSON.stringify({ key: 'planner-p10-large', data: { text: 'x'.repeat(512 * 1024) } }),
+    });
+    assert.strictEqual(oversized.status, 413, 'payload JSON vượt giới hạn phải trả 413');
+
+    const monthV2 = { schemaVersion: 2, monthlyGoals: [], habits: [], weeks: [], futureField: true };
+    const valid = await fetch(base + '/api/sync', {
+      method: 'POST', headers,
+      body: JSON.stringify({ key: 'planner-2026-10', data: monthV2 }),
+    });
+    assert.strictEqual(valid.status, 200, 'state v2 hợp lệ phải được chấp nhận');
+    const rows = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + lifecycleToken } }).then((x) => x.json());
+    const row = rows.find((x) => x.key === 'planner-2026-10');
+    assert.deepStrictEqual(row.data, monthV2, 'push/pull phải giữ nguyên state v2 và trường tương lai');
+    console.log('TEST 8 OK — validation key/payload + push/pull state v2');
+  }
+
   server.close();
-  console.log('\n✅ Tất cả 7 test sync đều PASS');
+  console.log('\n✅ Tất cả 8 test sync đều PASS');
 }
 
 main().catch((e) => { console.error('❌ TEST FAIL:', e); process.exit(1); });

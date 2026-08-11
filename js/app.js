@@ -164,7 +164,13 @@ function loadMonthStateOrCreate(y, m) {
   try {
     const raw = localStorage.getItem('planner-' + y + '-' + (m + 1));
     if (raw) {
-      const parsed = JSON.parse(raw);
+      const source = JSON.parse(raw);
+      const parsed = window.TaskFlowDataMigrations
+        ? window.TaskFlowDataMigrations.migrateMonthState(source, { year: y, month: m + 1 })
+        : source;
+      if (window.TaskFlowDataMigrations && source.schemaVersion !== window.TaskFlowDataMigrations.VERSION) {
+        try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(parsed)); } catch (e) { /* read still succeeds */ }
+      }
       if (parsed && Array.isArray(parsed.monthlyGoals)) s = parsed;
     }
   } catch (e) { /* ẩn */ }
@@ -181,6 +187,7 @@ function loadMonthStateOrCreate(y, m) {
   // Migration additive (P2): đảm bảo pillars tồn tại trước khi trả về cho UI
   // (tháng cũ không có pillars → điền template mặc định theo ngôn ngữ hiện tại).
   if (window.TaskFlowPillars) window.TaskFlowPillars.ensurePillars(s);
+  if (window.TaskFlowMonthlyReview) window.TaskFlowMonthlyReview.ensureMonthlyReview(s);
   return s;
 }
 
@@ -477,7 +484,7 @@ function applyRecurrence() {
   if (!todayDay) return;
   const plan = window.PlanMath.planRecurrence(state.weeks, ti.dayIdx);
   plan.mark.forEach((t) => { t._recurred = true; });
-  plan.copies.forEach((c) => { c.uid = newTaskUid(); todayDay.tasks.push(c); });
+  plan.copies.forEach((c) => { c.uid = newTaskUid(); c.linkedMetricIds = []; todayDay.tasks.push(c); });
 }
 
 /* ============================ Xuất / Nhập dữ liệu ============================ */
@@ -487,30 +494,30 @@ function applyRecurrence() {
 // extraction 30/R8). collectAllData/exportJSON nhận LEGACY_KEY tham số — downloadFile
 // giữ signature. Giữ alias để call-sites không đổi.
 if (!window.TaskFlowExport) throw new Error('TaskFlowExport missing — js/export.js failed to load');
-const { downloadFile, collectAllData, exportJSON, exportCSV, exportICS } = window.TaskFlowExport;
+const { downloadFile, collectAllData, prepareImport, applySnapshotTransactional, exportJSON, exportCSV, exportICS } = window.TaskFlowExport;
 
 function importJSONFile(file) {
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
-      const data = JSON.parse(reader.result);
-      if (!data || data.app !== 'taskflow-todoist' || !data.keys || typeof data.keys !== 'object') throw new Error('bad');
-      if (!confirm(t('importConfirm'))) return;
+      const prepared = prepareImport(reader.result);
+      if (!prepared.ok) {
+        const messageKey = prepared.errors.includes('unsupported-version') ? 'importFutureError' : 'importError';
+        TaskFlowUI.toast(t(messageKey), 'error');
+        return;
+      }
+      const preview = prepared.preview;
+      if (!confirm(t('importConfirm', { n: preview.keyCount, from: preview.fromVersion, to: preview.toVersion }))) return;
       // Phase 5: chốt bản sao lưu dữ liệu hiện tại trước khi ghi đè (an toàn dữ liệu).
       // Snapshot lấy ĐỒNG BỘ ngay trước khi ghi đè rồi ghi slot bất đồng bộ qua module lazy.
       let importSnapshot = null;
-      try { importSnapshot = collectAllData(LEGACY_KEY); } catch (e) { /* ẩn */ }
-      if (importSnapshot) {
-        ensureLazyModule('js/backup.min.js')
-          .then(() => {
-            try { window.TaskFlowBackup.rotateBackup(importSnapshot); } catch (e) { /* ẩn */ }
-          })
-          .catch(() => { /* ẩn: backup là best-effort */ });
-      }
-      Object.keys(data.keys).forEach((k) => {
-        try { localStorage.setItem(k, data.keys[k]); } catch (e) { /* ẩn */ }
-      });
+      try { importSnapshot = collectAllData(LEGACY_KEY); } catch (e) { throw new Error('backup-capture-failed'); }
+      await ensureLazyModule('js/backup.min.js');
+      if (!window.TaskFlowBackup.rotateBackup(importSnapshot)) throw new Error('backup-write-failed');
+      const applied = applySnapshotTransactional(prepared.snapshot, localStorage);
+      if (!applied.ok) throw applied.error || new Error('import-write-failed');
       TaskFlowUI.toast(t('importOk'), 'success');
+      trackEvent('import_json', { version: prepared.snapshot.version, keys: preview.keyCount });
       location.reload();
     } catch (e) {
       TaskFlowUI.toast(t('importError'), 'error');
@@ -576,12 +583,34 @@ const { loadMood, saveMood, moodCardHTML, openMoodPicker, closeMoodPicker, reren
 // reflection-* gọi qua window.TaskFlowReflection (pattern mood.js/backup.js).
 if (!window.TaskFlowReflection) throw new Error('TaskFlowReflection missing — js/reflection.js failed to load');
 const { loadReflections } = window.TaskFlowReflection;
+// Weekly Review (P6) — module thuần, lưu additive trong month state và giữ
+// state.reflections.weeks cũ làm ghi chú legacy chỉ đọc.
+if (!window.TaskFlowWeeklyReview) throw new Error('TaskFlowWeeklyReview missing — js/weekly-review.js failed to load');
+const {
+  emptyReview, ensureWeeklyReviews, buildWeeklyReviewModel, weeklyReviewHTML,
+  updateReviewField, setSaveStatus: setWeeklyReviewSaveStatus, scheduleSavedStatus,
+} = window.TaskFlowWeeklyReview;
+// Monthly Review (P7) — additive month-state reflection composed by report-ui.js.
+if (!window.TaskFlowMonthlyReview) throw new Error('TaskFlowMonthlyReview missing — js/monthly-review.js failed to load');
+const {
+  emptyMonthlyReview, ensureMonthlyReview, updateMonthlyReviewField,
+  setMonthlyReviewStatus, scheduleMonthlyReviewSaved,
+} = window.TaskFlowMonthlyReview;
+// P8 — explicit, previewed carry-over of planning structures into next month.
+if (!window.TaskFlowMonthCarryover) throw new Error('TaskFlowMonthCarryover missing — js/month-carryover.js failed to load');
+const {
+  nextMonth: nextCarryMonth, normalizeCarrySelection, buildCarryPreview,
+  applyCarryover, carryDialogHTML,
+} = window.TaskFlowMonthCarryover;
+if (!window.TaskFlowReflectionHistory) throw new Error('TaskFlowReflectionHistory missing — js/reflection-history.js failed to load');
+const { collectReflectionHistory, reflectionHistoryHTML } = window.TaskFlowReflectionHistory;
 // Monthly Life Pillars (P2) — module js/pillars.js (window.TaskFlowPillars). Module
 // thuần: nhận state qua tham số; dispatcher + input listener gọi qua
 // window.TaskFlowPillars (pattern reflection.js). defaultState/emptyState/loadState/
 // loadMonthStateOrCreate/save() gọi defaultTemplate/ensurePillars để migration additive
 // (dữ liệu tháng cũ không có pillars → tự điền template 3 trụ cột theo ngôn ngữ hiện tại).
 if (!window.TaskFlowPillars) throw new Error('TaskFlowPillars missing — js/pillars.js failed to load');
+const { visiblePillars, normalizeTaskMetricIds, setTaskMetricIds } = window.TaskFlowPillars;
 
 // date key generators (pomoDateKey, moodDateKey) được tách sang js/keys.js
 // (window.TaskFlowKeys). pomoDateKey giữ signature; moodDateKey nhận (d, y, m) —
@@ -639,7 +668,7 @@ function importCSVFile(file) {
         chunk.tasks.forEach((tk) => {
           const w = s.weeks[tk.week - 1];
           const d = w && w.days[tk.day - 1];
-          if (w && d) d.tasks.push({ uid: newTaskUid(), kind: tk.kind, done: tk.done, text: tk.text, tags: [], remind: { enabled: false, time: '20:00' } });
+          if (w && d) d.tasks.push({ uid: newTaskUid(), kind: tk.kind, done: tk.done, text: tk.text, tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } });
         });
         saveMonthState(PLAN_YEAR, m - 1, s);
         // Tháng đang xem: đồng bộ vào state in-memory để setView/save() không ghi đè bản đã merge.
@@ -703,6 +732,8 @@ function defaultState() {
       overview: ['', '', '', ''],
       weeks: WEEK_PATTERNS.slice(0, NUM_WEEKS).map(() => ['', '', '', '']),
     },
+    weeklyReviews: Array.from({ length: NUM_WEEKS }, () => emptyReview()),
+    monthlyReview: emptyMonthlyReview(),
   };
 }
 
@@ -712,10 +743,15 @@ function loadState() {
     // Chỉ dùng dữ liệu legacy cho khách vãng lai; tài khoản đã đăng nhập không kế thừa key cũ
     if (!raw && monthKey(PLAN_YEAR, PLAN_MONTH) === 'planner-2026-1' && !hasAccount()) raw = localStorage.getItem(LEGACY_KEY);
     if (!raw) return null;
-    const s = JSON.parse(raw);
+    if (!window.TaskFlowDataMigrations) throw new Error('TaskFlowDataMigrations missing');
+    const parsedState = JSON.parse(raw);
+    const schemaDirty = parsedState.schemaVersion !== window.TaskFlowDataMigrations.VERSION;
+    const s = window.TaskFlowDataMigrations.migrateMonthState(parsedState, { year: PLAN_YEAR, month: PLAN_MONTH + 1 });
     if (!s || !Array.isArray(s.monthlyGoals) || !Array.isArray(s.habits) || !Array.isArray(s.weeks)) return null;
     if (s.monthKey !== monthKey(PLAN_YEAR, PLAN_MONTH) || s.weeks.length !== NUM_WEEKS) return null;
     if (!s.reflections || !Array.isArray(s.reflections.weeks) || s.reflections.weeks.length !== NUM_WEEKS) s.reflections = defaultState().reflections;
+    ensureWeeklyReviews(s, NUM_WEEKS);
+    ensureMonthlyReview(s);
     if (!s.goalTab) s.goalTab = 'priority';
     // Migration additive (P2): tháng cũ chưa có pillars → điền template mặc định.
     window.TaskFlowPillars.ensurePillars(s);
@@ -732,6 +768,7 @@ function loadState() {
       (w.days || []).forEach((d) => {
         (d.tasks || []).forEach((tk) => {
           if (!Array.isArray(tk.tags)) tk.tags = [];
+          window.TaskFlowPillars.setTaskMetricIds(tk, tk.linkedMetricIds);
           if (!tk.remind || typeof tk.remind !== 'object') tk.remind = { enabled: false, time: '20:00' };
           if (typeof tk.repeat === 'undefined') tk.repeat = null;
           if (typeof tk.uid !== 'string') { tk.uid = newTaskUid(); tasksDirty = true; }
@@ -739,7 +776,7 @@ function loadState() {
       });
     });
     // Lưu uid mới sinh ngay (không gọi save() — state global đang trong TDZ lúc load khởi động)
-    if (tasksDirty) {
+    if (tasksDirty || schemaDirty) {
       try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(s)); } catch (e) { /* ẩn */ }
     }
     // Đồng bộ streak với số tích ✓: khi xem tháng hiện tại, tự bỏ tick các ngày tương lai
@@ -798,11 +835,11 @@ function emptyState() {
           const dt = new Date(start.getTime() + (wi * 7 + di) * 86400000);
           return {
             tasks: [
-              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
             ],
             date: `${dt.getDate()}/${dt.getMonth() + 1}`,
             yy: dt.getFullYear() % 100,
@@ -816,6 +853,8 @@ function emptyState() {
       overview: ['', '', '', ''],
       weeks: Array.from({ length: NUM_WEEKS }, () => ['', '', '', '']),
     },
+    weeklyReviews: Array.from({ length: NUM_WEEKS }, () => emptyReview()),
+    monthlyReview: emptyMonthlyReview(),
   };
 }
 
@@ -855,6 +894,8 @@ let inbox = loadInbox();
 function save() {
   // Migration additive (P2): state luôn có pillars hợp lệ trước khi serialize.
   if (window.TaskFlowPillars) window.TaskFlowPillars.ensurePillars(state);
+  ensureWeeklyReviews(state, NUM_WEEKS);
+  ensureMonthlyReview(state);
   try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(state)); } catch (e) { /* ẩn */ }
   if (window.Sync) window.Sync.push(monthKey(PLAN_YEAR, PLAN_MONTH));
   backupAfterSave();
@@ -1333,6 +1374,125 @@ const { psStart, shortMonth } = window.TaskFlowPlanMini;
 // trackEvent) resolve qua global lexical tại thời điểm GỌI — pattern mood.js/popups.js.
 if (!window.TaskFlowReportUI) throw new Error('TaskFlowReportUI missing — js/report-ui.js failed to load');
 const { monthlyReportData, renderReportModal, openReportModal, closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, openWeekReportModal, closeWeekReportModal, weekReportCardBlob, doShareWeekReport } = window.TaskFlowReportUI;
+
+let monthCarryTarget = null;
+let monthCarryDestination = null;
+let monthCarrySelection = normalizeCarrySelection(null);
+
+function createEmptyMonthState(y, m) {
+  const previous = capturePlan();
+  try {
+    initPlan(new Date(y, m, 1));
+    const destination = emptyState();
+    // A newly created destination must not silently contain template pillars:
+    // the preview and final state contain only structures explicitly selected.
+    destination.pillars = [];
+    return destination;
+  } finally {
+    restorePlan(previous);
+  }
+}
+
+function readMonthCarrySelection() {
+  const selected = normalizeCarrySelection(null);
+  document.querySelectorAll('#monthCarryContent [data-carry-kind]:checked').forEach((input) => {
+    const id = input.dataset.carryId || '';
+    if (!id) return;
+    if (input.dataset.carryKind === 'pillar') selected.pillarIds.push(id);
+    else if (input.dataset.carryKind === 'focus') selected.focusPillarIds.push(id);
+    else if (input.dataset.carryKind === 'habit') selected.habitIds.push(id);
+    else if (input.dataset.carryKind === 'metric') selected.metricIds.push(id);
+  });
+  return normalizeCarrySelection(selected);
+}
+
+function renderMonthCarry(preview) {
+  const content = document.getElementById('monthCarryContent');
+  if (!content || !monthCarryTarget || !monthCarryDestination) return;
+  const nextPreview = preview || buildCarryPreview(state, monthCarryDestination, monthCarrySelection, {
+    monthDays: new Date(monthCarryTarget.year, monthCarryTarget.month + 1, 0).getDate(),
+  });
+  content.innerHTML = carryDialogHTML(state, monthCarrySelection, nextPreview, { t, esc });
+}
+
+function openMonthCarry(trigger) {
+  monthCarryTarget = nextCarryMonth(PLAN_YEAR, PLAN_MONTH);
+  monthCarryDestination = monthStateRaw(monthCarryTarget.year, monthCarryTarget.month)
+    || createEmptyMonthState(monthCarryTarget.year, monthCarryTarget.month);
+  monthCarrySelection = normalizeCarrySelection(null);
+  closeReportModal();
+  renderMonthCarry();
+  TaskFlowUI.openDialog('monthCarryModal', trigger);
+}
+
+function previewMonthCarry() {
+  monthCarrySelection = readMonthCarrySelection();
+  renderMonthCarry();
+}
+
+function applyMonthCarry() {
+  monthCarrySelection = readMonthCarrySelection();
+  const context = { monthDays: new Date(monthCarryTarget.year, monthCarryTarget.month + 1, 0).getDate() };
+  const result = applyCarryover(state, monthCarryDestination, monthCarrySelection, context);
+  if (!result.ok) {
+    renderMonthCarry(result.preview);
+    return;
+  }
+  const saved = saveMonthState(monthCarryTarget.year, monthCarryTarget.month, result.state);
+  if (!saved) {
+    TaskFlowUI.toast(t('monthCarrySaveError'), 'error');
+    return;
+  }
+  TaskFlowUI.closeDialog('monthCarryModal');
+  TaskFlowUI.toast(t('monthCarrySuccess'), 'success');
+  openMonth(PLAN_MONTH + 1);
+}
+
+function closeMonthCarry() {
+  TaskFlowUI.closeDialog('monthCarryModal');
+}
+
+let reportHistoryEntries = [];
+let reportHistoryFilter = 'daily';
+
+function renderUnifiedReportHistory() {
+  const content = document.getElementById('reportHistoryContent');
+  if (!content) return;
+  content.innerHTML = reflectionHistoryHTML({ entries: reportHistoryEntries, filter: reportHistoryFilter }, { t, esc });
+}
+
+function openUnifiedReportHistory() {
+  reportHistoryEntries = collectReflectionHistory(localStorage);
+  reportHistoryFilter = 'daily';
+  closeReportModal();
+  renderUnifiedReportHistory();
+  TaskFlowUI.openDialog('reportHistoryModal');
+}
+
+function closeUnifiedReportHistory() {
+  TaskFlowUI.closeDialog('reportHistoryModal');
+}
+
+function openUnifiedHistoryEntry(id) {
+  const entry = reportHistoryEntries.find((item) => item.id === id);
+  if (!entry || !entry.owner) return;
+  closeUnifiedReportHistory();
+  if (entry.type === 'daily') {
+    window.TaskFlowReflection.openDeepReflection(entry.owner.key);
+    return;
+  }
+  if (Number.isInteger(entry.owner.year) && Number.isInteger(entry.owner.month)) {
+    PLAN_YEAR = entry.owner.year;
+    openMonth(entry.owner.month);
+  }
+  if (entry.type === 'weekly') {
+    const week = Math.max(1, Math.min(NUM_WEEKS, (+entry.owner.weekIndex || 0) + 1));
+    state.currentWeek = week;
+    setView('week', week);
+  } else if (entry.type === 'monthly') {
+    openReportModal();
+  }
+}
 
 /* ---------- Huy hiệu 🎖️ ---------- */
 const BADGE_DEFS = [
@@ -1907,6 +2067,14 @@ function renderWeek() {
   const w = state.weeks[state.currentWeek - 1];
   const st = weekStats(w);
   const ti = nowInfo(PLAN_START, NUM_DAYS);
+  const weeklyReviewModel = buildWeeklyReviewModel(state, state.currentWeek - 1, {
+    planStart: PLAN_START,
+    year: PLAN_YEAR,
+    month: PLAN_MONTH,
+    monthDays: NUM_DAYS,
+    focusMinutes: focusWeekMinutes(w.n).reduce((sum, minutes) => sum + minutes, 0),
+    legacyPrompts: REFLECT_PROMPTS_WEEK(),
+  });
   el.innerHTML = `
     <div class="week-page">
       <header class="week-page-header">
@@ -1960,7 +2128,7 @@ function renderWeek() {
           <div class="pomo-tomato-wrap" id="pomoWidgetTomato"></div>
         </div>
         ${focusChartCardHTML(w)}
-        <div class="card reflection sub week-reflection-card">${reflectionHTML('w' + w.n, REFLECT_PROMPTS_WEEK())}</div>
+        ${weeklyReviewHTML(weeklyReviewModel, { t, esc, formatFocusTime })}
       </section>
       <nav class="week-day-selector" aria-label="${t('weekDaySelectorAria')}">
         ${w.days.map((d, di) => `<button type="button" class="week-day-selector-button${isDayToday(d) ? ' today' : ''}" data-action="day-jump" data-day-target="week-day-${w.n}-${di}" aria-label="${t('weekJumpDay', { day: dayLabel(di) })}"><span>${dayLabel(di)}</span><small>${d.date}</small></button>`).join('')}
@@ -2156,6 +2324,7 @@ function goDay(offset) {
 // loadPomoLog, pomoDateKey, window.TaskFlowUI, emptyStateHTML, taskFocusSecs/taskFocusLog,
 // carriedDateLabel, state, viewedMonth, tagFilter, PLAN_*/NUM_DAYS) resolve qua global
 // lexical tại thời điểm GỌI — pattern mood.js/popups.js.
+if (!window.TaskFlowAlignment) throw new Error('TaskFlowAlignment missing — js/alignment.js failed to load');
 if (!window.TaskFlowToday) throw new Error('TaskFlowToday missing — js/today.js failed to load');
 const { todayGreeting, todayWeekdayLabel, renderToday, totalFocusMinutesToday, taskRowHTML } = window.TaskFlowToday;
 
@@ -2251,6 +2420,35 @@ function refreshTaskRowAfterEdit() {
   saveTaskDetailState();
 }
 
+function taskMetricLinksHTML(monthState, task, inInbox) {
+  const selected = new Set(normalizeTaskMetricIds(task));
+  const pillars = inInbox ? [] : visiblePillars(monthState)
+    .map((pillar) => ({ ...pillar, metrics: Array.isArray(pillar.metrics) ? pillar.metrics.filter(Boolean) : [] }))
+    .filter((pillar) => pillar.metrics.length);
+  let content = '';
+  if (inInbox) {
+    content = `<p class="td-empty">${t('taskLinkedMetricsInbox')}</p>`;
+  } else if (!pillars.length) {
+    content = `<p class="td-empty">${t('taskLinkedMetricsEmpty')}</p>`;
+  } else {
+    content = pillars.map((pillar) => `<div class="td-metric-pillar">
+      <span class="td-metric-pillar-name"><span aria-hidden="true">${esc(pillar.icon)}</span>${esc(pillar.name)}</span>
+      <div class="td-metric-options">
+        ${pillar.metrics.map((metric) => `<label class="td-metric-option">
+          <input type="checkbox" data-action="td-metric-link" data-metric-id="${esc(metric.id)}"
+            ${selected.has(metric.id) ? 'checked' : ''}
+            aria-label="${t('taskLinkedMetricAria', { pillar: pillar.name, metric: metric.title })}">
+          <span>${esc(metric.title) || t('metricUntitled')}</span>
+        </label>`).join('')}
+      </div>
+    </div>`).join('');
+  }
+  return `<fieldset class="td-linked-metrics" data-role="td-linked-metrics">
+    <legend>${t('taskLinkedMetrics')}</legend>
+    ${content}
+  </fieldset>`;
+}
+
 function renderTaskDetail() {
   const drawer = document.getElementById('taskDrawer');
   const body = drawer && drawer.querySelector('[data-role="td-body"]');
@@ -2321,6 +2519,7 @@ function renderTaskDetail() {
           </select>
         </label>
       </div>
+      ${taskMetricLinksHTML(taskDetailState(), tk, inInbox)}
       <div class="td-field">
         <span class="td-field-label">${t('taskDetailTags')}</span>
         <div class="td-tags">
@@ -2436,6 +2635,18 @@ function bindTaskDetailEvents(drawer) {
       save();
     });
   }
+  drawer.querySelectorAll('[data-action="td-metric-link"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const g = getTaskDetailTarget();
+      if (!g) return;
+      const ids = Array.from(drawer.querySelectorAll('[data-action="td-metric-link"]:checked'))
+        .map((item) => item.dataset.metricId);
+      setTaskMetricIds(g.tk, ids);
+      saveTaskDetailState();
+      if (state.view === 'overview') rerenderPillars();
+      trackEvent('link_task_metric', { count: ids.length });
+    });
+  });
 }
 
 /* ============================ Phase 2: Tìm kiếm xuyên tháng ============================ */
@@ -2603,7 +2814,7 @@ function copyMonthTemplate() {
             const dt = new Date(PLAN_START.getTime() + (wi * 7 + di) * 86400000);
             const sd = (sw.days && sw.days[di]) || {};
             return {
-              tasks: (sd.tasks || []).map((tk) => ({ uid: newTaskUid(), kind: tk.kind, done: false, text: tk.text || '', tags: Array.isArray(tk.tags) ? tk.tags.slice() : [] })),
+              tasks: (sd.tasks || []).map((tk) => ({ uid: newTaskUid(), kind: tk.kind, done: false, text: tk.text || '', tags: Array.isArray(tk.tags) ? tk.tags.slice() : [], linkedMetricIds: [] })),
               date: `${dt.getDate()}/${dt.getMonth() + 1}`,
               yy: dt.getFullYear() % 100,
               sticky: sd.sticky || null,
@@ -3948,7 +4159,7 @@ document.addEventListener('click', (e) => {
     if (!ti.inRange) return;
     const w = state.weeks[ti.week - 1];
     const d = w.days[ti.dayInWeek];
-    d.tasks.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
+    d.tasks.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } });
     renderToday();
     save();
     trackEvent('create_task', { scope: 'today' });
@@ -3958,7 +4169,7 @@ document.addEventListener('click', (e) => {
   } else if (act === 'addtask') {
     const w = state.weeks[+el.dataset.week - 1];
     const d = w.days[+el.dataset.day];
-    d.tasks.push({ uid: newTaskUid(), kind: el.dataset.kind, done: false, text: '', tags: [], remind: { enabled: false, time: '20:00' } });
+    d.tasks.push({ uid: newTaskUid(), kind: el.dataset.kind, done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } });
     renderWeek();
     save();
     trackEvent('create_task', { kind: el.dataset.kind });
@@ -4030,7 +4241,7 @@ document.addEventListener('click', (e) => {
     const src = d.tasks[+el.dataset.task];
     if (src) {
       // Bản nhân bản là task mới — không kế thừa carriedFrom (badge ↳ dồn) hay trạng thái done
-      const copy = { ...src, uid: newTaskUid(), done: false, text: src.text, carriedFrom: undefined };
+      const copy = { ...src, uid: newTaskUid(), done: false, text: src.text, carriedFrom: undefined, linkedMetricIds: [] };
       d.tasks.push(copy);
       if (state.view === 'today') renderToday();
       else renderWeek();
@@ -4295,6 +4506,23 @@ document.addEventListener('click', (e) => {
     closeReportModal();
   } else if (act === 'share-report') {
     doShareReport();
+  } else if (act === 'month-carry-open') {
+    openMonthCarry(el);
+  } else if (act === 'month-carry-preview') {
+    previewMonthCarry();
+  } else if (act === 'month-carry-apply') {
+    applyMonthCarry();
+  } else if (act === 'month-carry-close') {
+    closeMonthCarry();
+  } else if (act === 'report-history-open-panel') {
+    openUnifiedReportHistory();
+  } else if (act === 'report-history-filter') {
+    reportHistoryFilter = el.dataset.historyFilter || 'daily';
+    renderUnifiedReportHistory();
+  } else if (act === 'report-history-open') {
+    openUnifiedHistoryEntry(el.dataset.historyId || '');
+  } else if (act === 'report-history-close') {
+    closeUnifiedReportHistory();
   } else if (act === 'week-report') {
     openWeekReportModal();
   } else if (act === 'close-week-report') {
@@ -4591,7 +4819,30 @@ function flushPendingSaves() {
 
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.dataset.reflectQ) {
+  if (t.dataset.monthlyReviewField) {
+    const updated = updateMonthlyReviewField(state, t.dataset.monthlyReviewField, t.value, new Date().toISOString());
+    if (updated) {
+      setMonthlyReviewStatus(window.TaskFlowI18N.t('monthlyReviewSaving'));
+      saveSoon();
+      scheduleMonthlyReviewSaved(() => setMonthlyReviewStatus(window.TaskFlowI18N.t('monthlyReviewSaved')), 450);
+    }
+  } else if (t.dataset.weekReviewField) {
+    const weekIndex = Number(t.dataset.weekIndex);
+    const priorityIndex = t.dataset.priorityIndex === undefined ? null : Number(t.dataset.priorityIndex);
+    const updated = updateReviewField(
+      state,
+      weekIndex,
+      t.dataset.weekReviewField,
+      t.value,
+      priorityIndex,
+      new Date().toISOString()
+    );
+    if (updated) {
+      setWeeklyReviewSaveStatus(window.TaskFlowI18N.t('weeklyReviewSaving'));
+      saveSoon();
+      scheduleSavedStatus(() => setWeeklyReviewSaveStatus(window.TaskFlowI18N.t('weeklyReviewSaved')), 450);
+    }
+  } else if (t.dataset.reflectQ) {
     const [scope, i] = t.dataset.reflectQ.split('-');
     saveRefQuestion(scope, +i, t.innerText);
   } else if (t.dataset.reflect) {
@@ -5051,6 +5302,10 @@ document.addEventListener('click', (e) => {
   if (m && !m.hidden && e.target === m) closeSyncModal();
   const r = document.getElementById('reportModal');
   if (r && !r.hidden && e.target === r) closeReportModal();
+  const mc = document.getElementById('monthCarryModal');
+  if (mc && !mc.hidden && e.target === mc) closeMonthCarry();
+  const rh = document.getElementById('reportHistoryModal');
+  if (rh && !rh.hidden && e.target === rh) closeUnifiedReportHistory();
   const wr = document.getElementById('weekReportModal');
   if (wr && !wr.hidden && e.target === wr) closeWeekReportModal();
   const yr = document.getElementById('yearReportModal');

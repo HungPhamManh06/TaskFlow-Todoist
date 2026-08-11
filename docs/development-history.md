@@ -114,6 +114,65 @@
 - ⏱ **MANUAL/CUSTOM** — ô ngày tự đánh dấu (day-strip), toggle qua dispatcher, re-render chỉ dòng (giữ scroll).
 - 🧪 Kiểm chứng: unit 349/0 (22 test mới `phase13-metrics.test.mjs`: target modes 28/30/31/leap, HABIT link, habit bị xoá, MANUAL toggle, migration), E2E Chromium đầy đủ + scenario `metrics` + Firefox/WebKit OK, a11y 62/0, CSS verifier 0 diffs, minify 59 file, Lighthouse không hồi quy (app-mobile 76 — đợt đo 70/73 là nhiễu máy, lặp lại 3 run xác nhận).
 
+## Personal Growth & Reflection — P4: Task + Focus Metric Integration
+
+- ✅ **TASK metric** — một metric tổng hợp số task đã hoàn thành từ nhiều task được liên kết; task không liên kết không làm thay đổi tiến độ.
+- ⏱ **FOCUS metric** — cộng tổng số phút trong `focusLog` của riêng các task liên kết, giới hạn đúng tháng đang xem; thời gian từ task không liên kết bị loại khỏi phép tính.
+- 🔗 **Liên kết nhiều metric** — mỗi task lịch tháng có `linkedMetricIds: string[]`; Task Detail cung cấp nhóm checkbox truy cập được, cho phép một task liên kết đồng thời nhiều metric TASK/FOCUS.
+- 🧭 **Quy tắc vòng đời** — di chuyển trong cùng tháng giữ liên kết; duplicate, recurrence và carry-over chủ động xoá liên kết để tránh cộng nhầm vào metric tháng nguồn.
+- 🧪 **Kiểm chứng** — unit 372/0, sync 7/7, E2E Chromium đầy đủ 15 scenario × 5 viewport và scenario P4 chuyên biệt desktop/mobile, mobile QA 262/262, a11y 62/62, CSS verifier 0 diffs, minify 59/59 file.
+
+## Personal Growth & Reflection — P5: Daily Alignment
+
+- 🧭 **Daily Alignment trong Today** — một thẻ gọn theo từng trụ cột, đặt phía trên lịch hôm nay để chỉ ra các hành động cần làm ngay.
+- 🔗 **Dữ liệu dẫn xuất, không tạo bản sao** — metric HABIT hiển thị habit được liên kết nếu hôm nay không bị bỏ qua; metric TASK/FOCUS chỉ hiển thị các task hôm nay được liên kết trực tiếp với metric đó; MANUAL/CUSTOM không tạo hành động.
+- ♻️ **Khử trùng lặp đúng phạm vi** — cùng một task chỉ xuất hiện một lần trong một trụ cột, nhưng vẫn có thể xuất hiện ở nhiều trụ cột khi được liên kết hợp lệ; trạng thái hoàn thành tiếp tục dùng chính task/habit gốc.
+- 📱 **Responsive + accessibility** — bố cục xếp dọc trên mobile, giữ nguyên các action hiện có và bổ sung test id ổn định cho kiểm thử trình duyệt.
+- 🧪 **Kiểm chứng** — unit 382/382, sync 7/7, E2E Chromium đầy đủ 16 scenario × 5 viewport và scenario P5 chuyên biệt desktop/mobile, mobile QA 262/262, a11y 62/62, CSS verifier 0 diffs, minify 60/60 file.
+
+## Personal Growth & Reflection — P6: Weekly Review
+
+- 📊 **Tổng kết tuần tự động** — Week view hiển thị số task hoàn thành, tỷ lệ habit và tổng thời gian Focus theo đúng các ngày thuộc tuần đang xem.
+- 🎯 **Điểm tiến độ theo trụ cột** — mỗi trụ cột tổng hợp các metric có thể chấm điểm; TASK và FOCUS chỉ tính các task được liên kết trực tiếp với metric tương ứng.
+- ✍️ **Đánh giá có cấu trúc** — lưu riêng theo tuần các mục điều tốt nhất, trở ngại, bài học, thay đổi và ba ưu tiên tuần tới; autosave có trạng thái thông báo truy cập được.
+- 🧳 **Tương thích dữ liệu cũ** — `state.weeklyReviews` được migration cộng thêm, không thay thế `state.reflections.weeks`; nội dung phản ánh cũ vẫn xem được trong phần thu gọn.
+- 🌐 **Song ngữ + responsive** — đầy đủ tiếng Việt/Anh, giao diện một cột trên mobile, không gây tràn ngang và hoạt động offline qua service worker cache `v189`.
+- 🧪 **Kiểm chứng** — unit 408/408, sync 7/7, server security PASS, E2E Chromium đầy đủ 17 scenario × 5 viewport và scenario Weekly Review chuyên biệt desktop/mobile, smoke PASS, mobile QA 262/262, a11y 62/62, CSS verifier 0 diffs, minify 61/61 file.
+
+## Personal Growth & Reflection — P7: Monthly Review
+
+- 📊 **Tổng kết tháng từ dữ liệu thật** — điểm tổng thể và tiến độ từng trụ cột dùng trực tiếp metric tháng; TASK/FOCUS chỉ tính task liên kết đúng metric, metric lỗi thời hoặc không chấm được bị loại khỏi insight.
+- 🏆 **Strongest / Needs attention** — chọn metric cao nhất và thấp nhất theo thứ tự ổn định, không tạo nhận xét khi không có dữ liệu đủ điều kiện.
+- ✍️ **Continue / Stop / Start** — năm trường reflection tháng autosave trong `state.monthlyReview`; tháng trống vẫn viết được và có trạng thái lưu truy cập được.
+- 🧳 **Tương thích reflection cũ** — `state.reflections.overview` không bị chuyển nghĩa hoặc xoá; câu trả lời cũ hiển thị trong disclosure riêng.
+- 🧪 **Kiểm chứng checkpoint P7** — unit 424/424, sync 7/7, E2E Monthly Review desktop/mobile PASS, CSS verifier 0 diffs, minify 62/62 file.
+
+## Personal Growth & Reflection — P8: Next Month Carry-over
+
+- 🧭 **Chọn rõ trước khi chuyển** — launcher ở cuối Monthly Review mở dialog bắt đầu với mọi mục chưa chọn; người dùng chọn độc lập trụ cột, Monthly Focus, habit và từng metric rồi xem trước chính xác nội dung sẽ tạo hoặc bỏ qua.
+- 🔗 **Liên kết an toàn** — HABIT metric bắt buộc habit nguồn được chọn hoặc đã tồn tại ở tháng đích; ID mới chống va chạm và `linkedHabitId` được remap sang habit đích.
+- 🧼 **Khởi đầu sạch** — chỉ cấu trúc đã chọn được sao chép; task, goal, tiến độ ngày, skip day, reminder đang bật, focus log, weekly/monthly review đều không đi theo.
+- 🛡️ **Không ghi đè** — habit/trụ cột tương đương ở tháng đích được giữ nguyên; lỗi quota không điều hướng và không thay đổi dữ liệu đích.
+- 🌐 **Production-ready** — song ngữ Việt/Anh, dialog rộng trên desktop và một cột trên mobile, asset offline cache `v191` và scenario E2E riêng trong ma trận release.
+- 🧪 **Kiểm chứng checkpoint P8** — hồi quy P4–P8 93/93, sync 7/7, E2E carry-over desktop/mobile PASS, minify 63/63 file; kiểm tra trực quan light/dark và mobile không tràn ngang.
+
+## Personal Growth & Reflection — P9: Reports Integration
+
+- ⚖️ **Monthly Balance** — Report tái sử dụng đúng điểm Monthly Review làm nguồn duy nhất, hiển thị progressbar truy cập được cho từng trụ cột và strongest/needs-attention từ metric thật.
+- 📏 **Gợi ý theo quy tắc** — chỉ phát thông điệp trung tính khi metric dưới 40% hoặc trên 80%; hai biên 40/80 không phát gợi ý, không gọi AI và không suy diễn sức khỏe, ý định hay nguyên nhân.
+- 🗂️ **Lịch sử reflection hợp nhất** — Daily, Weekly và Monthly Review từ mọi tháng được chuẩn hóa, sắp mới nhất trước và lọc bằng ba tab; mở bản ghi sẽ chuyển về đúng bề mặt có thể xem/sửa của loại đó.
+- 🙂 **Mood trend trung thực** — ưu tiên mood trong Daily Reflection, fallback dữ liệu mood cũ, chỉ hiển thị phân bố và hướng khi có ít nhất ba ngày hợp lệ.
+- 🌐 **Report production** — layout hai cột desktop/một cột mobile, dark mode, modal lịch sử có focus semantics, asset mới được precache offline trong service worker `v192`.
+- 🧪 **Kiểm chứng checkpoint P9** — unit P7–P9 89/89 và frontend 134/134; E2E Report Growth desktop/mobile PASS với balance 60%, ngưỡng 30/90, ba filter, mở Daily detail, dark mode và không tràn ngang.
+
+## Personal Growth & Reflection — P10: Data Lifecycle
+
+- 🧬 **Schema v2 có migration an toàn** — month state được thêm `schemaVersion: 2` khi đọc/ghi; snapshot v1 và state chưa version được nâng cấp thuần, idempotent, giữ nguyên ID, `linkedMetricIds`, focus log, reflection và mọi trường tương lai chưa biết.
+- 📦 **Export/import đầy đủ** — JSON export mang `version: 2` và gom dữ liệu planner có thể di chuyển cùng legacy key đúng một lần; token, metadata sync và các slot backup nội bộ bị loại bỏ. Import xác thực, hiển thị số key/version trước khi xác nhận, lưu backup hiện tại trước khi ghi và rollback toàn bộ key đã chạm nếu storage lỗi.
+- 🚫 **Từ chối dữ liệu không an toàn** — snapshot sai app/key/value, JSON hỏng hoặc version tương lai đều không được ghi và không reload; giao diện trả thông báo Việt/Anh riêng cho backup từ phiên bản mới hơn.
+- ☁️ **Hợp đồng sync được siết chặt** — backend chỉ nhận key `/^planner-[A-Za-z0-9._-]{1,120}$/`, giới hạn JSON 512 KiB với lỗi 400/413 rõ ràng, giữ nguyên JSONB và per-key last-write-wins; state v2 push/pull không mất trường tương lai.
+- 🔐 **Minh bạch quyền riêng tư** — UI nêu rõ sync là tùy chọn, server không mã hóa đầu-cuối, last-write-wins có thể thay thế chỉnh sửa đồng thời cũ hơn và reflection không được gửi tới analytics, AI hay bên thứ ba.
+- 🧪 **Kiểm chứng hoàn tất P7–P10** — unit 466/466, sync 8/8, server security 5/5, focused Data Lifecycle E2E desktop/mobile PASS, Chromium release 21 scenario × 5 viewport PASS, smoke PASS, mobile QA 262/262, accessibility 62/62, DOM audit PASS, critical CSS 0 diff và minify 66/66 file.
 ## Visual Theme Refinement — P1: Token palette (Zen Linen × Amber Hearth × Sage Mist)
 
 - 🎨 **New semantic token palette** (css/tokens.css only, no component CSS yet): 60% Zen Linen warm paper surfaces + 25% Amber Hearth burnt-orange actions + 15% Sage Mist growth/success.

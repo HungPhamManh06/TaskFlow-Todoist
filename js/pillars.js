@@ -170,10 +170,25 @@
 
   /* ================= P3 — Monthly Metrics ================= */
 
+  // Liên kết metric nằm trên task để đi theo task khi chuyển ngày trong cùng tháng.
+  // Dữ liệu legacy không có field này được xem như mảng rỗng; giá trị rác/trùng bị bỏ.
+  function normalizeTaskMetricIds(task) {
+    const ids = task && Array.isArray(task.linkedMetricIds) ? task.linkedMetricIds : [];
+    return [...new Set(ids
+      .filter((id) => typeof id === 'string' && id.trim())
+      .map((id) => id.trim()))];
+  }
+
+  function setTaskMetricIds(task, ids) {
+    if (!task || typeof task !== 'object') return [];
+    task.linkedMetricIds = normalizeTaskMetricIds({ linkedMetricIds: ids });
+    return task.linkedMetricIds;
+  }
+
   // Chuẩn hoá 1 metric — điền default cho field thiếu (migration / dữ liệu cũ).
   function normalizeMetric(m) {
     if (!m || typeof m !== 'object') return null;
-    const type = (m.type === 'HABIT' || m.type === 'CUSTOM') ? m.type : 'MANUAL';
+    const type = ['HABIT', 'MANUAL', 'CUSTOM', 'TASK', 'FOCUS'].includes(m.type) ? m.type : 'MANUAL';
     const target = (m.target && typeof m.target === 'object' && m.target.mode)
       ? m.target
       : { mode: 'daily', value: 1 };
@@ -188,6 +203,7 @@
       },
       days: Array.isArray(m.days) ? m.days : [],
       createdAt: typeof m.createdAt === 'string' ? m.createdAt : null,
+      ...(type === 'FOCUS' ? { unit: 'minutes' } : {}),
     };
   }
 
@@ -217,23 +233,56 @@
     }
   }
 
+  // Thu thập task trong một month state. Duyệt phòng thủ để dữ liệu cũ/rỗng không crash.
+  function monthTasks(state) {
+    if (!state || !Array.isArray(state.weeks)) return [];
+    const tasks = [];
+    state.weeks.forEach((week) => {
+      if (!week || !Array.isArray(week.days)) return;
+      week.days.forEach((day) => {
+        if (day && Array.isArray(day.tasks)) tasks.push(...day.tasks.filter(Boolean));
+      });
+    });
+    return tasks;
+  }
+
   // Số ngày đã hoàn thành của metric trong tháng.
   // HABIT: đếm ngày habit liên kết tick ✓ (habit bị xoá → 0).
   // MANUAL/CUSTOM: đếm ô ngày tự đánh dấu trong metric.days.
-  function metricDone(habits, metric) {
+  function metricDone(source, metric, context) {
     const m = normalizeMetric(metric);
+    const habits = Array.isArray(source) ? source : (source && Array.isArray(source.habits) ? source.habits : []);
     if (m.type === 'HABIT') {
-      const h = (Array.isArray(habits) ? habits : []).find((x) => x && x.id === m.linkedHabitId);
+      const h = habits.find((x) => x && x.id === m.linkedHabitId);
       if (!h || !Array.isArray(h.days)) return 0;
       return h.days.filter(Boolean).length;
+    }
+    if (m.type === 'TASK') {
+      return monthTasks(source).filter((task) => task.done === true
+        && normalizeTaskMetricIds(task).includes(m.id)).length;
+    }
+    if (m.type === 'FOCUS') {
+      const year = context && Number.isFinite(+context.year) ? Math.round(+context.year) : null;
+      const month = context && Number.isFinite(+context.month) ? Math.round(+context.month) : null;
+      if (year === null || month === null || month < 0 || month > 11) return 0;
+      const prefix = `${year}-${String(month + 1).padStart(2, '0')}-`;
+      let totalSecs = 0;
+      monthTasks(source).forEach((task) => {
+        if (!normalizeTaskMetricIds(task).includes(m.id) || !Array.isArray(task.focusLog)) return;
+        task.focusLog.forEach((entry) => {
+          const secs = entry && Number.isFinite(+entry.secs) ? +entry.secs : 0;
+          if (entry && typeof entry.d === 'string' && entry.d.startsWith(prefix) && secs > 0) totalSecs += secs;
+        });
+      });
+      return Math.floor(totalSecs / 60);
     }
     return Array.isArray(m.days) ? m.days.filter(Boolean).length : 0;
   }
 
   // Progress tổng hợp: { done, target, pct } — pct giới hạn 0-100, target 0 → 0.
-  function metricProgress(habits, metric, monthDays) {
+  function metricProgress(source, metric, monthDays, context) {
     const target = metricTarget(metric, monthDays);
-    const done = Math.min(metricDone(habits, metric), Math.max(1, target));
+    const done = Math.max(0, metricDone(source, metric, context));
     return { done, target, pct: target > 0 ? Math.min(100, Math.round(done / target * 100)) : 0 };
   }
 
@@ -249,6 +298,7 @@
       type: data && data.type,
       linkedHabitId: data && data.linkedHabitId,
       target: data && data.target,
+      unit: data && data.unit,
       days: [],
     });
     m.createdAt = new Date().toISOString();
@@ -261,9 +311,11 @@
     const m = metricById(state, id);
     if (!m) return null;
     if (typeof data.title === 'string') m.title = data.title.trim();
-    if (data.type === 'HABIT' || data.type === 'MANUAL' || data.type === 'CUSTOM') {
+    if (['HABIT', 'MANUAL', 'CUSTOM', 'TASK', 'FOCUS'].includes(data.type)) {
       m.type = data.type;
       m.linkedHabitId = data.type === 'HABIT' && typeof data.linkedHabitId === 'string' ? data.linkedHabitId : null;
+      if (data.type === 'FOCUS') m.unit = 'minutes';
+      else delete m.unit;
     }
     if (data.target && typeof data.target === 'object' && data.target.mode) {
       m.target = {
@@ -319,21 +371,30 @@
   }
 
   function metricRowHTML(state, p, m) {
-    const prog = metricProgress(state.habits, m, monthDaysCount());
+    const context = {
+      year: typeof PLAN_YEAR === 'number' ? PLAN_YEAR : null,
+      month: typeof PLAN_MONTH === 'number' ? PLAN_MONTH : null,
+    };
+    const prog = metricProgress(state, m, monthDaysCount(), context);
+    const unit = m.type === 'TASK' ? t('metricTaskUnit')
+      : m.type === 'FOCUS' ? t('metricFocusUnit') : t('metricDayUnit');
+    const barLabel = (m.type === 'TASK' || m.type === 'FOCUS')
+      ? t('metricBarAriaUnit', { title: m.title, done: prog.done, target: prog.target, unit: unit.trim() })
+      : t('metricBarAria', { title: m.title, done: prog.done, target: prog.target });
     const habitMissing = m.type === 'HABIT'
       && !(Array.isArray(state.habits) && state.habits.some((h) => h && h.id === m.linkedHabitId));
     return `<div class="metric-row" data-testid="metric-row" data-metric-id="${esc(m.id)}">
       <div class="metric-main">
         <span class="metric-title" title="${esc(m.title)}">${esc(m.title) || t('metricUntitled')}</span>
         ${habitMissing ? `<span class="metric-warn" title="${t('metricHabitGone')}">${t('metricHabitGone')}</span>` : ''}
-        <span class="metric-num">${prog.done}/${prog.target}${t('metricDayUnit')}</span>
+        <span class="metric-num">${prog.done}/${prog.target}${unit}</span>
         <div class="pillar-actions">
           <button type="button" class="mini-btn" data-action="metric-edit" data-id="${esc(m.id)}" title="${t('metricEdit')}" aria-label="${t('metricEdit')}">✏️</button>
           <button type="button" class="mini-btn" data-action="metric-delete" data-id="${esc(m.id)}" title="${t('metricDel')}" aria-label="${t('metricDel')}">🗑</button>
         </div>
       </div>
       <div class="metric-bar" role="progressbar" aria-valuenow="${prog.pct}" aria-valuemin="0" aria-valuemax="100"
-        aria-label="${t('metricBarAria', { title: m.title, done: prog.done, target: prog.target })}">
+        aria-label="${barLabel}">
         <div class="metric-bar-fill" style="width:${prog.pct}%"></div>
       </div>
       ${(m.type === 'MANUAL' || m.type === 'CUSTOM') ? metricDayStripHTML(state, p, m) : ''}
@@ -476,7 +537,7 @@
 
   /* ---------------- UI: metric edit/add modal ---------------- */
 
-  const METRIC_TYPES = ['HABIT', 'MANUAL', 'CUSTOM'];
+  const METRIC_TYPES = ['HABIT', 'TASK', 'FOCUS', 'MANUAL', 'CUSTOM'];
   let metricModalListenerAttached = false;
 
   function metricEditHTML(state, metricId, pillarId, tt) {
@@ -512,9 +573,12 @@
         </select>
         ${habits.length ? '' : `<p class="pillar-edit-hint">${tr('metricHabitNoneHint')}</p>`}
       </div>
+      <p class="pillar-edit-hint" data-role="metric-type-hint" ${type === 'TASK' || type === 'FOCUS' ? '' : 'hidden'}>
+        ${type === 'FOCUS' ? tr('metricFocusHint') : tr('metricTaskHint')}
+      </p>
       <label class="pillar-edit-field">
-        <span class="pillar-edit-label" for="metricTargetMode">${tr('metricTargetLbl')}</span>
-        <select class="inline-input" id="metricTargetMode" data-role="metric-target-mode">
+        <span class="pillar-edit-label" for="metricTargetMode" data-role="metric-target-label">${type === 'FOCUS' ? tr('metricTargetMinutesLbl') : tr('metricTargetLbl')}</span>
+        <select class="inline-input" id="metricTargetMode" data-role="metric-target-mode" ${type === 'FOCUS' ? 'disabled' : ''}>
           ${targetOpt('daily', tr('metricTargetDaily'))}
           ${targetOpt('perWeek', tr('metricTargetPerWeek'))}
           ${targetOpt('perMonth', tr('metricTargetPerMonth'))}
@@ -523,7 +587,7 @@
       </label>
       <label class="pillar-edit-field" data-role="metric-target-value-row" ${targetMode === 'daily' ? 'hidden' : ''}>
         <span class="pillar-edit-label" for="metricTargetValue">${tr('metricTargetValueLbl')}</span>
-        <input type="number" min="1" max="31" step="1" class="inline-input" id="metricTargetValue" data-role="metric-target-value" value="${targetValue}" />
+        <input type="number" min="1" max="${type === 'FOCUS' ? 100000 : 31}" step="1" class="inline-input" id="metricTargetValue" data-role="metric-target-value" value="${targetValue}" />
       </label>
       <div class="pillar-edit-actions">
         ${metricId ? `<button type="button" class="button pillar-delete-btn" data-action="metric-delete" data-id="${esc(metricId)}">${tr('metricDel')}</button>` : ''}
@@ -545,6 +609,19 @@
       });
       const habitRow = content.querySelector('[data-role="metric-habit-row"]');
       if (habitRow) habitRow.hidden = typeBtn.dataset.metricType !== 'HABIT';
+      const type = typeBtn.dataset.metricType;
+      const hint = content.querySelector('[data-role="metric-type-hint"]');
+      if (hint) {
+        hint.hidden = type !== 'TASK' && type !== 'FOCUS';
+        hint.textContent = type === 'FOCUS' ? t('metricFocusHint') : t('metricTaskHint');
+      }
+      const mode = content.querySelector('[data-role="metric-target-mode"]');
+      if (mode && (type === 'TASK' || type === 'FOCUS')) mode.value = 'perMonth';
+      if (mode) mode.disabled = type === 'FOCUS';
+      const targetLabel = content.querySelector('[data-role="metric-target-label"]');
+      if (targetLabel) targetLabel.textContent = type === 'FOCUS' ? t('metricTargetMinutesLbl') : t('metricTargetLbl');
+      const targetValue = content.querySelector('[data-role="metric-target-value"]');
+      if (targetValue) targetValue.max = type === 'FOCUS' ? '100000' : '31';
     }
     const modeSel = content.querySelector('[data-role="metric-target-mode"]');
     if (modeSel && (e.target === modeSel || typeBtn)) {
@@ -600,7 +677,7 @@
     const body = content.querySelector('[data-metric-edit-id]');
     const metricId = body ? (body.dataset.metricEditId || null) : null;
     const pillarId = body ? (body.dataset.metricPillarId || null) : null;
-    const data = { title, type, linkedHabitId, target: { mode, value } };
+    const data = { title, type, linkedHabitId, target: { mode, value }, ...(type === 'FOCUS' ? { unit: 'minutes' } : {}) };
     const metric = metricId ? updateMetric(state, metricId, data) : (pillarId ? addMetric(state, pillarId, data) : null);
     closeMetricEdit();
     return { ok: !!metric, metric };
@@ -612,6 +689,8 @@
     defaultTemplate,
     normalizePillar,
     normalizeMetric,
+    normalizeTaskMetricIds,
+    setTaskMetricIds,
     ensurePillars,
     pillarById,
     metricById,
@@ -622,6 +701,7 @@
     setFocus,
     resetPillars,
     metricTarget,
+    monthTasks,
     metricDone,
     metricProgress,
     addMetric,
@@ -629,6 +709,7 @@
     removeMetric,
     toggleMetricDay,
     pillarsBlockHTML,
+    metricEditHTML,
     metricRowHTML,
     openPillarEdit,
     closePillarEdit,

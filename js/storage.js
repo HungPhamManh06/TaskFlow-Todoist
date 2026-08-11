@@ -13,15 +13,22 @@
     try {
       const raw = localStorage.getItem('planner-' + y + '-' + (m + 1));
       if (!raw) return null;
-      const s = JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      const M = typeof globalThis !== 'undefined' && globalThis.TaskFlowDataMigrations;
+      const s = M ? M.migrateMonthState(parsed, { year: y, month: m + 1 }) : parsed;
+      if (M && parsed.schemaVersion !== M.VERSION) {
+        try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(s)); } catch (e) { /* read still succeeds */ }
+      }
       if (!s || !Array.isArray(s.habits)) return null;
       return s;
     } catch (e) { return null; }
   }
 
   function saveMonthState(y, m, s) {
-    try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(s)); } catch (e) { /* ẩn */ }
+    if (s && typeof s === 'object') s.schemaVersion = 2;
+    try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(s)); } catch (e) { return false; }
     if (typeof window !== 'undefined' && window.Sync) window.Sync.push('planner-' + y + '-' + (m + 1));
+    return true;
   }
 
   function loadPomoLog() {

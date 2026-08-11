@@ -384,7 +384,7 @@ test('week renderer exposes a refined planning workspace contract', () => {
   assert.match(week, /weekHabitsHTML\(w\)/);
   assert.match(week, /data-action="week-report"/);
   assert.match(week, /data-role="pomo-widget"/);
-  assert.match(week, /reflectionHTML\(/);
+  assert.match(week, /weeklyReviewHTML\(/);
   assert.doesNotMatch(week, /week-banner|w-chick-on-bar/);
 });
 
@@ -817,8 +817,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=162/);
-  assert.match(SW, /const CACHE = 'taskflow-v195';/);
+  assert.match(APP, /js\/app\.min\.js\?v=167/);
+  assert.match(SW, /const CACHE = 'taskflow-v196';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1326,7 +1326,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=162/);
+  assert.match(APP, /js\/app\.min\.js\?v=167/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
@@ -1334,7 +1334,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v195';/);
+  assert.match(SW, /const CACHE = 'taskflow-v196';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -1810,7 +1810,7 @@ test('P11: export helpers extracted — downloadFile/collectAllData/exportJSON l
   assert.ok(SW.includes("\'./js/export.min.js\'"), 'sw.js phải precache js/export.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowExport\) throw new Error\('TaskFlowExport missing/);
-  assert.match(APP_JS, /const \{ downloadFile, collectAllData, exportJSON, exportCSV, exportICS \} = window\.TaskFlowExport;/);
+  assert.match(APP_JS, /const \{ downloadFile, collectAllData, prepareImport, applySnapshotTransactional, exportJSON, exportCSV, exportICS \} = window\.TaskFlowExport;/);
   assert.doesNotMatch(APP_JS, /^function collectAllData\(/m);
   assert.doesNotMatch(APP_JS, /^function downloadFile\(/m);
   assert.doesNotMatch(APP_JS, /^function exportJSON\(/m);
@@ -1833,7 +1833,7 @@ test('P11: export helpers extracted — downloadFile/collectAllData/exportJSON l
   assert.match(mod, /function icsEscape\(/);
   assert.match(mod, /function icsDayFromDay\(/);
   // module export đủ API + trackEvent qua TaskFlowAnalytics
-  assert.match(mod, /return \{ downloadFile, collectAllData, exportJSON, exportCSV, exportICS \}/);
+  assert.match(mod, /return \{ downloadFile, collectAllData, prepareImport, applySnapshotTransactional, exportJSON, exportCSV, exportICS \}/);
   assert.match(mod, /TaskFlowAnalytics/);
 });
 
@@ -1983,7 +1983,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v195';/);
+  assert.match(SW, /const CACHE = 'taskflow-v196';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2061,7 +2061,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v195';/);
+  assert.match(SW, /const CACHE = 'taskflow-v196';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
