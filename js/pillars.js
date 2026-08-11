@@ -269,6 +269,7 @@
       type: data && data.type,
       linkedHabitId: data && data.linkedHabitId,
       target: data && data.target,
+      unit: data && data.unit,
       days: [],
     });
     m.createdAt = new Date().toISOString();
@@ -281,9 +282,11 @@
     const m = metricById(state, id);
     if (!m) return null;
     if (typeof data.title === 'string') m.title = data.title.trim();
-    if (data.type === 'HABIT' || data.type === 'MANUAL' || data.type === 'CUSTOM') {
+    if (['HABIT', 'MANUAL', 'CUSTOM', 'TASK', 'FOCUS'].includes(data.type)) {
       m.type = data.type;
       m.linkedHabitId = data.type === 'HABIT' && typeof data.linkedHabitId === 'string' ? data.linkedHabitId : null;
+      if (data.type === 'FOCUS') m.unit = 'minutes';
+      else delete m.unit;
     }
     if (data.target && typeof data.target === 'object' && data.target.mode) {
       m.target = {
@@ -339,21 +342,30 @@
   }
 
   function metricRowHTML(state, p, m) {
-    const prog = metricProgress(state.habits, m, monthDaysCount());
+    const context = {
+      year: typeof PLAN_YEAR === 'number' ? PLAN_YEAR : null,
+      month: typeof PLAN_MONTH === 'number' ? PLAN_MONTH : null,
+    };
+    const prog = metricProgress(state, m, monthDaysCount(), context);
+    const unit = m.type === 'TASK' ? t('metricTaskUnit')
+      : m.type === 'FOCUS' ? t('metricFocusUnit') : t('metricDayUnit');
+    const barLabel = (m.type === 'TASK' || m.type === 'FOCUS')
+      ? t('metricBarAriaUnit', { title: m.title, done: prog.done, target: prog.target, unit: unit.trim() })
+      : t('metricBarAria', { title: m.title, done: prog.done, target: prog.target });
     const habitMissing = m.type === 'HABIT'
       && !(Array.isArray(state.habits) && state.habits.some((h) => h && h.id === m.linkedHabitId));
     return `<div class="metric-row" data-testid="metric-row" data-metric-id="${esc(m.id)}">
       <div class="metric-main">
         <span class="metric-title" title="${esc(m.title)}">${esc(m.title) || t('metricUntitled')}</span>
         ${habitMissing ? `<span class="metric-warn" title="${t('metricHabitGone')}">${t('metricHabitGone')}</span>` : ''}
-        <span class="metric-num">${prog.done}/${prog.target}${t('metricDayUnit')}</span>
+        <span class="metric-num">${prog.done}/${prog.target}${unit}</span>
         <div class="pillar-actions">
           <button type="button" class="mini-btn" data-action="metric-edit" data-id="${esc(m.id)}" title="${t('metricEdit')}" aria-label="${t('metricEdit')}">✏️</button>
           <button type="button" class="mini-btn" data-action="metric-delete" data-id="${esc(m.id)}" title="${t('metricDel')}" aria-label="${t('metricDel')}">🗑</button>
         </div>
       </div>
       <div class="metric-bar" role="progressbar" aria-valuenow="${prog.pct}" aria-valuemin="0" aria-valuemax="100"
-        aria-label="${t('metricBarAria', { title: m.title, done: prog.done, target: prog.target })}">
+        aria-label="${barLabel}">
         <div class="metric-bar-fill" style="width:${prog.pct}%"></div>
       </div>
       ${(m.type === 'MANUAL' || m.type === 'CUSTOM') ? metricDayStripHTML(state, p, m) : ''}
@@ -496,7 +508,7 @@
 
   /* ---------------- UI: metric edit/add modal ---------------- */
 
-  const METRIC_TYPES = ['HABIT', 'MANUAL', 'CUSTOM'];
+  const METRIC_TYPES = ['HABIT', 'TASK', 'FOCUS', 'MANUAL', 'CUSTOM'];
   let metricModalListenerAttached = false;
 
   function metricEditHTML(state, metricId, pillarId, tt) {
@@ -532,9 +544,12 @@
         </select>
         ${habits.length ? '' : `<p class="pillar-edit-hint">${tr('metricHabitNoneHint')}</p>`}
       </div>
+      <p class="pillar-edit-hint" data-role="metric-type-hint" ${type === 'TASK' || type === 'FOCUS' ? '' : 'hidden'}>
+        ${type === 'FOCUS' ? tr('metricFocusHint') : tr('metricTaskHint')}
+      </p>
       <label class="pillar-edit-field">
-        <span class="pillar-edit-label" for="metricTargetMode">${tr('metricTargetLbl')}</span>
-        <select class="inline-input" id="metricTargetMode" data-role="metric-target-mode">
+        <span class="pillar-edit-label" for="metricTargetMode" data-role="metric-target-label">${type === 'FOCUS' ? tr('metricTargetMinutesLbl') : tr('metricTargetLbl')}</span>
+        <select class="inline-input" id="metricTargetMode" data-role="metric-target-mode" ${type === 'FOCUS' ? 'disabled' : ''}>
           ${targetOpt('daily', tr('metricTargetDaily'))}
           ${targetOpt('perWeek', tr('metricTargetPerWeek'))}
           ${targetOpt('perMonth', tr('metricTargetPerMonth'))}
@@ -543,7 +558,7 @@
       </label>
       <label class="pillar-edit-field" data-role="metric-target-value-row" ${targetMode === 'daily' ? 'hidden' : ''}>
         <span class="pillar-edit-label" for="metricTargetValue">${tr('metricTargetValueLbl')}</span>
-        <input type="number" min="1" max="31" step="1" class="inline-input" id="metricTargetValue" data-role="metric-target-value" value="${targetValue}" />
+        <input type="number" min="1" max="${type === 'FOCUS' ? 100000 : 31}" step="1" class="inline-input" id="metricTargetValue" data-role="metric-target-value" value="${targetValue}" />
       </label>
       <div class="pillar-edit-actions">
         ${metricId ? `<button type="button" class="button pillar-delete-btn" data-action="metric-delete" data-id="${esc(metricId)}">${tr('metricDel')}</button>` : ''}
@@ -565,6 +580,19 @@
       });
       const habitRow = content.querySelector('[data-role="metric-habit-row"]');
       if (habitRow) habitRow.hidden = typeBtn.dataset.metricType !== 'HABIT';
+      const type = typeBtn.dataset.metricType;
+      const hint = content.querySelector('[data-role="metric-type-hint"]');
+      if (hint) {
+        hint.hidden = type !== 'TASK' && type !== 'FOCUS';
+        hint.textContent = type === 'FOCUS' ? t('metricFocusHint') : t('metricTaskHint');
+      }
+      const mode = content.querySelector('[data-role="metric-target-mode"]');
+      if (mode && (type === 'TASK' || type === 'FOCUS')) mode.value = 'perMonth';
+      if (mode) mode.disabled = type === 'FOCUS';
+      const targetLabel = content.querySelector('[data-role="metric-target-label"]');
+      if (targetLabel) targetLabel.textContent = type === 'FOCUS' ? t('metricTargetMinutesLbl') : t('metricTargetLbl');
+      const targetValue = content.querySelector('[data-role="metric-target-value"]');
+      if (targetValue) targetValue.max = type === 'FOCUS' ? '100000' : '31';
     }
     const modeSel = content.querySelector('[data-role="metric-target-mode"]');
     if (modeSel && (e.target === modeSel || typeBtn)) {
@@ -620,7 +648,7 @@
     const body = content.querySelector('[data-metric-edit-id]');
     const metricId = body ? (body.dataset.metricEditId || null) : null;
     const pillarId = body ? (body.dataset.metricPillarId || null) : null;
-    const data = { title, type, linkedHabitId, target: { mode, value } };
+    const data = { title, type, linkedHabitId, target: { mode, value }, ...(type === 'FOCUS' ? { unit: 'minutes' } : {}) };
     const metric = metricId ? updateMetric(state, metricId, data) : (pillarId ? addMetric(state, pillarId, data) : null);
     closeMetricEdit();
     return { ok: !!metric, metric };
@@ -651,6 +679,7 @@
     removeMetric,
     toggleMetricDay,
     pillarsBlockHTML,
+    metricEditHTML,
     metricRowHTML,
     openPillarEdit,
     closePillarEdit,
