@@ -1,7 +1,7 @@
 # P5 Daily Alignment Design
 
-**Date:** 2026-08-11  
-**Status:** Approved design  
+**Date:** 2026-08-11
+**Status:** Approved design
 **Depends on:** P2 Monthly Pillars, P3 Monthly Metrics, P4 Task/Focus Metric Integration
 
 ## Goal
