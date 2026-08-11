@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const Insights = require('../js/report-insights.js');
+const History = require('../js/reflection-history.js');
 
 const model = {
   pillars: [{
@@ -79,4 +80,77 @@ test('moodTrend returns steady and declining facts without causal labels', () =>
   assert.equal(Insights.moodTrend([
     { date: '2026-08-01', mood: 5 }, { date: '2026-08-02', mood: 3 }, { date: '2026-08-03', mood: 1 },
   ]).directionKey, 'reportMoodDeclining');
+});
+
+function memoryStorage(records) {
+  const keys = Object.keys(records);
+  return {
+    get length() { return keys.length; },
+    key(index) { return keys[index] ?? null; },
+    getItem(key) { return Object.hasOwn(records, key) ? records[key] : null; },
+  };
+}
+
+const historyStorage = memoryStorage({
+  'planner-reflections-daily': JSON.stringify({
+    '2026-08-03': { mood: 3, quickGood: 'Daily win', updatedAt: '2026-08-03T20:00:00.000Z' },
+    bad: 'ignored',
+  }),
+  'planner-2026-8': JSON.stringify({
+    monthKey: 'planner-2026-8',
+    weeklyReviews: [{ best: 'Week one win', blocker: '', learned: '', change: '', priorities: [], updatedAt: '2026-08-07T20:00:00.000Z' }],
+    monthlyReview: { achievement: 'July outcome', learned: '', continue: '', stop: '', start: '', updatedAt: '2026-07-31T20:00:00.000Z' },
+  }),
+  'planner-2026-9': JSON.stringify({
+    monthKey: 'planner-2026-9',
+    weeklyReviews: [null, { best: '', blocker: 'Week blocker', learned: '', change: '', priorities: [], updatedAt: '2026-08-12T20:00:00.000Z' }],
+    monthlyReview: { achievement: 'August outcome', learned: 'Learned', continue: '', stop: '', start: '', updatedAt: '2026-08-31T20:00:00.000Z' },
+  }),
+  'planner-2026-10': '{bad json',
+  'unrelated': JSON.stringify({ monthlyReview: { achievement: 'ignore' } }),
+});
+
+test('collectReflectionHistory combines daily, weekly and monthly newest first', () => {
+  const entries = History.collectReflectionHistory(historyStorage);
+  assert.deepEqual(entries.map((entry) => entry.type), ['monthly', 'weekly', 'weekly', 'daily', 'monthly']);
+  assert.deepEqual(entries.map((entry) => entry.date), ['2026-08-31', '2026-08-12', '2026-08-07', '2026-08-03', '2026-07-31']);
+  assert.equal(entries.find((entry) => entry.type === 'daily').mood, 4);
+  assert.equal(entries[0].excerpt, 'August outcome');
+});
+
+test('filterHistory supports the three exact types and safe defaults', () => {
+  const entries = History.collectReflectionHistory(historyStorage);
+  assert.equal(History.filterHistory(entries, 'daily').length, 1);
+  assert.equal(History.filterHistory(entries, 'weekly').length, 2);
+  assert.equal(History.filterHistory(entries, 'monthly').length, 2);
+  assert.equal(History.filterHistory(entries, 'invalid').length, entries.length);
+});
+
+test('collectReflectionHistory tolerates malformed storage and empty records', () => {
+  const storage = memoryStorage({
+    'planner-reflections-daily': '[]',
+    'planner-2026-8': JSON.stringify({ weeklyReviews: [{ best: '' }], monthlyReview: {} }),
+    'planner-2026-9': 'null',
+  });
+  assert.deepEqual(History.collectReflectionHistory(storage), []);
+  assert.deepEqual(History.collectReflectionHistory(null), []);
+});
+
+const historyCopy = {
+  reportHistoryDaily: 'Daily', reportHistoryWeekly: 'Weekly', reportHistoryMonthly: 'Monthly',
+  reportHistoryEmpty: 'No entries', reportHistoryOpen: 'Open entry',
+};
+const historyT = (key) => historyCopy[key] || key;
+const historyEsc = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+test('reflectionHistoryHTML renders accessible filters, newest entries and empty states', () => {
+  const entries = History.collectReflectionHistory(historyStorage);
+  const html = History.reflectionHistoryHTML({ entries, filter: 'weekly' }, { t: historyT, esc: historyEsc });
+  assert.match(html, /role="tablist"/);
+  assert.match(html, /data-action="report-history-filter" data-history-filter="weekly"[^>]*aria-selected="true"/);
+  assert.match(html, /data-action="report-history-open"/);
+  assert.match(html, /Week blocker/);
+  assert.ok(html.indexOf('Week blocker') < html.indexOf('Week one win'));
+  const empty = History.reflectionHistoryHTML({ entries: [], filter: 'daily' }, { t: historyT, esc: historyEsc });
+  assert.match(empty, /No entries/);
 });
