@@ -671,6 +671,20 @@
     </div>
   </div>
 
+  <!-- ===== Smart Daily Planner (V1.3) ===== -->
+  <div class="report-modal" id="plannerModal" hidden data-testid="planner-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="plannerDialogTitle">
+      <button type="button" class="sync-close" data-action="planner-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+      <h2 class="sync-modal-title" id="plannerDialogTitle"><span data-i18n="plannerTitle">Lập kế hoạch hôm nay</span></h2>
+      <div id="plannerContent" class="planner-body"></div>
+      <div class="planner-actions">
+        <button type="button" class="button button-ghost" data-action="planner-cancel"><span data-i18n="plannerCancel">Hủy</span></button>
+        <button type="button" class="button button-primary" data-action="planner-apply"><span data-i18n="plannerApply">Áp dụng</span></button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Context manager (V1.2.1) ===== -->
   <div class="report-modal" id="contextEditModal" hidden data-testid="context-edit-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="contextEditDialogTitle">
@@ -825,7 +839,10 @@
   <script src="js/projects.min.js?v=1"></script>
   <script src="js/projects-ui.min.js?v=1"></script>
   <script src="js/contexts.min.js?v=1"></script>
-  <script src="js/app.min.js?v=175"></script>
+  <script src="js/timeblocks.min.js?v=1"></script>
+  <script src="js/planner-rules.min.js?v=1"></script>
+  <script src="js/planner-ui.min.js?v=1"></script>
+  <script src="js/app.min.js?v=176"></script>
 </body>
 
 </html>

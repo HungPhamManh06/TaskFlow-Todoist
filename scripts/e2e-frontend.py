@@ -1770,6 +1770,102 @@ def projects_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def planner_checks(browser, base, width, height, errors, screenshot):
+    """V1.3: Smart Daily Planner (rule-based).
+    1) seed task hôm nay (1 quá hạn + 1 thường, có duration) + 2 TimeBlock
+       → khe trống 10:00-11:00
+    2) mở planner → proposal preview hiện đủ 5 bước + task xếp hạng
+    3) Cancel → KHÔNG có thay đổi data (planner-timeblocks giữ nguyên)
+    4) Apply → tạo TimeBlock cho task được chọn (vào khe trống), modal đóng."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"planner {width}px: {error}"))
+    page.on("dialog", lambda dialog: dialog.accept())
+    # Seed trước boot: today tasks (uid ổn định) + 2 TimeBlock đã có.
+    page.add_init_script("""(() => {
+      localStorage.setItem('planner-onboarded','1');
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = 'planner-' + year + '-' + (month + 1);
+      let state;
+      try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { state = null; }
+      if (!state) state = { version: 1, weeks: [], pillars: [], habits: [] };
+      state.monthKey = 'planner-' + year + '-' + (month + 1);
+      state.schemaVersion = 2;
+      if (!Array.isArray(state.monthlyGoals)) state.monthlyGoals = [];
+      if (!Array.isArray(state.habits)) state.habits = [];
+      while (state.weeks.length < 6) state.weeks.push({ days: [] });
+      state.weeks.forEach(w => { while (w.days.length < 7) w.days.push({ tasks: [] }); });
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const start = new Date(year, month, 1 - offset);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const numWeeks = Math.ceil((offset + daysInMonth) / 7);
+      while (state.weeks.length < numWeeks) state.weeks.push({ days: [] });
+      state.weeks.length = numWeeks;
+      state.weeks.forEach(w => { while (w.days.length < 7) w.days.push({ tasks: [] }); });
+      const delta = Math.floor((now - start) / 86400000);
+      const week = Math.floor(delta / 7), day = delta % 7;
+      const dayState = state.weeks[week].days[day];
+      const yst = new Date(year, month, now.getDate() - 1);
+      const ystIso = yst.getFullYear() + '-' + String(yst.getMonth() + 1).padStart(2,'0') + '-' + String(yst.getDate()).padStart(2,'0');
+      dayState.tasks = [
+        { uid: 'pl-t1', kind: 'regular', done: false, text: 'Planner overdue task', duration: 60,
+          deadline: ystIso, tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+        { uid: 'pl-t2', kind: 'regular', done: false, text: 'Planner normal task', duration: 90,
+          tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+      ];
+      localStorage.setItem(key, JSON.stringify(state));
+      // 2 TimeBlock hôm nay → khe trống 10:00-11:00
+      const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+      localStorage.setItem('planner-timeblocks', JSON.stringify({ version: 1, blocks: [
+        { id: 'pl-b1', taskUid: 'pl-t2', date: today, start: '09:00', end: '10:00', status: 'planned', createdAt: '', updatedAt: '' },
+        { id: 'pl-b2', taskUid: 'pl-t1', date: today, start: '11:00', end: '12:00', status: 'planned', createdAt: '', updatedAt: '' },
+      ] }));
+    })()""")
+    page.goto(f"{base}/app.html?view=today", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="today-view"]', state="visible")
+
+    # Nút planner trong Today header
+    assert page.locator('.today-planner-btn').count() == 1, "Today phải có nút Lập kế hoạch hôm nay"
+    before_blocks = page.evaluate("JSON.stringify(JSON.parse(localStorage.getItem('planner-timeblocks')).blocks)")
+
+    # 1) Mở planner → preview hiện 5 bước + 2 task xếp hạng + select quá hạn
+    page.locator('[data-action="planner-open"]').click()
+    page.wait_for_selector('[data-testid="planner-modal"]:visible', state="visible")
+    assert page.locator('.planner-step').count() == 5, "planner phải có đủ 5 bước"
+    assert page.locator('.planner-top-item').count() == 2, "phải có 2 task được xếp hạng"
+    assert page.locator('[data-planner-overdue]').count() == 1, "phải có 1 task quá hạn với select dời ngày"
+    assert page.locator('.planner-sched-item').count() == 1, "phải có 1 gợi ý block (task 60p vào khe 10:00-11:00)"
+    # Sắp xếp: task quá hạn phải đứng đầu
+    first_text = page.locator('.planner-top-item').first.locator('.planner-top-text').inner_text()
+    assert "overdue" in first_text, f"task quá hạn phải xếp đầu, thấy: {first_text}"
+
+    # 2) Cancel → KHÔNG thay đổi data
+    page.locator('[data-action="planner-cancel"]').click()
+    page.wait_for_selector('[data-testid="planner-modal"]:visible', state="detached")
+    after_cancel = page.evaluate("JSON.stringify(JSON.parse(localStorage.getItem('planner-timeblocks')).blocks)")
+    assert after_cancel == before_blocks, "Cancel KHÔNG được tạo/sửa TimeBlock"
+    task_count = page.evaluate("JSON.parse(localStorage.getItem('planner-' + new Date().getFullYear() + '-' + (new Date().getMonth()+1))).weeks.flatMap(w => w.days.flatMap(d => d.tasks || [])).length")
+    assert task_count == 2, "Cancel KHÔNG được đổi task"
+
+    # 3) Apply → tạo TimeBlock mới (vào khe trống), modal đóng
+    page.locator('[data-action="planner-open"]').click()
+    page.wait_for_selector('[data-testid="planner-modal"]:visible', state="visible")
+    page.locator('[data-action="planner-apply"]').click()
+    page.wait_for_selector('[data-testid="planner-modal"]:visible', state="detached")
+    after_apply = page.evaluate("JSON.stringify(JSON.parse(localStorage.getItem('planner-timeblocks')).blocks)")
+    blocks = page.evaluate("JSON.parse(localStorage.getItem('planner-timeblocks')).blocks")
+    assert len(blocks) == 3, f"Apply phải tạo 1 TimeBlock mới (2 → 3), thấy {len(blocks)}"
+    assert any(b["taskUid"] == "pl-t1" and b["start"] == "10:00" and b["end"] == "11:00" for b in blocks), \
+        "block mới phải là pl-t1 vào khe 10:00-11:00"
+
+    assert_no_page_overflow(page, f"planner {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -1805,7 +1901,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1861,6 +1957,7 @@ def main():
                     ("report-growth", report_growth_checks),
                     ("data-lifecycle", data_lifecycle_checks),
                     ("projects", projects_checks),
+                    ("planner", planner_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1922,6 +2019,9 @@ def main():
             elif args.view == "projects":
                 projects_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 projects_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "planner":
+                planner_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                planner_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

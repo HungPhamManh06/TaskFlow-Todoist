@@ -107,6 +107,7 @@
     <header class="today-header">
       <p class="today-greeting">${esc(todayGreeting())}</p>
       <h1 class="today-date">${esc(todayWeekdayLabel())}</h1>
+      ${window.TaskFlowPlannerUI ? `<button type="button" class="today-planner-btn" data-action="planner-open" aria-label="${t('plannerOpen')}">${window.TaskFlowUI.icon('calendar')}<span>${t('plannerOpen')}</span></button>` : ''}
     </header>
     ${alignmentHTML}
     <div class="today-grid">

@@ -635,6 +635,20 @@ let projectsFilter = 'active'; // filter mặc định trên trang Projects
 if (!window.TaskFlowContexts) throw new Error('TaskFlowContexts missing — js/contexts.js failed to load');
 const Contexts = window.TaskFlowContexts;
 
+// Smart Daily Planner (V1.3) — js/planner-rules.js (thuần) + js/planner-ui.js (render).
+// Rule-based, NO AI. CRITICAL: proposal → preview → Apply. Không sửa data trước Apply.
+if (!window.TaskFlowPlannerRules) throw new Error('TaskFlowPlannerRules missing — js/planner-rules.js failed to load');
+if (!window.TaskFlowPlannerUI) throw new Error('TaskFlowPlannerUI missing — js/planner-ui.js failed to load');
+const PlannerRules = window.TaskFlowPlannerRules;
+const PlannerUI = window.TaskFlowPlannerUI;
+
+function loadTimeBlocksStore() {
+  return window.TaskFlowTimeBlocks.loadTimeBlocks();
+}
+function saveTimeBlocksStore(store) {
+  window.TaskFlowTimeBlocks.saveTimeBlocks(store);
+}
+
 function loadContextsStore() {
   return Contexts.loadContexts();
 }
@@ -701,6 +715,141 @@ function openContextEditModal() {
   TaskFlowUI.openDialog('contextEditModal');
   const input = document.querySelector('[data-role="ctx-add-input"]');
   if (input) setTimeout(() => input.focus(), 30);
+}
+
+/* ---------- V1.3 — Smart Daily Planner (rule-based, NO AI) ---------- */
+
+// Lấy task hôm nay (chưa done) từ state.weeks để đưa vào planner.
+function todayPlannerTasks() {
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
+  if (!ti.inRange) return [];
+  const day = state.weeks[ti.week - 1] && state.weeks[ti.week - 1].days[ti.dayInWeek];
+  if (!day || !Array.isArray(day.tasks)) return [];
+  return day.tasks.map((tk, i) => ({ ...tk, _week: ti.week, _day: ti.dayInWeek, _idx: i }));
+}
+
+// Mở dialog planner: thu thập input → buildProposal (thuần) → render preview.
+// KHÔNG sửa data. Apply là hành động riêng (planner-apply).
+function openPlannerModal() {
+  const todayTasks = todayPlannerTasks();
+  if (!todayTasks.length) {
+    TaskFlowUI.toast(t('plannerNoTasks'), 'info');
+    return;
+  }
+  const blocks = loadTimeBlocksStore();
+  const today = PlannerUI.todayStr();
+  const todayBlocks = window.TaskFlowTimeBlocks.blocksForDate(blocks, today);
+  const projects = loadProjectsStore();
+  const proposal = PlannerRules.buildProposal({
+    now: new Date(),
+    tasks: todayTasks.map(({ _week, _day, _idx, ...tk }) => tk),
+    blocks: todayBlocks,
+    projects,
+    availableMinutes: PlannerUI.DEFAULT_AVAIL_HOURS * 60,
+  });
+  window._lastPlannerProposal = proposal;
+  const content = document.getElementById('plannerContent');
+  if (content) content.innerHTML = PlannerUI.plannerContentHTML(proposal);
+  TaskFlowUI.openDialog('plannerModal');
+  trackEvent('planner_open');
+}
+
+// Áp dụng kế hoạch: tạo TimeBlock cho task đã chọn + dời việc quá hạn theo lựa chọn.
+// CHỈ chạy khi user bấm Apply. Undo không phủ (theo precedent projects/timeblocks).
+function applyPlannerPlan() {
+  const proposal = window._lastPlannerProposal;
+  const content = document.getElementById('plannerModal');
+  if (!proposal || !content) return;
+  const selections = PlannerUI.readSelections(content);
+  const plan = PlannerUI.buildApplyPlan(proposal, selections);
+
+  // 1) Tạo TimeBlock cho task đã chọn (nếu proposal gợi ý giờ).
+  let blockStore = loadTimeBlocksStore();
+  if (Array.isArray(plan.blocks) && plan.blocks.length) {
+    const today = PlannerUI.todayStr();
+    plan.blocks.forEach((b) => {
+      window.TaskFlowTimeBlocks.createTimeBlock(blockStore, {
+        taskUid: b.taskUid,
+        date: today,
+        start: b.start,
+        end: b.end,
+        status: 'planned',
+      });
+    });
+    saveTimeBlocksStore(blockStore);
+  }
+
+  // 2) Dời việc quá hạn theo lựa chọn (tomorrow / this-week / inbox).
+  if (Array.isArray(plan.reschedule) && plan.reschedule.length) {
+    plan.reschedule.forEach((r) => {
+      const o = proposal.overdue && proposal.overdue[r.idx];
+      if (!o || !o.uid) return;
+      const taskRef = findPlannerTaskByUid(o.uid);
+      if (!taskRef) return; // không tìm thấy (tháng khác / đã xoá) → bỏ qua an toàn
+      if (r.option === 'inbox') {
+        movePlannerTaskToInbox(taskRef);
+      } else if (r.option === 'tomorrow' || r.option === 'this-week') {
+        movePlannerTaskToDay(taskRef, r.option);
+      }
+    });
+  }
+
+  save();
+  renderCurrentView();
+  TaskFlowUI.closeDialog('plannerModal');
+  delete window._lastPlannerProposal;
+  trackEvent('planner_apply');
+  TaskFlowUI.toast(t('plannerApplied'), 'success');
+}
+
+// Tìm task theo uid trong state.weeks (tháng hiện tại). Trả {week, day, idx, tk} hoặc null.
+function findPlannerTaskByUid(uid) {
+  if (!uid) return null;
+  for (let w = 0; w < state.weeks.length; w++) {
+    const week = state.weeks[w];
+    if (!week || !Array.isArray(week.days)) continue;
+    for (let d = 0; d < week.days.length; d++) {
+      const day = week.days[d];
+      if (!day || !Array.isArray(day.tasks)) continue;
+      for (let i = 0; i < day.tasks.length; i++) {
+        if (day.tasks[i] && day.tasks[i].uid === uid) return { week: w, day: d, idx: i, tk: day.tasks[i] };
+      }
+    }
+  }
+  return null;
+}
+
+// Dời task tới ngày mai hoặc cuối tuần này (trong cùng tháng). Dùng moveTaskAcrossDays
+// giữ uid — đúng convention task-move. Không đổi kind.
+function movePlannerTaskToDay(ref, option) {
+  const ti = nowInfo(PLAN_START, NUM_DAYS);
+  if (!ti.inRange) return;
+  const srcDay = state.weeks[ref.week].days[ref.day];
+  let targetWeek = ti.week - 1;
+  let targetDay = ti.dayInWeek;
+  if (option === 'tomorrow') {
+    const tm = ti.dayIdx + 1;
+    if (tm >= NUM_DAYS) return; // hết kỳ kế hoạch → giữ nguyên
+    targetWeek = Math.floor(tm / 7);
+    targetDay = tm % 7;
+  } else if (option === 'this-week') {
+    targetDay = 6; // cuối tuần hiện tại (Chủ Nhật)
+  }
+  const dstDay = state.weeks[targetWeek] && state.weeks[targetWeek].days[targetDay];
+  if (!dstDay) return;
+  const moved = window.PlanMath.moveTaskAcrossDays(srcDay.tasks, dstDay.tasks, ref.idx, ref.tk.kind || 'regular');
+  srcDay.tasks = moved.tasksFrom;
+  dstDay.tasks = moved.tasksTo;
+}
+
+// Chuyển task quá hạn về Inbox — GIỮ uid, giữ projectId/milestoneId/tags...
+function movePlannerTaskToInbox(ref) {
+  const srcDay = state.weeks[ref.week].days[ref.day];
+  const tk = ref.tk;
+  srcDay.tasks.splice(ref.idx, 1);
+  const inboxTask = { ...tk, inbox: true };
+  inbox.push(inboxTask);
+  saveInbox();
 }
 
 // Xoá context → lọc task.contexts trên toàn store (month states + inbox), KHÔNG xoá task.
@@ -4699,6 +4848,15 @@ document.addEventListener('click', (e) => {
     }
   } else if (act === 'ctx-close') {
     TaskFlowUI.closeDialog('contextEditModal');
+  } else if (act === 'planner-open') {
+    openPlannerModal();
+  } else if (act === 'planner-close') {
+    TaskFlowUI.closeDialog('plannerModal');
+  } else if (act === 'planner-cancel') {
+    TaskFlowUI.closeDialog('plannerModal');
+    trackEvent('planner_cancel');
+  } else if (act === 'planner-apply') {
+    applyPlannerPlan();
   } else if (act === 'subtask-add') {
     const g = getTaskDetailTarget();
     const inp = document.querySelector('#taskDrawer [data-role="td-subtask-input"]');
