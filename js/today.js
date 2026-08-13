@@ -16,6 +16,18 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
 
+  // V1.1: cache store projects mỗi lần render (đọc localStorage 1 lần, không mỗi row).
+  let projectsStoreCache = { version: 1, projects: [] };
+  function refreshProjectsStoreCache() {
+    try {
+      if (window.TaskFlowProjects) projectsStoreCache = window.TaskFlowProjects.loadProjects();
+    } catch (e) { /* ẩn */ }
+  }
+  function projectsChip(task) {
+    if (!window.TaskFlowProjectsUI || !window.TaskFlowProjectsUI.taskProjectChip) return '';
+    try { return window.TaskFlowProjectsUI.taskProjectChip(projectsStoreCache, task); } catch (e) { return ''; }
+  }
+
   function todayGreeting() {
     const h = new Date().getHours();
     if (h >= 5 && h < 12) return t('todayGreetingMorning');
@@ -61,6 +73,7 @@
       checkboxLabel: window.TaskFlowUI.checkboxLabel,
     });
 
+    refreshProjectsStoreCache();
     const taskRows = tasks.length
       ? tasks.map((tk, i) => {
           const timed = tk.remind && tk.remind.enabled && tk.remind.time;
@@ -69,6 +82,7 @@
         <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: i + 1 })}">${esc(tk.text ?? '')}</span>
         ${tk.kind === 'priority' ? `<span class="badge badge-accent today-prio">${t('todayPriority')}</span>` : ''}
         ${timed ? `<span class="today-task-time">${esc(timed)}</span>` : ''}
+        ${projectsChip(tk)}
         ${tk.done ? '' : `<button type="button" class="btn-del" data-action="deltask" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">${window.TaskFlowUI.icon('trash')}</button>`}
       </div>`;
         }).join('')
@@ -150,6 +164,7 @@
     if (task.deadline) metaBits.push(`<span class="task-meta-deadline" title="${esc(fmtDeadline(task.deadline))}">${window.TaskFlowUI.icon('calendar')}<span>${esc(fmtDeadline(task.deadline))}</span></span>`);
     if (taskFocusSecs(task) > 0) metaBits.push(`<span class="task-meta-focus" title="${t('focusLogTotal', { n: Math.round(taskFocusSecs(task) / 60) })}">${window.TaskFlowUI.icon('focus')}<span>${esc(formatFocusTime(Math.round(taskFocusSecs(task) / 60)))}</span></span>`);
     const meta = metaBits.length ? `<span class="task-meta">${metaBits.join('')}</span>` : '';
+    const pjChip = projectsChip(task);
     return `<div class="task-row${tagFilter && !tags.includes(tagFilter) ? ' filtered-out' : ''}${task.carriedFrom ? ' carried' : ''}${task.done ? ' done' : ''}" data-testid="task-row" draggable="true" data-drag="task" data-week="${wn}" data-day="${di}" data-task="${ti}" data-kind="${task.kind}" data-pos="${pos ?? 0}" title="${t('dragHint')}" aria-label="${t('dragHint')}">
     ${checkboxHTML(mod, task.done, `data-action="task" data-week="${wn}" data-day="${di}" data-task="${ti}"`, window.TaskFlowUI.checkboxLabel('task', task.text, `${t('weekN', { n: wn })}, ${dayLabel(di)}`))}
     ${task.carriedFrom ? `<span class="carried-badge" title="${t('carriedFrom', { date: carriedDateLabel(task.carriedFrom) })}" aria-label="${t('carriedFrom', { date: carriedDateLabel(task.carriedFrom) })}">↳</span>` : ''}
@@ -157,6 +172,7 @@
       <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${wn}" data-day="${di}" data-task="${ti}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: ti + 1 })}">${esc(task.text ?? '')}</span>
       ${meta}
     </span>
+    ${pjChip}
     ${tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : ''}
     <span class="task-row-actions">
       <button type="button" class="task-focus-btn" data-action="focus-task" data-week="${wn}" data-day="${di}" data-task="${ti}" title="${t('taskFocusBtn')}" aria-label="${t('taskFocusBtn')}">${window.TaskFlowUI.icon('focus')}</button>

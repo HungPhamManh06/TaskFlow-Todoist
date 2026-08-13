@@ -620,6 +620,97 @@ const { collectReflectionHistory, reflectionHistoryHTML } = window.TaskFlowRefle
 if (!window.TaskFlowPillars) throw new Error('TaskFlowPillars missing — js/pillars.js failed to load');
 const { visiblePillars, normalizeTaskMetricIds, setTaskMetricIds } = window.TaskFlowPillars;
 
+// Projects & Milestones (V1.1) — js/projects.js (store) + js/projects-ui.js (render).
+// Store riêng ở 'planner-projects'; task linkage là field optional (projectId/milestoneId).
+// Module thuần: app.js orchestrate (nav, dispatcher, save, undo); UI đọc store qua tham số.
+if (!window.TaskFlowProjects) throw new Error('TaskFlowProjects missing — js/projects.js failed to load');
+if (!window.TaskFlowProjectsUI) throw new Error('TaskFlowProjectsUI missing — js/projects-ui.js failed to load');
+const ProjectsStore = window.TaskFlowProjects;
+const ProjectsUI = window.TaskFlowProjectsUI;
+let projectsFilter = 'active'; // filter mặc định trên trang Projects
+
+// Load store projects (migrate mỗi lần). Caller save qua ProjectsStore.saveProjects.
+function loadProjectsStore() {
+  return ProjectsStore.loadProjects();
+}
+function saveProjectsStore(store) {
+  ProjectsStore.saveProjects(store);
+}
+function renderProjectsView() {
+  renderProjectsViewWith(loadProjectsStore(), projectsFilter, null);
+}
+function renderProjectsViewWith(store, filter, openId) {
+  ProjectsUI.renderProjects(store, filter, openId);
+}
+
+// Mở dialog edit project (null = thêm mới).
+function openProjectEditModal(projectId) {
+  const store = loadProjectsStore();
+  const content = document.getElementById('projectEditContent');
+  if (content) content.innerHTML = ProjectsUI.projectEditForm(store, projectId);
+  TaskFlowUI.openDialog('projectEditModal');
+  const input = document.querySelector('[data-role="project-name"]');
+  if (input) setTimeout(() => input.focus(), 30);
+}
+
+// Mở dialog edit milestone (milestoneId null = thêm mới trong project).
+function openMilestoneEditModal(projectId, milestoneId) {
+  const store = loadProjectsStore();
+  const content = document.getElementById('milestoneEditContent');
+  if (content) content.innerHTML = ProjectsUI.milestoneEditForm(store, projectId, milestoneId);
+  TaskFlowUI.openDialog('milestoneEditModal');
+  const input = document.querySelector('[data-role="milestone-name"]');
+  if (input) setTimeout(() => input.focus(), 30);
+}
+
+// Xoá milestone → task liên kết giữ projectId, clear milestoneId trên toàn store
+// (month states + inbox). KHÔNG xoá task. Gọi save()/saveInbox() bởi caller.
+function unlinkTaskMilestoneAcrossStore(projectId, milestoneId) {
+  if (!milestoneId) return 0;
+  let fixed = 0;
+  const months = [];
+  for (let y = (new Date().getFullYear()) - 1; y <= (new Date().getFullYear()) + 1; y++) {
+    for (let m = 0; m < 12; m++) {
+      const raw = (() => { try { return localStorage.getItem(`planner-${y}-${m}`); } catch (e) { return null; } })();
+      if (!raw) continue;
+      let s = null;
+      try { s = JSON.parse(raw); } catch (e) { /* ẩn */ }
+      if (!s || !Array.isArray(s.weeks)) continue;
+      let touched = false;
+      s.weeks.forEach((w) => {
+        if (!w || !Array.isArray(w.days)) return;
+        w.days.forEach((d) => {
+          if (!d || !Array.isArray(d.tasks)) return;
+          d.tasks.forEach((tk) => {
+            if (tk && ProjectsStore.taskMilestoneId(tk) === milestoneId && ProjectsStore.taskProjectId(tk) === projectId) {
+              delete tk.milestoneId;
+              touched = true;
+              fixed++;
+            }
+          });
+        });
+      });
+      if (touched) {
+        try { localStorage.setItem(`planner-${y}-${m}`, JSON.stringify(s)); } catch (e) { /* ẩn */ }
+        months.push(`planner-${y}-${m}`);
+      }
+    }
+  }
+  // Inbox
+  if (Array.isArray(inbox)) {
+    let touched = false;
+    inbox.forEach((tk) => {
+      if (tk && ProjectsStore.taskMilestoneId(tk) === milestoneId && ProjectsStore.taskProjectId(tk) === projectId) {
+        delete tk.milestoneId;
+        touched = true;
+        fixed++;
+      }
+    });
+    if (touched) saveInbox(inbox);
+  }
+  return fixed;
+}
+
 // date key generators (pomoDateKey, moodDateKey) được tách sang js/keys.js
 // (window.TaskFlowKeys). pomoDateKey giữ signature; moodDateKey nhận (d, y, m) —
 // call-sites truyền PLAN_YEAR/PLAN_MONTH.
@@ -2652,6 +2743,7 @@ function renderTaskDetail() {
         </label>
       </div>
       ${taskMetricLinksHTML(taskDetailState(), tk, inInbox)}
+      ${ProjectsUI.taskLinkSelectsHTML(loadProjectsStore(), tk)}
       <div class="td-field">
         <span class="td-field-label">${t('taskDetailTags')}</span>
         <div class="td-tags">
@@ -3412,7 +3504,7 @@ function shellNavLabel(value) {
 }
 
 // View nằm trong More sheet: highlight nút "Thêm" khi đang xem (luôn đúng 1 active trên mobile)
-const MORE_SHEET_VIEWS = ['inbox', 'week', 'overview', 'year', 'calendar'];
+const MORE_SHEET_VIEWS = ['inbox', 'week', 'overview', 'year', 'calendar', 'projects'];
 
 function buildNav() {
   const desktop = document.getElementById('navTabs');
@@ -3425,6 +3517,7 @@ function buildNav() {
     { view: 'week', icon: 'week', label: shellNavLabel(t('weekN', { n: state.currentWeek })), id: 'tab-week-' + state.currentWeek, controls: 'view-week', week: state.currentWeek },
     { view: 'year', icon: 'year', label: shellNavLabel(t('tabYear', { y: PLAN_YEAR })), id: 'tab-year', controls: 'view-year' },
     { view: 'calendar', icon: 'calendar', label: shellNavLabel(t('tabCalendar')), id: 'tab-calendar', controls: 'view-calendar' },
+    { view: 'projects', icon: 'briefcase', label: shellNavLabel(t('projectsPageTitle')), id: 'tab-projects', controls: 'view-projects' },
   ];
   const navAttributes = {
     today: 'data-nav-view="today" data-view="today"',
@@ -3434,6 +3527,7 @@ function buildNav() {
     week: 'data-nav-view="week" data-view="week"',
     year: 'data-nav-view="year" data-view="year"',
     calendar: 'data-nav-view="calendar" data-view="calendar"',
+    projects: 'data-nav-view="projects" data-view="projects"',
   };
   const itemBtn = (item) => `<button type="button" class="app-nav-item tab" role="tab"
     id="${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
@@ -3451,7 +3545,7 @@ function buildNav() {
       ] },
       // P3: PLAN = Tổng quan → Tuần → Năm → Lịch; TRACK = Thói quen → Focus → Báo cáo
       { label: t('navGroupPlan'), items: [
-        byView.overview, byView.week, byView.year, byView.calendar,
+        byView.overview, byView.week, byView.year, byView.calendar, byView.projects,
       ] },
       { label: t('navGroupTrack'), items: [
         actionBtn('habits', 'habit', shellNavLabel(t('habitTitle'))),
@@ -3670,6 +3764,7 @@ function setView(view, week) {
   const td = document.getElementById('view-today');
   const upc = document.getElementById('view-upcoming');
   const ibx = document.getElementById('view-inbox');
+  const pj = document.getElementById('view-projects');
   if (td) td.classList.toggle('active', view === 'today');
   if (upc) upc.classList.toggle('active', view === 'upcoming');
   if (ibx) ibx.classList.toggle('active', view === 'inbox');
@@ -3678,6 +3773,7 @@ function setView(view, week) {
   yr.classList.toggle('active', view === 'year');
   if (cal) cal.classList.toggle('active', view === 'calendar');
   if (dy) dy.classList.toggle('active', view === 'day');
+  if (pj) pj.classList.toggle('active', view === 'projects');
   if (view === 'today') {
     if (td) td.setAttribute('aria-labelledby', 'tab-today');
     renderToday();
@@ -3700,6 +3796,9 @@ function setView(view, week) {
   } else if (view === 'calendar') {
     if (cal) cal.setAttribute('aria-labelledby', 'tab-calendar');
     renderCalendar();
+  } else if (view === 'projects') {
+    if (pj) pj.setAttribute('aria-labelledby', 'tab-projects');
+    renderProjectsView();
   } else {
     yr.setAttribute('aria-labelledby', 'tab-year');
     renderYear();
@@ -3709,7 +3808,7 @@ function setView(view, week) {
   // calendar giữ ~6.000 node ẩn chiếm RAM + chậm re-parse). Giữ attributes của section
   // (aria-labelledby, data-testid) — chỉ xoá children.
   const activeSectionId = 'view-' + view;
-  [td, upc, ibx, ov, wk, yr, cal, dy].forEach((s) => {
+  [td, upc, ibx, ov, wk, yr, cal, dy, pj].forEach((s) => {
     if (!s || s.id === activeSectionId) return;
     // Overview render vào #ov-content (div con của section) — phải giữ container đó,
     // nếu xoá cả section thì renderOverview không tìm thấy #ov-content.
@@ -4796,6 +4895,107 @@ document.addEventListener('click', (e) => {
       rerenderPillars();
       TaskFlowUI.toast(t('pillarsResetDone'), 'success');
     }
+  } else if (act === 'project-new') {
+    openProjectEditModal(null);
+  } else if (act === 'project-create-save') {
+    const store = loadProjectsStore();
+    const form = document.querySelector('[data-role="project-edit-form"]');
+    const name = form ? (form.querySelector('[data-role="project-name"]') || {}).value : '';
+    const target = form ? (form.querySelector('[data-role="project-target"]') || {}).value : '';
+    const notes = form ? (form.querySelector('[data-role="project-notes"]') || {}).value : '';
+    const created = ProjectsStore.createProject(store, { title: name, targetDate: target || null, notes });
+    if (!created) { TaskFlowUI.toast(t('projectNameRequired'), 'error'); return; }
+    saveProjectsStore(store);
+    TaskFlowUI.closeDialog('projectEditModal');
+    trackEvent('project_create');
+    renderProjectsViewWith(store, 'active', created.id);
+    TaskFlowUI.toast(t('projectSaved'), 'success');
+  } else if (act === 'project-edit') {
+    openProjectEditModal(el.dataset.id);
+  } else if (act === 'project-edit-save') {
+    const store = loadProjectsStore();
+    const form = document.querySelector('[data-role="project-edit-form"]');
+    const name = form ? (form.querySelector('[data-role="project-name"]') || {}).value : '';
+    const target = form ? (form.querySelector('[data-role="project-target"]') || {}).value : '';
+    const notes = form ? (form.querySelector('[data-role="project-notes"]') || {}).value : '';
+    const updated = ProjectsStore.updateProject(store, el.dataset.id, { title: name, targetDate: target || null, notes });
+    if (!updated) { TaskFlowUI.toast(t('projectNameRequired'), 'error'); return; }
+    saveProjectsStore(store);
+    TaskFlowUI.closeDialog('projectEditModal');
+    trackEvent('project_edit');
+    renderProjectsViewWith(store, projectsFilter, updated.id);
+    TaskFlowUI.toast(t('projectSaved'), 'success');
+  } else if (act === 'project-edit-close') {
+    TaskFlowUI.closeDialog('projectEditModal');
+  } else if (act === 'project-open') {
+    renderProjectsViewWith(loadProjectsStore(), projectsFilter, el.dataset.id);
+  } else if (act === 'project-back') {
+    renderProjectsViewWith(loadProjectsStore(), projectsFilter, null);
+  } else if (act === 'project-filter') {
+    projectsFilter = el.dataset.filter || 'active';
+    renderProjectsViewWith(loadProjectsStore(), projectsFilter, null);
+  } else if (act === 'project-archive') {
+    const store = loadProjectsStore();
+    const p = ProjectsStore.archiveProject(store, el.dataset.id);
+    if (p) { saveProjectsStore(store); trackEvent('project_archive'); renderProjectsViewWith(store, projectsFilter, null); TaskFlowUI.toast(t('projectArchivedT'), 'success'); }
+  } else if (act === 'project-restore') {
+    const store = loadProjectsStore();
+    const p = ProjectsStore.restoreProject(store, el.dataset.id);
+    if (p) { saveProjectsStore(store); trackEvent('project_restore'); renderProjectsViewWith(store, projectsFilter, null); TaskFlowUI.toast(t('projectRestoredT'), 'success'); }
+  } else if (act === 'project-complete') {
+    const store = loadProjectsStore();
+    const p = ProjectsStore.completeProject(store, el.dataset.id);
+    if (p) { saveProjectsStore(store); trackEvent('project_complete'); renderProjectsViewWith(store, projectsFilter, el.dataset.id); TaskFlowUI.toast(t('projectCompletedT'), 'success'); }
+  } else if (act === 'project-open-task') {
+    const wk = el.dataset.week;
+    const dy = el.dataset.day;
+    if (wk !== '' && dy !== '' && wk !== undefined && dy !== undefined) {
+      openTaskDetail(+wk, +dy, +el.dataset.task);
+    } else {
+      TaskFlowUI.toast(t('projectLinkedTaskAria'), 'info');
+    }
+  } else if (act === 'mile-add') {
+    openMilestoneEditModal(el.dataset.id, null);
+  } else if (act === 'mile-edit') {
+    openMilestoneEditModal(el.dataset.pid, el.dataset.mid);
+  } else if (act === 'mile-edit-close') {
+    TaskFlowUI.closeDialog('milestoneEditModal');
+  } else if (act === 'mile-edit-save') {
+    const store = loadProjectsStore();
+    const form = document.querySelector('[data-role="milestone-edit-form"]');
+    const name = form ? (form.querySelector('[data-role="milestone-name"]') || {}).value : '';
+    const target = form ? (form.querySelector('[data-role="milestone-target"]') || {}).value : '';
+    const pid = el.dataset.pid;
+    if (el.dataset.mid) {
+      ProjectsStore.updateMilestone(store, pid, el.dataset.mid, { title: name, targetDate: target || null });
+    } else {
+      const created = ProjectsStore.createMilestone(store, pid, { title: name, targetDate: target || null });
+      if (!created) { TaskFlowUI.toast(t('milestoneNameRequired'), 'error'); return; }
+    }
+    saveProjectsStore(store);
+    TaskFlowUI.closeDialog('milestoneEditModal');
+    trackEvent('milestone_save');
+    renderProjectsViewWith(store, projectsFilter, pid);
+    TaskFlowUI.toast(t('milestoneSaved'), 'success');
+  } else if (act === 'mile-toggle') {
+    const store = loadProjectsStore();
+    const m = ProjectsStore.completeMilestone(store, el.dataset.pid, el.dataset.mid);
+    if (m) { saveProjectsStore(store); trackEvent('milestone_toggle'); renderProjectsViewWith(store, projectsFilter, el.dataset.pid); }
+  } else if (act === 'mile-del') {
+    const store = loadProjectsStore();
+    const pj = ProjectsStore.getProject(store, el.dataset.pid);
+    const m = pj ? ProjectsStore.getMilestone(store, el.dataset.pid, el.dataset.mid) : null;
+    if (m && confirm(t('milestoneDeleteConfirm', { name: m.title }))) {
+      // Xoá milestone → task liên kết giữ projectId, clear milestoneId (referential rule).
+      unlinkTaskMilestoneAcrossStore(el.dataset.pid, el.dataset.mid);
+      ProjectsStore.deleteMilestone(store, el.dataset.pid, el.dataset.mid);
+      saveProjectsStore(store);
+      save();
+      saveInbox(inbox);
+      trackEvent('milestone_delete');
+      renderProjectsViewWith(loadProjectsStore(), projectsFilter, el.dataset.pid);
+      TaskFlowUI.toast(t('milestoneDeleted'), 'success');
+    }
   } else if (act === 'import-csv') {
     togglePop('dataPop');
     const fi = document.getElementById('importFile');
@@ -4900,7 +5100,50 @@ document.addEventListener('change', (e) => {
   const act = e.target.dataset && e.target.dataset.action;
   if (act === 'weekselect') goWeek(+e.target.value);
   else if (act === 'monthselect') openMonth(+e.target.value);
+  else if (act === 'td-project' || act === 'td-milestone') onTaskLinkSelectChange(e, act);
 });
+
+// Đổi Project/Milestone trong Task Detail — cập nhật task.projectId/milestoneId
+// (field optional, đọc thiếu như null) + validate referential + undo + save.
+function onTaskLinkSelectChange(e, act) {
+  const store = loadProjectsStore();
+  const tgt = getTaskDetailTarget();
+  if (!tgt) return;
+  const tk = tgt.tk;
+  if (act === 'td-project') {
+    const pid = e.target.value || null;
+    const ok = ProjectsStore.validateTaskProjectLink(store, { projectId: pid, milestoneId: null });
+    pushUndo();
+    if (ok.projectId === null) {
+      delete tk.projectId;
+      delete tk.milestoneId;
+    } else {
+      tk.projectId = ok.projectId;
+      delete tk.milestoneId;
+    }
+    saveTaskDetailState();
+    // Re-render milestone select (enabled/disabled + options thuộc project mới).
+    const mileSel = document.querySelector('[data-role="td-milestone-select"]');
+    if (mileSel) {
+      mileSel.disabled = !tk.projectId;
+      mileSel.innerHTML = ProjectsUI.milestoneOptionsHTML(store, tk.projectId, null);
+    }
+    trackEvent('task_project_link');
+    TaskFlowUI.toast(t('tdLinkSaved'), 'success');
+  } else if (act === 'td-milestone') {
+    const mid = e.target.value || null;
+    const ok = ProjectsStore.validateTaskProjectLink(store, { projectId: tk.projectId || null, milestoneId: mid });
+    pushUndo();
+    if (ok.milestoneId === null) {
+      delete tk.milestoneId;
+    } else {
+      tk.milestoneId = ok.milestoneId;
+    }
+    saveTaskDetailState();
+    trackEvent('task_milestone_link');
+    TaskFlowUI.toast(t('tdLinkSaved'), 'success');
+  }
+}
 
 // Phase 5: double-click vào task row (ngoài vùng text đang sửa) mở Task Detail Drawer
 const taskDetailDblClickListener = (e) => {

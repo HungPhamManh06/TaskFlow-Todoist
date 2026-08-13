@@ -25,7 +25,7 @@
     }
 
     var view = String(url.searchParams.get('view') || '').trim();
-    if (view === 'today' || view === 'overview' || view === 'year' || view === 'week' || view === 'calendar' || view === 'day' || view === 'upcoming' || view === 'inbox') {
+    if (view === 'today' || view === 'overview' || view === 'year' || view === 'week' || view === 'calendar' || view === 'day' || view === 'upcoming' || view === 'inbox' || view === 'projects') {
       out.view = view;
     }
     // quick=1 → mở Quick Add ngay sau khi boot (dùng cho manifest shortcut "Thêm công việc")

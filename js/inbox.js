@@ -18,6 +18,18 @@
 
   const INBOX_KEY = 'planner-inbox';
 
+  // V1.1: cache store projects mỗi lần render (đọc localStorage 1 lần, không mỗi row).
+  let projectsStoreCache = { version: 1, projects: [] };
+  function refreshProjectsStoreCache() {
+    try {
+      if (window.TaskFlowProjects) projectsStoreCache = window.TaskFlowProjects.loadProjects();
+    } catch (e) { /* ẩn */ }
+  }
+  function projectsChip(tk) {
+    if (!window.TaskFlowProjectsUI || !window.TaskFlowProjectsUI.taskProjectChip) return '';
+    try { return window.TaskFlowProjectsUI.taskProjectChip(projectsStoreCache, tk); } catch (e) { return ''; }
+  }
+
   function loadInbox() {
     try {
       const r = JSON.parse(localStorage.getItem(INBOX_KEY));
@@ -58,6 +70,7 @@
     const check = checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" ${data}`, window.TaskFlowUI.checkboxLabel('task', tk.text, t('tabInbox')));
     const meta = bits.length ? `<span class="up-meta">${bits.map((b) => `<span>${esc(b)}</span>`).join('<span class="up-dot">·</span>')}</span>` : '';
     const tagsHTML = tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : '';
+    const pjChip = projectsChip(tk);
     // data-testid="inbox-task-row" — hook ổn định cho e2e (Phase D: inbox flow test)
     return `<div class="inbox-task-row${tk.done ? ' done' : ''}${tk.kind === 'priority' ? ' prio' : ''}" data-testid="inbox-task-row">
     ${check}
@@ -67,6 +80,7 @@
         data-role="inbox-text" ${data} data-placeholder="${t('taskPh')}"
         aria-label="${t('taskAria', { n: i + 1 })}">${esc(tk.text ?? '')}</span>
       ${meta}
+      ${pjChip}
       ${tagsHTML}
     </span>
     <span class="inbox-actions">
@@ -84,6 +98,7 @@
     if (typeof document === 'undefined') return;
     const el = document.getElementById('view-inbox');
     if (!el) return;
+    refreshProjectsStoreCache();
     const list = inbox.map((tk, i) => inboxTaskRowHTML(tk, i)).join('');
     const empty = inbox.length ? '' : emptyStateHTML('📥', 'inboxEmpty', 'inboxEmptySub', [
       // attrs → data-testid="inbox-add" — hook e2e ổn định cho CTA empty state (Phase D)

@@ -1633,6 +1633,143 @@ def data_lifecycle_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def projects_checks(browser, base, width, height, errors, screenshot):
+    """V1.1: Projects & Milestones flow.
+    1) mở Projects → tạo Project  2) thêm 2 Milestone  3) hoàn thành 1 → progress 50%
+    4) tạo task trong Week + link Project/Milestone qua Task Detail
+    5) reload → linkage persists  6) archive Project → task liên kết GIỮ NGUYÊN."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"projects {width}px: {error}"))
+    page.on("dialog", lambda dialog: dialog.accept())
+    # Mở thẳng view Projects qua deeplink (?view=projects — DeepLink whitelist có projects)
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.goto(f"{base}/app.html?view=projects", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="projects-view"]', state="visible")
+
+    # 1) empty state → tạo project (name + target date). Sau create-save app tự mở
+    #    Project Detail (renderProjectsViewWith openId=created.id) → assert detail.
+    assert page.locator('.pj-card').count() == 0, "empty state phải không có card"
+    # header + empty-state đều có nút project-new → dùng .first
+    page.locator('[data-action="project-new"]').first.click()
+    page.wait_for_selector('[data-testid="project-edit-modal"]:visible', state="visible")
+    page.locator('[data-role="project-name"]').fill("Backend Internship")
+    page.locator('[data-role="project-target"]').fill("2027-03-01")
+    page.locator('[data-action="project-create-save"]').click()
+    page.wait_for_selector('[data-testid="project-edit-modal"]:visible', state="detached")
+    page.wait_for_selector('[data-action="mile-add"]', state="visible")
+    assert page.locator('.pj-progress').first.get_attribute("aria-valuenow") == "0", \
+        "project mới phải có progress 0%"
+
+    # 2) thêm 2 milestone (đang ở Project Detail)
+    for name in ("Build REST API", "Deploy API"):
+        page.locator('[data-action="mile-add"]').click()
+        page.wait_for_selector('[data-testid="milestone-edit-modal"]:visible', state="visible")
+        page.locator('[data-role="milestone-name"]').fill(name)
+        page.locator('[data-action="mile-edit-save"]').click()
+        page.wait_for_selector('[data-testid="milestone-edit-modal"]:visible', state="detached")
+    assert page.locator('.pj-milestone').count() == 2, "phải có 2 milestone"
+
+    # 3) hoàn thành 1 milestone → progress 50%
+    page.locator('[data-action="mile-toggle"]').first.click()
+    page.wait_for_timeout(250)
+    assert page.locator('.pj-progress').first.get_attribute("aria-valuenow") == "50", \
+        "progress phải là 50% sau khi hoàn thành 1/2 milestone"
+    assert page.locator('.pj-progress-pct').first.inner_text() == "50%"
+
+    # 4) tạo task trong Week + link Project/Milestone qua Task Detail drawer.
+    #    Trước đó quay về danh sách để xác nhận card + progress hiển thị.
+    page.locator('[data-action="project-back"]').click()
+    page.wait_for_timeout(250)
+    assert page.locator('.pj-card').count() == 1, "phải có 1 project card sau khi back"
+    assert page.locator('.pj-card .pj-progress-pct').first.inner_text() == "50%", \
+        "card phải hiển thị progress 50%"
+    project_id = page.evaluate(
+        "JSON.parse(localStorage.getItem('planner-projects')).projects[0].id"
+    )
+    milestone_id = page.evaluate(
+        "JSON.parse(localStorage.getItem('planner-projects')).projects[0].milestones[0].id"
+    )
+    page.goto(f"{base}/app.html?view=week&w=1", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="week-view"]', state="visible")
+    panel = page.locator(".week-day-panel").first
+    panel.locator('[data-action="addtask"]').first.click()
+    row = panel.locator('[data-testid="task-row"]').last
+    row.locator('[data-role="task-text"]').fill("JWT auth service")
+    row.hover()
+    row.locator('[data-action="task-menu"]').click()
+    row.locator('[data-action="task-detail"]').click()
+    page.wait_for_selector('[data-testid="task-drawer"]', state="visible")
+    drawer = page.locator('[data-testid="task-drawer"]')
+    drawer.locator('[data-role="td-project-select"]').select_option(project_id)
+    # milestone select được enable sau khi chọn project (validate referential)
+    page.wait_for_function(
+        "() => !document.querySelector('[data-role=\"td-milestone-select\"]').disabled"
+    )
+    drawer.locator('[data-role="td-milestone-select"]').select_option(milestone_id)
+    page.wait_for_timeout(300)  # saveTaskDetailState → save()
+    linked = page.evaluate("""() => {
+      const find = (key) => {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        try {
+          const s = JSON.parse(raw);
+          return (s.weeks || []).flatMap(w => (w.days || []).flatMap(d => (d.tasks || [])))
+            .find(t => t.text === 'JWT auth service') || null;
+        } catch (e) { return null; }
+      };
+      for (let y = new Date().getFullYear() - 1; y <= new Date().getFullYear() + 1; y++) {
+        for (let m = 0; m < 12; m++) {
+          const task = find(`planner-${y}-${m}`);
+          if (task) return { p: task.projectId, mi: task.milestoneId };
+        }
+      }
+      return null;
+    }""")
+    assert linked and linked["p"] == project_id, f"task phải giữ projectId: {linked}"
+    assert linked and linked["mi"] == milestone_id, f"task phải giữ milestoneId: {linked}"
+
+    # 5) reload → linkage persists (project detail hiển thị linked task)
+    page.goto(f"{base}/app.html?view=projects", wait_until="networkidle")
+    page.wait_for_selector('[data-action="project-open"]', state="visible")
+    page.locator('[data-action="project-open"]').first.click()
+    page.wait_for_selector('.pj-linked-task', state="visible")
+    assert page.locator('.pj-linked-task').count() == 1, "phải có 1 linked task"
+    assert "JWT auth service" in page.locator('.pj-linked-task').first.inner_text()
+
+    # 6) archive Project → task liên kết GIỮ NGUYÊN (không xoá task)
+    page.locator('[data-action="project-archive"]').click()
+    page.wait_for_timeout(300)
+    kept = page.evaluate("""() => {
+      const find = (key) => {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        try {
+          const s = JSON.parse(raw);
+          return (s.weeks || []).flatMap(w => (w.days || []).flatMap(d => (d.tasks || [])))
+            .find(t => t.text === 'JWT auth service') || null;
+        } catch (e) { return null; }
+      };
+      for (let y = new Date().getFullYear() - 1; y <= new Date().getFullYear() + 1; y++) {
+        for (let m = 0; m < 12; m++) {
+          const task = find(`planner-${y}-${m}`);
+          if (task) return { p: task.projectId, mi: task.milestoneId };
+        }
+      }
+      return null;
+    }""")
+    assert kept and kept["p"] == project_id, "archive Project KHÔNG được xoá/clear task liên kết"
+    # filter archived → project vẫn hiển thị với status chip
+    page.locator('[data-action="project-filter"][data-filter="archived"]').click()
+    assert page.locator('.pj-card').count() == 1, "project archived phải hiện ở filter archived"
+    assert page.locator('.pj-status-archived').count() == 1
+
+    assert_no_page_overflow(page, f"projects {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -1668,7 +1805,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1723,6 +1860,7 @@ def main():
                     ("month-carryover", month_carryover_checks),
                     ("report-growth", report_growth_checks),
                     ("data-lifecycle", data_lifecycle_checks),
+                    ("projects", projects_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -1781,6 +1919,9 @@ def main():
             elif args.view == "data-lifecycle":
                 data_lifecycle_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 data_lifecycle_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "projects":
+                projects_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                projects_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

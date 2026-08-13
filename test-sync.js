@@ -374,8 +374,82 @@ async function main() {
     console.log('TEST 10 OK — blank-task cleanup hội tụ lên cloud (inbox)');
   }
 
+  // ---- TEST 11: hai client — planner-projects (Project/Milestone) qua generic mechanism ----
+  // Client A tạo project + milestone → push → Client B pull thấy → Client B sửa → push
+  // → Client A pull nhận bản mới theo LWW hiện tại. Không có conflict model mới.
+  {
+    const seed = await fetch(base + '/api/auth/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'projuser11', password: 'Pass123456!' })
+    }).then((x) => x.json());
+    assert.ok(seed.token, 'phải tạo được user cho test projects sync');
+
+    const projectsKey = 'planner-projects';
+    const storeV1 = {
+      version: 1,
+      projects: [{
+        id: 'proj_1', title: 'Backend Internship', goalId: null, status: 'active',
+        startDate: null, targetDate: '2027-03-01', notes: '',
+        milestones: [{ id: 'mile_1', title: 'Build REST API', status: 'active', targetDate: null, createdAt: 'x', updatedAt: 'x' }],
+        createdAt: 'x', updatedAt: 'x',
+      }],
+    };
+
+    // Client A: login → tạo project → push → cloud có key
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncA = loadSync();
+    const okA = await SyncA.login('projuser11', 'Pass123456!');
+    assert.strictEqual(okA.ok, true, 'Client A đăng nhập phải thành công');
+    global.localStorage.setItem(projectsKey, JSON.stringify(storeV1));
+    SyncA.push(projectsKey);
+    await sleep(80);
+    const tokenA = global.localStorage.getItem('planner-token');
+    const rowsA = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowA = rowsA.find((r) => r.key === projectsKey);
+    assert.ok(rowA, 'planner-projects phải tồn tại trên cloud sau push Client A');
+    assert.strictEqual(rowA.data.projects[0].title, 'Backend Internship', 'project phải được đẩy lên cloud');
+
+    // Client B: login từ local sạch → pull → thấy project + milestone
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncB = loadSync();
+    const okB = await SyncB.login('projuser11', 'Pass123456!');
+    assert.strictEqual(okB.ok, true, 'Client B đăng nhập phải thành công');
+    const storeB = JSON.parse(global.localStorage.getItem(projectsKey));
+    assert.ok(storeB && Array.isArray(storeB.projects), 'Client B phải nhận planner-projects');
+    assert.strictEqual(storeB.projects.length, 1, 'Client B phải nhận project');
+    assert.strictEqual(storeB.projects[0].id, 'proj_1', 'project id phải giữ nguyên qua sync');
+    assert.strictEqual(storeB.projects[0].milestones.length, 1, 'milestone phải đi theo project');
+
+    // Client B: sửa title → push → cloud nhận bản mới
+    storeB.projects[0].title = 'Backend Internship (edited)';
+    storeB.projects[0].updatedAt = new Date().toISOString();
+    global.localStorage.setItem(projectsKey, JSON.stringify(storeB));
+    SyncB.push(projectsKey);
+    await sleep(80);
+    const rowsB = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowB = rowsB.find((r) => r.key === projectsKey);
+    assert.ok(rowB, 'cloud phải có planner-projects sau push Client B');
+    assert.strictEqual(rowB.data.projects[0].title, 'Backend Internship (edited)', 'sửa của Client B phải lên cloud');
+
+    // Client A: pull lại → nhận bản mới nhất theo LWW hiện tại
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncA2 = loadSync();
+    const okA2 = await SyncA2.login('projuser11', 'Pass123456!');
+    assert.strictEqual(okA2.ok, true, 'Client A (lần 2) đăng nhập phải thành công');
+    const storeA2 = JSON.parse(global.localStorage.getItem(projectsKey));
+    assert.strictEqual(storeA2.projects[0].title, 'Backend Internship (edited)', 'Client A phải nhận bản mới nhất (LWW)');
+    assert.strictEqual(storeA2.projects[0].milestones.length, 1, 'milestone không bị mất qua sync');
+    console.log('TEST 11 OK — planner-projects hai client đồng bộ qua generic mechanism (LWW)');
+  }
+
   server.close();
-  console.log('\n✅ Tất cả 10 test sync đều PASS');
+  console.log('\n✅ Tất cả 11 test sync đều PASS');
 }
 
 main().catch((e) => { console.error('❌ TEST FAIL:', e); process.exit(1); });

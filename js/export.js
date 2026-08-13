@@ -63,7 +63,13 @@
     if (!check.ok) return { ok: false, errors: check.errors };
     try {
       const fromVersion = parsed.version == null ? 1 : Number(parsed.version);
-      const snapshot = M.migrateSnapshot(parsed);
+      let snapshot = M.migrateSnapshot(parsed);
+      // V1.1 — Projects: task trỏ tới project/milestone không tồn tại trong snapshot import
+      // → clear ref (KHÔNG xoá task). Guard optional cho Node test không nạp projects.js.
+      if (typeof globalThis !== 'undefined' && globalThis.TaskFlowProjects
+          && globalThis.TaskFlowProjects.sanitizeSnapshotRefs) {
+        snapshot = globalThis.TaskFlowProjects.sanitizeSnapshotRefs(snapshot);
+      }
       Object.keys(snapshot.keys).forEach((key) => {
         if (isReservedKey(key)) delete snapshot.keys[key];
       });

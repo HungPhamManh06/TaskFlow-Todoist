@@ -127,9 +127,9 @@ test('Daily Alignment copy and responsive styles exist in both source stylesheet
   assert.match(STYLES_DEFERRED, /@media \(max-width:\s*719px\)[\s\S]*\.today-alignment-groups/);
 });
 
-test('P5 production assets load alignment before Today and cache it offline', () => {    assert.ok(APP.indexOf('js/alignment.min.js?v=2') < APP.indexOf('js/today.min.js?v=8'));
+test('P5 production assets load alignment before Today and cache it offline', () => {    assert.ok(APP.indexOf('js/alignment.min.js?v=2') < APP.indexOf('js/today.min.js?v=9'));
   assert.match(APP_JS, /TaskFlowAlignment missing/);
-  assert.match(SW, /taskflow-v212/);
+  assert.match(SW, /taskflow-v213/);
   assert.match(SW, /\.\/js\/alignment\.min\.js/);
   assert.match(ALIGNMENT_MIN, /collectDailyAlignment/);
 });

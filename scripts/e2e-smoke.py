@@ -58,9 +58,11 @@ def desktop_checks(browser, base, errors, screenshots):
 
     assert page.locator("#desktopSidebar:visible").count() == 1
     assert page.locator("#appTopbar:visible").count() == 1
-    # Phase 1-3 + Phase 3: 7 nav view (today/inbox/upcoming/overview/week/year/calendar)
-    # desktop sidebar 7 + mobile nav 2 (today/week) + more sheet 5 (inbox/upcoming/overview/year/calendar) = 14
-    assert page.locator("[data-nav-view]").count() == 14
+    # Phase 1-3 + Phase 3 + V1.1 Projects: 8 nav view
+    # (today/inbox/upcoming/overview/week/year/calendar/projects)
+    # desktop sidebar 8 + mobile nav 2 (today/week) + more sheet 6
+    # (inbox/upcoming/overview/year/calendar/projects) = 16
+    assert page.locator("[data-nav-view]").count() == 16
     assert page.locator(".landing-hero").count() == 0
     assert page.locator(".app-primary-action").count() == 1
     assert_no_overflow(page, "desktop")
@@ -85,15 +87,20 @@ def desktop_checks(browser, base, errors, screenshots):
     habit.click()
     assert habit.get_attribute("aria-checked") != before
 
-    for view in ("calendar", "year", "week"):
+    for view in ("calendar", "year", "week", "projects"):
         page.locator(f'#desktopSidebar [data-nav-view="{view}"]').click()
         page.wait_for_selector(f'[data-testid="{view}-view"]', state="visible")
         assert page.locator(f'#desktopSidebar [data-nav-view="{view}"][aria-current="page"]').count() == 1
         # Bottom-nav mobile (redesign): chỉ Today/Upcoming là tab chính;
-        # week/calendar/year nằm trong More sheet (luôn render để sync active state)
+        # week/calendar/year/projects nằm trong More sheet (luôn render để sync active state)
         if view == "week":
             assert page.locator(f'#mobileNav [data-nav-view="upcoming"][aria-current="page"]').count() == 0
         assert page.locator(f'#moreSheet [data-nav-view="{view}"][aria-current="page"]').count() == 1
+
+    # Phép đo week-goals-card bên dưới cần view Week — loop kết thúc ở projects
+    # (v1.1) nên quay về week trước khi đo.
+    page.locator('#desktopSidebar [data-nav-view="week"]').click()
+    page.wait_for_selector('[data-testid="week-view"]', state="visible")
 
     # Đo card + strip trong MỘT evaluate để chống race với smooth scroll của
     # scrollWeekToToday(): nếu gọi bounding_box() 2 lần riêng, Firefox có thể

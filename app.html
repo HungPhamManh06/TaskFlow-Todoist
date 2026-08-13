@@ -188,6 +188,7 @@
     <section id="view-year" class="view" role="tabpanel" aria-label="Kế hoạch năm" data-i18n-aria="viewYear" data-testid="year-view"></section>
     <section id="view-week" class="view" role="tabpanel" aria-label="Kế hoạch tuần" data-i18n-aria="viewWeek" data-testid="week-view"></section>
     <section id="view-day" class="view" role="tabpanel" aria-label="Xem ngày" data-i18n-aria="viewDay" data-testid="day-view"></section>
+    <section id="view-projects" class="view" role="tabpanel" aria-label="Dự án" data-i18n-aria="viewProjects" data-testid="projects-view"></section>
       </main>
     </div>
   </div>
@@ -650,6 +651,26 @@
     </div>
   </div>
 
+  <!-- ===== Dự án (Projects) — edit/add (V1.1) ===== -->
+  <div class="report-modal" id="projectEditModal" hidden data-testid="project-edit-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="projectEditDialogTitle">
+      <button type="button" class="sync-close" data-action="project-edit-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+      <h2 class="sync-modal-title" id="projectEditDialogTitle"><span data-i18n="projectEditTitle">Dự án</span></h2>
+      <div id="projectEditContent" class="pillar-edit-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== Milestone — edit/add (V1.1) ===== -->
+  <div class="report-modal" id="milestoneEditModal" hidden data-testid="milestone-edit-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="milestoneEditDialogTitle">
+      <button type="button" class="sync-close" data-action="milestone-edit-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+      <h2 class="sync-modal-title" id="milestoneEditDialogTitle"><span data-i18n="milestoneEditTitle">Milestone</span></h2>
+      <div id="milestoneEditContent" class="pillar-edit-body"></div>
+    </div>
+  </div>
+
   <!-- ===== Thống kê tương quan focus × task (Phase 9) ===== -->
   <div class="report-modal stats-modal" id="statsModal" hidden data-testid="stats-modal">
     <div class="report-modal-card stats-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="statsDialogTitle">
@@ -753,7 +774,7 @@
   <script src="js/monthly-review.min.js?v=2"></script>
   <script src="js/report-insights.min.js?v=1"></script>
   <script src="js/reflection-history.min.js?v=1"></script>
-  <script src="js/today.min.js?v=8"></script>
+  <script src="js/today.min.js?v=9"></script>
   <script src="js/report-ui.min.js?v=4"></script>
   <script src="js/upcoming.min.js?v=2"></script>
   <script src="js/focus-stats.min.js?v=1"></script>
@@ -767,7 +788,7 @@
   <script src="js/sync.min.js?v=5"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=1"></script>
-  <script src="js/i18n.min.js?v=14"></script>
+  <script src="js/i18n.min.js?v=15"></script>
   <script src="js/storage.min.js?v=2"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
@@ -777,7 +798,7 @@
   <script src="js/remind.min.js?v=1"></script>
   <script src="js/theme.min.js?v=1"></script>
   <script src="js/analytics.min.js?v=1"></script>
-  <script src="js/export.min.js?v=3"></script>
+  <script src="js/export.min.js?v=4"></script>
   <script src="js/streak.min.js?v=1"></script>
   <script src="js/goals.min.js?v=1"></script>
   <script src="js/fab.min.js?v=1"></script>
@@ -785,13 +806,15 @@
   <script src="js/planmini.min.js?v=1"></script>
   <script src="js/clock.min.js?v=1"></script>
   <script src="js/shell.min.js?v=1"></script>
-  <script src="js/inbox.min.js?v=5"></script>
+  <script src="js/inbox.min.js?v=6"></script>
   <script src="js/mood.min.js?v=1"></script>
   <script src="js/remind-ui.min.js?v=2"></script>
   <script src="js/popups.min.js?v=1"></script>
   <script src="js/reflection.min.js?v=1"></script>
   <script src="js/pillars.min.js?v=5"></script>
-  <script src="js/app.min.js?v=172"></script>
+  <script src="js/projects.min.js?v=1"></script>
+  <script src="js/projects-ui.min.js?v=1"></script>
+  <script src="js/app.min.js?v=174"></script>
 </body>
 
 </html>
