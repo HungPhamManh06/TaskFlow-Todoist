@@ -56,7 +56,9 @@ app.use((req, res, next) => {
 // là tương đối theo mount — khiến limiter bị skip nhầm).
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  // Mặc định 10 lần / 15 phút (bảo mật prod). Test harness có thể nới qua env
+  // (AUTH_RATE_LIMIT_MAX) để suite chạy nhiều tài khoản mà không chạm giới hạn.
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'too-many-requests' },

@@ -46,6 +46,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    # Playwright đóng kết nối đột ngột khi kết thúc test → bỏ qua BrokenPipe/ConnectionReset
+    def handle_error(self, request, client_address):
+        import sys
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
+
 
 def record(area, check, ok, detail=""):
     status = "PASS" if ok else "FAIL"

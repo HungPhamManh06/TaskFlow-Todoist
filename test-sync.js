@@ -1,9 +1,13 @@
 'use strict';
 /* Test logic đồng bộ js/sync.js bằng Node — chạy backend thật (pg-mem) + mock localStorage + mock fetch */
+// Suite chạy nhiều tài khoản test — nới rate limit auth (mặc định 10 lần/15ph là
+// giới hạn bảo mật prod; server chỉ đọc env này khi được set rõ ràng).
+process.env.AUTH_RATE_LIMIT_MAX = String(Number(process.env.AUTH_RATE_LIMIT_MAX) || 200);
 const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert');
 const { app, ensureSchema } = require('./server/index');
+const M = require('./js/data-migrations.js');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -22,6 +26,8 @@ function mockLocalStorage(initial) {
 function loadSync() {
   const code = fs.readFileSync('js/sync.js', 'utf8');
   vm.runInThisContext(code, { filename: 'sync.js' });
+  // sync.js dùng window.TaskFlowDataMigrations cho hội tụ blank (P2) — inject vào harness
+  if (global.window) global.window.TaskFlowDataMigrations = M;
   return global.window.Sync;
 }
 
@@ -234,8 +240,142 @@ async function main() {
     console.log('TEST 8 OK — validation key/payload + push/pull state v2');
   }
 
+  // ---- TEST 9: hội tụ cloud — blank-task cleanup (month) ----
+  // Cloud có Task A + Task B + 2 blank legacy + blank có metadata (phải GIỮ).
+  // Client A đăng nhập → pull → boot cleanup → cloud phải được dọn;
+  // Client B đăng nhập từ local sạch → nhận state đã dọn, không đẩy lại (no loop).
+  {
+    const seed = await fetch(base + '/api/auth/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'blankuser9', password: 'Pass123456!' })
+    }).then((x) => x.json());
+    assert.ok(seed.token, 'phải tạo được user cho test hội tụ blank (month)');
+
+    const monthKey = 'planner-2026-11';
+    const monthWithBlanks = {
+      schemaVersion: 2, monthlyGoals: [], habits: [],
+      weeks: [{ n: 1, goals: [], days: [{
+        tasks: [
+          { uid: 'ta', text: 'Task A', tags: [], done: false },
+          { uid: 'tb', text: 'Task B', tags: [], done: false },
+          { uid: 'b1', text: '', tags: [] },
+          { uid: 'b2', text: '', tags: [] },
+          { uid: 'bm', text: '', tags: ['keep-me'], done: false },        // blank text + metadata → GIỮ
+          { uid: 'bl', text: '', linkedMetricIds: ['m1'] },              // blank text + metric → GIỮ
+        ],
+        date: '1/11/26', yy: 26, sticky: null, note: ''
+      }] }]
+    };
+    const put = await fetch(base + '/api/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + seed.token },
+      body: JSON.stringify({ key: monthKey, data: monthWithBlanks })
+    }).then((x) => x.json());
+    assert.ok(put.updated_at, 'phải seed được month có blank lên cloud');
+
+    // Client A: đăng nhập → clearLocalData + pullAll. Pull kéo cloud (có blank), rồi
+    // convergeBlankCleanup dọn blank ngay trong pullAll và đẩy 1 lần qua debounce.
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncA = loadSync();
+    const okA = await SyncA.login('blankuser9', 'Pass123456!');
+    assert.strictEqual(okA.ok, true, 'Client A đăng nhập phải thành công');
+    // local ngay sau login đã sạch (converge trong pullAll), không còn blank
+    const localA = JSON.parse(global.localStorage.getItem(monthKey));
+    const tasksLocalA = localA.weeks[0].days[0].tasks;
+    assert.strictEqual(tasksLocalA.length, 4, 'local Client A phải sạch blank ngay sau pull');
+    assert.deepStrictEqual(tasksLocalA.map((t) => t.uid), ['ta', 'tb', 'bm', 'bl'], 'uid phải giữ nguyên thứ tự');
+    // idempotent: chạy cleanup lần nữa trên local → 0 removed
+    assert.strictEqual(M.cleanupTrulyEmptyTasks(localA).removed, 0, 'cleanup lần 2 phải 0 (idempotent)');
+    await sleep(80); // chờ debounce push
+
+    const tokenA = global.localStorage.getItem('planner-token');
+    const rowsA = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowA = rowsA.find((r) => r.key === monthKey);
+    assert.ok(rowA, 'month phải tồn tại trên cloud');
+    const serverTasksA = rowA.data.weeks[0].days[0].tasks;
+    assert.strictEqual(serverTasksA.length, 4, 'cloud phải hội tụ: chỉ còn 4 task thật (2 real + 2 blank có metadata)');
+    assert.deepStrictEqual(serverTasksA.map((t) => t.uid), ['ta', 'tb', 'bm', 'bl'], 'uid phải giữ nguyên thứ tự');
+    assert.strictEqual(M.cleanupTrulyEmptyTasks(rowA.data).removed, 0, 'cleanup chạy lại trên cloud phải 0 (idempotent)');
+    const cloudUpdatedAtA = rowA.updated_at;
+
+    // Client B: đăng nhập từ local sạch → pull → state đã dọn, không đẩy lại
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncB = loadSync();
+    const okB = await SyncB.login('blankuser9', 'Pass123456!');
+    assert.strictEqual(okB.ok, true, 'Client B đăng nhập phải thành công');
+    const localB = JSON.parse(global.localStorage.getItem(monthKey));
+    const tasksB = localB.weeks[0].days[0].tasks;
+    assert.strictEqual(tasksB.length, 4, 'Client B phải nhận state đã dọn (không còn blank legacy)');
+    assert.deepStrictEqual(tasksB.map((t) => t.text), ['Task A', 'Task B', '', ''], 'thứ tự task thật phải giữ nguyên');
+    assert.deepStrictEqual(tasksB.map((t) => t.uid), ['ta', 'tb', 'bm', 'bl'], 'uid task thật phải giữ nguyên');
+    await sleep(80); // chờ debounce — Client B KHÔNG được đẩy lại gì
+    const rowsB = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowB = rowsB.find((r) => r.key === monthKey);
+    assert.strictEqual(rowB.updated_at, cloudUpdatedAtA, 'Client B không được đẩy lại (no push loop)');
+    console.log('TEST 9 OK — blank-task cleanup hội tụ lên cloud (month)');
+  }
+
+  // ---- TEST 10: hội tụ cloud — blank-task cleanup (inbox) ----
+  {
+    const seed = await fetch(base + '/api/auth/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'blankuser10', password: 'Pass123456!' })
+    }).then((x) => x.json());
+    assert.ok(seed.token, 'phải tạo được user cho test hội tụ blank (inbox)');
+
+    const inboxKey = 'planner-inbox';
+    const inboxWithBlank = [
+      { uid: 'r1', text: 'Real inbox item', tags: [], done: false },
+      { uid: 'r2', text: '', tags: [] },
+      { uid: 'rm', text: '', tags: ['keep-me'], done: false }, // blank text + metadata → GIỮ
+    ];
+    const put = await fetch(base + '/api/sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + seed.token },
+      body: JSON.stringify({ key: inboxKey, data: inboxWithBlank })
+    }).then((x) => x.json());
+    assert.ok(put.updated_at, 'phải seed được inbox có blank lên cloud');
+
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncA = loadSync();
+    const okA = await SyncA.login('blankuser10', 'Pass123456!');
+    assert.strictEqual(okA.ok, true);
+    // local sau login đã sạch blank (converge trong pullAll dùng isTaskTrulyEmpty)
+    const arrA = JSON.parse(global.localStorage.getItem(inboxKey));
+    assert.strictEqual(arrA.length, 2, 'local inbox Client A phải sạch blank ngay sau pull');
+    assert.strictEqual(arrA.filter((tk) => !M.isTaskTrulyEmpty(tk)).length, 2, 'không còn item truly-empty');
+    await sleep(80);
+
+    const tokenA = global.localStorage.getItem('planner-token');
+    const rowsA = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowA = rowsA.find((r) => r.key === inboxKey);
+    assert.ok(rowA, 'inbox phải tồn tại trên cloud');
+    assert.strictEqual(rowA.data.length, 2, 'cloud inbox phải hội tụ: chỉ còn 2 item thật');
+    assert.deepStrictEqual(rowA.data.map((t) => t.uid), ['r1', 'rm'], 'uid inbox phải giữ nguyên');
+    const cloudUpdatedAtA = rowA.updated_at;
+
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncB = loadSync();
+    const okB = await SyncB.login('blankuser10', 'Pass123456!');
+    assert.strictEqual(okB.ok, true);
+    const localB = JSON.parse(global.localStorage.getItem(inboxKey));
+    assert.strictEqual(localB.length, 2, 'Client B inbox phải nhận state đã dọn');
+    assert.deepStrictEqual(localB.map((t) => t.uid), ['r1', 'rm'], 'inbox không được phục hồi blank');
+    await sleep(80);
+    const rowsB = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowB = rowsB.find((r) => r.key === inboxKey);
+    assert.strictEqual(rowB.updated_at, cloudUpdatedAtA, 'Client B inbox không được đẩy lại (no push loop)');
+    console.log('TEST 10 OK — blank-task cleanup hội tụ lên cloud (inbox)');
+  }
+
   server.close();
-  console.log('\n✅ Tất cả 8 test sync đều PASS');
+  console.log('\n✅ Tất cả 10 test sync đều PASS');
 }
 
 main().catch((e) => { console.error('❌ TEST FAIL:', e); process.exit(1); });

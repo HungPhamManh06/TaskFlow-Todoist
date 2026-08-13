@@ -85,7 +85,7 @@ Reflect
 
 Cấu trúc kế hoạch: **Year → Month → Week → Today** — mục tiêu năm được rải xuống tháng, tuần và việc của hôm nay.
 
-Khi chưa đăng nhập, dữ liệu mặc định được lưu cục bộ trong trình duyệt của bạn và **không được gửi lên máy chủ**. Đăng nhập chỉ để bật **đồng bộ đám mây tùy chọn** (xem [Offline-first & Sync](#-offline-first--sync)).
+Khi chưa đăng nhập, dữ liệu của bạn được lưu cục bộ trong trình duyệt — nội dung kế hoạch của bạn không được gửi lên máy chủ TaskFlow. Đăng nhập chỉ để bật **đồng bộ đám mây tùy chọn** (xem [Offline-first & Sync](#-offline-first--sync)).
 
 ---
 

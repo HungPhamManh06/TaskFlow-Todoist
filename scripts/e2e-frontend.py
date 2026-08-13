@@ -24,6 +24,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    # Playwright đóng kết nối đột ngột khi kết thúc test → Python http.server in
+    # BrokenPipeError/ConnectionResetError ra log. Không phải lỗi production; bỏ
+    # qua 2 exception này ở handler (vẫn giữ mọi lỗi khác + fail test assertion).
+    def handle_error(self, request, client_address):
+        import sys
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
+
     # Mô phỏng Vercel cleanUrls: /app → /app.html (P6: internal links dùng clean URL)
     def translate_path(self, path):
         translated = super().translate_path(path)
@@ -1658,7 +1668,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1747,6 +1757,9 @@ def main():
             elif args.view == "taskdetail":
                 taskdetail_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 taskdetail_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "reflection":
+                reflection_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                reflection_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "task-focus-metrics":
                 task_focus_metrics_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 task_focus_metrics_checks(browser, base, 390, 844, errors, shots["mobile"])

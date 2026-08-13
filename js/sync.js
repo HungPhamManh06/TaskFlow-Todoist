@@ -16,6 +16,7 @@
   var META_KEY = 'planner-sync-meta';
   var TOKEN_KEY = 'planner-token';
   var DATA_KEY_RE = /^planner-[A-Za-z0-9._-]{1,120}$/;
+  var MONTH_KEY_RE = /^planner-(\d{4})-(\d{1,2})$/;
 
   var cfg = (typeof API_CONFIG !== 'undefined' && API_CONFIG) || {};
   var base = String(cfg.url || '').replace(/\/+$/, '');
@@ -99,6 +100,43 @@
     return true;
   }
 
+  // ---- Hội tụ blank-task legacy lên cloud (P2/P3) ----
+  // App tự dọn task "trống thật sự" ở boot nhưng chỉ ghi localStorage (không Sync.push),
+  // nên cloud giữ blank vô thời hạn. Sau mỗi lần pull remote thành công, chuẩn hoá các
+  // key vừa kéo (month/inbox) bằng ĐÚNG định nghĩa isTaskTrulyEmpty/cleanupTrulyEmptyTasks
+  // của data-migrations; key nào có blank bị xoá thì đẩy 1 lần qua debounce thường.
+  // Idempotent: cloud đã sạch → removed = 0 → không gọi push (không loop, không ghi mỗi boot).
+  function convergeBlankCleanup(keys) {
+    var DM = (typeof window !== 'undefined' && window.TaskFlowDataMigrations) || null;
+    if (!DM || !DM.isTaskTrulyEmpty || !keys || !keys.length) return;
+    keys.forEach(function (key) {
+      var raw = getLocal(key);
+      if (raw == null) return;
+      var removed = 0;
+      var out = null;
+      if (key === 'planner-inbox') {
+        var arr = null;
+        try { arr = JSON.parse(raw); } catch (e) { return; }
+        if (!Array.isArray(arr)) return;
+        out = arr.filter(function (tk) { if (DM.isTaskTrulyEmpty(tk)) { removed++; return false; } return true; });
+      } else if (MONTH_KEY_RE.test(key)) {
+        var st = null;
+        try { st = JSON.parse(raw); } catch (e) { return; }
+        if (!st || typeof st !== 'object' || Array.isArray(st)) return;
+        var res = DM.cleanupTrulyEmptyTasks(st);
+        if (res.removed === 0) return;
+        removed = res.removed;
+        out = res.state;
+      } else {
+        return;
+      }
+      if (removed > 0 && out != null) {
+        setLocal(key, JSON.stringify(out));
+        push(key);
+      }
+    });
+  }
+
   // ---- Pull: đám mây -> localStorage (nếu remote mới hơn) ----
   async function pullAll() {
     if (!authed) return [];
@@ -128,6 +166,8 @@
       }
     });
     writeMeta();
+    // P2: bản vừa kéo (remote mới hơn) có thể còn blank legacy → dọn + đẩy 1 lần để hội tụ
+    convergeBlankCleanup(remoteKeys);
     if (changed.length) emitChange(changed);
     return remoteKeys;
   }
