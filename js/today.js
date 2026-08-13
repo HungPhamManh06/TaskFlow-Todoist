@@ -164,10 +164,10 @@
       <span class="task-menu" role="menu" hidden>
         <button type="button" role="menuitem" data-action="task-detail" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('data')} <span>${t('taskDetail')}</span></button>
         <button type="button" role="menuitem" data-action="task-move" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('calendar')} <span>${t('taskMove')}</span></button>
-        <button type="button" role="menuitem" data-action="remind-task" data-week="${wn}" data-day="${di}" data-task="${ti}">🔔 <span>${t('remindTitle')}</span>${task.remind && task.remind.enabled ? ' <span class="task-menu-on" aria-hidden="true">●</span>' : ''}</button>
-        <button type="button" role="menuitem" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">🏷️ <span>${t('tagAdd')}</span></button>
-        <button type="button" role="menuitem" data-action="repeat-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">🔁 <span>${t('repeatTitle')}</span>${repeated ? ' <span class="task-menu-on" aria-hidden="true">●</span>' : ''}</button>
-        <button type="button" role="menuitem" data-action="task-duplicate" data-week="${wn}" data-day="${di}" data-task="${ti}">⧉ <span>${t('taskDuplicate')}</span></button>
+        <button type="button" role="menuitem" data-action="remind-task" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('bell')} <span>${t('remindTitle')}</span>${task.remind && task.remind.enabled ? ' <span class="task-menu-on" aria-hidden="true">●</span>' : ''}</button>
+        <button type="button" role="menuitem" data-action="tag-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('tag')} <span>${t('tagAdd')}</span></button>
+        <button type="button" role="menuitem" data-action="repeat-edit" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('repeat')} <span>${t('repeatTitle')}</span>${repeated ? ' <span class="task-menu-on" aria-hidden="true">●</span>' : ''}</button>
+        <button type="button" role="menuitem" data-action="task-duplicate" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('copy')} <span>${t('taskDuplicate')}</span></button>
         <button type="button" role="menuitem" class="danger" data-action="deltask" data-week="${wn}" data-day="${di}" data-task="${ti}">${window.TaskFlowUI.icon('trash')} <span>${t('delTaskAria', { n: ti + 1 })}</span></button>
       </span>
     </span>

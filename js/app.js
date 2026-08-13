@@ -1385,7 +1385,7 @@ function goalBlockHTML(kind, goals) {
         <button type="button" class="mini-btn add-btn" data-action="addgoal" data-kind="${kind}">${window.TaskFlowUI.icon('plus')}<span>${t('addGoal')}</span></button>
         <div class="goal-add-bar" hidden data-role="goal-add-bar" data-kind="${kind}">
           <input class="inline-input" data-role="goal-add-input" data-kind="${kind}" placeholder="${t('goalPh')}" aria-label="${t('goalNameAria', { label })}" maxlength="120" />
-          <button type="button" class="mini-btn" data-action="confirm-addgoal" data-kind="${kind}" title="${t('addTxt')}" aria-label="${t('addTxt')}">✓</button>
+          <button type="button" class="mini-btn" data-action="confirm-addgoal" data-kind="${kind}" title="${t('addTxt')}" aria-label="${t('addTxt')}">${window.TaskFlowUI.icon('check')}</button>
         </div>
       </div>
     </div>
@@ -1409,8 +1409,8 @@ function habitPanelHTML() {
     <div class="habit-add-row">
       <input class="inline-input habit-name-input" data-role="habit-name-input" placeholder="${t('habitPh')}" aria-label="${t('habitNameAria')}" maxlength="60" />
       <button type="button" class="mini-btn add-btn" data-action="addhabit" title="${t('addHabitTxt')}">${window.TaskFlowUI.icon('plus')}<span>${t('addHabitTxt')}</span></button>
-      <button type="button" class="mini-btn" data-action="copyhabits" title="${t('copyHabitsTxt')}">🗓️ ${t('copyHabitsTxt')}</button>
-      <button type="button" class="mini-btn" data-action="templates-toggle" title="${t('templatesTitle')}" aria-label="${t('templatesTitle')}">✨</button>
+      <button type="button" class="mini-btn" data-action="copyhabits" title="${t('copyHabitsTxt')}">${window.TaskFlowUI.icon('calendar-check')} ${t('copyHabitsTxt')}</button>
+      <button type="button" class="mini-btn" data-action="templates-toggle" title="${t('templatesTitle')}" aria-label="${t('templatesTitle')}">${window.TaskFlowUI.icon('sparkles')}</button>
     </div>
     ${templatesPopHTML()}
     <div class="habit-layout">
@@ -2629,7 +2629,7 @@ function renderTaskDetail() {
         <div class="td-field">
           <span class="td-field-label">${t('taskDetailTime')}</span>
           <span class="td-time-row">
-            <label class="td-toggle"><input type="checkbox" data-action="td-time-toggle" ${timed ? 'checked' : ''} aria-label="${t('remindTaskAria')}"><span>🔔</span></label>
+            <label class="td-toggle"><input type="checkbox" data-action="td-time-toggle" ${timed ? 'checked' : ''} aria-label="${t('remindTaskAria')}">${window.TaskFlowUI.icon('bell')}</label>
             <input type="time" data-action="td-time" value="${esc((tk.remind && tk.remind.time) || '20:00')}" ${timed ? '' : 'disabled'} aria-label="${t('taskDetailTime')}">
           </span>
         </div>

@@ -160,7 +160,7 @@
         });
         g.fillStyle = '#8A7A6B';
         g.font = "700 30px 'Nunito',sans-serif";
-        g.fillText(t('shareFooter'), W / 2, H - 60);
+        g.fillText(t('shareFooter', { year: PLAN_YEAR }), W / 2, H - 60);
         c.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png');
       } catch (e) { reject(e); }
     });
