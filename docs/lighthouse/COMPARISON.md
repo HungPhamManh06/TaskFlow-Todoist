@@ -7,6 +7,50 @@ same machine (Chrome headless, `lighthouse@13.4.1`).
 - **BEFORE** — original baseline, commit `36bb1b6` (2026-08-09 16:28), pre-optimization.
 - **AFTER** — fresh run 2026-08-11 13:44, current `main` head (`1f43cd6` + working tree).
 
+---
+
+## Two measurement tracks (read this first)
+
+TaskFlow performance is tracked on **two separate tracks** because Lighthouse's
+Lantern simulator and real throttling answer different questions. Never mix the
+numbers across tracks.
+
+### TRACK A — Standard / historical (Lantern, `throttlingMethod=simulate`)
+
+- Source: `scripts/measure-lighthouse.py` default run (Lantern simulated network/CPU).
+- Purpose: **historical comparability** across every phase — the same harness,
+  same machine, same methodology, so phase-over-phase deltas are meaningful.
+- All tables and deltas in this file (and `BASELINE.md`) are Track A.
+- **Caveat:** Lantern does **not** represent the perceived LCP of the static Today
+  shell. Lantern attaches a JS-heavy page's LCP to its dependency graph / load
+  event (~6 s — 43 synchronous scripts), so app-mobile LCP stays ~5.5–6.3 s in
+  every Track A run even after the static-shell work. It is a model artifact,
+  not a rendering measurement. See TRACK B for actual render timing.
+
+### TRACK B — Real-throttle (`throttlingMethod=devtools` + Playwright harness)
+
+- Source: `docs/lighthouse/app-mobile-devtools.json` (commit `aced63d`, 2026-08-11)
+  and the Playwright devtools-throttle harness used in development-history P0.4.
+- Purpose: **actual render timing** for the current Today static shell on real
+  throttled Chromium.
+- Known results (median of 3 runs, same code as Track A AFTER):
+
+  | Method | App mobile LCP | Notes |
+  |---|---|---|
+  | Playwright devtools-throttle | **1944 / 1964 / 1948 ms** (~1.9 s) | before static shell ~5.4–6.6 s → **−64%** |
+  | Lighthouse `--throttling-method=devtools` | **2202 ms** · CLS **0.0** · perf **79** | FCP 1.9 s · TBT 480 ms · SI 7.4 s |
+  | Lighthouse `--throttling-method=provided` | **308 ms** (no throttle) | LCP element paints at parse, pre-boot |
+
+**Why the tracks differ and why this is correct:** the static Today header is
+rendered by an inline script before first paint, so a real browser paints LCP
+~1.9–2.2 s under devtools throttling while Lantern still models the load-event
+cost of the 43-script boot chain. The static shell is a **legitimate real UX
+improvement** even though Track A app-mobile LCP barely moves. Optimizing the
+load-event dependency graph purely to move the Lantern number (e.g. deferring
+more boot scripts) was deliberately NOT done — it would trade boot robustness
+for a simulator score. FCP / TBT / CLS remain the regression guards on both
+load paths; CLS 0.0 under devtools throttling is the key real-world check.
+
 | Page | Device | Performance | Accessibility | Best Practices | SEO | FCP (ms) | LCP (ms) | CLS | TBT (ms) | Speed Index (ms) |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Landing | Desktop | 99 → **99** | 96 → 96 | 100 → 100 | 100 → 100 | 648 → **564** | 648 → **564** | .068 → .067 | 0 → 0 | 648 → **564** |
@@ -92,6 +136,9 @@ same machine (Chrome headless, `lighthouse@13.4.1`).
 
 ---
 
-*Raw reports: `docs/lighthouse/{landing,app}-{desktop,mobile}.json` · current state:
-`baseline.json` / `BASELINE.md` (overwritten by `scripts/measure-lighthouse.py`).
-This comparison file is preserved across runs by design.*
+*Raw reports: `docs/lighthouse/{landing,app}-{desktop,mobile}.json` (Track A) ·
+`docs/lighthouse/app-mobile-devtools.json` (Track B, commit `aced63d`, 2026-08-11) ·
+current Track A state: `baseline.json` / `BASELINE.md` (overwritten by
+`scripts/measure-lighthouse.py`). This comparison file is preserved across runs
+by design; the two-track narrative above supersedes any single-number reading of
+app-mobile LCP in the tables below.*
