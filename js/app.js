@@ -962,7 +962,65 @@ document.addEventListener('focusout', (e) => {
   delete el.dataset.freshBlank;
   if (!document.contains(el)) return; // đã bị re-render → bỏ qua (chỉ mục có thể đã lệch)
   const t = taskAtText(el);
-  if (t && window.TaskFlowDataMigrations.isTaskTrulyEmpty(t.tk)) removeTrulyEmptyDraft(t);
+  if (!t || !window.TaskFlowDataMigrations.isTaskTrulyEmpty(t.tk)) return;
+  // P0.2C: blur do CLICK (pointer đang giữ) — KHÔNG re-render đồng bộ trong focusout.
+  // renderWeek()/renderToday()/renderInbox() thay toàn bộ DOM của view, phá hủy phần tử
+  // mà người dùng ĐANG click TRƯỚC khi click event được dispatch (mousedown đã xảy ra,
+  // click đổ lên phần tử đã bị gỡ) → click đầu tiên bị nuốt: task không toggle, day
+  // progress không đổi (regression ea26fc5). Draft luôn là task CUỐI của ngày (được
+  // push), nên splice ngay lập tức KHÔNG làm lệch index của các task khác — chỉ cần
+  // hoãn RENDER đến khi chuỗi click (pointerup → click) kết thúc.
+  if (pointerPressed) {
+    if (t.scope === 'week') {
+      t.d.tasks.splice(t.i, 1);
+      save();
+    } else {
+      inbox.splice(t.i, 1);
+      saveInbox(inbox);
+    }
+    pendingDraftRender = () => {
+      // Click handler đã re-render view (addtask/deltask/renderToday/renderInbox...) thì
+      // DOM đã nhất quán (draft đã splice khỏi data trước đó) → không cần render lại.
+      if (!document.contains(el)) return;
+      if (t.scope === 'inbox') renderInbox(inbox);
+      else if (state.view === 'today') renderToday();
+      else renderWeek();
+    };
+    return;
+  }
+  removeTrulyEmptyDraft(t);
+});
+
+// P0.2C: theo dõi pointer để biết blur có phải do click không (blur do Tab/bàn phím/
+// programmatic vẫn xoá draft đồng bộ như trước).
+let pointerPressed = false;
+let pendingDraftRender = null;
+
+document.addEventListener('pointerdown', () => { pointerPressed = true; }, true);
+document.addEventListener('pointerup', () => { pointerPressed = false; }, true);
+document.addEventListener('pointercancel', () => {
+  pointerPressed = false;
+  if (pendingDraftRender) setTimeout(flushPendingDraftRender, 0);
+}, true);
+
+function flushPendingDraftRender() {
+  if (!pendingDraftRender) return;
+  const fn = pendingDraftRender;
+  pendingDraftRender = null;
+  fn();
+}
+
+// Flush render SAU khi chuỗi click kết thúc: listener click của app (toggle/add/delete/...)
+// chạy trong cùng click task, setTimeout(0) chạy sau task đó nên render không nuốt click.
+// (Ngay cả khi timer chạy sớm hơn click trong trường hợp lạ, splice đã xong từ focusout
+// và draft là task cuối → index các checkbox khác vẫn đúng, click vẫn hoạt động.)
+document.addEventListener('click', () => {
+  if (pendingDraftRender) setTimeout(flushPendingDraftRender, 0);
+});
+// Rời cửa sổ (Alt-Tab, đổi tab) — không còn click nào đang chờ → flush ngay.
+window.addEventListener('blur', () => {
+  pointerPressed = false;
+  flushPendingDraftRender();
 });
 
 function save() {
@@ -5218,7 +5276,9 @@ function refreshTaskUI(w, di) {
   const d = w.days[di];
   const p = dayPct(d);
   document.querySelectorAll(`[data-action="task"][data-week="${w.n}"][data-day="${di}"]`).forEach((b) => {
-    b.setAttribute('aria-checked', d.tasks[+b.dataset.task].done);
+    // P0.2C guard: DOM có thể còn row của draft đã splice (render hoãn sau click) — bỏ qua
+    const tk = d.tasks[+b.dataset.task];
+    if (tk) b.setAttribute('aria-checked', tk.done);
   });
   const pctEl = document.querySelector(`.day-col-${di} [data-role="day-pct"]`);
   if (pctEl) pctEl.textContent = p + '%';
@@ -5231,7 +5291,10 @@ function refreshTaskUI(w, di) {
   if (calPct) calPct.textContent = calendarDayPct(d) + '%';
   document.querySelectorAll(`.cal-task[data-week="${w.n}"][data-day="${di}"]`).forEach((cell) => {
     const cb = cell.querySelector('[data-action="task"]');
-    if (cb) cell.classList.toggle('done', d.tasks[+cb.dataset.task].done);
+    if (cb) {
+      const tk = d.tasks[+cb.dataset.task];
+      if (tk) cell.classList.toggle('done', tk.done);
+    }
   });
 }
 

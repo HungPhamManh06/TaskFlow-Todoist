@@ -190,6 +190,30 @@ test('20.22: inbox loadInbox xoá item truly-empty (P0.3)', () => {
   assert.match(INBOX_JS, /isTaskTrulyEmpty\(tk\)/);
 });
 
+test('20.24: pointer-caused blur defers draft render until after the click completes (P0.2C)', () => {
+  // Regression ea26fc5: synchronous renderWeek() during focusout destroyed the clicked
+  // checkbox before its click event → first click swallowed, day progress frozen.
+  // Guard: pointerdown/pointerup tracking + pendingDraftRender + flush after click.
+  assert.match(APP_JS, /let pointerPressed = false;/);
+  assert.match(APP_JS, /let pendingDraftRender = null;/);
+  assert.match(APP_JS, /addEventListener\('pointerdown', \(\) => \{ pointerPressed = true; \}, true\)/);
+  assert.match(APP_JS, /addEventListener\('pointerup', \(\) => \{ pointerPressed = false; \}, true\)/);
+  assert.match(APP_JS, /function flushPendingDraftRender\(\)/);
+  assert.match(APP_JS, /pointerPressed\) \{/); // focusout branches on pointer
+  assert.match(APP_JS, /pendingDraftRender = \(\) => \{/);
+  // Splice data synchronously during blur (storage consistent) but defer the render.
+  // The synchronous section ends where the deferred closure starts.
+  const syncBlock = APP_JS.slice(APP_JS.indexOf('if (pointerPressed) {'), APP_JS.indexOf('pendingDraftRender = () => {'));
+  assert.match(syncBlock, /\.tasks\.splice\(t\.i, 1\)/);
+  assert.match(syncBlock, /save\(\);/);
+  assert.doesNotMatch(syncBlock, /renderWeek\(|renderToday\(|renderInbox\(/); // no sync re-render in blur
+  // The deferred closure must still dispatch the view render after the click.
+  const deferredBlock = APP_JS.slice(APP_JS.indexOf('pendingDraftRender = () => {'), APP_JS.indexOf('removeTrulyEmptyDraft(t);'));
+  assert.match(deferredBlock, /renderWeek\(|renderToday\(|renderInbox\(inbox\)/);
+  // Escape (keyboard) path must still remove synchronously — not pointer-deferred.
+  assert.match(APP_JS, /removeTrulyEmptyDraft\(dt\)/);
+});
+
 test('20.23: assets được build + version bump (app.min/inbox.min/data-migrations.min + sw CACHE)', () => {
   const min = (rel) => { assert.ok(existsSync(path.join(ROOT, rel)), `missing ${rel}`); return readFileSync(path.join(ROOT, rel), 'utf8'); };
   assert.match(min('js/app.min.js'), /removeTrulyEmptyDraft/);

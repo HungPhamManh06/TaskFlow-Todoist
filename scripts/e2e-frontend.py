@@ -200,16 +200,52 @@ def week_checks(browser, base, width, height, errors, screenshot):
     else:
         assert not selector.is_visible()
 
-    task_count = page.locator(".week-day-panel").first.locator(".task-row").count()
-    page.locator('.week-day-panel [data-action="addtask"]').first.click()
-    assert page.locator(".week-day-panel").first.locator(".task-row").count() == task_count + 1
+    # P0.2C regression: blank-draft lifecycle (ea26fc5) must not swallow the first
+    # click on another task's checkbox. Days boot EMPTY (no pre-seeded tasks), so
+    # first create a REAL task (type into the draft), then abandon a blank draft
+    # and click the existing task's checkbox while the draft still has focus.
+    panel = page.locator(".week-day-panel").first
+    task_count = panel.locator(".task-row").count()
+    panel.locator('[data-action="addtask"]').first.click()
+    assert panel.locator(".task-row").count() == task_count + 1
+    assert page.evaluate("document.activeElement && document.activeElement.dataset.role") == "task-text"
+    # Type a real task so it survives the blank-draft cleanup.
+    panel.locator('[data-role="task-text"]').first.fill("E2E week task")
+
+    # Second task: leave it blank + focused — an abandoned draft.
+    panel.locator('[data-action="addtask"]').first.click()
+    assert panel.locator('[data-role="task-text"]').count() == 2
     assert page.evaluate("document.activeElement && document.activeElement.dataset.role") == "task-text"
 
-    day_progress = page.locator('.week-day-panel').first.locator('[data-role="day-progress"]')
+    # Click the EXISTING (real) task's checkbox while the blank draft has focus.
+    # Regression: a synchronous renderWeek() in focusout destroyed the clicked
+    # checkbox before its click event → first click swallowed, day progress frozen.
+    day_progress = panel.locator('[data-role="day-progress"]')
     day_before = day_progress.get_attribute("aria-valuenow")
-    page.locator('.week-day-panel').first.locator('[data-action="task"]').first.click()
+    real_check = panel.locator('[data-action="task"]').first
+    real_check.click()
+    assert real_check.get_attribute("aria-checked") == "true", "existing task must toggle on the FIRST click"
     assert day_progress.get_attribute("aria-valuenow") != day_before
     assert day_progress.locator('[data-role="day-progress-fill"]').get_attribute("style")
+
+    # Abandoned blank draft must be cleaned up from the DOM and storage.
+    panel.locator('[data-role="task-text"]').nth(1).wait_for(state="detached")
+    assert panel.locator('[data-role="task-text"]').count() == 1
+    page.evaluate("window.flushPendingSaves && window.flushPendingSaves()")
+    blank_left = page.evaluate(
+        """() => {
+            try {
+                const keys = Object.keys(localStorage).filter((k) => /^planner-\\d{4}-\\d{1,2}$/.test(k));
+                for (const k of keys) {
+                    const s = JSON.parse(localStorage.getItem(k));
+                    const tks = (s.weeks || []).flatMap((w) => (w.days || []).flatMap((d) => d.tasks || []));
+                    if (tks.some((tk) => window.TaskFlowDataMigrations.isTaskTrulyEmpty(tk))) return true;
+                }
+                return false;
+            } catch (e) { return true; }
+        }"""
+    )
+    assert not blank_left, "abandoned blank draft must not persist in localStorage"
 
     week_progress = page.locator('[data-role="w-progress"]')
     week_before = week_progress.get_attribute("aria-valuenow")
@@ -922,7 +958,16 @@ def task_focus_metrics_checks(browser, base, width, height, errors, screenshot):
     page.evaluate("""({ key }) => {
       const state = JSON.parse(localStorage.getItem(key));
       const tasks = state.weeks.flatMap(w => w.days.flatMap(d => d.tasks || []));
-      if (tasks.length < 3) throw new Error('P4 E2E requires three scheduled tasks');
+      // P0.2C: guest boot state no longer pre-seeds tasks (blank-draft lifecycle), so
+      // this scenario must seed its own fixtures instead of depending on demo tasks.
+      // Same pattern as daily_alignment_checks/metrics_checks.
+      // Week view splits tasks into priority/regular groups — kind must be 'regular'
+      // (or 'priority') or the row renders in neither group.
+      while (tasks.length < 3) {
+        const tk = { text: '', kind: 'regular', done: false, tags: [], linkedMetricIds: [] };
+        state.weeks[0].days[0].tasks.push(tk);
+        tasks.push(tk);
+      }
       ['P4 linked focus', 'P4 linked task', 'P4 unlinked focus'].forEach((text, index) => {
         tasks[index].text = text;
         tasks[index].done = false;
