@@ -171,7 +171,15 @@ function loadMonthStateOrCreate(y, m) {
       if (window.TaskFlowDataMigrations && source.schemaVersion !== window.TaskFlowDataMigrations.VERSION) {
         try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(parsed)); } catch (e) { /* read still succeeds */ }
       }
-      if (parsed && Array.isArray(parsed.monthlyGoals)) s = parsed;
+      // P0.3: xoá task truly-empty legacy trong state tháng (nếu có weeks) — ghi trực tiếp
+      // theo convention boot-migration, idempotent, không tạo sync loop.
+      const cleaned = window.TaskFlowDataMigrations
+        ? window.TaskFlowDataMigrations.cleanupTrulyEmptyTasks(parsed)
+        : { state: parsed, removed: 0 };
+      if (cleaned.removed > 0) {
+        try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(cleaned.state)); } catch (e) { /* read still succeeds */ }
+      }
+      if (cleaned.state && Array.isArray(cleaned.state.monthlyGoals)) s = cleaned.state;
     }
   } catch (e) { /* ẩn */ }
   if (!s) {
@@ -718,8 +726,9 @@ function defaultState() {
         goals: wd.goals.map(([text, kind, done]) => ({ text, kind, done })),
         days: wd.pcts.map((pct, di) => {
           const dt = new Date(start.getTime() + (wi * 7 + di) * 86400000);
+          // P0.2C: không pre-seed task trống — dữ liệu mẫu thật chỉ có qua demoPlan().
           return {
-            tasks: seedTasks(pct),
+            tasks: [],
             date: `${dt.getDate()}/${dt.getMonth() + 1}`,
             yy: dt.getFullYear() % 100,
             sticky: wd.stickyDay === di ? wd.stickyText : null,
@@ -775,7 +784,23 @@ function loadState() {
         });
       });
     });
-    // Lưu uid mới sinh ngay (không gọi save() — state global đang trong TDZ lúc load khởi động)
+    // P0.3: xoá task truly-empty legacy (text rỗng + không metadata) ngay khi load —
+    // additive, idempotent, giữ nguyên uid/thứ tự/done/metadata của task thật. Filter
+    // tại chỗ để state `s` dùng tiếp bên dưới không lệch bản ghi. Ghi theo đúng
+    // convention boot-migration (localStorage trực tiếp, không gọi save()/Sync).
+    let blankRemoved = 0;
+    s.weeks.forEach((w) => {
+      (w.days || []).forEach((d) => {
+        if (!Array.isArray(d.tasks)) return;
+        const kept = d.tasks.filter((tk) => {
+          if (window.TaskFlowDataMigrations.isTaskTrulyEmpty(tk)) { blankRemoved++; return false; }
+          return true;
+        });
+        if (kept.length !== d.tasks.length) d.tasks = kept;
+      });
+    });
+    if (blankRemoved > 0) tasksDirty = true;
+    // Lưu uid mới sinh / blank đã xoá ngay (không gọi save() — state global đang trong TDZ lúc load khởi động)
     if (tasksDirty || schemaDirty) {
       try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(s)); } catch (e) { /* ẩn */ }
     }
@@ -833,14 +858,10 @@ function emptyState() {
         goals: [],
         days: Array.from({ length: 7 }, (_, di) => {
           const dt = new Date(start.getTime() + (wi * 7 + di) * 86400000);
+          // P0.2C: không pre-seed task trống — tài khoản mới bắt đầu với ngày thật sự
+          // trống; task chỉ được tạo qua hành động Thêm (draft rỗng sẽ bị xoá khi bỏ dở).
           return {
-            tasks: [
-              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'priority', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
-              { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
-            ],
+            tasks: [],
             date: `${dt.getDate()}/${dt.getMonth() + 1}`,
             yy: dt.getFullYear() % 100,
             sticky: null,
@@ -890,6 +911,59 @@ let state = bootState();
 if (!window.TaskFlowInbox) throw new Error('TaskFlowInbox missing — js/inbox.js failed to load');
 const { loadInbox, saveInbox, renderInbox, inboxTargetForDate, handleInboxAction } = window.TaskFlowInbox;
 let inbox = loadInbox();
+
+/* ============================ P0.2 — Draft task trống ============================ */
+// Task vừa tạo (Today/Week/Inbox) bắt đầu với text rỗng rồi focus vào ô viết. Nếu người
+// dùng bỏ dở (blur, Tab, click chỗ khác, Escape, điều hướng) mà không gõ text, draft
+// KHÔNG được thành task thật: xoá an toàn, KHÔNG undo, KHÔNG toast. Chỉ xoá task "trống
+// THẬT SỰ" (isTaskTrulyEmpty) — task có deadline/tags/notes/subtasks/... luôn được giữ.
+
+// Giải mã task theo ô contenteditable (task-text = Today/Week, inbox-text = Inbox).
+function taskAtText(el) {
+  if (el.dataset.role === 'task-text') {
+    const w = state.weeks[+el.dataset.week - 1];
+    const d = w && w.days[+el.dataset.day];
+    const tk = d && d.tasks[+el.dataset.task];
+    return tk ? { scope: 'week', tk, d, i: +el.dataset.task } : null;
+  }
+  if (el.dataset.role === 'inbox-text') {
+    const tk = inbox[+el.dataset.task];
+    return tk ? { scope: 'inbox', tk, i: +el.dataset.task } : null;
+  }
+  return null;
+}
+
+function removeTrulyEmptyDraft(t) {
+  if (t.scope === 'week') {
+    t.d.tasks.splice(t.i, 1);
+    if (state.view === 'today') renderToday();
+    else renderWeek();
+    save();
+  } else {
+    inbox.splice(t.i, 1);
+    saveInbox(inbox);
+    renderInbox(inbox);
+  }
+}
+
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el || !el.dataset) return;
+  if (el.dataset.role !== 'task-text' && el.dataset.role !== 'inbox-text') return;
+  const t = taskAtText(el);
+  // Đánh dấu "trống từ lúc focus": chỉ xoá khi task rỗng NGAY TỪ ĐẦU (draft mới hoặc
+  // blank legacy còn sót) — KHÔNG xoá task cũ đang bị người dùng xoá text (bỏ dở việc xoá).
+  if (t && window.TaskFlowDataMigrations.isTaskTrulyEmpty(t.tk)) el.dataset.freshBlank = '1';
+});
+
+document.addEventListener('focusout', (e) => {
+  const el = e.target;
+  if (!el || !el.dataset || el.dataset.freshBlank !== '1') return;
+  delete el.dataset.freshBlank;
+  if (!document.contains(el)) return; // đã bị re-render → bỏ qua (chỉ mục có thể đã lệch)
+  const t = taskAtText(el);
+  if (t && window.TaskFlowDataMigrations.isTaskTrulyEmpty(t.tk)) removeTrulyEmptyDraft(t);
+});
 
 function save() {
   // Migration additive (P2): state luôn có pillars hợp lệ trước khi serialize.
@@ -3511,7 +3585,7 @@ function closeToolsDrawer() {
 // loadMonthStateOrCreate/saveMonthState, save, trackEvent, state, PLAN_*/NUM_WEEKS) resolve
 // qua global lexical tại thời điểm GỌI — pattern mood.js/popups.js.
 if (!window.TaskFlowUpcoming) throw new Error('TaskFlowUpcoming missing — js/upcoming.js failed to load');
-const { setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate } = window.TaskFlowUpcoming;
+const { setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate, toggleOverdueExpanded } = window.TaskFlowUpcoming;
 
 /* ============================ Quick Add — thêm nhanh ở mọi màn hình (Phase 4) ============================ */
 /* ============================ Quick Add — thêm nhanh ở mọi màn hình (Phase 4) ============================ */
@@ -4083,6 +4157,8 @@ document.addEventListener('click', (e) => {
     openMonth(+el.dataset.month);
   } else if (act === 'upcoming-range') {
     setUpcomingRange(+el.dataset.days);
+  } else if (act === 'upcoming-overdue-toggle') {
+    toggleOverdueExpanded();
   } else if (act === 'quickadd-close') {
     runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.closeQuickAdd());
   } else if (act === 'quickadd-do') {
@@ -4915,6 +4991,17 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape') {
+    // P0.2D: Escape trong ô text của draft task trống → xoá draft (không undo/toast)
+    const edt = document.activeElement;
+    if (edt && edt.dataset && edt.dataset.freshBlank === '1' &&
+        (edt.dataset.role === 'task-text' || edt.dataset.role === 'inbox-text')) {
+      const dt = taskAtText(edt);
+      if (dt && window.TaskFlowDataMigrations.isTaskTrulyEmpty(dt.tk)) {
+        e.preventDefault();
+        removeTrulyEmptyDraft(dt);
+        return;
+      }
+    }
     // Phase 4: Escape đóng menu task ⋯ đang mở + trả focus về nút ⋯ (APG menu button)
     const openRows = document.querySelectorAll('.task-row.menu-open');
     if (openRows.length) {

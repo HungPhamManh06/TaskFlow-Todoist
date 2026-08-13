@@ -21,6 +21,11 @@
   // Task thuộc tháng hiện tại đọc từ `state`; tháng khác đọc qua monthStateRaw (không tạo state mới).
   let upcomingRange = 14;
   const UPCOMING_RANGE_KEY = 'planner-upcoming-range';
+  // P1.2 — progressive disclosure cho danh sách quá hạn dài: hiện tối đa
+  // OVERDUE_LIMIT dòng, phần còn lại qua nút "Xem thêm N" (không ẩn vĩnh viễn
+  // — tất cả task vẫn truy cập được qua nút, keyboard + screen-reader).
+  const OVERDUE_LIMIT = 15;
+  let overdueExpanded = false;
 
   try { const r = +localStorage.getItem(UPCOMING_RANGE_KEY); if (r === 7 || r === 14 || r === 30) upcomingRange = r; } catch (e) { /* ẩn */ }
 
@@ -70,6 +75,22 @@
       });
     }
     return out;
+  }
+
+  // Tổng task trong cửa sổ cố định tính từ hôm nay (không phụ thuộc upcomingRange đang chọn)
+  // — chỉ dùng dữ liệu đã có, phục vụ header density (P3).
+  function upcomingSummaryCounts() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const countIn = (n) => {
+      let c = 0;
+      for (let i = 0; i < n; i++) {
+        const ref = tasksForDate(new Date(today.getTime() + i * 86400000));
+        if (ref && ref.tasks) c += ref.tasks.length;
+      }
+      return c;
+    };
+    return { today: countIn(1), d7: countIn(7), d30: countIn(30) };
   }
 
   // Gom task từ hôm nay → +upcomingRange ngày. Không trùng task (mỗi ngày quét đúng 1 lần).
@@ -138,10 +159,26 @@
     const overdue = upcomingOverdueTasks();
     const days = upcomingCollect();
     const hasAny = overdue.length || days.some((d) => d.tasks.length);
+    // P1.2: nếu danh sách quá hạn dài (> OVERDUE_LIMIT) và chưa mở rộng, chỉ vẽ
+    // OVERDUE_LIMIT dòng + nút "Xem thêm N". Khi đã mở rộng, vẽ đủ + nút Thu gọn.
+    const overdueVisible = overdueExpanded ? overdue : overdue.slice(0, OVERDUE_LIMIT);
+    const overdueHidden = overdue.length - overdueVisible.length;
+    const summary = upcomingSummaryCounts();
+    const summaryChip = (n, label) => `<span class="up-summary-chip"><b>${n}</b>${esc(label)}</span>`;
+    const summaryHTML = `<div class="up-summary" role="list" aria-label="${t('upcomingSummaryAria')}">
+      ${summaryChip(overdue.length, t('upcomingOverdue'))}
+      ${summaryChip(summary.today, t('upcomingTodayLabel'))}
+      ${summaryChip(summary.d7, t('upcomingRange7'))}
+      ${summaryChip(summary.d30, t('upcomingRange30'))}
+    </div>`;
     const rangeBtn = (n) => `<button type="button" class="up-range-btn${upcomingRange === n ? ' active' : ''}" data-action="upcoming-range" data-days="${n}" aria-pressed="${upcomingRange === n}">${t('upcomingRange' + n)}</button>`;
+    const overdueMoreBtn = overdueHidden > 0
+      ? `<button type="button" class="up-overdue-more" data-action="upcoming-overdue-toggle" aria-expanded="false" aria-controls="up-overdue-body">${t('upcomingOverdueMore', { n: overdueHidden })}<span class="up-overdue-more-n">${overdueHidden}</span></button>`
+      : (overdueExpanded ? `<button type="button" class="up-overdue-more" data-action="upcoming-overdue-toggle" aria-expanded="true" aria-controls="up-overdue-body">${t('upcomingOverdueShowLess')}</button>` : '');
     const overdueHTML = overdue.length ? `<section class="up-group up-overdue" aria-label="${t('upcomingOverdueAria')}">
     <h2 class="up-group-head overdue"><span class="up-overdue-dot" aria-hidden="true"></span>${t('upcomingOverdue')}<span class="up-count">${overdue.length}</span></h2>
-    <div class="up-group-body">${overdue.map((r) => upcomingTaskRowHTML(r)).join('')}</div>
+    <div class="up-group-body" id="up-overdue-body">${overdueVisible.map((r) => upcomingTaskRowHTML(r)).join('')}</div>
+    ${overdueMoreBtn}
   </section>` : '';
     const daysHTML = days.map((d, i) => {
       if (!d.tasks.length) return '';
@@ -164,10 +201,17 @@
         ${rangeBtn(7)}${rangeBtn(14)}${rangeBtn(30)}
       </div>
     </header>
+    ${summaryHTML}
     ${overdueHTML}
     ${daysHTML}
     ${emptyHTML}
   </div>`;
+  }
+
+  function toggleOverdueExpanded() {
+    overdueExpanded = !overdueExpanded;
+    renderUpcoming();
+    trackEvent('upcoming_overdue_toggle', { expanded: overdueExpanded });
   }
 
   // Đặt 1 task vào ngày dt (lưới tháng đúng — tháng khác tạo qua loadMonthStateOrCreate).
@@ -183,5 +227,5 @@
     return true;
   }
 
-  return { setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate };
+  return { setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate, toggleOverdueExpanded, OVERDUE_LIMIT };
 });

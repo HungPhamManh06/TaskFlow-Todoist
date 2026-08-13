@@ -2251,6 +2251,25 @@ textarea:focus-visible,
   gap: var(--space-4);
   min-width: 0;
 }
+/* P1.3 — cân bằng lưới Tuần trên desktop: hàng 1 = T2-T6 (4 ngày), hàng 2 = T7-CN
+   (3 ngày), cả hai hàng dùng đủ chiều rộng (4×3 + 3×4 = 12 cột). Không đổi tablet
+   (2 cột) / mobile (1 cột) / print (7 cột) — các media query phía dưới override. */
+@media (min-width: 1101px) {
+  .week-day-list {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .week-day-list .day-col-0,
+  .week-day-list .day-col-1,
+  .week-day-list .day-col-2,
+  .week-day-list .day-col-3 {
+    grid-column: span 3;
+  }
+  .week-day-list .day-col-4,
+  .week-day-list .day-col-5,
+  .week-day-list .day-col-6 {
+    grid-column: span 4;
+  }
+}
 
 .week-day-panel {
   min-width: 0;
@@ -2540,6 +2559,8 @@ textarea:focus-visible,
   flex-direction: column;
   gap: var(--space-6);
   padding-block: var(--space-4);
+  /* Desktop density (P7/P11): cap Today so wide workspaces stay readable, centered in workspace. */
+  max-width: 1320px;
 }
 
 .today-header {
@@ -2563,7 +2584,7 @@ textarea:focus-visible,
 
 .today-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: var(--space-5);
   align-items: start;
 }
@@ -2880,11 +2901,15 @@ textarea:focus-visible,
 
 /* ===== Phase 9: Thống kê tương quan focus × task ===== */
 .stats-modal-card { max-width: 560px; }
+:root[data-dark="true"] .up-overdue-more .up-overdue-more-n {
+  background: rgba(255, 255, 255, .1);
+  color: #C9B7A0;
+}
 :root[data-dark="true"] .up-group-head .up-count { background: rgba(255, 255, 255, .1); color: #C9B7A0; }
 :root[data-dark="true"] .up-range { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .12); }
 :root[data-dark="true"] .up-range-btn.active { background: #2E241C; color: #F2E8D5; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
-:root[data-dark="true"] .inbox-task-row { background: rgba(255, 255, 255, .04); border-color: rgba(255, 255, 255, .12); }
-:root[data-dark="true"] .inbox-task-row:hover { border-color: rgba(var(--accent-rgb, 194, 78, 40), .6); }
+/* Inbox rows stay transparent in dark mode (grouped-list pattern, same as
+   .up-task-row): the group container carries the surface, rows only tint on hover. */
 :root[data-dark="true"] .td-inbox-schedule input[type="date"] { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .15); color: #F2E8D5; }
 :root[data-dark="true"] .inbox-sched-today { color: #E8A87C; border-color: rgba(232, 168, 124, .4); background: rgba(232, 168, 124, .12); }
 

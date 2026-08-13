@@ -24,6 +24,13 @@
       if (Array.isArray(r)) {
         // Vệ sinh: task thiếu uid → gán uid cố định (nền tảng carry-over khi lên lịch)
         r.forEach((tk) => { if (!tk || typeof tk.uid !== 'string') tk.uid = newTaskUid(); if (!Array.isArray(tk.tags)) tk.tags = []; });
+        // P0.3: xoá item inbox truly-empty (text rỗng + không metadata) — ghi trực tiếp
+        // theo convention boot-migration (không gọi saveInbox → không Sync.push tại boot).
+        const kept = r.filter((tk) => !(window.TaskFlowDataMigrations && window.TaskFlowDataMigrations.isTaskTrulyEmpty(tk)));
+        if (kept.length !== r.length) {
+          try { localStorage.setItem(INBOX_KEY, JSON.stringify(kept)); } catch (e) { /* ẩn */ }
+          return kept;
+        }
         return r;
       }
     } catch (e) { /* ẩn */ }

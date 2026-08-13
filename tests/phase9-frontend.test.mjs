@@ -409,6 +409,10 @@ test('mobile week selector scrolls and focuses the chosen day panel', () => {
 test('week workspace uses responsive panels without page-level horizontal scrolling', () => {
   const styles = readRequiredAsset('css/styles.css');
   assert.match(styles, /\.week-day-list\s*{[^}]*display:\s*grid[^}]*grid-template-columns:\s*repeat\(3,/s);
+  // P1.3 — desktop 4+3: 12-col grid with day-col spans, tablet/mobile/print overrides stay after
+  assert.match(styles, /@media \(min-width: 1101px\)\s*\{[^}]*\.week-day-list\s*\{[^}]*grid-template-columns:\s*repeat\(12,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(styles, /\.week-day-list\s*\.day-col-0,\s*\.week-day-list\s*\.day-col-1,\s*\.week-day-list\s*\.day-col-2,\s*\.week-day-list\s*\.day-col-3\s*\{[^}]*grid-column:\s*span 3/s);
+  assert.match(styles, /\.week-day-list\s*\.day-col-4,\s*\.week-day-list\s*\.day-col-5,\s*\.week-day-list\s*\.day-col-6\s*\{[^}]*grid-column:\s*span 4/s);
   assert.match(styles, /\.week-day-panel\s*{[^}]*min-width:\s*0/s);
   assert.match(styles, /\.week-day-selector\s*{[^}]*display:\s*none/s);
   const mobile = styles.slice(styles.lastIndexOf('@media (max-width: 767px)'));
@@ -569,6 +573,17 @@ test('Phase 7: unified empty states with CTA actions and dedup toasts', () => {
   assert.match(I18N_JS, /taskDeletedToast: 'Task deleted'/);
   assert.match(I18N_JS, /emptyPlanWeek: 'Lên kế hoạch tuần'/);
   assert.match(I18N_JS, /emptyPlanWeek: 'Plan the week'/);
+  // P1.2 — overdue "Xem thêm N" progressive disclosure: i18n keys + handler + limit
+  assert.match(I18N_JS, /upcomingOverdueMore: 'Xem thêm'/);
+  assert.match(I18N_JS, /upcomingOverdueMore: 'Show more'/);
+  assert.match(I18N_JS, /upcomingOverdueMoreAria: 'Xem thêm \{n\} công việc quá hạn'/);
+  assert.match(I18N_JS, /upcomingOverdueShowLess: 'Thu gọn'/);
+  assert.match(I18N_JS, /upcomingOverdueShowLess: 'Collapse'/);
+  assert.match(readRequiredAsset('js/upcoming.js'), /const OVERDUE_LIMIT = 15;/);
+  assert.match(readRequiredAsset('js/upcoming.js'), /data-action="upcoming-overdue-toggle"/);
+  assert.match(APP_JS, /act === 'upcoming-overdue-toggle'/);
+  assert.match(readRequiredAsset('js/upcoming.js'), /overdue\.slice\(0, OVERDUE_LIMIT\)/);
+  assert.match(readRequiredAsset('css/styles.css'), /\.up-overdue-more\s*{/);
   // CSS: empty-actions + toast-action
   const css = readRequiredAsset('css/styles.css');
   const comp = readRequiredAsset('css/components.css');
@@ -817,8 +832,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=169/);
-  assert.match(SW, /const CACHE = 'taskflow-v204';/);
+  assert.match(APP, /js\/app\.min\.js\?v=170/);
+  assert.match(SW, /const CACHE = 'taskflow-v209';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1326,7 +1341,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=169/);
+  assert.match(APP, /js\/app\.min\.js\?v=170/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
@@ -1334,7 +1349,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v204';/);
+  assert.match(SW, /const CACHE = 'taskflow-v209';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -1631,6 +1646,17 @@ test('P11: month/week report UI extracted — R15 lives in js/report-ui.js', () 
   assert.match(mod, /return \{ monthlyReportData, renderReportModal, openReportModal, closeReportModal, reportCardBlob, doShareReport, weeklyReportData, lastWeekReportData, vsCell, focusReportBars, renderWeekReportModal, openWeekReportModal, closeWeekReportModal, weekReportCardBlob, doShareWeekReport \}/);
 });
 
+test('P3: Upcoming header density — summary counts derive from existing task data only', () => {
+  const up = readRequiredAsset('js/upcoming.js');
+  const I18N = readRequiredAsset('js/i18n.js');
+  const STYLES = readRequiredAsset('css/styles.css');
+  assert.match(up, /function upcomingSummaryCounts\(\)/);
+  assert.match(up, /up-summary-chip/);
+  assert.match(up, /upcomingSummaryAria/);
+  assert.match(I18N, /upcomingSummaryAria: '/);
+  assert.match(STYLES, /\.up-summary\s*\{/);
+});
+
 test('P11: Upcoming view extracted — R25 lives in js/upcoming.js', () => {
   // app.html loads upcoming.js before app.js
   assert.match(APP, /src="js\/upcoming\.min\.js\?v=\d+"[^>]*>/);
@@ -1641,7 +1667,7 @@ test('P11: Upcoming view extracted — R25 lives in js/upcoming.js', () => {
   assert.ok(SW.includes("\'./js/upcoming.min.js\'"), 'sw.js phải precache js/upcoming.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowUpcoming\) throw new Error\('TaskFlowUpcoming missing/);
-  assert.match(APP_JS, /const \{ setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate \} = window\.TaskFlowUpcoming;/);
+  assert.match(APP_JS, /const \{ setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate, toggleOverdueExpanded \} = window\.TaskFlowUpcoming;/);
   assert.doesNotMatch(APP_JS, /^function setUpcomingRange\(/m);
   assert.doesNotMatch(APP_JS, /^function tasksForDate\(/m);
   assert.doesNotMatch(APP_JS, /^function upcomingOverdueTasks\(/m);
@@ -1659,7 +1685,7 @@ test('P11: Upcoming view extracted — R25 lives in js/upcoming.js', () => {
   assert.match(readRequiredAsset('js/quick-add.js'), /pushTaskToDate\(tk, dt\)/);
   // module export đủ API
   const mod = readRequiredAsset('js/upcoming.js');
-  assert.match(mod, /return \{ setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate \}/);
+  assert.match(mod, /return \{ setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate, toggleOverdueExpanded, OVERDUE_LIMIT \}/);
 });
 
 test('P11: focus stats extracted — pomo/focus helpers live in js/focus-stats.js', () => {
@@ -1984,7 +2010,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v204';/);
+  assert.match(SW, /const CACHE = 'taskflow-v209';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2062,7 +2088,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v204';/);
+  assert.match(SW, /const CACHE = 'taskflow-v209';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2534,6 +2560,16 @@ test('Phase 9: focus × task correlation stats modal with range filter', () => {
   assert.match(APP_JS, /window\.TaskFlowStatsUI\.setStatsRange\(el\.dataset\.range\)\)/);
   // CSS
   assert.match(styles, /\.stats-modal-card\s*{[^}]*max-width:\s*560px/s);
+  // P2.1 — data-heavy modal width tiers: deep reflection + week/year report 600–680px,
+  // pillar/metric editors 480–560px, all responsive min(calc(100vw - margins), target);
+  // simple dialogs giữ nguyên 360–420px
+  assert.match(styles, /#reflectionModal \.report-modal-card\s*{[^}]*min\(640px,\s*calc\(100vw - 32px\)\)[^}]*max-width:\s*640px/s);
+  assert.match(styles, /#weekReportModal \.report-modal-card\s*{[^}]*min\(640px,\s*calc\(100vw - 32px\)\)[^}]*max-width:\s*640px/s);
+  assert.match(styles, /#yearReportModal \.report-modal-card\s*{[^}]*min\(680px,\s*calc\(100vw - 32px\)\)[^}]*max-width:\s*680px/s);
+  assert.match(styles, /#pillarEditModal \.report-modal-card\s*{[^}]*min\(520px,\s*calc\(100vw - 32px\)\)[^}]*max-width:\s*520px/s);
+  assert.match(styles, /#metricEditModal \.report-modal-card\s*{[^}]*min\(520px,\s*calc\(100vw - 32px\)\)[^}]*max-width:\s*520px/s);
+  // mobile ≤600px: tất cả về full-width trong safe margin (no horizontal scroll)
+  assert.match(styles, /#reflectionModal \.report-modal-card, #weekReportModal \.report-modal-card, #yearReportModal \.report-modal-card, #pillarEditModal \.report-modal-card, #metricEditModal \.report-modal-card \{ width: min\(100% - 24px, 440px\); max-width: 440px; max-height: calc\(100vh - 32px\); \}/s);
   assert.match(styles, /\.stats-range-btn\.active\s*{/);
   assert.match(styles, /\.stats-scatter-svg\s*{/);
   assert.match(styles, /\.stats-row\s*{/);

@@ -158,10 +158,19 @@ def main():
                 )
                 page.goto(f"{base}/app.html?view=today", wait_until="networkidle")
                 page.wait_for_timeout(600)
-                # Seed a mood selection + a done task so the polished states exist
+                # Seed a mood selection + a real done task so the polished states exist
+                # (Today has no pre-seeded blank rows since P0.2C — create one via the
+                # real add flow, type text, then toggle done).
                 try:
                     page.evaluate("() => { const b = document.querySelector('.reflect-mood-btn'); if (b) b.click(); }")
                     page.wait_for_timeout(150)
+                    page.locator('[data-action="today-addtask"]').first.click()
+                    page.wait_for_timeout(200)
+                    editor = page.locator('[data-role="task-text"]').last
+                    editor.click()
+                    editor.fill("Contrast seed task")
+                    page.locator("body").click(position={"x": 700, "y": 500}, force=True)
+                    page.wait_for_timeout(250)
                     page.evaluate("() => { const cb = document.querySelector('.today-task [data-action=task]'); if (cb) cb.click(); }")
                     page.wait_for_timeout(150)
                 except Exception:

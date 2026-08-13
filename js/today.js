@@ -105,7 +105,6 @@
           <div class="today-progress" role="progressbar" aria-label="${t('todayProgress')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
             <span class="today-progress-fill" data-role="today-progress-fill" style="width:${pct}%"></span>
           </div>
-          <p class="today-progress-label" data-role="today-progress-label">${t('todayCompleted', { done, total })}</p>
           <div class="today-task-list" data-role="today-task-list">${taskRows}</div>
           <button type="button" class="btn-add-today" data-action="today-addtask" aria-label="${t('todayAddTask')}">${window.TaskFlowUI.icon('plus')}<span>${t('todayAddTask')}</span></button>
         </section>

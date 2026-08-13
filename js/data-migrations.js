@@ -32,6 +32,52 @@
     return out;
   }
 
+  // P0.2B — Định nghĩa DUY NHẤT của "task trống thật sự" (dùng chung cho lifecycle
+  // draft + migration cleanup). Task chỉ được tự xoá khi text (trim) rỗng VÀ không
+  // chứa bất kỳ nội dung/trạng thái người dùng có ý nghĩa nào:
+  // tags, notes, subtasks, deadline, remind bật, repeat, duration, linkedMetricIds,
+  // focusLog, carried/carriedFrom (dồn ngày chủ động). Trả true = an toàn để xoá.
+  function isTaskTrulyEmpty(tk) {
+    if (!tk || typeof tk !== 'object' || Array.isArray(tk)) return false;
+    if ((tk.text || '').trim() !== '') return false;
+    if (Array.isArray(tk.tags) && tk.tags.length) return false;
+    if (Array.isArray(tk.subtasks) && tk.subtasks.length) return false;
+    if (typeof tk.notes === 'string' && tk.notes.trim() !== '') return false;
+    if (typeof tk.note === 'string' && tk.note.trim() !== '') return false;
+    if (tk.deadline) return false;
+    if (tk.remind && tk.remind.enabled) return false;
+    if (tk.repeat && tk.repeat.freq) return false;
+    if (tk.duration) return false;
+    if (Array.isArray(tk.linkedMetricIds) && tk.linkedMetricIds.length) return false;
+    if (Array.isArray(tk.focusLog) && tk.focusLog.length) return false;
+    if (tk.carriedFrom) return false;
+    if (tk.carried) return false;
+    return true;
+  }
+
+  // P0.3 — Cleanup additive, KHÔNG mutate input. Quét weeks[].days[].tasks của month
+  // state, xoá CHỈ task truly-empty (isTaskTrulyEmpty). Giữ nguyên uid, thứ tự, done
+  // và toàn bộ metadata của task thật. Trả { state, removed }. Idempotent: chạy lần 2
+  // trên kết quả trả về removed = 0 (không có blank mới).
+  function cleanupTrulyEmptyTasks(state) {
+    const out = clone(state || {});
+    let removed = 0;
+    if (Array.isArray(out.weeks)) {
+      out.weeks.forEach((w) => {
+        if (!w || !Array.isArray(w.days)) return;
+        w.days.forEach((d) => {
+          if (!d || !Array.isArray(d.tasks)) return;
+          const kept = d.tasks.filter((tk) => {
+            if (isTaskTrulyEmpty(tk)) { removed++; return false; }
+            return true;
+          });
+          d.tasks = kept;
+        });
+      });
+    }
+    return { state: out, removed };
+  }
+
   function migrateReflectionStore(raw) {
     return objectOrEmpty(raw);
   }
@@ -82,5 +128,6 @@
   return {
     APP, VERSION, MONTH_KEY, PLANNER_KEY, LEGACY_KEY,
     migrateMonthState, migrateReflectionStore, migrateSnapshot, validateSnapshot,
+    isTaskTrulyEmpty, cleanupTrulyEmptyTasks,
   };
 });

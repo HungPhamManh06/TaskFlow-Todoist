@@ -89,7 +89,10 @@
       ? `<p class="today-alignment-empty">${opts.t('todayAlignmentUnavailable')}</p>`
       : list.length
         ? list.map((group) => alignmentGroupHTML(group, opts)).join('')
-        : `<p class="today-alignment-empty">${opts.t('todayAlignmentEmpty')}</p>`;
+        : `<div class="today-alignment-empty">
+            <p>${opts.t('todayAlignmentEmpty')}</p>
+            <button type="button" class="empty-btn" data-action="nav" data-view="overview">${opts.t('todayAlignmentCta')}</button>
+          </div>`;
     return `<section class="today-card today-alignment-card" data-testid="daily-alignment" aria-labelledby="dailyAlignmentTitle">
       <div class="today-card-head"><h2 class="today-card-title" id="dailyAlignmentTitle">${opts.t('todayAlignmentTitle')}</h2></div>
       <div class="today-alignment-groups">${body}</div>

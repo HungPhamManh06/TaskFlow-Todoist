@@ -204,7 +204,7 @@ test('P10 production assets and privacy copy are registered', () => {
   const html = fs.readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
   const i18n = fs.readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
-  assert.match(html, /js\/data-migrations\.min\.js\?v=1/);
+  assert.match(html, /js\/data-migrations\.min\.js\?v=2/);
   assert.match(sw, /js\/data-migrations\.min\.js/);
   assert.match(i18n, /syncPrivacy/);
   assert.match(i18n, /last-write-wins/i);
