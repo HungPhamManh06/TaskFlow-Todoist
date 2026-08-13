@@ -70,6 +70,17 @@
           && globalThis.TaskFlowProjects.sanitizeSnapshotRefs) {
         snapshot = globalThis.TaskFlowProjects.sanitizeSnapshotRefs(snapshot);
       }
+      // V1.2 — TimeBlocks: block trỏ tới task không tồn tại trong snapshot → clear
+      // taskUid (giữ block). Guard optional như Projects.
+      if (typeof globalThis !== 'undefined' && globalThis.TaskFlowTimeBlocks
+          && globalThis.TaskFlowTimeBlocks.sanitizeSnapshotRefs) {
+        snapshot = globalThis.TaskFlowTimeBlocks.sanitizeSnapshotRefs(snapshot);
+      }
+      // V1.2.1 — Contexts: task.contexts chỉ giữ ID có trong store import (giữ task).
+      if (typeof globalThis !== 'undefined' && globalThis.TaskFlowContexts
+          && globalThis.TaskFlowContexts.sanitizeSnapshotRefs) {
+        snapshot = globalThis.TaskFlowContexts.sanitizeSnapshotRefs(snapshot);
+      }
       Object.keys(snapshot.keys).forEach((key) => {
         if (isReservedKey(key)) delete snapshot.keys[key];
       });

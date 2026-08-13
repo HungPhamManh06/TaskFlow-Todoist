@@ -448,8 +448,170 @@ async function main() {
     console.log('TEST 11 OK — planner-projects hai client đồng bộ qua generic mechanism (LWW)');
   }
 
+  // ---- TEST 12: hai client — planner-timeblocks (Time Block) qua generic mechanism ----
+  // Client A tạo block (planned + completed) → push → Client B pull thấy → Client B sửa
+  // end → push → Client A pull nhận bản mới theo LWW. Cuối: Client A xoá block của 1
+  // task (orphan-clean) → cloud hội tụ → Client B pull nhận trạng thái sạch (không revive).
+  {
+    const seed = await fetch(base + '/api/auth/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'blockuser12', password: 'Pass123456!' })
+    }).then((x) => x.json());
+    assert.ok(seed.token, 'phải tạo được user cho test timeblocks sync');
+
+    const tbKey = 'planner-timeblocks';
+    const storeV1 = {
+      version: 1,
+      blocks: [
+        { id: 'block_1', taskUid: 'task_alpha', date: '2026-08-20', start: '09:00', end: '10:30', status: 'planned', createdAt: 'x', updatedAt: 'x' },
+        { id: 'block_2', taskUid: 'task_alpha', date: '2026-08-20', start: '14:00', end: '15:00', status: 'completed', createdAt: 'x', updatedAt: 'x' },
+      ],
+    };
+
+    // Client A: login → tạo blocks → push → cloud có key
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncA = loadSync();
+    const okA = await SyncA.login('blockuser12', 'Pass123456!');
+    assert.strictEqual(okA.ok, true, 'Client A đăng nhập phải thành công');
+    global.localStorage.setItem(tbKey, JSON.stringify(storeV1));
+    SyncA.push(tbKey);
+    await sleep(80);
+    const tokenA = global.localStorage.getItem('planner-token');
+    const rowsA = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowA = rowsA.find((r) => r.key === tbKey);
+    assert.ok(rowA, 'planner-timeblocks phải tồn tại trên cloud sau push Client A');
+    assert.strictEqual(rowA.data.blocks.length, 2, '2 block phải được đẩy lên cloud');
+
+    // Client B: login từ local sạch → pull → thấy cả 2 block (planned + completed)
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncB = loadSync();
+    const okB = await SyncB.login('blockuser12', 'Pass123456!');
+    assert.strictEqual(okB.ok, true, 'Client B đăng nhập phải thành công');
+    const storeB = JSON.parse(global.localStorage.getItem(tbKey));
+    assert.ok(storeB && Array.isArray(storeB.blocks), 'Client B phải nhận planner-timeblocks');
+    assert.strictEqual(storeB.blocks.length, 2, 'Client B phải nhận 2 block');
+    assert.strictEqual(storeB.blocks[0].id, 'block_1', 'block id phải giữ nguyên qua sync');
+    assert.strictEqual(storeB.blocks[0].taskUid, 'task_alpha', 'taskUid phải giữ nguyên qua sync');
+
+    // Client B: sửa end của block_1 → push → cloud nhận bản mới
+    storeB.blocks[0].end = '11:00';
+    storeB.blocks[0].updatedAt = new Date().toISOString();
+    global.localStorage.setItem(tbKey, JSON.stringify(storeB));
+    SyncB.push(tbKey);
+    await sleep(80);
+    const rowsB = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowB = rowsB.find((r) => r.key === tbKey);
+    assert.ok(rowB, 'cloud phải có planner-timeblocks sau push Client B');
+    assert.strictEqual(rowB.data.blocks[0].end, '11:00', 'sửa end của Client B phải lên cloud');
+
+    // Client A: pull lại → nhận bản mới nhất theo LWW hiện tại
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncA2 = loadSync();
+    const okA2 = await SyncA2.login('blockuser12', 'Pass123456!');
+    assert.strictEqual(okA2.ok, true, 'Client A (lần 2) đăng nhập phải thành công');
+    const storeA2 = JSON.parse(global.localStorage.getItem(tbKey));
+    assert.strictEqual(storeA2.blocks[0].end, '11:00', 'Client A phải nhận bản mới nhất (LWW)');
+    assert.strictEqual(storeA2.blocks.length, 2, 'block không bị mất qua sync');
+
+    // Orphan-clean: Client A xoá block_2 (task đã xoá) → push → Client B pull: không revive
+    const cleanA = JSON.parse(global.localStorage.getItem(tbKey));
+    cleanA.blocks = cleanA.blocks.filter((b) => b.id !== 'block_2');
+    cleanA.blocks[0].updatedAt = new Date().toISOString();
+    global.localStorage.setItem(tbKey, JSON.stringify(cleanA));
+    SyncA2.push(tbKey);
+    await sleep(80);
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncB2 = loadSync();
+    const okB2 = await SyncB2.login('blockuser12', 'Pass123456!');
+    assert.strictEqual(okB2.ok, true, 'Client B (lần 2) đăng nhập phải thành công');
+    const storeB2 = JSON.parse(global.localStorage.getItem(tbKey));
+    assert.strictEqual(storeB2.blocks.length, 1, 'Client B phải nhận trạng thái đã dọn (block_2 không revive)');
+    assert.strictEqual(storeB2.blocks[0].id, 'block_1', 'block còn lại phải giữ nguyên');
+    console.log('TEST 12 OK — planner-timeblocks hai client đồng bộ + dọn orphan (LWW)');
+  }
+
+  // ---- TEST 13: hai client — planner-contexts (Context store, V1.2.1) qua generic ----
+  // Client A seed contexts (Computer/Home) → push → Client B pull thấy → Client B thêm
+  // School + rename Home → push → Client A pull nhận bản mới theo LWW.
+  {
+    const seed = await fetch(base + '/api/auth/signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'ctxuser13', password: 'Pass123456!' })
+    }).then((x) => x.json());
+    assert.ok(seed.token, 'phải tạo được user cho test contexts sync');
+
+    const ctxKey = 'planner-contexts';
+    const storeV1 = {
+      version: 1,
+      contexts: [
+        { id: 'ctx_1', label: 'Computer', createdAt: 'x', updatedAt: 'x' },
+        { id: 'ctx_2', label: 'Home', createdAt: 'x', updatedAt: 'x' },
+      ],
+    };
+
+    // Client A: login → seed contexts → push → cloud có key
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncA = loadSync();
+    const okA = await SyncA.login('ctxuser13', 'Pass123456!');
+    assert.strictEqual(okA.ok, true, 'Client A đăng nhập phải thành công');
+    global.localStorage.setItem(ctxKey, JSON.stringify(storeV1));
+    SyncA.push(ctxKey);
+    await sleep(80);
+    const tokenA = global.localStorage.getItem('planner-token');
+    const rowsA = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowA = rowsA.find((r) => r.key === ctxKey);
+    assert.ok(rowA, 'planner-contexts phải tồn tại trên cloud sau push Client A');
+    assert.strictEqual(rowA.data.contexts.length, 2, '2 context phải được đẩy lên cloud');
+
+    // Client B: login từ local sạch → pull → thấy 2 context
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncB = loadSync();
+    const okB = await SyncB.login('ctxuser13', 'Pass123456!');
+    assert.strictEqual(okB.ok, true, 'Client B đăng nhập phải thành công');
+    const storeB = JSON.parse(global.localStorage.getItem(ctxKey));
+    assert.ok(storeB && Array.isArray(storeB.contexts), 'Client B phải nhận planner-contexts');
+    assert.strictEqual(storeB.contexts.length, 2, 'Client B phải nhận 2 context');
+    assert.strictEqual(storeB.contexts[0].id, 'ctx_1', 'context id giữ nguyên qua sync');
+
+    // Client B: thêm School + rename Home → push → cloud nhận bản mới
+    storeB.contexts.push({ id: 'ctx_3', label: 'School', createdAt: 'y', updatedAt: new Date().toISOString() });
+    storeB.contexts[1].label = 'Home (edited)';
+    storeB.contexts[1].updatedAt = new Date().toISOString();
+    global.localStorage.setItem(ctxKey, JSON.stringify(storeB));
+    SyncB.push(ctxKey);
+    await sleep(80);
+    const rowsB = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + tokenA } }).then((x) => x.json());
+    const rowB = rowsB.find((r) => r.key === ctxKey);
+    assert.ok(rowB, 'cloud phải có planner-contexts sau push Client B');
+    assert.strictEqual(rowB.data.contexts.length, 3, 'context mới phải lên cloud');
+
+    // Client A: pull lại → nhận bản mới nhất theo LWW (3 context, label đã đổi)
+    global.localStorage = mockLocalStorage({});
+    global.window = {};
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const SyncA2 = loadSync();
+    const okA2 = await SyncA2.login('ctxuser13', 'Pass123456!');
+    assert.strictEqual(okA2.ok, true, 'Client A (lần 2) đăng nhập phải thành công');
+    const storeA2 = JSON.parse(global.localStorage.getItem(ctxKey));
+    assert.strictEqual(storeA2.contexts.length, 3, 'Client A phải nhận 3 context (LWW)');
+    assert.strictEqual(storeA2.contexts[1].label, 'Home (edited)', 'rename của Client B phải tới Client A');
+    console.log('TEST 13 OK — planner-contexts hai client đồng bộ qua generic mechanism (LWW)');
+  }
+
   server.close();
-  console.log('\n✅ Tất cả 11 test sync đều PASS');
+  console.log('\n✅ Tất cả 13 test sync đều PASS');
 }
 
 main().catch((e) => { console.error('❌ TEST FAIL:', e); process.exit(1); });

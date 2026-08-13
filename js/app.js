@@ -629,6 +629,19 @@ const ProjectsStore = window.TaskFlowProjects;
 const ProjectsUI = window.TaskFlowProjectsUI;
 let projectsFilter = 'active'; // filter mặc định trên trang Projects
 
+// Contexts & task planning metadata (V1.2.1) — js/contexts.js (store + helpers).
+// task.estimatedMinutes map tới task.duration có sẵn; energy/contexts là field optional
+// (đọc thiếu như null/[]). Context manager + chip toggle đều đi qua app.js dispatcher.
+if (!window.TaskFlowContexts) throw new Error('TaskFlowContexts missing — js/contexts.js failed to load');
+const Contexts = window.TaskFlowContexts;
+
+function loadContextsStore() {
+  return Contexts.loadContexts();
+}
+function saveContextsStore(store) {
+  Contexts.saveContexts(store);
+}
+
 // Load store projects (migrate mỗi lần). Caller save qua ProjectsStore.saveProjects.
 function loadProjectsStore() {
   return ProjectsStore.loadProjects();
@@ -661,6 +674,62 @@ function openMilestoneEditModal(projectId, milestoneId) {
   TaskFlowUI.openDialog('milestoneEditModal');
   const input = document.querySelector('[data-role="milestone-name"]');
   if (input) setTimeout(() => input.focus(), 30);
+}
+
+// ---- Context manager (V1.2.1) ----
+// Form quản lý bối cảnh: danh sách context (rename inline + delete) + row thêm mới.
+function contextEditFormHTML() {
+  const store = loadContextsStore();
+  const list = Array.isArray(store.contexts) && store.contexts.length
+    ? store.contexts.map((c) => `<div class="ctx-edit-row">
+        <span class="ctx-edit-dot" aria-hidden="true"></span>
+        <input type="text" class="ctx-edit-name" data-action="ctx-name" data-ctx="${esc(c.id)}" value="${esc(c.label)}" maxlength="40" aria-label="${t('taskDetailContext')}">
+        <button type="button" class="btn-del" data-action="ctx-delete" data-ctx="${esc(c.id)}" aria-label="${t('ctxDeleteAria')}" title="${t('ctxDeleteAria')}">${window.TaskFlowUI.icon('trash')}</button>
+      </div>`).join('')
+    : `<p class="td-empty">${t('ctxNoContexts')}</p>`;
+  return `<div class="ctx-edit-list" data-role="ctx-list">${list}</div>
+    <span class="td-add-row"><input type="text" data-role="ctx-add-input" placeholder="${t('ctxNamePh')}" maxlength="40" aria-label="${t('ctxAddAria')}"><button type="button" class="td-add-btn" data-action="ctx-add" aria-label="${t('ctxAddAria')}">${window.TaskFlowUI.icon('plus')}</button></span>`;
+}
+
+function renderContextEditContent() {
+  const content = document.getElementById('contextEditContent');
+  if (content) content.innerHTML = contextEditFormHTML();
+}
+
+function openContextEditModal() {
+  renderContextEditContent();
+  TaskFlowUI.openDialog('contextEditModal');
+  const input = document.querySelector('[data-role="ctx-add-input"]');
+  if (input) setTimeout(() => input.focus(), 30);
+}
+
+// Xoá context → lọc task.contexts trên toàn store (month states + inbox), KHÔNG xoá task.
+function removeContextAcrossStore(ctxId) {
+  let fixed = 0;
+  for (let y = (new Date().getFullYear()) - 1; y <= (new Date().getFullYear()) + 1; y++) {
+    for (let m = 0; m < 12; m++) {
+      const raw = (() => { try { return localStorage.getItem(`planner-${y}-${m}`); } catch (e) { return null; } })();
+      if (!raw) continue;
+      let parsed;
+      try { parsed = JSON.parse(raw); } catch (e) { continue; }
+      if (parsed && Array.isArray(parsed.weeks)) {
+        let changed = false;
+        parsed.weeks.forEach((w) => {
+          if (!w || !Array.isArray(w.days)) return;
+          w.days.forEach((d) => {
+            if (d && Array.isArray(d.tasks)) {
+              const n = Contexts.removeContextFromTasks(ctxId, d.tasks);
+              if (n) changed = true;
+            }
+          });
+        });
+        if (changed) { try { localStorage.setItem(`planner-${y}-${m}`, JSON.stringify(parsed)); } catch (e) { /* ẩn */ } fixed++; }
+      }
+    }
+  }
+  const nInbox = Contexts.removeContextFromTasks(ctxId, inbox);
+  if (nInbox) { saveInbox(); fixed++; }
+  return fixed;
 }
 
 // Xoá milestone → task liên kết giữ projectId, clear milestoneId trên toàn store
@@ -2744,6 +2813,7 @@ function renderTaskDetail() {
       </div>
       ${taskMetricLinksHTML(taskDetailState(), tk, inInbox)}
       ${ProjectsUI.taskLinkSelectsHTML(loadProjectsStore(), tk)}
+      ${planningMetaHTML(tk)}
       <div class="td-field">
         <span class="td-field-label">${t('taskDetailTags')}</span>
         <div class="td-tags">
@@ -2764,6 +2834,35 @@ function renderTaskDetail() {
       </div>
       <button type="button" class="td-delete danger" data-action="td-delete" ${inInbox ? `data-scope="inbox"` : `data-week="${taskDetailRef.week}" data-day="${taskDetailRef.day}"`} data-task="${taskDetailRef.task}">${t('taskDetailDelete')}</button>`;
   bindTaskDetailEvents(drawer);
+}
+
+// V1.2.1 — Planning metadata (energy + context chips). Không thêm vào Quick Add.
+// estimatedMinutes map tới task.duration (field td-duration CÓ SẴN ở trên) — không
+// nhân đôi control. Trả HTML compact; đọc store contexts mỗi lần render drawer.
+function planningMetaHTML(tk) {
+  const en = Contexts.taskEnergy(tk);
+  const ctxStore = Contexts.loadContexts();
+  const sel = new Set(Contexts.taskContextIds(tk));
+  const energyBtns = Contexts.ENERGY_LEVELS.map((lv) => {
+    const on = en === lv;
+    return `<button type="button" class="td-energy-btn${on ? ' active' : ''}" data-action="td-energy" data-level="${lv}" aria-pressed="${on ? 'true' : 'false'}">${t('energy' + (lv === 'low' ? 'Low' : lv === 'medium' ? 'Medium' : 'High'))}</button>`;
+  }).join('');
+  const clearBtn = en ? `<button type="button" class="td-energy-clear" data-action="td-energy" data-level="" aria-label="${t('energyNone')}" title="${t('energyNone')}">${window.TaskFlowUI.icon('close')}</button>` : '';
+  const chips = Array.isArray(ctxStore.contexts) && ctxStore.contexts.length
+    ? ctxStore.contexts.map((c) => {
+        const on = sel.has(c.id);
+        return `<button type="button" class="td-ctx-chip${on ? ' active' : ''}" data-action="td-ctx-toggle" data-ctx="${esc(c.id)}" aria-pressed="${on ? 'true' : 'false'}">${esc(c.label)}</button>`;
+      }).join('')
+    : `<span class="td-empty">—</span>`;
+  return `<div class="td-field">
+    <span class="td-field-label">${t('energyLabel')}</span>
+    <span class="td-energy-row" role="group" aria-label="${t('energyLabel')}">${energyBtns}${clearBtn}</span>
+  </div>
+  <div class="td-field">
+    <span class="td-field-label">${t('taskDetailContext')}</span>
+    <span class="td-ctx-row">${chips}</span>
+    <span class="td-add-row"><button type="button" class="pop-btn" data-action="ctx-manage">${window.TaskFlowUI.icon('settings')}<span>${t('ctxManage')}</span></button></span>
+  </div>`;
 }
 
 // Gắn listener riêng cho các control 'change'/'input' (không qua dispatcher click).
@@ -4551,6 +4650,55 @@ document.addEventListener('click', (e) => {
     g.tk.tags = (g.tk.tags || []).filter((tg) => tg !== el.dataset.tag);
     renderTaskDetail();
     refreshTaskRowAfterEdit();
+  } else if (act === 'td-energy') {
+    // V1.2.1 — năng lượng: low/medium/high hoặc '' = bỏ chọn.
+    const g = getTaskDetailTarget();
+    if (!g) return;
+    g.tk.energy = el.dataset.level || null;
+    renderTaskDetail();
+    refreshTaskRowAfterEdit();
+    trackEvent('edit_task_energy');
+  } else if (act === 'td-ctx-toggle') {
+    // V1.2.1 — bối cảnh: toggle context ID (không lưu label).
+    const g = getTaskDetailTarget();
+    if (!g) return;
+    const id = el.dataset.ctx;
+    const ids = Contexts.taskContextIds(g.tk);
+    g.tk.contexts = ids.includes(id) ? ids.filter((x) => x !== id) : ids.concat(id);
+    renderTaskDetail();
+    refreshTaskRowAfterEdit();
+    trackEvent('edit_task_context');
+  } else if (act === 'ctx-manage') {
+    openContextEditModal();
+  } else if (act === 'ctx-add') {
+    const inp = document.querySelector('#contextEditModal [data-role="ctx-add-input"]');
+    const v = inp ? inp.value.trim() : '';
+    if (!v) return;
+    const store = loadContextsStore();
+    const c = Contexts.createContext(store, v);
+    if (c) {
+      saveContextsStore(store);
+      trackEvent('context_add');
+      TaskFlowUI.toast(t('ctxSaved'), 'success');
+      renderContextEditContent();
+      const fresh = document.querySelector('#contextEditModal [data-role="ctx-add-input"]');
+      if (fresh) fresh.focus();
+    }
+  } else if (act === 'ctx-delete') {
+    const store = loadContextsStore();
+    const c = Contexts.getContext(store, el.dataset.ctx);
+    if (!c) return;
+    if (confirm(t('ctxDeleteConfirm', { label: c.label }))) {
+      Contexts.deleteContext(store, el.dataset.ctx);
+      saveContextsStore(store);
+      removeContextAcrossStore(el.dataset.ctx);
+      trackEvent('context_delete');
+      TaskFlowUI.toast(t('ctxDeleted'), 'success');
+      renderContextEditContent();
+      if (taskDetailRef && getTaskDetailTarget()) renderTaskDetail();
+    }
+  } else if (act === 'ctx-close') {
+    TaskFlowUI.closeDialog('contextEditModal');
   } else if (act === 'subtask-add') {
     const g = getTaskDetailTarget();
     const inp = document.querySelector('#taskDrawer [data-role="td-subtask-input"]');
@@ -5101,7 +5249,24 @@ document.addEventListener('change', (e) => {
   if (act === 'weekselect') goWeek(+e.target.value);
   else if (act === 'monthselect') openMonth(+e.target.value);
   else if (act === 'td-project' || act === 'td-milestone') onTaskLinkSelectChange(e, act);
+  else if (act === 'ctx-name') onContextRename(e);
 });
+
+// Đổi tên context trong manager — rename inline; label rỗng → revert về tên cũ.
+function onContextRename(e) {
+  const id = e.target.dataset.ctx;
+  const v = e.target.value.trim();
+  if (!id) return;
+  const store = loadContextsStore();
+  if (!v) {
+    e.target.value = Contexts.contextLabel(store, id) || '';
+    return;
+  }
+  if (Contexts.renameContext(store, id, v)) {
+    saveContextsStore(store);
+    trackEvent('context_rename');
+  }
+}
 
 // Đổi Project/Milestone trong Task Detail — cập nhật task.projectId/milestoneId
 // (field optional, đọc thiếu như null) + validate referential + undo + save.
