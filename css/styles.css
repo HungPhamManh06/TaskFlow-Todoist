@@ -8632,6 +8632,14 @@ body.focus-mode .container { padding: 0; }
 #pillarEditModal .report-modal-card { width: min(520px, calc(100vw - 32px)); max-width: 520px; }
 #metricEditModal .report-modal-card { width: min(520px, calc(100vw - 32px)); max-width: 520px; }
 .report-growth { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+/* V1.4.1 — Actionable Insights */
+.report-insights { margin: 18px 0; padding: 14px; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
+.report-insights h3 { margin: 0 0 10px; }
+.report-insights ul { list-style: none; margin: 0; padding: 0; }
+.report-insights li { display: grid; gap: 3px; padding: 10px; border-inline-start: 3px solid var(--color-border); }
+.report-insights li + li { margin-top: 8px; }
+.report-insights li strong { font-weight: 600; }
+.report-insights li span, .report-insights-empty { color: var(--color-text-muted); }
 .report-growth-section, .report-history-launch { min-width: 0; padding: 14px; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
 .report-growth-section h3, .report-history-launch h3 { margin: 0 0 10px; }
 .report-balance-list, .report-growth-section ul, .report-history-list { list-style: none; margin: 0; padding: 0; }

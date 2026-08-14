@@ -2118,6 +2118,69 @@ def quick_capture_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def insights_checks(browser, base, width, height, errors, screenshot):
+    """V1.4.1: Actionable Insights in Reports.
+    1) no data → Reports shows the insights empty state
+    2) seeded month state (mixed estimated minutes) → rule-based insights render
+    3) reopen report → same insights (deterministic, max 5)
+    """
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"insights {width}px: {error}"))
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.add_init_script("localStorage.setItem('planner-lang','en');")
+
+    # 1) empty data → empty state
+    page.goto(f"{base}/app", wait_until="networkidle")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    page.wait_for_selector('[data-testid="report-insights"]', state="visible", timeout=8000)
+    assert page.locator('.report-insights-empty').count() == 1, "empty data phải hiển thị empty state"
+    page.evaluate("window.TaskFlowReportUI.closeReportModal()")
+
+    # 2) seed current-month state (nested weeks[].days[].tasks): 3 long open on
+    #    day 0 + 3 short done on day 1 → duration + planned insights fire
+    import datetime
+    today = datetime.date.today()
+    key = f"planner-{today.year}-{today.month}"
+    tasks = [
+        {"uid": "i1", "text": "Long task A", "done": False, "estimatedMinutes": 120},
+        {"uid": "i2", "text": "Long task B", "done": False, "estimatedMinutes": 120},
+        {"uid": "i3", "text": "Long task C", "done": False, "estimatedMinutes": 120},
+        {"uid": "i4", "text": "Short task D", "done": True, "estimatedMinutes": 30},
+        {"uid": "i5", "text": "Short task E", "done": True, "estimatedMinutes": 30},
+        {"uid": "i6", "text": "Short task F", "done": True, "estimatedMinutes": 30},
+    ]
+    page.evaluate(f"""
+      () => {{
+        const s = JSON.parse(localStorage.getItem('{key}'));
+        s.weeks[0].days[0].tasks = {json.dumps(tasks[:3])};
+        s.weeks[0].days[1].tasks = {json.dumps(tasks[3:])};
+        localStorage.setItem('{key}', JSON.stringify(s));
+      }}
+    """)
+    page.reload(wait_until="networkidle")
+
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    page.wait_for_selector('[data-testid="report-insights"]', state="visible", timeout=8000)
+    lis = page.locator('.report-insights li')
+    n = lis.count()
+    assert n >= 1, f"phải có insight từ dữ liệu đã seed, count={n}"
+    assert n <= 5, f"tối đa 5 insights, count={n}"
+    texts = lis.all_inner_texts()
+    assert any("90" in tx for tx in texts), f"phải có insight về task trên 90 phút: {texts}"
+    first = texts[:]
+
+    # 3) determinism: close + reopen → same list
+    page.evaluate("window.TaskFlowReportUI.closeReportModal()")
+    page.evaluate("window.TaskFlowReportUI.openReportModal()")
+    page.wait_for_selector('[data-testid="report-insights"]', state="visible", timeout=8000)
+    assert page.locator('.report-insights li').all_inner_texts() == first, "reopen phải cho cùng insights"
+    page.evaluate("window.TaskFlowReportUI.closeReportModal()")
+
+    assert_no_page_overflow(page, f"insights {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -2153,7 +2216,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -2213,6 +2276,7 @@ def main():
                     ("timeblock-ui", timeblock_ui_checks),
                     ("habits-schedule", habits_schedule_checks),
                     ("quick-capture", quick_capture_checks),
+                    ("insights", insights_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -2286,6 +2350,9 @@ def main():
             elif args.view == "quick-capture":
                 quick_capture_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 quick_capture_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "insights":
+                insights_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                insights_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

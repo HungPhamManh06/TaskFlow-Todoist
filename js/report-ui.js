@@ -80,6 +80,16 @@
     </section>`;
   }
 
+  // V1.4.1 — Actionable Insights (rule-based, max 5, empty state when no data).
+  function insightsHTML() {
+    const ins = window.TaskFlowInsights ? window.TaskFlowInsights.computeInsights({ now: new Date() }) : [];
+    const items = ins.slice(0, 5);
+    const body = items.length
+      ? `<ul>${items.map((i) => `<li><strong>${t(i.key, i.params)}</strong><span>${t(i.actionKey, i.params)}</span></li>`).join('')}</ul>`
+      : `<p class="report-insights-empty">${t('insightsEmpty')}</p>`;
+    return `<section class="report-insights" data-testid="report-insights"><h3>${t('insightsTitle')}</h3>${body}</section>`;
+  }
+
   function renderReportModal() {
     const el = document.getElementById('reportContent');
     if (!el) return;
@@ -115,7 +125,8 @@
       ${focusReportBars(r.focusByWeek, (i) => String(i + 1))}
     </div>
     ${growthReportHTML(monthlyReviewModel)}
-    ${monthlyReviewHTML(monthlyReviewModel, { t, esc })}`;
+    ${monthlyReviewHTML(monthlyReviewModel, { t, esc })}
+    ${insightsHTML()}`;
   }
 
   function openReportModal() {
