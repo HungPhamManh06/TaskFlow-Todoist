@@ -1866,6 +1866,133 @@ def planner_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def timeblock_ui_checks(browser, base, width, height, errors, screenshot):
+    """V1.2 Phase 2: Time Blocking UI.
+    1) seed task hôm nay (uid ổn định) + 1 TimeBlock
+    2) Calendar → Schedule mode: timeline + daystrip hiển thị, block có trong timeline
+    3) Task Detail: section Schedule hiển thị block của task
+    4) Add block qua dialog (task + giờ) → lưu, block mới tồn tại trong store
+    5) Delete block → task vẫn còn (không xóa task)
+    6) Focus-from-block: nút hiển thị cho block có task
+    """
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"tbui {width}px: {error}"))
+    page.on("dialog", lambda dialog: dialog.accept())
+    page.add_init_script("""(() => {
+      localStorage.setItem('planner-onboarded','1');
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = 'planner-' + year + '-' + (month + 1);
+      let state;
+      try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { state = null; }
+      if (!state) state = { version: 1, weeks: [], pillars: [], habits: [] };
+      state.monthKey = 'planner-' + year + '-' + (month + 1);
+      state.schemaVersion = 2;
+      if (!Array.isArray(state.monthlyGoals)) state.monthlyGoals = [];
+      if (!Array.isArray(state.habits)) state.habits = [];
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const numWeeks = Math.ceil((offset + daysInMonth) / 7);
+      state.weeks = [];
+      for (let w = 0; w < numWeeks; w++) { const days = []; for (let d = 0; d < 7; d++) days.push({ tasks: [] }); state.weeks.push({ n: w + 1, goals: [], days }); }
+      const start = new Date(year, month, 1 - offset);
+      const delta = Math.floor((now - start) / 86400000);
+      const week = Math.floor(delta / 7), day = delta % 7;
+      const dayState = state.weeks[week].days[day];
+      dayState.tasks = [
+        { uid: 'tbu-t1', kind: 'regular', done: false, text: 'TB UI task', duration: 45,
+          tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+      ];
+      // Cũng đặt task vào tuần 1 ngày 1 (để mở drawer từ week view ?w=1)
+      if (week !== 0) {
+        state.weeks[0].days[1].tasks = [
+          { uid: 'tbu-t1', kind: 'regular', done: false, text: 'TB UI task', duration: 45,
+            tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+        ];
+      }
+      localStorage.setItem(key, JSON.stringify(state));
+      const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+      // Chỉ seed blocks nếu chưa tồn tại (init script chạy lại mỗi navigation —
+      // không được ghi đè block đã tạo qua UI trong cùng kịch bản)
+      if (!localStorage.getItem('planner-timeblocks')) {
+        localStorage.setItem('planner-timeblocks', JSON.stringify({ version: 1, blocks: [
+          { id: 'tbu-b1', taskUid: 'tbu-t1', date: today, start: '09:00', end: '10:00', status: 'planned', createdAt: '', updatedAt: '' },
+        ] }));
+      }
+    })()""")
+    page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="calendar-view"]', state="visible")
+
+    # 1) Chuyển sang Schedule mode
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').scroll_into_view_if_needed()
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').click()
+    page.wait_for_selector('[data-testid="schedule-view"]', state="visible")
+    assert page.locator('[data-testid="tb-timeline"]').count() == 1, "Schedule phải có timeline"
+    assert page.locator('.tb-daystrip .tb-day').count() == 7, "daystrip phải có 7 ngày"
+    assert page.locator('.tb-block').count() == 1, "timeline phải hiển thị 1 block đã seed"
+
+    # 2) Chọn ngày hôm nay trong daystrip (block seed nằm ở hôm nay)
+    page.locator('[data-action="tb-today"]').first.scroll_into_view_if_needed()
+    page.locator('[data-action="tb-today"]').first.click()
+    page.wait_for_timeout(150)
+    assert page.locator('.tb-block').count() == 1, "block hôm nay phải còn hiển thị sau khi chọn Today"
+
+    # 3) Thêm block mới qua dialog
+    page.locator('[data-action="tb-add"]').first.scroll_into_view_if_needed()
+    page.locator('[data-action="tb-add"]').first.click()
+    page.wait_for_selector('[data-testid="timeblock-modal"]:visible', state="visible")
+    # chọn task tbu-t1 (option trong select)
+    page.locator('[data-role="tb-task"]').select_option(label="TB UI task")
+    page.locator('[data-role="tb-start"]').fill("15:00")
+    page.locator('[data-role="tb-end"]').fill("16:00")
+    page.locator('[data-action="tb-save"]').click()
+    page.wait_for_selector('[data-testid="timeblock-modal"]:visible', state="detached")
+    blocks = page.evaluate("JSON.parse(localStorage.getItem('planner-timeblocks')).blocks")
+    assert len(blocks) == 2, f"Add phải tạo block thứ 2 (1 → 2), thấy {len(blocks)}"
+    assert any(b["taskUid"] == "tbu-t1" and b["start"] == "15:00" for b in blocks), "block mới phải là tbu-t1 15:00"
+    page.wait_for_timeout(150)
+    assert page.locator('.tb-block').count() == 2, "timeline phải hiển thị 2 block sau khi thêm"
+
+    # 4) Task Detail → Schedule section hiển thị blocks của task (mở drawer từ Week view w=1)
+    page.goto(f"{base}/app.html?view=week&w=1", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="week-view"] .week-page', state="visible")
+    row = page.locator('[data-testid="task-row"]').first
+    row.scroll_into_view_if_needed()
+    row.hover()
+    row.locator('[data-action="task-menu"]').click()
+    row.locator('[data-action="task-detail"]').click()
+    page.wait_for_selector('[data-testid="task-drawer"]', state="visible")
+    assert page.locator('[data-testid="td-blocks"] .td-tb-row').count() == 2, \
+        f"Task Detail phải liệt kê 2 blocks, thấy {page.locator('[data-testid=\"td-blocks\"] .td-tb-row').count()}"
+    # nút Focus từ block có trong task detail
+    assert page.locator('#taskDrawer [data-action="tb-focus"]').count() == 2, "mỗi block phải có nút Focus"
+    page.keyboard.press('Escape')
+    page.wait_for_selector('[data-testid="task-drawer"]', state="hidden")
+    page.wait_for_timeout(150)
+
+    # 5) Xóa 1 block → task vẫn còn (quay lại Calendar Schedule)
+    page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="calendar-view"]', state="visible")
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').scroll_into_view_if_needed()
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').click()
+    page.wait_for_selector('[data-testid="schedule-view"]', state="visible")
+    page.wait_for_timeout(150)
+    page.locator('[data-action="tb-del"]').first.scroll_into_view_if_needed()
+    page.locator('[data-action="tb-del"]').first.click()
+    page.wait_for_timeout(150)
+    blocks = page.evaluate("JSON.parse(localStorage.getItem('planner-timeblocks')).blocks")
+    assert len(blocks) == 1, f"Delete phải xóa đúng 1 block (2 → 1), thấy {len(blocks)}"
+    task_uids = page.evaluate("JSON.parse(localStorage.getItem('planner-' + new Date().getFullYear() + '-' + (new Date().getMonth()+1))).weeks.flatMap(w => w.days.flatMap(d => d.tasks || [])).map(t => t.uid)")
+    assert 'tbu-t1' in task_uids, "Delete block KHÔNG được xóa task (uid tbu-t1 phải còn tồn tại)"
+
+    assert_no_page_overflow(page, f"tbui {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -1901,7 +2028,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -1958,6 +2085,7 @@ def main():
                     ("data-lifecycle", data_lifecycle_checks),
                     ("projects", projects_checks),
                     ("planner", planner_checks),
+                    ("timeblock-ui", timeblock_ui_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -2022,6 +2150,9 @@ def main():
             elif args.view == "planner":
                 planner_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 planner_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "timeblock-ui":
+                timeblock_ui_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                timeblock_ui_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

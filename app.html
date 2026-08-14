@@ -685,6 +685,20 @@
     </div>
   </div>
 
+  <!-- ===== Time Block dialog (V1.2 Phase 2) ===== -->
+  <div class="report-modal" id="timeBlockModal" hidden data-testid="timeblock-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="timeBlockDialogTitle">
+      <button type="button" class="sync-close" data-action="tb-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+      <h2 class="sync-modal-title" id="timeBlockDialogTitle"><span data-i18n="tbAddTitle">Thêm khung giờ</span></h2>
+      <div id="timeBlockContent" class="planner-body"></div>
+      <div class="sync-actions">
+        <button type="button" class="button button-ghost" data-action="tb-close"><span data-i18n="plannerCancel">Hủy</span></button>
+        <button type="button" class="button button-primary" data-action="tb-save"><span data-i18n="tbSave">Lưu</span></button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Context manager (V1.2.1) ===== -->
   <div class="report-modal" id="contextEditModal" hidden data-testid="context-edit-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="contextEditDialogTitle">
@@ -842,6 +856,7 @@
   <script src="js/timeblocks.min.js?v=1"></script>
   <script src="js/planner-rules.min.js?v=1"></script>
   <script src="js/planner-ui.min.js?v=1"></script>
+  <script src="js/timeblocks-ui.min.js?v=1"></script>
   <script src="js/app.min.js?v=176"></script>
 </body>
 

@@ -641,6 +641,13 @@ if (!window.TaskFlowPlannerRules) throw new Error('TaskFlowPlannerRules missing 
 if (!window.TaskFlowPlannerUI) throw new Error('TaskFlowPlannerUI missing — js/planner-ui.js failed to load');
 const PlannerRules = window.TaskFlowPlannerRules;
 const PlannerUI = window.TaskFlowPlannerUI;
+if (!window.TaskFlowTimeBlocksUI) throw new Error('TaskFlowTimeBlocksUI missing — js/timeblocks-ui.js failed to load');
+const TimeBlocksUI = window.TaskFlowTimeBlocksUI;
+
+// V1.2 Phase 2 — Calendar view mode: 'month' (lưới tháng cũ) | 'schedule' (timeline theo ngày).
+// State thuần UI, không lưu vào month state (không phải dữ liệu planner).
+let calendarMode = 'month';
+let calendarSelDate = ''; // 'YYYY-MM-DD' — ngày đang chọn trong Schedule view
 
 function loadTimeBlocksStore() {
   return window.TaskFlowTimeBlocks.loadTimeBlocks();
@@ -800,6 +807,120 @@ function applyPlannerPlan() {
   delete window._lastPlannerProposal;
   trackEvent('planner_apply');
   TaskFlowUI.toast(t('plannerApplied'), 'success');
+}
+
+// ---- V1.2 Phase 2 — Time Block dialog (Schedule view + Task Detail) ----
+
+// Lưu id block đang edit (null = thêm mới). Dùng cho save từ dialog.
+let _tbEditId = null;
+
+function openTimeBlockModal({ blockId, date, taskUid } = {}) {
+  const blocks = loadTimeBlocksStore();
+  const block = blockId ? window.TaskFlowTimeBlocks.getBlock(blocks, blockId) : null;
+  _tbEditId = blockId || null;
+  const d = (block && block.date) || date || localTodayIso();
+  const content = document.getElementById('timeBlockContent');
+  if (content) {
+    content.innerHTML = TimeBlocksUI.blockDialogHTML({
+      block,
+      date: d,
+      state,
+      inbox,
+      planStart: PLAN_START,
+    });
+  }
+  TaskFlowUI.openDialog('timeBlockModal');
+  const title = document.getElementById('timeBlockDialogTitle');
+  if (title) title.textContent = block ? t('tbEditTitle') : t('tbAddTitle');
+  const taskSel = content && content.querySelector('[data-role="tb-task"]');
+  if (taskSel && taskUid && !block) {
+    // Pre-select task mới (từ Task Detail) — option tồn tại vì taskUid thuộc ngày/inbox.
+    const opt = Array.from(taskSel.options).find((o) => o.value === taskUid);
+    if (opt) taskSel.value = taskUid;
+  }
+  setTimeout(() => {
+    const first = content && content.querySelector('select[data-role="tb-task"], input[data-role="tb-date"]');
+    if (first) first.focus();
+  }, 30);
+  trackEvent('tb_open');
+}
+
+function closeTimeBlockModal() {
+  TaskFlowUI.closeDialog('timeBlockModal');
+  _tbEditId = null;
+}
+
+// Đọc dialog → validate (end > start, không âm) → create/update qua API chuẩn.
+function saveTimeBlockDialog() {
+  const content = document.getElementById('timeBlockContent');
+  if (!content) return;
+  const v = TimeBlocksUI.readBlockDialog(content);
+  const warn = content.querySelector('[data-role="tb-warn"]');
+  if (!v.date || !v.start || !v.end) {
+    if (warn) { warn.textContent = t('tbInvalid'); warn.hidden = false; }
+    return;
+  }
+  const blocks = loadTimeBlocksStore();
+  const ok = window.TaskFlowTimeBlocks.validRange(v.start, v.end);
+  if (!ok) {
+    if (warn) { warn.textContent = t('tbRangeError'); warn.hidden = false; }
+    return;
+  }
+  if (_tbEditId) {
+    window.TaskFlowTimeBlocks.updateTimeBlock(blocks, _tbEditId, {
+      taskUid: v.taskUid || null,
+      date: v.date,
+      start: v.start,
+      end: v.end,
+      status: v.status,
+    });
+  } else {
+    window.TaskFlowTimeBlocks.createTimeBlock(blocks, {
+      taskUid: v.taskUid || null,
+      date: v.date,
+      start: v.start,
+      end: v.end,
+      status: v.status,
+    });
+  }
+  saveTimeBlocksStore(blocks);
+  TaskFlowUI.closeDialog('timeBlockModal');
+  _tbEditId = null;
+  if (calendarMode === 'schedule') renderCalendarSchedule();
+  if (taskDetailRef && getTaskDetailTarget()) renderTaskDetail();
+  TaskFlowUI.toast(t('tbSaved'), 'success');
+  trackEvent('tb_save');
+}
+
+function deleteTimeBlockById(blockId) {
+  const blocks = loadTimeBlocksStore();
+  window.TaskFlowTimeBlocks.deleteTimeBlock(blocks, blockId);
+  saveTimeBlocksStore(blocks);
+  if (calendarMode === 'schedule') renderCalendarSchedule();
+  if (taskDetailRef && getTaskDetailTarget()) renderTaskDetail();
+  TaskFlowUI.toast(t('tbDeleted'), 'success');
+  trackEvent('tb_delete');
+}
+
+function setTimeBlockStatusById(blockId, status) {
+  const blocks = loadTimeBlocksStore();
+  window.TaskFlowTimeBlocks.setTimeBlockStatus(blocks, blockId, status);
+  saveTimeBlocksStore(blocks);
+  if (calendarMode === 'schedule') renderCalendarSchedule();
+  if (taskDetailRef && getTaskDetailTarget()) renderTaskDetail();
+  trackEvent('tb_status');
+}
+
+// Bắt đầu Focus từ TimeBlock: resolve task theo uid (inbox / month) → openFocusMode.
+function focusFromTimeBlock(blockId) {
+  const blocks = loadTimeBlocksStore();
+  const block = window.TaskFlowTimeBlocks.getBlock(blocks, blockId);
+  if (!block || !block.taskUid) { TaskFlowUI.toast(t('tbNoTaskFocus'), 'info'); return; }
+  const ref = TimeBlocksUI.focusRefForUid(block.taskUid, state, inbox);
+  if (!ref) { TaskFlowUI.toast(t('tbTaskMissing'), 'error'); return; }
+  closeTaskDetail();
+  if (ref.scope === 'inbox') openFocusMode({ scope: 'inbox', task: ref.task });
+  else openFocusMode({ week: ref.week, day: ref.day, task: ref.task });
 }
 
 // Tìm task theo uid trong state.weeks (tháng hiện tại). Trả {week, day, idx, tk} hoặc null.
@@ -2963,6 +3084,7 @@ function renderTaskDetail() {
       ${taskMetricLinksHTML(taskDetailState(), tk, inInbox)}
       ${ProjectsUI.taskLinkSelectsHTML(loadProjectsStore(), tk)}
       ${planningMetaHTML(tk)}
+      ${TimeBlocksUI.taskDetailBlocksHTML(loadTimeBlocksStore(), tk.uid)}
       <div class="td-field">
         <span class="td-field-label">${t('taskDetailTags')}</span>
         <div class="td-tags">
@@ -3187,8 +3309,51 @@ function calendarTasksHTML(entry, extraClass = '') {
   </div>`).join('');
 }
 
+// Ngày hiện tại dạng 'YYYY-MM-DD' local (không dùng toISOString — lệch UTC).
+function localTodayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Schedule view: timeline 1 ngày cho TimeBlocks + toggle mode trong header calendar.
+function renderCalendarSchedule() {
+  const el = document.getElementById('view-calendar');
+  const todayIso = localTodayIso();
+  if (!calendarSelDate) calendarSelDate = todayIso;
+  const sel = TimeBlocksUI.parseISO(calendarSelDate);
+  if (!sel) calendarSelDate = todayIso;
+  const blocks = loadTimeBlocksStore();
+  const monthStart = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-01`;
+  const nd = new Date(PLAN_YEAR, PLAN_MONTH + 1, 0).getDate();
+  const monthEnd = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
+  el.innerHTML = `<div class="calendar-page">
+    <header class="calendar-page-header">
+      <div>
+        <p class="calendar-page-eyebrow">${t('calendarWorkspaceEyebrow')}</p>
+        <h1 class="calendar-page-title">${t('calendarPageTitle', { m: monthLabel(PLAN_MONTH), y: PLAN_YEAR })}</h1>
+        <p class="calendar-page-subtitle">${t('calendarPageSubtitle')}</p>
+      </div>
+      <div class="cal-mode-toggle" role="group" aria-label="${esc(t('calModeToggleAria'))}">
+        <button type="button" class="pop-btn ${calendarMode === 'month' ? 'active' : ''}" data-action="cal-mode" data-mode="month" aria-pressed="${calendarMode === 'month'}">${esc(t('calModeMonth'))}</button>
+        <button type="button" class="pop-btn ${calendarMode === 'schedule' ? 'active' : ''}" data-action="cal-mode" data-mode="schedule" aria-pressed="${calendarMode === 'schedule'}">${esc(t('calModeSchedule'))}</button>
+      </div>
+    </header>
+    ${TimeBlocksUI.scheduleViewHTML({
+      store: blocks,
+      date: calendarSelDate,
+      state,
+      inbox,
+      planStart: PLAN_START,
+      todayIso,
+      monthStart,
+      monthEnd,
+    })}
+  </div>`;
+}
+
 function renderCalendar() {
   const el = document.getElementById('view-calendar');
+  if (calendarMode === 'schedule') { renderCalendarSchedule(); return; }
   const entries = calendarDayEntries();
   const dowLbl = t('dayNames');
   const agendaEntries = entries.filter((entry) => entry.currentMonth && calendarVisibleTasks(entry).length);
@@ -3210,6 +3375,10 @@ function renderCalendar() {
         <p class="calendar-page-eyebrow">${t('calendarWorkspaceEyebrow')}</p>
         <h1 class="calendar-page-title">${t('calendarPageTitle', { m: monthLabel(PLAN_MONTH), y: PLAN_YEAR })}</h1>
         <p class="calendar-page-subtitle">${t('calendarPageSubtitle')}</p>
+      </div>
+      <div class="cal-mode-toggle" role="group" aria-label="${esc(t('calModeToggleAria'))}">
+        <button type="button" class="pop-btn ${calendarMode === 'month' ? 'active' : ''}" data-action="cal-mode" data-mode="month" aria-pressed="${calendarMode === 'month' ? 'true' : 'false'}">${esc(t('calModeMonth'))}</button>
+        <button type="button" class="pop-btn ${calendarMode === 'schedule' ? 'active' : ''}" data-action="cal-mode" data-mode="schedule" aria-pressed="${calendarMode === 'schedule' ? 'true' : 'false'}">${esc(t('calModeSchedule'))}</button>
       </div>
       <div class="cal-legend"><span class="dot on"></span> ${t('legendDone')} <span class="dot off"></span> ${t('legendNotDone')}</div>
     </header>
@@ -4857,6 +5026,43 @@ document.addEventListener('click', (e) => {
     trackEvent('planner_cancel');
   } else if (act === 'planner-apply') {
     applyPlannerPlan();
+  } else if (act === 'cal-mode') {
+    // V1.2 Phase 2 — Calendar mode toggle: month grid | schedule timeline.
+    calendarMode = el.dataset.mode === 'schedule' ? 'schedule' : 'month';
+    renderCalendar();
+  } else if (act === 'tb-day') {
+    calendarSelDate = el.dataset.date || localTodayIso();
+    renderCalendarSchedule();
+  } else if (act === 'tb-prev') {
+    const d = TimeBlocksUI.parseISO(calendarSelDate || localTodayIso());
+    calendarSelDate = TimeBlocksUI.iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1));
+    renderCalendarSchedule();
+  } else if (act === 'tb-next') {
+    const d = TimeBlocksUI.parseISO(calendarSelDate || localTodayIso());
+    calendarSelDate = TimeBlocksUI.iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1));
+    renderCalendarSchedule();
+  } else if (act === 'tb-today') {
+    calendarSelDate = localTodayIso();
+    renderCalendarSchedule();
+  } else if (act === 'tb-add') {
+    openTimeBlockModal({ date: el.dataset.date || calendarSelDate || localTodayIso() });
+  } else if (act === 'td-tb-add') {
+    openTimeBlockModal({ taskUid: el.dataset.uid || '' });
+  } else if (act === 'tb-edit') {
+    openTimeBlockModal({ blockId: el.dataset.id });
+  } else if (act === 'tb-save') {
+    saveTimeBlockDialog();
+  } else if (act === 'tb-close') {
+    closeTimeBlockModal();
+  } else if (act === 'tb-del') {
+    deleteTimeBlockById(el.dataset.id);
+  } else if (act === 'tb-status') {
+    const blocks = loadTimeBlocksStore();
+    const block = window.TaskFlowTimeBlocks.getBlock(blocks, el.dataset.id);
+    const next = block && block.status === 'completed' ? 'planned' : 'completed';
+    setTimeBlockStatusById(el.dataset.id, next);
+  } else if (act === 'tb-focus') {
+    focusFromTimeBlock(el.dataset.id);
   } else if (act === 'subtask-add') {
     const g = getTaskDetailTarget();
     const inp = document.querySelector('#taskDrawer [data-role="td-subtask-input"]');
