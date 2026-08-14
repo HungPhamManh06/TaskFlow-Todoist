@@ -1,6 +1,6 @@
 # P1.10 — Mobile Real-Device QA (simulated)
 
-> Simulated in Playwright (chromium, headless) at 2026-08-14 12:49 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
+> Simulated in Playwright (chromium, headless) at 2026-08-14 14:37 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
 
 Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 (large mobile), 768x1024 (tablet — the app's mobile layout is `max-width: 767px`, so 768 exercises the desktop/tablet layout).
 

@@ -55,6 +55,16 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// Giải mã JWT từ query param (dùng cho flow OAuth redirect không thể gửi header).
+// Trả payload hoặc null.
+function verifyToken(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (e) {
+    return null;
+  }
+}
+
 async function getUserByUsername(username) {
   const p = initDb();
   const r = await p.query('select * from users where username_lower = $1', [username]);
@@ -222,4 +232,4 @@ setInterval(() => {
   googleStates.forEach((t, k) => { if (now - t > STATE_TTL_MS) googleStates.delete(k); });
 }, 5 * 60 * 1000).unref();
 
-module.exports = { router, authMiddleware };
+module.exports = { router, authMiddleware, verifyToken };

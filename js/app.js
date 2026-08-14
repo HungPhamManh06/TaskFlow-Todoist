@@ -747,10 +747,11 @@ function openPlannerModal() {
   const today = PlannerUI.todayStr();
   const todayBlocks = window.TaskFlowTimeBlocks.blocksForDate(blocks, today);
   const projects = loadProjectsStore();
+  const gcalBusy = gcalBusyToday(today);
   const proposal = PlannerRules.buildProposal({
     now: new Date(),
     tasks: todayTasks.map(({ _week, _day, _idx, ...tk }) => tk),
-    blocks: todayBlocks,
+    blocks: todayBlocks.concat(gcalBusy),
     projects,
     availableMinutes: PlannerUI.DEFAULT_AVAIL_HOURS * 60,
   });
@@ -3448,7 +3449,77 @@ function renderCalendarSchedule() {
       monthStart,
       monthEnd,
     })}
+    <div id="gcal-section-host">${gcalScheduleSection(calendarSelDate, monthStart, monthEnd)}</div>
   </div>`;
+  scheduleGcalRefresh(calendarSelDate || todayIso, monthStart, monthEnd);
+}
+
+/* ============ V1.6A Google Calendar (read-only) — section + actions ============ */
+
+// Section "Sự kiện Google" trong Schedule view. Trả '' nếu module chưa load.
+function gcalScheduleSection(dateIso, monthStart, monthEnd) {
+  if (!window.TaskFlowGCalUI) return '';
+  try {
+    return window.TaskFlowGCalUI.scheduleSectionHTML({ dateIso, monthStart, monthEnd });
+  } catch (e) {
+    return '';
+  }
+}
+
+let gcalSyncScheduled = false;
+
+// Sau khi render: fetch trạng thái + events (nếu stale) một lần, rồi render lại.
+// Guard gcalSyncScheduled chống vòng lặp render↔refresh.
+// onChange chỉ re-render riêng phần gcal (#gcal-section-host) — KHÔNG re-render
+// toàn bộ Schedule view (sẽ detach timeline đang tương tác / mất trạng thái).
+async function scheduleGcalRefresh(dateIso, monthStart, monthEnd, force) {
+  if (!window.TaskFlowGCalUI || gcalSyncScheduled) return;
+  gcalSyncScheduled = true;
+  try {
+    await window.TaskFlowGCalUI.afterRender({
+      dateIso,
+      monthStart,
+      monthEnd,
+      onChange: () => renderGcalSection(dateIso, monthStart, monthEnd),
+      force: !!force,
+    });
+  } catch (e) { /* ẩn lỗi mạng */ } finally {
+    gcalSyncScheduled = false;
+  }
+}
+
+// Re-render chỉ riêng section Google events trong Schedule view (không đụng timeline).
+function renderGcalSection(dateIso, monthStart, monthEnd) {
+  const host = document.getElementById('gcal-section-host');
+  if (!host) return;
+  const html = gcalScheduleSection(dateIso, monthStart, monthEnd);
+  if (html) host.innerHTML = html;
+}
+
+async function disconnectGcal() {
+  if (!window.TaskFlowGCal || !window.TaskFlowGCalUI) return;
+  const res = await window.TaskFlowGCal.disconnect();
+  if (res && res.ok) {
+    window.TaskFlowGCalUI.getState().connected = false;
+    window.TaskFlowGCalUI.getState().calendars = [];
+    window.TaskFlowGCalUI.getState().statusLoaded = true;
+    if (calendarMode === 'schedule') renderCalendarSchedule();
+    TaskFlowUI.toast(t('gcalDisconnected'), 'success');
+    trackEvent('gcal_disconnect');
+  } else {
+    TaskFlowUI.toast(t('gcalDisconnectFailed'), 'error');
+  }
+}
+
+// Busy windows từ Google cho planner (chỉ khi cache có dữ liệu — offline-safe).
+function gcalBusyToday(todayIso) {
+  if (!window.TaskFlowGCal) return [];
+  try {
+    const cache = window.TaskFlowGCal.loadCache();
+    return window.TaskFlowGCal.busyForDate(cache.events, todayIso);
+  } catch (e) {
+    return [];
+  }
 }
 
 function renderCalendar() {
@@ -5178,6 +5249,20 @@ document.addEventListener('click', (e) => {
     setTimeBlockStatusById(el.dataset.id, next);
   } else if (act === 'tb-focus') {
     focusFromTimeBlock(el.dataset.id);
+  } else if (act === 'gcal-connect') {
+    if (window.TaskFlowGCal) window.TaskFlowGCal.connect();
+  } else if (act === 'gcal-refresh') {
+    const todayIso = localTodayIso();
+    const monthStart = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-01`;
+    const nd = new Date(PLAN_YEAR, PLAN_MONTH + 1, 0).getDate();
+    const monthEnd = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
+    if (window.TaskFlowGCalUI && window.TaskFlowGCalUI.getState().connected) {
+      window.TaskFlowGCalUI.refreshEvents(monthStart, monthEnd).then(() => renderCalendarSchedule());
+    } else {
+      scheduleGcalRefresh(calendarSelDate || todayIso, monthStart, monthEnd, true);
+    }
+  } else if (act === 'gcal-disconnect') {
+    disconnectGcal();
   } else if (act === 'subtask-add') {
     const g = getTaskDetailTarget();
     const inp = document.querySelector('#taskDrawer [data-role="td-subtask-input"]');
@@ -6623,6 +6708,20 @@ if (window.DeepLink) {
     if (dl.day !== undefined && dl.day !== null && dl.day >= 0 && dl.day <= 6) state.dayDay = dl.day;
   }
   if (dl.view === 'calendar' && Array.isArray(dl.tags)) calendarTagFilters = dl.tags;
+}
+
+/* ---------- V1.6A Google Calendar — consume ?cal=ok / ?cal=error=.. ---------- */
+if (window.TaskFlowGCal) {
+  const calRes = window.TaskFlowGCal.consumeCalParam();
+  if (calRes) {
+    if (calRes === 'ok') {
+      setTimeout(() => TaskFlowUI.toast(t('gcalConnectedOk'), 'success'), 800);
+      trackEvent('gcal_connected');
+    } else {
+      setTimeout(() => TaskFlowUI.toast(t('gcalConnectFailed'), 'error'), 800);
+      trackEvent('gcal_connect_failed');
+    }
+  }
 }
 
 setTheme(THEME);

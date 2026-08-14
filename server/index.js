@@ -69,6 +69,9 @@ app.use('/api/auth/signup', authLimiter);
 app.get('/health', (req, res) => res.json({ ok: true, service: 'taskflow-backend' }));
 app.use('/api/auth', auth.router);
 app.use('/api/sync', sync);
+app.use('/api/calendar', require('./gcal'));
+
+module.exports = { app };
 
 const PORT = process.env.PORT || 4000;
 

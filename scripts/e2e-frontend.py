@@ -2118,6 +2118,105 @@ def quick_capture_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def gcal_checks(browser, base, width, height, errors, screenshot):
+    """V1.6A: Google Calendar read-only in Schedule view.
+    1) disconnected (no /api stub) → connect button + note render
+    2) stub status=connected + events → Google events render in the gcal section
+    3) all-day vs timed distinct; events only on the selected day
+    4) busyForDate (planner) exposes timed windows with _gcal flag
+    """
+    import datetime
+    # SW-blocked context: TaskFlow's service worker takes control of the origin
+    # after first load, and WebKit then refuses page.route interception for
+    # subsequent fetches (incl. cross-origin fall-through). Blocking the SW in
+    # this scenario keeps the API stubs deterministic on every engine. The app
+    # itself is SW-agnostic here (offline caching is covered by its own smoke).
+    ctx = browser.new_context(
+        viewport={"width": width, "height": height}, service_workers="block"
+    )
+    page = ctx.new_page()
+    page.emulate_media(reduced_motion="reduce")
+    page.on("pageerror", lambda error: errors.append(f"gcal {width}px: {error}"))
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.add_init_script("localStorage.setItem('planner-lang','en');")
+    page.add_init_script("localStorage.removeItem('planner-gcal-cache');")
+
+    # 1) Schedule view, stub disconnected → connect button + note
+    today = datetime.date.today()
+    tomorrow = today + datetime.timedelta(days=1)
+    day_iso = today.isoformat()
+    tomorrow_iso = tomorrow.isoformat()
+    stub_state = {"connected": False}
+
+    def handle_cal(route):
+        url = route.request.url
+        if url.endswith("/api/calendar/status"):
+            if stub_state["connected"]:
+                body = ('{"connected":true,"write":false,"calendars":[{"id":"primary","summary":"Main","primary":true}],"fetchedAt":"2026-08-20T00:00:00.000Z"}')
+            else:
+                body = '{"connected":false,"write":false,"calendars":[],"fetchedAt":null}'
+            route.fulfill(status=200, content_type="application/json", body=body)
+            return
+        if "/api/calendar/events" in url:
+            import json
+            events = [
+                {"_calendarId": "primary", "id": "g1", "summary": "Standup",
+                 "start": {"dateTime": f"{day_iso}T09:00:00+07:00"},
+                 "end": {"dateTime": f"{day_iso}T10:00:00+07:00"}},
+                {"_calendarId": "primary", "id": "g2", "summary": "Holiday",
+                 "start": {"date": f"{day_iso}"}, "end": {"date": f"{tomorrow_iso}"}},
+                {"_calendarId": "primary", "id": "g3", "summary": "Tomorrow call",
+                 "start": {"dateTime": f"{tomorrow_iso}T14:00:00+07:00"},
+                 "end": {"dateTime": f"{tomorrow_iso}T15:00:00+07:00"}},
+            ]
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "events": events, "errors": [], "fetchedAt": "2026-08-20T00:00:00.000Z"
+            }))
+            return
+        route.continue_()
+
+    page.route("**/api/calendar/**", handle_cal)
+    page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').first.click()
+    page.wait_for_selector('[data-testid="gcal-section"]', state="visible", timeout=8000)
+    assert page.locator('[data-action="gcal-connect"]').count() >= 1, "disconnected phải có nút Connect"
+    assert page.locator('.gcal-connect-note').count() >= 1, "disconnected phải có note"
+
+    # 2) Stub connected + events today: timed 09:00-10:00, all-day, tomorrow event
+    stub_state["connected"] = True
+    page.reload(wait_until="networkidle")
+    # reload reset calendarMode về 'month' — bật lại Schedule view
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').first.click()
+    page.wait_for_selector('[data-testid="gcal-section"]', state="visible", timeout=8000)
+    page.wait_for_selector('.gcal-event', state="visible", timeout=8000)
+
+    # today: Standup (timed) + Holiday (all-day) — not Tomorrow call
+    summaries = page.locator('.gcal-event-summary').all_inner_texts()
+    joined = " ".join(summaries)
+    assert "Standup" in joined and "Holiday" in joined, f"today phải có Standup + Holiday, thấy: {summaries}"
+    assert "Tomorrow call" not in joined, f"event ngày mai không được hiện hôm nay, thấy: {summaries}"
+    assert page.locator('.gcal-event.all-day').count() >= 1, "all-day event phải đánh dấu distinct"
+    assert page.locator('.gcal-event-time.all-day').count() >= 1, "all-day có nhãn Cả ngày / All day"
+    assert page.locator('.gcal-badge').count() >= 1, "connected phải có badge"
+
+    # 3) planner busyForDate: timed windows, _gcal flag, all-day bị loại
+    busy = page.evaluate("""
+      (d) => window.TaskFlowGCal.busyForDate(window.TaskFlowGCal.loadCache().events, d)
+    """, day_iso)
+    assert len(busy) == 1, f"busy phải có đúng 1 timed window, thấy: {busy}"
+    assert busy[0]["_gcal"] is True, "busy window phải đánh dấu _gcal"
+
+    # 4) no horizontal overflow on mobile
+    assert_no_page_overflow(page, f"gcal {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+    ctx.close()
+
+
 def insights_checks(browser, base, width, height, errors, screenshot):
     """V1.4.1: Actionable Insights in Reports.
     1) no data → Reports shows the insights empty state
@@ -2216,7 +2315,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -2277,6 +2376,7 @@ def main():
                     ("habits-schedule", habits_schedule_checks),
                     ("quick-capture", quick_capture_checks),
                     ("insights", insights_checks),
+                    ("gcal", gcal_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -2353,6 +2453,9 @@ def main():
             elif args.view == "insights":
                 insights_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 insights_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "gcal":
+                gcal_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                gcal_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

@@ -25,3 +25,13 @@ create table if not exists planner_state (
 
 create index if not exists planner_state_user_key_idx
   on planner_state (user_id, key);
+
+-- ============================================================
+-- V1.6A — Google Calendar (read-only) connect columns
+-- Idempotent: chạy nhiều lần không lỗi (alter ... add column if not exists)
+-- ============================================================
+alter table users add column if not exists google_access_token text;
+alter table users add column if not exists google_refresh_token text;
+alter table users add column if not exists google_token_expires_at timestamptz;
+alter table users add column if not exists google_scopes text;
+alter table users add column if not exists google_connected_at timestamptz;
