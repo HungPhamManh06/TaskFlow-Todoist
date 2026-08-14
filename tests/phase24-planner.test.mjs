@@ -280,7 +280,7 @@ test('UI: buildApplyPlan không có suggestion → blocks rỗng', () => {
 test('wiring: app.html load planner-rules + planner-ui trước app.js + v176', () => {
   assert.match(APP, /src="js\/planner-rules\.min\.js\?v=\d+"/);
   assert.match(APP, /src="js\/planner-ui\.min\.js\?v=\d+"/);
-  assert.match(APP, /js\/app\.min\.js\?v=178/);
+  assert.match(APP, /js\/app\.min\.js\?v=179/);
   const rulesIdx = APP.indexOf('js/planner-rules.min.js?v=');
   const uiIdx = APP.indexOf('js/planner-ui.min.js?v=');
   const appIdx = APP.indexOf('js/app.min.js?v=');
@@ -290,7 +290,7 @@ test('wiring: app.html load planner-rules + planner-ui trước app.js + v176', 
 test('wiring: sw.js precache planner modules + cache bump v215', () => {
   assert.ok(SW.includes("'./js/planner-rules.min.js'"), 'SW precache planner-rules.min.js');
   assert.ok(SW.includes("'./js/planner-ui.min.js'"), 'SW precache planner-ui.min.js');
-  assert.match(SW, /const CACHE = 'taskflow-v220'/);
+  assert.match(SW, /const CACHE = 'taskflow-v221'/);
 });
 
 test('wiring: app.js dispatcher có planner-open / planner-apply / planner-cancel', () => {
@@ -299,8 +299,11 @@ test('wiring: app.js dispatcher có planner-open / planner-apply / planner-cance
   assert.match(APPJS, /act === 'planner-cancel'/);
   assert.match(APPJS, /function openPlannerModal\(\)/);
   assert.match(APPJS, /function applyPlannerPlan\(\)/);
-  // Không sửa data trước Apply: openPlannerModal không gọi save/create
-  const openBody = APPJS.slice(APPJS.indexOf('function openPlannerModal'), APPJS.indexOf('function applyPlannerPlan'));
+  // Không sửa data trước Apply: openPlannerModal không gọi save/create.
+  // Cắt đến đầu block AI (aiCollectTasks) — vùng này chỉ là body của
+  // openPlannerModal; các hàm AI (aiRun/aiApply) nằm sau đó không thuộc.
+  const openEnd = APPJS.indexOf('function aiCollectTasks');
+  const openBody = APPJS.slice(APPJS.indexOf('function openPlannerModal'), openEnd > 0 ? openEnd : APPJS.indexOf('function applyPlannerPlan'));
   assert.ok(!openBody.includes('saveTimeBlocksStore('), 'openPlannerModal không được tạo block');
   assert.ok(!openBody.includes('.createTimeBlock('), 'openPlannerModal không được tạo block');
 });

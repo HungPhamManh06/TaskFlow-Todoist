@@ -1,0 +1,261 @@
+/* TaskFlow — AI Planning Copilot (V2.0).
+   ------------------------------------------------------------
+   Vai trò: proxy gọi LLM bên thứ ba (mặc định OpenAI-compatible chat completions).
+   - AI chỉ ĐỌC context tối thiểu do client gửi lên; AI KHÔNG bao giờ ghi trực tiếp
+     vào planner data — mọi thay đổi đi qua validation + Apply trên client (app.js).
+   - Server là ranh giới bảo mật: chặn mọi key ngoài allowlist, strip field không
+     cho phép, bỏ reflection/mood trừ khi context.allowSensitive === true.
+   - KHÔNG log nội dung context/reflection/mood ở bất kỳ mức nào.
+   - Env: AI_API_KEY (bắt buộc), AI_API_URL (mặc định OpenAI), AI_MODEL, AI_TIMEOUT_MS.
+   - AI_API_KEY rỗng → 503 ai-not-configured → client ngầm dùng planner quy tắc. */
+'use strict';
+const express = require('express');
+const { authMiddleware } = require('./auth');
+
+const router = express.Router();
+router.use(authMiddleware);
+
+const AI_API_KEY = process.env.AI_API_KEY || '';
+const AI_API_URL = process.env.AI_API_URL || 'https://api.openai.com/v1/chat/completions';
+const AI_MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 25000;
+
+const KINDS = ['plan_day', 'plan_week', 'next_actions', 'breakdown_project', 'breakdown_milestone', 'reschedule'];
+const ACTION_TYPES = ['schedule_task', 'reschedule_task', 'next_action'];
+const RESCHEDULE_OPTIONS = ['tomorrow', 'this-week', 'inbox'];
+
+// Allowlist key cấp cao của context. Mọi key khác bị loại bỏ.
+const CTX_KEYS = new Set([
+  'kind', 'lang', 'today', 'weekStart', 'weekEnd',
+  'tasks', 'projects', 'milestones', 'timeblocks', 'habits', 'busy', 'overdue',
+  'selectedProjectId', 'selectedMilestoneId', 'userText', 'allowSensitive',
+  'reflections', 'mood',
+]);
+
+// Field allowlist từng loại item — strip mọi field ngoài danh sách.
+const ITEM_KEYS = {
+  tasks: ['uid', 'text', 'duration', 'priority', 'deadline', 'projectId', 'energy', 'contexts', 'done'],
+  projects: ['id', 'title', 'status', 'milestones', 'progress'],
+  milestones: ['id', 'projectId', 'title', 'status', 'targetDate'],
+  timeblocks: ['id', 'taskUid', 'date', 'start', 'end', 'status'],
+  habits: ['name', 'target'],
+  busy: ['start', 'end'],
+  overdue: ['uid', 'text', 'duration', 'priority', 'deadline', 'daysOverdue'],
+  reflections: ['date', 'text'],
+  mood: ['date', 'value'],
+};
+
+// Caps chống đốt token / cost control — KHÔNG gửi toàn bộ localStorage.
+const ARRAY_CAPS = { tasks: 60, projects: 20, milestones: 60, timeblocks: 80, habits: 30, busy: 80, overdue: 40, reflections: 12, mood: 90 };
+const TEXT_MAX = 160;
+
+function capText(v, max) {
+  const s = String(v === undefined || v === null ? '' : v);
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+function sanitizeContext(raw) {
+  const ctx = {};
+  if (!raw || typeof raw !== 'object') return { ctx, trimmed: false };
+  const trimmed = false;
+  ctx.kind = KINDS.includes(raw.kind) ? raw.kind : null;
+  ctx.lang = raw.lang === 'en' ? 'en' : 'vi';
+  ctx.today = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.today || '')) ? String(raw.today) : '';
+  ctx.weekStart = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.weekStart || '')) ? String(raw.weekStart) : '';
+  ctx.weekEnd = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.weekEnd || '')) ? String(raw.weekEnd) : '';
+  ctx.selectedProjectId = capText(raw.selectedProjectId, 64);
+  ctx.selectedMilestoneId = capText(raw.selectedMilestoneId, 64);
+  ctx.userText = capText(raw.userText, 300);
+
+  for (const key of ['tasks', 'projects', 'milestones', 'timeblocks', 'habits', 'busy', 'overdue']) {
+    if (!Array.isArray(raw[key])) continue;
+    const allowed = ITEM_KEYS[key];
+    const cap = ARRAY_CAPS[key];
+    ctx[key] = raw[key].slice(0, cap).map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const out = {};
+      for (const f of allowed) {
+        if (item[f] === undefined) continue;
+        if (typeof item[f] === 'string') out[f] = capText(item[f], TEXT_MAX);
+        else if (Array.isArray(item[f])) out[f] = item[f].slice(0, 8).map((x) => capText(x, 40));
+        else out[f] = item[f];
+      }
+      return out;
+    }).filter(Boolean);
+  }
+
+  // PRIVACY: reflection/mood chỉ được phép khi allowSensitive === true (opt-in từng lần).
+  if (raw.allowSensitive === true) {
+    if (Array.isArray(raw.reflections)) {
+      ctx.reflections = raw.reflections.slice(0, ARRAY_CAPS.reflections)
+        .map((r) => (r && typeof r === 'object' ? {
+          date: /^\d{4}-\d{2}-\d{2}$/.test(String(r.date || '')) ? String(r.date) : '',
+          text: capText(r.text, 300),
+        } : null)).filter(Boolean);
+    }
+    if (Array.isArray(raw.mood)) {
+      ctx.mood = raw.mood.slice(0, ARRAY_CAPS.mood)
+        .map((m) => (m && typeof m === 'object' ? {
+          date: /^\d{4}-\d{2}-\d{2}$/.test(String(m.date || '')) ? String(m.date) : '',
+          value: m.value,
+        } : null)).filter(Boolean);
+    }
+  }
+  return { ctx, trimmed };
+}
+
+function validDate(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s + 'T00:00:00');
+  return !Number.isNaN(d.getTime()) && d.getFullYear() >= 2020 && d.getFullYear() <= 2099;
+}
+
+function validTime(s) {
+  return typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+}
+
+// Schema validation phía server — ranh giới an toàn cuối cùng trước khi client apply.
+// refs = { taskUids:Set, projectIds:Set, milestoneIds:Set, kind }
+function validateProposal(proposal, refs) {
+  const errors = [];
+  if (!proposal || typeof proposal !== 'object') return { ok: false, errors: ['proposal-not-object'] };
+  if (typeof proposal.summary !== 'string' || proposal.summary.length > 400) {
+    errors.push('summary-invalid');
+  }
+  if (!Array.isArray(proposal.actions) || proposal.actions.length > 10) {
+    errors.push('actions-invalid');
+  }
+  if (errors.length) return { ok: false, errors };
+  const taskUids = refs && refs.taskUids ? refs.taskUids : new Set();
+  proposal.actions.forEach((a, i) => {
+    if (!a || typeof a !== 'object' || !ACTION_TYPES.includes(a.type)) {
+      errors.push('action-' + i + '-unknown-type');
+      return;
+    }
+    if (a.type === 'next_action') {
+      if (typeof a.text !== 'string' || !a.text.trim() || a.text.length > 160) errors.push('action-' + i + '-text-invalid');
+      return;
+    }
+    if (typeof a.taskUid !== 'string' || !taskUids.has(a.taskUid)) {
+      errors.push('action-' + i + '-unknown-task');
+      return;
+    }
+    if (a.type === 'schedule_task') {
+      if (!validDate(a.date)) errors.push('action-' + i + '-invalid-date');
+      if (a.start !== null && a.start !== undefined && !validTime(a.start)) errors.push('action-' + i + '-invalid-start');
+      if (a.duration !== null && a.duration !== undefined && (!Number.isInteger(a.duration) || a.duration < 5 || a.duration > 480)) {
+        errors.push('action-' + i + '-invalid-duration');
+      }
+    } else if (a.type === 'reschedule_task') {
+      if (!RESCHEDULE_OPTIONS.includes(a.option)) errors.push('action-' + i + '-invalid-option');
+    }
+  });
+  return { ok: errors.length === 0, errors };
+}
+
+function buildPrompt(ctx) {
+  const en = ctx.lang === 'en';
+  const sys = en
+    ? 'You are TaskFlow\'s planning copilot. Turn the structured context into one concrete plan.\n'
+      + 'Rules:\n'
+      + '- Only use taskUid values present in the context. NEVER invent IDs.\n'
+      + '- Dates must be YYYY-MM-DD. Never invent dates outside the provided range.\n'
+      + '- schedule_task: start must be a free window when busy/timeblocks are given; duration in minutes (5-480), may be null.\n'
+      + '- reschedule_task: only for overdue tasks; option is tomorrow|this-week|inbox.\n'
+      + '- next_action: advisory text only, max 3 actions, max 160 chars each.\n'
+      + '- Max 10 actions total. Do not invent work not present in the context.\n'
+      + 'Respond with JSON ONLY matching exactly: {"summary": string <=400, "actions":[{"type":"schedule_task","taskUid":string,"date":"YYYY-MM-DD","start":"HH:mm"|null,"duration":number|null}|{"type":"reschedule_task","taskUid":string,"option":"tomorrow"|"this-week"|"inbox"}|{"type":"next_action","text":string}]}'
+    : 'Bạn là copilot lập kế hoạch của TaskFlow. Hãy biến context có cấu trúc thành một kế hoạch cụ thể.\n'
+      + 'Quy tắc:\n'
+      + '- Chỉ dùng taskUid có sẵn trong context. KHÔNG bao giờ bịa ID.\n'
+      + '- Ngày dùng định dạng YYYY-MM-DD. Không bịa ngày ngoài khoảng được cung cấp.\n'
+      + '- schedule_task: start phải nằm trong khe trống nếu có busy/timeblocks; duration tính bằng phút (5-480), có thể null.\n'
+      + '- reschedule_task: chỉ dành cho task quá hạn; option là tomorrow|this-week|inbox.\n'
+      + '- next_action: chỉ là gợi ý, tối đa 3 action, mỗi cái tối đa 160 ký tự.\n'
+      + '- Tối đa 10 action. Không bịa công việc không có trong context.\n'
+      + 'Trả lời CHỈ bằng JSON đúng schema: {"summary": string <=400, "actions":[{"type":"schedule_task","taskUid":string,"date":"YYYY-MM-DD","start":"HH:mm"|null,"duration":number|null}|{"type":"reschedule_task","taskUid":string,"option":"tomorrow"|"this-week"|"inbox"}|{"type":"next_action","text":string}]}';
+  const kindLabel = en
+    ? { plan_day: 'Plan today', plan_week: 'Plan this week', next_actions: 'Suggest next actions', breakdown_project: 'Break down a project', breakdown_milestone: 'Break down a milestone', reschedule: 'Reschedule overdue work' }[ctx.kind] || ctx.kind
+    : { plan_day: 'Lập kế hoạch hôm nay', plan_week: 'Lập kế hoạch tuần', next_actions: 'Gợi ý việc tiếp theo', breakdown_project: 'Phân rã dự án', breakdown_milestone: 'Phân rã milestone', reschedule: 'Sắp xếp việc quá hạn' }[ctx.kind] || ctx.kind;
+  const user = `Goal: ${kindLabel}\nToday: ${ctx.today || 'unknown'}\n`
+    + (ctx.weekStart && ctx.weekEnd ? `Week: ${ctx.weekStart} → ${ctx.weekEnd}\n` : '')
+    + (ctx.selectedProjectId ? `Project: ${ctx.selectedProjectId}\n` : '')
+    + (ctx.selectedMilestoneId ? `Milestone: ${ctx.selectedMilestoneId}\n` : '')
+    + (ctx.userText ? `Note from user: ${ctx.userText}\n` : '')
+    + 'Context JSON:\n' + JSON.stringify(ctx);
+  return { system: sys, user };
+}
+
+// ---- POST /api/ai/plan (Bearer) {kind, context, userText?} → {ok, proposal} ----
+router.post('/plan', async (req, res) => {
+  try {
+    if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const { ctx } = sanitizeContext(body.context);
+    if (!ctx.kind || !KINDS.includes(ctx.kind)) return res.status(400).json({ error: 'invalid-kind' });
+
+    const rawLen = Buffer.byteLength(JSON.stringify(body), 'utf8');
+    if (rawLen > 128 * 1024) return res.status(413).json({ error: 'payload-too-large' });
+
+    // refs để validate referential phía server (chỉ dựa trên những gì client gửi).
+    const taskUids = new Set();
+    (ctx.tasks || []).forEach((t) => { if (t && t.uid) taskUids.add(t.uid); });
+    (ctx.overdue || []).forEach((t) => { if (t && t.uid) taskUids.add(t.uid); });
+    const projectIds = new Set((ctx.projects || []).map((p) => p && p.id).filter(Boolean));
+    const milestoneIds = new Set((ctx.milestones || []).map((m) => m && m.id).filter(Boolean));
+
+    const { system, user } = buildPrompt(ctx);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+    let upstream;
+    try {
+      upstream = await fetch(AI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + AI_API_KEY,
+        },
+        body: JSON.stringify({
+          model: AI_MODEL,
+          temperature: 0.2,
+          max_tokens: 1200,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+        }),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      if (e && e.name === 'AbortError') return res.status(504).json({ error: 'ai-timeout' });
+      return res.status(502).json({ error: 'ai-unavailable' });
+    }
+    clearTimeout(timer);
+    if (!upstream.ok) return res.status(502).json({ error: 'ai-unavailable' });
+
+    let json;
+    try {
+      json = await upstream.json();
+    } catch (e) {
+      return res.status(502).json({ error: 'ai-unavailable' });
+    }
+    const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+    if (typeof content !== 'string' || !content.trim()) return res.status(502).json({ error: 'ai-unavailable' });
+
+    let proposal;
+    try {
+      proposal = JSON.parse(content);
+    } catch (e) {
+      return res.status(422).json({ error: 'ai-invalid-output' });
+    }
+    const v = validateProposal(proposal, { taskUids, projectIds, milestoneIds });
+    if (!v.ok) return res.status(422).json({ error: 'ai-invalid-output', details: v.errors.slice(0, 5) });
+    return res.json({ ok: true, proposal });
+  } catch (e) {
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt };

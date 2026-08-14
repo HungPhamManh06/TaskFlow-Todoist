@@ -2217,6 +2217,149 @@ def gcal_checks(browser, base, width, height, errors, screenshot):
     ctx.close()
 
 
+def ai_checks(browser, base, width, height, errors, screenshot):
+    """V2.0: AI Copilot — proposal → preview → explicit Apply (không tự ghi state).
+    1) seed 2 task hôm nay + 2 TimeBlock → mở planner → AI panel + consent chips
+       (tasks/projects/schedule checked, reflections/mood unchecked)
+    2) ai-run với stub proposal hợp lệ → preview hiện summary + action list
+    3) request body gửi lên server không chứa reflections/mood (allowSensitive=false)
+    4) ai-cancel → KHÔNG thay đổi data (planner-timeblocks giữ nguyên)
+    5) ai-run → ai-apply → tạo đúng 1 TimeBlock mới (10:00-11:00), modal đóng.
+    """
+    import json
+    import datetime
+    # SW-blocked: TaskFlow SW khiến WebKit bỏ qua page.route cho fetch sau đó
+    # (cross-origin fall-through cũng vậy) — xem gcal_checks. AI fetch là
+    # cross-origin (API_CONFIG.url) nên cần route stub deterministic trên mọi engine.
+    ctx = browser.new_context(
+        viewport={"width": width, "height": height}, service_workers="block"
+    )
+    page = ctx.new_page()
+    page.emulate_media(reduced_motion="reduce")
+    page.on("pageerror", lambda error: errors.append(f"ai {width}px: {error}"))
+    page.add_init_script("""(() => {
+      localStorage.setItem('planner-onboarded','1');
+      localStorage.setItem('planner-lang','en');
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = 'planner-' + year + '-' + (month + 1);
+      let state;
+      try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { state = null; }
+      if (!state) state = { version: 1, weeks: [], pillars: [], habits: [] };
+      state.monthKey = key;
+      state.schemaVersion = 2;
+      if (!Array.isArray(state.monthlyGoals)) state.monthlyGoals = [];
+      if (!Array.isArray(state.habits)) state.habits = [];
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const start = new Date(year, month, 1 - offset);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const numWeeks = Math.ceil((offset + daysInMonth) / 7);
+      while (state.weeks.length < numWeeks) state.weeks.push({ days: [] });
+      state.weeks.length = numWeeks;
+      state.weeks.forEach(w => { while (w.days.length < 7) w.days.push({ tasks: [] }); });
+      const delta = Math.floor((now - start) / 86400000);
+      const week = Math.floor(delta / 7), day = delta % 7;
+      const dayState = state.weeks[week].days[day];
+      const yst = new Date(year, month, now.getDate() - 1);
+      const ystIso = yst.getFullYear() + '-' + String(yst.getMonth() + 1).padStart(2,'0') + '-' + String(yst.getDate()).padStart(2,'0');
+      dayState.tasks = [
+        { uid: 'ai-t1', kind: 'regular', done: false, text: 'AI task one', estimatedMinutes: 60,
+          deadline: ystIso, tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+        { uid: 'ai-t2', kind: 'regular', done: false, text: 'AI task two', estimatedMinutes: 30,
+          tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+      ];
+      localStorage.setItem(key, JSON.stringify(state));
+      const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+      localStorage.setItem('planner-timeblocks', JSON.stringify({ version: 1, blocks: [
+        { id: 'ai-b1', taskUid: 'ai-t2', date: today, start: '09:00', end: '10:00', status: 'planned', createdAt: '', updatedAt: '' },
+        { id: 'ai-b2', taskUid: 'ai-t1', date: today, start: '11:00', end: '12:00', status: 'planned', createdAt: '', updatedAt: '' },
+      ] }));
+    })()""")
+
+    ai_bodies = []
+
+    def handle_ai(route):
+        url = route.request.url
+        if url.endswith("/api/ai/plan"):
+            try:
+                body = json.loads(route.request.post_data or "{}")
+                ai_bodies.append(body)
+            except Exception:
+                pass
+            # Proposal hợp lệ: schedule ai-t1 vào khe trống 10:00-11:00 + 1 gợi ý.
+            today = datetime.date.today().isoformat()
+            payload = {
+                "ok": True,
+                "proposal": {
+                    "summary": "Plan for today: focus on AI task one.",
+                    "actions": [
+                        {"type": "schedule_task", "taskUid": "ai-t1",
+                         "date": today, "start": "10:00", "duration": 60},
+                        {"type": "next_action", "text": "Review inbox"},
+                    ],
+                },
+            }
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(payload))
+            return
+        route.continue_()
+
+    page.route("**/api/ai/plan", handle_ai)
+    page.goto(f"{base}/app.html?view=today", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="today-view"]', state="visible")
+
+    # 1) Mở planner → AI panel + consent mặc định
+    page.locator('[data-action="planner-open"]').click()
+    page.wait_for_selector('[data-testid="planner-modal"]:visible', state="visible")
+    page.wait_for_selector('[data-role="ai-panel"]', state="visible")
+    assert page.locator('[data-ai-consent]').count() == 5, "phải có 5 consent chips"
+    checked = page.locator('[data-ai-consent]:checked').evaluate_all(
+        "(els) => els.map((e) => e.getAttribute('data-ai-consent'))"
+    )
+    assert set(checked) == {"tasks", "projects", "schedule"}, f"mặc định chỉ tasks/projects/schedule, thấy: {checked}"
+    assert page.locator('[data-ai-consent="reflections"]:checked').count() == 0, "reflections mặc định TẮT"
+    assert page.locator('[data-ai-consent="mood"]:checked').count() == 0, "mood mặc định TẮT"
+
+    # 2) ai-run → preview hiện summary + 2 action
+    before_blocks = page.evaluate("JSON.stringify(JSON.parse(localStorage.getItem('planner-timeblocks')).blocks)")
+    page.locator('[data-action="ai-run"]').click()
+    page.wait_for_selector('[data-role="ai-preview"]', state="visible", timeout=8000)
+    summary = page.locator('.ai-summary').inner_text()
+    assert "AI task one" in summary, f"summary phải mention task, thấy: {summary}"
+    assert page.locator('.ai-actions-list li').count() == 2, "preview phải có 2 action"
+    assert page.locator('.ai-warn').count() == 0, "khe 10:00-11:00 trống → không warning chồng giờ"
+
+    # 3) PRIVACY: body gửi lên server không chứa reflections/mood
+    assert len(ai_bodies) >= 1, "phải có request tới /api/ai/plan"
+    sent_ctx = ai_bodies[-1].get("context", {})
+    assert sent_ctx.get("allowSensitive") is False, "allowSensitive phải false (chưa opt-in)"
+    assert "reflections" not in sent_ctx, "reflections KHÔNG được gửi khi chưa opt-in"
+    assert "mood" not in sent_ctx, "mood KHÔNG được gửi khi chưa opt-in"
+
+    # 4) ai-cancel → KHÔNG thay đổi data
+    page.locator('[data-action="ai-cancel"]').click()
+    page.wait_for_selector('[data-role="ai-preview"]', state="detached")
+    after_cancel = page.evaluate("JSON.stringify(JSON.parse(localStorage.getItem('planner-timeblocks')).blocks)")
+    assert after_cancel == before_blocks, "Cancel KHÔNG được tạo TimeBlock"
+
+    # 5) ai-run → ai-apply → tạo TimeBlock mới 10:00-11:00, modal đóng
+    page.locator('[data-action="ai-run"]').click()
+    page.wait_for_selector('[data-role="ai-preview"]', state="visible", timeout=8000)
+    page.locator('[data-action="ai-apply"]').click()
+    page.wait_for_selector('[data-testid="planner-modal"]:visible', state="detached")
+    blocks = page.evaluate("JSON.parse(localStorage.getItem('planner-timeblocks')).blocks")
+    assert len(blocks) == 3, f"Apply phải tạo đúng 1 block (2 → 3), thấy {len(blocks)}"
+    assert any(b["taskUid"] == "ai-t1" and b["start"] == "10:00" and b["end"] == "11:00" for b in blocks), \
+        "block mới phải là ai-t1 10:00-11:00"
+
+    assert_no_page_overflow(page, f"ai {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+    ctx.close()
+
+
 def insights_checks(browser, base, width, height, errors, screenshot):
     """V1.4.1: Actionable Insights in Reports.
     1) no data → Reports shows the insights empty state
@@ -2315,7 +2458,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "ai"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -2377,6 +2520,7 @@ def main():
                     ("quick-capture", quick_capture_checks),
                     ("insights", insights_checks),
                     ("gcal", gcal_checks),
+                    ("ai", ai_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -2456,6 +2600,9 @@ def main():
             elif args.view == "gcal":
                 gcal_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 gcal_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "ai":
+                ai_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                ai_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

@@ -70,6 +70,11 @@ app.get('/health', (req, res) => res.json({ ok: true, service: 'taskflow-backend
 app.use('/api/auth', auth.router);
 app.use('/api/sync', sync);
 app.use('/api/calendar', require('./gcal'));
+// V2.0 — AI Copilot (optional): proxy LLM, AI chỉ đọc context tối thiểu; mọi ghi
+// state vẫn qua client validation + Apply pipeline. Env: AI_API_KEY, AI_API_URL,
+// AI_MODEL, AI_TIMEOUT_MS. Thiếu key → /api/ai/plan trả 503 → client fallback
+// về planner quy tắc (V1.3) — AI không bao giờ bắt buộc.
+app.use('/api/ai', require('./ai').router);
 
 module.exports = { app };
 

@@ -758,8 +758,198 @@ function openPlannerModal() {
   window._lastPlannerProposal = proposal;
   const content = document.getElementById('plannerContent');
   if (content) content.innerHTML = PlannerUI.plannerContentHTML(proposal);
+  renderAiPanel();
   TaskFlowUI.openDialog('plannerModal');
   trackEvent('planner_open');
+}
+
+// ---- V2.0 — AI Copilot (optional). AI đề xuất; user bấm Apply; mọi ghi state qua API chuẩn. ----
+
+// Danh sách task duy nhất theo uid: hôm nay + cả tháng + inbox.
+function aiCollectTasks() {
+  const seen = new Set();
+  const out = [];
+  const push = (tk) => { if (tk && tk.uid && !seen.has(tk.uid)) { seen.add(tk.uid); out.push(tk); } };
+  todayPlannerTasks().forEach(push);
+  (state.weeks || []).forEach((w) => (w.days || []).forEach((d) => (d.tasks || []).forEach(push)));
+  (Array.isArray(inbox) ? inbox : []).forEach(push);
+  return out;
+}
+
+// Việc quá hạn (deadline < hôm nay, chưa done). deterministic, không đọc Reflection.
+function aiCollectOverdue() {
+  const now = new Date();
+  const today = PlannerUI.todayStr();
+  const seen = new Set();
+  const out = [];
+  aiCollectTasks().forEach((tk) => {
+    if (tk.done || !tk.deadline || seen.has(tk.uid)) return;
+    if (String(tk.deadline) < today) {
+      seen.add(tk.uid);
+      const dd = PlannerRules.dayDelta(new Date(String(tk.deadline) + 'T00:00:00'), now);
+      out.push({ ...tk, daysOverdue: dd < 0 ? -dd : 1 });
+    }
+  });
+  return out;
+}
+
+// Reflection hiện có → [{date, text}] (chỉ khi user opt-in — mặc định tắt).
+function aiCollectReflections() {
+  const out = [];
+  const today = PlannerUI.todayStr();
+  try {
+    if (Array.isArray(state.reflections.weeks)) {
+      state.reflections.weeks.forEach((wk, wi) => {
+        if (!Array.isArray(wk)) return;
+        wk.forEach((txt, di) => {
+          if (!txt || !String(txt).trim()) return;
+          const dayIdx = wi * 7 + di;
+          const d = new Date(PLAN_START.getFullYear(), PLAN_START.getMonth(), 1 + (dayIdx - (PLAN_START.getDay() + 6) % 7));
+          out.push({ date: PlannerRules.dateStr(d), text: String(txt).slice(0, 300) });
+        });
+      });
+    }
+    if (Array.isArray(state.reflections.overview)) {
+      state.reflections.overview.forEach((txt) => {
+        if (txt && String(txt).trim()) out.push({ date: today, text: String(txt).slice(0, 300) });
+      });
+    }
+  } catch (e) { /* bỏ qua an toàn */ }
+  return out.slice(0, 12);
+}
+
+// Context tối thiểu cho AI theo kind. KHÔNG bao giờ gửi toàn bộ localStorage.
+function aiBuildContext(kind, extra) {
+  const AI = window.TaskFlowAI;
+  const x = extra || {};
+  const consent = AI.getConsent();
+  const projectsStore = loadProjectsStore();
+  const allProjects = Array.isArray(projectsStore.projects) ? projectsStore.projects : [];
+  const allMilestones = [];
+  allProjects.forEach((p) => (Array.isArray(p.milestones) ? p.milestones : []).forEach((m) => allMilestones.push({ ...m, projectId: p.id })));
+  const blocks = loadTimeBlocksStore();
+  const allBlocks = Array.isArray(blocks.blocks) ? blocks.blocks : [];
+  const today = PlannerUI.todayStr();
+  const weekStart = PlannerRules.dateStr(PLAN_START);
+  const weekEnd = PlannerRules.dateStr(new Date(PLAN_START.getFullYear(), PLAN_START.getMonth(), 1 + NUM_DAYS - 1));
+
+  // Busy windows từ Google Calendar (read-only) — planner chỉ được ĐỌC, không gửi ngược.
+  const busy = [];
+  if (window.TaskFlowGCal) {
+    try {
+      const cache = window.TaskFlowGCal.loadCache();
+      const from = kind === 'plan_day' ? today : weekStart;
+      const to = kind === 'plan_day' ? today : weekEnd;
+      const startD = TimeBlocksUI.parseISO(from);
+      const endD = TimeBlocksUI.parseISO(to);
+      for (let d = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate());
+        d.getTime() <= endD.getTime();
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        const dayStr = TimeBlocksUI.iso(d);
+        (window.TaskFlowGCal.eventsForDate(cache.events, dayStr) || []).forEach((e) => {
+          busy.push({ start: e.startMs ? new Date(e.startMs).toISOString() : '', end: e.endMs ? new Date(e.endMs).toISOString() : '' });
+        });
+      }
+    } catch (e) { /* offline → không có busy */ }
+  }
+
+  return AI.buildContext({
+    kind,
+    lang: getLang(),
+    today,
+    weekStart,
+    weekEnd,
+    selectedProjectId: x.selectedProjectId || '',
+    selectedMilestoneId: x.selectedMilestoneId || '',
+    tasks: aiCollectTasks(),
+    projects: allProjects,
+    milestones: allMilestones,
+    timeblocks: kind === 'plan_day' ? allBlocks.filter((b) => b.date === today) : allBlocks,
+    habits: Array.isArray(state.habits) ? state.habits.map((h) => ({ name: h.name, target: h.target || 100 })) : [],
+    busy,
+    overdue: aiCollectOverdue(),
+    allowSensitive: !!(consent.reflections || consent.mood),
+    reflections: consent.reflections ? aiCollectReflections() : [],
+    mood: consent.mood ? Object.entries(moodMap || {}).map(([date, value]) => ({ date, value })) : [],
+  });
+}
+
+function renderAiPanel() {
+  const host = document.getElementById('plannerAi');
+  const AI = window.TaskFlowAI;
+  if (!host || !AI) return;
+  const projectsStore = loadProjectsStore();
+  const allProjects = Array.isArray(projectsStore.projects) ? projectsStore.projects : [];
+  const allMilestones = [];
+  allProjects.forEach((p) => (Array.isArray(p.milestones) ? p.milestones : []).forEach((m) => allMilestones.push({ ...m, projectId: p.id })));
+  host.innerHTML = AI.panelHTML(allProjects, allMilestones);
+  delete window._lastAiProposal;
+}
+
+async function aiRun() {
+  const AI = window.TaskFlowAI;
+  if (!AI) return;
+  const panel = document.querySelector('#plannerAi [data-role="ai-panel"]');
+  if (!panel) return;
+  const kindSel = panel.querySelector('[data-role="ai-kind"]');
+  const kind = kindSel ? kindSel.value : 'plan_day';
+  const consentPatch = {};
+  panel.querySelectorAll('[data-ai-consent]').forEach((cb) => { consentPatch[cb.dataset.aiConsent] = cb.checked; });
+  AI.setConsent(consentPatch);
+  const projSel = panel.querySelector('[data-role="ai-project"]');
+  const mileSel = panel.querySelector('[data-role="ai-milestone"]');
+  const context = aiBuildContext(kind, {
+    selectedProjectId: projSel ? projSel.value : '',
+    selectedMilestoneId: mileSel ? mileSel.value : '',
+  });
+  const runBtn = panel.querySelector('[data-action="ai-run"]');
+  const resultHost = panel.querySelector('[data-role="ai-result"]');
+  if (runBtn) { runBtn.disabled = true; runBtn.textContent = t('aiRunning'); }
+  if (resultHost) resultHost.innerHTML = '';
+  const res = await AI.callPlanner(context);
+  if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('aiRun'); }
+  if (!resultHost) return;
+  if (!res.ok) {
+    const code = res.error || 'ai-unavailable';
+    const msg = code === 'ai-not-configured' ? 'aiNotConfigured'
+      : code === 'ai-invalid-output' ? 'aiInvalidOutput'
+      : code === 'ai-timeout' || code === 'network' ? 'aiError' : 'aiError';
+    resultHost.innerHTML = `<p class="ai-error">${esc(t(msg))}</p>`;
+    return;
+  }
+  const refs = { taskUids: new Set(context.tasks.concat(context.overdue).map((tk) => tk.uid)) };
+  const v = AI.validateProposalLocal(res.proposal, refs);
+  if (!v.ok) { resultHost.innerHTML = `<p class="ai-error">${esc(t('aiInvalidOutput'))}</p>`; return; }
+  const warnings = AI.conflictCheck(res.proposal, context.timeblocks, context.busy);
+  window._lastAiProposal = { proposal: res.proposal, refs };
+  resultHost.innerHTML = AI.previewHTML(res.proposal, warnings);
+  trackEvent('ai_preview');
+}
+
+// Apply: CHỈ chạy khi user bấm Apply. Ghi state qua API chuẩn (TimeBlock store + move helpers).
+function aiApply() {
+  const AI = window.TaskFlowAI;
+  const last = window._lastAiProposal;
+  if (!AI || !last) return;
+  const result = AI.applyProposal(last.proposal, {
+    findTask: (uid) => !!findPlannerTaskByUid(uid),
+    createBlock: (payload) => {
+      const store = loadTimeBlocksStore();
+      window.TaskFlowTimeBlocks.createTimeBlock(store, {
+        taskUid: payload.taskUid, date: payload.date, start: payload.start, end: payload.end, status: 'planned',
+      });
+      saveTimeBlocksStore(store);
+    },
+    moveToDay: (uid, option) => { const ref = findPlannerTaskByUid(uid); if (ref) movePlannerTaskToDay(ref, option); },
+    moveToInbox: (uid) => { const ref = findPlannerTaskByUid(uid); if (ref) movePlannerTaskToInbox(ref); },
+  });
+  save();
+  renderCurrentView();
+  TaskFlowUI.closeDialog('plannerModal');
+  delete window._lastAiProposal;
+  const skip = result.skipped && result.skipped.length ? ' ' + t('aiSkipNote', { n: result.skipped.length }) : '';
+  TaskFlowUI.toast(t('aiApplied') + skip, 'success');
+  trackEvent('ai_apply');
 }
 
 // Áp dụng kế hoạch: tạo TimeBlock cho task đã chọn + dời việc quá hạn theo lựa chọn.
@@ -5212,6 +5402,18 @@ document.addEventListener('click', (e) => {
     trackEvent('planner_cancel');
   } else if (act === 'planner-apply') {
     applyPlannerPlan();
+  } else if (act === 'ai-run') {
+    aiRun();
+  } else if (act === 'ai-apply') {
+    aiApply();
+  } else if (act === 'ai-cancel') {
+    delete window._lastAiProposal;
+    const host = document.querySelector('#plannerAi [data-role="ai-result"]');
+    if (host) host.innerHTML = '';
+  } else if (act === 'ai-kind') {
+    const kind = el.value || 'plan_day';
+    const targets = el.closest('[data-role="ai-panel"]') && el.closest('[data-role="ai-panel"]').querySelector('[data-role="ai-targets"]');
+    if (targets) targets.hidden = !(kind === 'breakdown_project' || kind === 'breakdown_milestone');
   } else if (act === 'cal-mode') {
     // V1.2 Phase 2 — Calendar mode toggle: month grid | schedule timeline.
     calendarMode = el.dataset.mode === 'schedule' ? 'schedule' : 'month';

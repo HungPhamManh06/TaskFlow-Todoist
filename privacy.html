@@ -140,7 +140,19 @@
       </section>
 
       <section class="legal-section">
-        <h2 data-t-vi="6. Xóa tài khoản" data-t-en="6. Deleting your account">6. Xóa tài khoản</h2>
+        <h2 data-t-vi="6. AI Planning Copilot (tùy chọn)" data-t-en="6. AI Planning Copilot (optional)">6. AI Planning Copilot (tùy chọn)</h2>
+        <p data-t-vi="Tính năng AI Copilot là <strong>tùy chọn</strong> và mặc định tắt. Khi bạn bấm "Gợi ý với AI", ứng dụng gửi tới máy chủ một <strong>context tối thiểu</strong> (không phải toàn bộ dữ liệu): danh sách task, dự án, milestone, timeblock và khung giờ bận — được giới hạn số lượng và độ dài."
+          data-t-en="AI Copilot is <strong>optional</strong> and off by default. When you press "Ask AI", the app sends a <strong>minimal context</strong> (not all of your data) to the server: a capped list of tasks, projects, milestones, time blocks and busy windows.">Tính năng AI Copilot là <strong>tùy chọn</strong> và mặc định tắt. Khi bạn bấm "Gợi ý với AI", ứng dụng gửi tới máy chủ một <strong>context tối thiểu</strong> (không phải toàn bộ dữ liệu): danh sách task, dự án, milestone, timeblock và khung giờ bận — được giới hạn số lượng và độ dài.</p>
+        <p data-t-vi="AI là <strong>một dịch vụ bên thứ ba qua proxy máy chủ của TaskFlow</strong>: dữ liệu rời khỏi thiết bị của bạn và được gửi tới nhà cung cấp mô hình ngôn ngữ để tạo đề xuất. AI chỉ <strong>đọc</strong> context; mọi thay đổi chỉ được ghi sau khi bạn xem trước và bấm Áp dụng. AI không bao giờ tự sửa dữ liệu."
+          data-t-en="AI is <strong>a third-party service reached through TaskFlow's server proxy</strong>: data leaves your device and is sent to the language-model provider to generate suggestions. AI only <strong>reads</strong> the context; nothing is written until you review the preview and press Apply. AI never modifies data on its own.">AI là <strong>một dịch vụ bên thứ ba qua proxy máy chủ của TaskFlow</strong>: dữ liệu rời khỏi thiết bị của bạn và được gửi tới nhà cung cấp mô hình ngôn ngữ để tạo đề xuất. AI chỉ <strong>đọc</strong> context; mọi thay đổi chỉ được ghi sau khi bạn xem trước và bấm Áp dụng. AI không bao giờ tự sửa dữ liệu.</p>
+        <p data-t-vi="<strong>Reflection và Mood chỉ được gửi khi bạn chọn</strong> (ô đánh dấu trong bảng điều khiển AI); mặc định chúng bị loại trừ. Lựa chọn này không được lưu vĩnh viễn — bạn chọn lại mỗi lần dùng. Máy chủ không ghi nhật ký nội dung context."
+          data-t-en="<strong>Reflections and Mood are sent only when you opt in</strong> (checkboxes in the AI panel); by default they are excluded. Your choice is not persisted — you select it each time. The server does not log context content."><strong>Reflection và Mood chỉ được gửi khi bạn chọn</strong> (ô đánh dấu trong bảng điều khiển AI); mặc định chúng bị loại trừ. Lựa chọn này không được lưu vĩnh viễn — bạn chọn lại mỗi lần dùng. Máy chủ không ghi nhật ký nội dung context.</p>
+        <p data-t-vi="Nếu AI không khả dụng (chưa cấu hình, mất mạng, hết thời gian), mọi chức năng khác vẫn hoạt động và planner quy tắc (không dùng AI) vẫn sẵn sàng."
+          data-t-en="If AI is unavailable (not configured, offline, timeout), everything else keeps working and the rule-based planner (no AI) remains available.">Nếu AI không khả dụng (chưa cấu hình, mất mạng, hết thời gian), mọi chức năng khác vẫn hoạt động và planner quy tắc (không dùng AI) vẫn sẵn sàng.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2 data-t-vi="7. Xóa tài khoản" data-t-en="7. Deleting your account">7. Xóa tài khoản</h2>
         <p data-t-vi="Trong Cài đặt → Tài khoản, bạn có thể xóa tài khoản của mình. Thao tác này gọi API <code>POST /api/auth/delete-account</code>: máy chủ xóa tài khoản và <strong>toàn bộ dữ liệu đồng bộ liên quan</strong> (bảng <code>planner_state</code> có khóa ngoại <code>on delete cascade</code>)."
           data-t-en="In Settings → Account, you can delete your account. This calls <code>POST /api/auth/delete-account</code>: the server deletes your account and <strong>all related synced data</strong> (the <code>planner_state</code> table uses <code>on delete cascade</code>).">Trong Cài đặt → Tài khoản, bạn có thể xóa tài khoản của mình. Thao tác này gọi API <code>POST /api/auth/delete-account</code>: máy chủ xóa tài khoản và <strong>toàn bộ dữ liệu đồng bộ liên quan</strong> (bảng <code>planner_state</code> có khóa ngoại <code>on delete cascade</code>).</p>
         <p data-t-vi="Việc xóa tài khoản <strong>không tự động xóa localStorage</strong> trên thiết bị của bạn — nếu muốn sạch hoàn toàn, hãy xóa dữ liệu duyệt web sau khi xóa tài khoản."
@@ -148,13 +160,13 @@
       </section>
 
       <section class="legal-section">
-        <h2 data-t-vi="7. Bảo mật truyền tải" data-t-en="7. Transport security">7. Bảo mật truyền tải</h2>
+        <h2 data-t-vi="8. Bảo mật truyền tải" data-t-en="8. Transport security">8. Bảo mật truyền tải</h2>
         <p data-t-vi="Mọi liên lạc với máy chủ đều qua HTTPS. Nội dung dữ liệu <em>đồng bộ</em> được lưu ở dạng JSON trong cơ sở dữ liệu — chúng tôi không mã hóa nội dung khi lưu (không có mã hóa end-to-end). Nếu dữ liệu của bạn nhạy cảm, hãy cân nhắc dùng TaskFlow mà không đăng nhập, hoặc chỉ giữ dữ liệu trên thiết bị."
           data-t-en="All communication with the server is over HTTPS. Synced data is stored as JSON in the database — we do not encrypt content at rest (there is no end-to-end encryption). If your data is sensitive, consider using TaskFlow without an account, or keep data on-device only.">Mọi liên lạc với máy chủ đều qua HTTPS. Nội dung dữ liệu <em>đồng bộ</em> được lưu ở dạng JSON trong cơ sở dữ liệu — chúng tôi không mã hóa nội dung khi lưu (không có mã hóa end-to-end). Nếu dữ liệu của bạn nhạy cảm, hãy cân nhắc dùng TaskFlow mà không đăng nhập, hoặc chỉ giữ dữ liệu trên thiết bị.</p>
       </section>
 
       <section class="legal-section">
-        <h2 data-t-vi="8. Liên hệ" data-t-en="8. Contact">8. Liên hệ</h2>
+        <h2 data-t-vi="9. Liên hệ" data-t-en="9. Contact">9. Liên hệ</h2>
         <p><span data-t-vi="Nếu bạn có câu hỏi về quyền riêng tư hoặc dữ liệu của mình, hãy mở một issue trên "
           data-t-en="If you have questions about privacy or your data, open an issue on ">Nếu bạn có câu hỏi về quyền riêng tư hoặc dữ liệu của mình, hãy mở một issue trên </span><a href="https://github.com/HungPhamManh06/Todoist" rel="noopener noreferrer">GitHub</a>.</p>
       </section>
