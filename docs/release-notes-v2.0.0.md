@@ -3,6 +3,27 @@
 > Release range: `b34f876…84eaa51` (V1.1 Projects → V1.6C Google push-only)
 > Prerequisite: V1.0.0 stable (`e0802ee`, `0b1c921`).
 
+TaskFlow V2.0.0 builds the planning system on top of the stable V1.0.0
+offline-first core. Projects and milestones turn year goals into achievable
+steps; time blocks put tasks on a real schedule; a rule-based planner proposes
+the day with preview before Apply; habits support flexible daily, weekly, and
+monthly schedules; Reports surface rule-based actionable insights; quick
+capture pulls web shares and URLs straight into Inbox; an optional Google
+Calendar connection shows external events and can push TimeBlocks one-way; and
+an optional, consent-gated AI copilot assists planning without ever owning
+TaskFlow state. All migrations are additive — every V1.x backup imports
+unchanged.
+
+Highlights in this release:
+- Projects & Milestones with task linkage and auto-calculated progress
+- Time Blocking + Energy/Context planning metadata
+- Smart Daily Planner — rule-based, deterministic, preview → explicit Apply
+- Flexible Habit Schedules — daily / weekdays / weekly count / monthly count
+- Actionable rule-based Insights in Reports
+- Quick Capture — PWA share target + quick URL into Inbox, sanitized
+- Google Calendar — read-only events + push-only TimeBlock export
+- AI Planning Copilot — optional, consent-gated, validated proposals
+
 ## What's new
 
 ### Projects & Milestones (V1.1)
