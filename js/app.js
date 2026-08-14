@@ -1058,13 +1058,19 @@ function saveTimeBlockDialog() {
     return;
   }
   if (_tbEditId) {
-    window.TaskFlowTimeBlocks.updateTimeBlock(blocks, _tbEditId, {
+    // V1.6C (push-only): nếu block đã export và giờ thay đổi → cập nhật event Google.
+    const prev = window.TaskFlowTimeBlocks.getBlock(blocks, _tbEditId);
+    const updated = window.TaskFlowTimeBlocks.updateTimeBlock(blocks, _tbEditId, {
       taskUid: v.taskUid || null,
       date: v.date,
       start: v.start,
       end: v.end,
       status: v.status,
     });
+    if (updated && prev && window.TaskFlowGCal && window.TaskFlowGCal.mappingForBlock(updated.id)) {
+      const timeChanged = updated.date !== prev.date || updated.start !== prev.start || updated.end !== prev.end;
+      if (timeChanged) propagateTimeBlockUpdate(updated);
+    }
   } else {
     window.TaskFlowTimeBlocks.createTimeBlock(blocks, {
       taskUid: v.taskUid || null,
@@ -1085,12 +1091,50 @@ function saveTimeBlockDialog() {
 
 function deleteTimeBlockById(blockId) {
   const blocks = loadTimeBlocksStore();
+  const g = window.TaskFlowGCal;
+  const mapped = g && g.mappingForBlock(blockId);
   window.TaskFlowTimeBlocks.deleteTimeBlock(blocks, blockId);
   saveTimeBlocksStore(blocks);
+  // V1.6C (push-only): block đã export → bỏ mapping (server tự dọn qua unlink).
+  // Xoá event Google CHỈ khi user bật syncDeletes; mặc định OFF → event được GIỮ.
+  if (mapped && g) {
+    const syncDeletes = g.getSyncDeletes ? g.getSyncDeletes() : false;
+    g.unlinkBlock(blockId, { deleteEvent: syncDeletes }).then((res) => {
+      if (res && res.ok && syncDeletes) {
+        TaskFlowUI.toast(t('gcalEventDeleted'), 'success');
+        trackEvent('gcal_delete');
+      } else if (res && !res.ok && !(res.status === 0)) {
+        TaskFlowUI.toast(t('gcalEventDeleteFail'), 'error');
+        trackEvent('gcal_delete_fail');
+      }
+    });
+  }
   if (calendarMode === 'schedule') renderCalendarSchedule();
   if (taskDetailRef && getTaskDetailTarget()) renderTaskDetail();
   TaskFlowUI.toast(t('tbDeleted'), 'success');
   trackEvent('tb_delete');
+}
+
+// V1.6C (push-only) — block đã export bị sửa giờ → PATCH event Google (best-effort).
+// Không chặn luồng chính: lỗi mạng (offline) im lặng — divergence sẽ tự lành ở lần
+// sửa online tiếp theo; 403 → hướng dẫn cấp lại scope ghi.
+async function propagateTimeBlockUpdate(block) {
+  const g = window.TaskFlowGCal;
+  if (!g || !block || !block.id) return;
+  const text = window.TimeBlocksUI && window.TimeBlocksUI.taskTextFor
+    ? window.TimeBlocksUI.taskTextFor(block.taskUid, state, inbox)
+    : '';
+  const title = String(text || '').trim() || t('gcalExportBlockTitle', { t: block.start + '–' + block.end });
+  const res = await g.exportBlock(block, { title, update: true });
+  if (res && res.ok && res.updated) {
+    TaskFlowUI.toast(t('gcalUpdated'), 'success');
+    trackEvent('gcal_update');
+  } else if (res && res.status === 403) {
+    TaskFlowUI.toast(t('gcalExportNeedWrite'), 'info');
+  } else if (!(res && res.status === 0)) {
+    TaskFlowUI.toast(t('gcalUpdateFail'), 'error');
+    trackEvent('gcal_update_fail');
+  }
 }
 
 function setTimeBlockStatusById(blockId, status) {
@@ -5518,6 +5562,11 @@ document.addEventListener('click', (e) => {
     }
   } else if (act === 'gcal-disconnect') {
     disconnectGcal();
+  } else if (act === 'gcal-syncdeletes') {
+    if (window.TaskFlowGCal && window.TaskFlowGCal.setSyncDeletes) {
+      window.TaskFlowGCal.setSyncDeletes(!!el.checked);
+      trackEvent('gcal_syncdeletes', { on: !!el.checked });
+    }
   } else if (act === 'gcal-export') {
     exportTimeBlockToGcal(el.dataset.id);
   } else if (act === 'subtask-add') {

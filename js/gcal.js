@@ -27,6 +27,10 @@
   const MAPPINGS_KEY = 'planner-gcal-mappings';
   const MAPPINGS_VERSION = 1;
 
+  // V1.6C (push-only) — tuỳ chọn "xoá block cũng xoá event Google". Mặc định OFF:
+  // xoá block KHÔNG bao giờ tự động xoá sự kiện trên calendar thật.
+  const SYNC_DELETES_KEY = 'planner-gcal-syncdeletes';
+
   function apiBase() {
     const cfg = (typeof API_CONFIG !== 'undefined' && API_CONFIG) || {};
     return String(cfg.url || '').replace(/\/+$/, '');
@@ -330,13 +334,64 @@
     return loadMappings().mappings.find((x) => x && x.taskflowBlockId === blockId) || null;
   }
 
+  // Xoá mapping khỏi mirror (block đã xoá / đã unlink). Không đụng server — server
+  // tự dọn qua /api/calendar/unlink; mirror chỉ là bản sao offline để hiển thị.
+  function removeMapping(blockId) {
+    if (!blockId) return;
+    const store = loadMappings();
+    const before = store.mappings.length;
+    store.mappings = store.mappings.filter((x) => !x || x.taskflowBlockId !== blockId);
+    if (store.mappings.length !== before) saveMappings(store.mappings);
+  }
+
+  // V1.6C — tuỳ chọn syncDeletes (mặc định false). Lưu local, KHÔNG đồng bộ cloud:
+  // đây là tuỳ chọn thiết bị về hành vi xoá, không phải dữ liệu planner.
+  function getSyncDeletes() {
+    try { return localStorage.getItem(SYNC_DELETES_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setSyncDeletes(on) {
+    try { localStorage.setItem(SYNC_DELETES_KEY, on ? '1' : '0'); } catch (e) { /* ẩn */ }
+    return getSyncDeletes();
+  }
+
   // Xuất 1 TimeBlock → Google. Idempotent client-side: mapping đã tồn tại → trả
   // mapping cũ (duplicate:true) KHÔNG gọi server (chống tạo event lặp khi click 2 lần).
+  // opts.update (V1.6C push-only): block ĐÃ có mapping → gọi /export với update:true
+  // để PATCH event Google theo giờ mới (client chỉ dùng khi mapping tồn tại).
   // block: { id, taskUid, date, start, end } — title tự sinh từ task/block nếu thiếu.
   async function exportBlock(block, opts) {
     const o = opts || {};
     if (!block || !block.id) return { ok: false, status: 400, data: { error: 'invalid-block' } };
     const existing = mappingForBlock(block.id);
+    if (o.update) {
+      if (!existing) return { ok: false, status: 409, data: { error: 'no-mapping' } };
+      const iso = buildBlockISO(block);
+      if (!iso) return { ok: false, status: 400, data: { error: 'invalid-range' } };
+      const title = String(o.title || block.title || '').trim()
+        || 'TimeBlock ' + block.start + '–' + block.end;
+      const res = await gcalFetch('/api/calendar/export', {
+        method: 'POST',
+        body: {
+          blockId: block.id,
+          taskUid: block.taskUid || null,
+          title,
+          startIso: iso.startIso,
+          endIso: iso.endIso,
+          calendarId: o.calendarId || 'primary',
+          update: true,
+        },
+      });
+      const data = res.data || {};
+      if (res.ok && data.mapping) upsertMapping(data.mapping);
+      return {
+        ok: res.ok,
+        status: res.status,
+        duplicate: !!data.duplicate,
+        updated: !!data.updated,
+        mapping: data.mapping || null,
+        data,
+      };
+    }
     if (existing) {
       return { ok: true, status: 200, duplicate: true, mapping: existing };
     }
@@ -368,12 +423,31 @@
     };
   }
 
+  // Ngắt liên kết 1 block (V1.6C push-only). deleteEvent=true (chỉ khi user bật
+  // syncDeletes): server xoá event Google + mapping. deleteEvent=false: chỉ bỏ
+  // mapping, event Google GIỮ NGUYÊN. Idempotent client-side: không mapping → ok no-op.
+  async function unlinkBlock(blockId, opts) {
+    const o = opts || {};
+    const existing = mappingForBlock(blockId);
+    if (!existing) return { ok: true, status: 200, noop: true };
+    const res = await gcalFetch('/api/calendar/unlink', {
+      method: 'POST',
+      body: {
+        blockId,
+        deleteEvent: o.deleteEvent === true,
+      },
+    });
+    if (res.ok) removeMapping(blockId);
+    return { ok: res.ok, status: res.status, data: res.data || {}, deleteEvent: o.deleteEvent === true };
+  }
+
   return {
     CACHE_KEY, TTL_MS,
     normalizeEvents, localDayRange, eventsForDate, busyForDate, mergeAndSort,
     loadCache, saveCache, clearCache, cacheValid,
     fetchStatus, fetchEvents, connect, connectWrite, disconnect, consumeCalParam,
-    buildBlockISO, loadMappings, saveMappings, upsertMapping, mappingForBlock, exportBlock,
+    buildBlockISO, loadMappings, saveMappings, upsertMapping, mappingForBlock, removeMapping,
+    getSyncDeletes, setSyncDeletes, exportBlock, unlinkBlock,
     apiBase, toLocalHHMM,
   };
 });

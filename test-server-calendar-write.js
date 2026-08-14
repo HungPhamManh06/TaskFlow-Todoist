@@ -50,17 +50,23 @@ async function main() {
   // Stub Google API (chỉ calendar/v3 + token endpoint). Trả theo script.
   let gcalCalls = 0;
   let gcalMode = 'ok'; // 'ok' | 'fail-then-ok' | 'fail'
+  const gcalMethods = []; // log method: 'POST' | 'PATCH' | 'DELETE'
   const origFetch = global.fetch;
   global.fetch = async (url, init) => {
     const u = String(url);
     if (u.includes('calendar/v3')) {
       gcalCalls++;
+      const method = (init && init.method) || 'GET';
+      gcalMethods.push(method);
       if (gcalMode === 'fail') {
         return { ok: false, status: 502, json: async () => ({ error: 'backendError' }) };
       }
       if (gcalMode === 'fail-then-ok') {
         gcalMode = 'ok';
         return { ok: false, status: 502, json: async () => ({ error: 'backendError' }) };
+      }
+      if (method === 'DELETE') {
+        return { ok: true, status: 204, json: async () => null };
       }
       return {
         ok: true,
@@ -209,6 +215,173 @@ async function main() {
       const r = await p.query('select 1 from google_cal_mapping where user_id = (select id from users where username = $1) and taskflow_block_id = $2', [username, 'block-fail']);
       assert.strictEqual(r.rows.length, 0, 'không lưu mapping khi thất bại');
       console.log('TEST 9 OK — lỗi bền vững → 502, không mapping');
+    }
+
+    // ---------- TEST 10: update khi chưa có mapping → 409 ----------
+    {
+      const { token, username } = await signup(base, 'gcalw9');
+      await setGoogleRow(username, WRITE_SCOPES);
+      const res = await fetch(base + '/api/calendar/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-nomap', title: 'x', startIso: '2026-08-21T09:00:00+07:00', endIso: '2026-08-21T10:00:00+07:00', update: true }),
+      });
+      assert.strictEqual(res.status, 409, 'update không mapping → 409');
+      const j = await res.json();
+      assert.strictEqual(j.error, 'no-mapping');
+      console.log('TEST 10 OK — update không mapping → 409');
+    }
+
+    // ---------- TEST 11: update có mapping → PATCH event cùng id, không tạo mới ----------
+    {
+      const { token, username } = await signup(base, 'gcalw10');
+      await setGoogleRow(username, WRITE_SCOPES);
+      gcalCalls = 0;
+      gcalMethods.length = 0;
+      gcalMode = 'ok';
+      const create = await fetch(base + '/api/calendar/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-upd', title: 'Cũ', startIso: '2026-08-21T09:00:00+07:00', endIso: '2026-08-21T10:00:00+07:00' }),
+      }).then((x) => x.json());
+      const upd = await fetch(base + '/api/calendar/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-upd', title: 'Mới', startIso: '2026-08-21T11:00:00+07:00', endIso: '2026-08-21T12:00:00+07:00', update: true }),
+      });
+      assert.strictEqual(upd.status, 200);
+      const j = await upd.json();
+      assert.strictEqual(j.ok, true);
+      assert.strictEqual(j.updated, true);
+      assert.strictEqual(j.duplicate, false);
+      assert.strictEqual(j.mapping.googleEventId, create.mapping.googleEventId, 'PATCH giữ nguyên event id');
+      assert.ok(gcalMethods.includes('PATCH'), 'phải gọi PATCH tới Google');
+      assert.strictEqual(gcalCalls, 2, 'create(1) + patch(1) — không tạo event mới');
+      console.log('TEST 11 OK — update PATCH event cùng id');
+    }
+
+    // ---------- TEST 12: unlink deleteEvent=false → bỏ mapping, KHÔNG gọi DELETE ----------
+    {
+      const { token, username } = await signup(base, 'gcalw11');
+      await setGoogleRow(username, WRITE_SCOPES);
+      gcalCalls = 0;
+      gcalMethods.length = 0;
+      gcalMode = 'ok';
+      await fetch(base + '/api/calendar/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-unlink-keep', title: 'Giữ', startIso: '2026-08-21T09:00:00+07:00', endIso: '2026-08-21T10:00:00+07:00' }),
+      });
+      const res = await fetch(base + '/api/calendar/unlink', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-unlink-keep', deleteEvent: false }),
+      });
+      assert.strictEqual(res.status, 200);
+      const j = await res.json();
+      assert.strictEqual(j.ok, true);
+      assert.strictEqual(j.deletedEvent, false);
+      assert.ok(!gcalMethods.includes('DELETE'), 'không xoá event Google khi tắt syncDeletes');
+      const p = initDb();
+      const r = await p.query('select 1 from google_cal_mapping where user_id = (select id from users where username = $1) and taskflow_block_id = $2', [username, 'block-unlink-keep']);
+      assert.strictEqual(r.rows.length, 0, 'mapping đã bị xoá');
+      console.log('TEST 12 OK — unlink giữ event (syncDeletes off)');
+    }
+
+    // ---------- TEST 13: unlink deleteEvent=true → DELETE event Google + bỏ mapping ----------
+    {
+      const { token, username } = await signup(base, 'gcalw12');
+      await setGoogleRow(username, WRITE_SCOPES);
+      gcalCalls = 0;
+      gcalMethods.length = 0;
+      gcalMode = 'ok';
+      await fetch(base + '/api/calendar/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-unlink-del', title: 'Xoá', startIso: '2026-08-21T09:00:00+07:00', endIso: '2026-08-21T10:00:00+07:00' }),
+      });
+      const res = await fetch(base + '/api/calendar/unlink', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-unlink-del', deleteEvent: true }),
+      });
+      assert.strictEqual(res.status, 200);
+      const j = await res.json();
+      assert.strictEqual(j.ok, true);
+      assert.strictEqual(j.deletedEvent, true);
+      assert.ok(gcalMethods.includes('DELETE'), 'phải gọi DELETE tới Google');
+      const p = initDb();
+      const r = await p.query('select 1 from google_cal_mapping where user_id = (select id from users where username = $1) and taskflow_block_id = $2', [username, 'block-unlink-del']);
+      assert.strictEqual(r.rows.length, 0, 'mapping đã bị xoá');
+      console.log('TEST 13 OK — unlink xoá event Google (syncDeletes on)');
+    }
+
+    // ---------- TEST 14: unlink không mapping → noop, không gọi Google ----------
+    {
+      const { token, username } = await signup(base, 'gcalw13');
+      await setGoogleRow(username, WRITE_SCOPES);
+      gcalCalls = 0;
+      gcalMode = 'ok';
+      const res = await fetch(base + '/api/calendar/unlink', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-ghost', deleteEvent: true }),
+      });
+      assert.strictEqual(res.status, 200);
+      const j = await res.json();
+      assert.strictEqual(j.noop, true, 'không mapping → noop');
+      assert.strictEqual(gcalCalls, 0, 'không gọi Google');
+      console.log('TEST 14 OK — unlink không mapping → noop');
+    }
+
+    // ---------- TEST 15: update retry lỗi nhất thời → PATCH thành công ----------
+    {
+      const { token, username } = await signup(base, 'gcalw14');
+      await setGoogleRow(username, WRITE_SCOPES);
+      gcalCalls = 0;
+      gcalMethods.length = 0;
+      gcalMode = 'ok';
+      await fetch(base + '/api/calendar/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-upd-retry', title: 'Cũ', startIso: '2026-08-21T09:00:00+07:00', endIso: '2026-08-21T10:00:00+07:00' }),
+      });
+      gcalMode = 'fail-then-ok';
+      const res = await fetch(base + '/api/calendar/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-upd-retry', title: 'Mới', startIso: '2026-08-21T11:00:00+07:00', endIso: '2026-08-21T12:00:00+07:00', update: true }),
+      });
+      assert.strictEqual(res.status, 200);
+      const j = await res.json();
+      assert.strictEqual(j.updated, true, 'update sau lỗi nhất thời phải thành công');
+      assert.strictEqual(gcalCalls, 3, 'create(1) + patch fail(1) + patch ok(1)');
+      console.log('TEST 15 OK — update retry lỗi nhất thời');
+    }
+
+    // ---------- TEST 16: update lỗi bền vững → 502, mapping giữ nguyên ----------
+    {
+      const { token, username } = await signup(base, 'gcalw15');
+      await setGoogleRow(username, WRITE_SCOPES);
+      gcalCalls = 0;
+      gcalMode = 'ok';
+      const created = await fetch(base + '/api/calendar/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-upd-fail', title: 'Cũ', startIso: '2026-08-21T09:00:00+07:00', endIso: '2026-08-21T10:00:00+07:00' }),
+      }).then((x) => x.json());
+      gcalMode = 'fail';
+      const res = await fetch(base + '/api/calendar/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ blockId: 'block-upd-fail', title: 'Mới', startIso: '2026-08-21T11:00:00+07:00', endIso: '2026-08-21T12:00:00+07:00', update: true }),
+      });
+      assert.strictEqual(res.status, 502, 'PATCH 5xx bền vững → 502');
+      const p = initDb();
+      const r = await p.query('select google_event_id from google_cal_mapping where user_id = (select id from users where username = $1) and taskflow_block_id = $2', [username, 'block-upd-fail']);
+      assert.strictEqual(r.rows.length, 1, 'mapping vẫn còn');
+      assert.strictEqual(r.rows[0].google_event_id, created.mapping.googleEventId, 'event id không đổi');
+      console.log('TEST 16 OK — update lỗi bền vững → 502, mapping giữ nguyên');
     }
 
     console.log('\nALL SERVER CALENDAR WRITE TESTS PASS');

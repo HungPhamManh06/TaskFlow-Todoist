@@ -1,3 +1,8 @@
+/* ============================================================
+   styles-deferred.css — non-boot-critical remainder of styles.css
+   (loaded after first paint; precached in the service worker).
+   ============================================================ */
+
 
 .bricks-top {
   background-color: var(--brick-top-a);
@@ -6329,4 +6334,30 @@ body.focus-mode .container { padding: 0; }
 .gcal-exported svg {
   width: 15px;
   height: 15px;
+}
+/* V1.6C (push-only) — Google Calendar propagation: update-on-edit + syncDeletes toggle */
+
+.gcal-syncdel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text-muted, #7a6f5d);
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.gcal-syncdel input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent, #b08a56);
+  cursor: pointer;
+}
+
+.gcal-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }

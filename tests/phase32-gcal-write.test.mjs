@@ -16,7 +16,7 @@ const resetStore = () => _mem.clear();
 
 const {
   buildBlockISO, loadMappings, saveMappings, upsertMapping, mappingForBlock, exportBlock,
-  MAPPINGS_KEY,
+  unlinkBlock, MAPPINGS_KEY,
 } = GCal;
 
 /* ---------------- buildBlockISO (date+HH:mm → ISO instant theo múi giờ máy) ---------------- */
@@ -162,6 +162,132 @@ test('exportBlock: server trả 403 write-scope-required → ok:false, không l�
     delete globalThis.API_CONFIG;
     resetStore();
   }
+});
+
+/* ---------------- V1.6C push-only: exportBlock update:true + unlinkBlock + syncDeletes ---------------- */
+
+test('exportBlock update: không mapping → 409 local, không gọi mạng', async () => {
+  resetStore();
+  let calls = 0;
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async () => { calls++; return { ok: false, status: 500, json: async () => ({}) }; };
+  try {
+    const res = await exportBlock({ id: 'b-nomap', date: '2026-08-21', start: '09:00', end: '10:00' }, { update: true });
+    assert.strictEqual(res.status, 409);
+    assert.strictEqual(res.data.error, 'no-mapping');
+    assert.strictEqual(calls, 0, 'không gọi server khi update không mapping');
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('exportBlock update: có mapping → gửi update:true + PATCH body, lưu mapping', async () => {
+  resetStore();
+  globalThis.API_CONFIG = { url: 'http://test.local' };
+  localStorage.setItem('planner-token', 'tok');
+  upsertMapping({ taskflowBlockId: 'b-upd', googleEventId: 'ev-orig', calendarId: 'primary', lastSyncedAt: 't0' });
+  const origFetch = globalThis.fetch;
+  let body = null;
+  globalThis.fetch = async (url, init) => {
+    body = JSON.parse(init.body);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        updated: true,
+        duplicate: false,
+        mapping: { taskflowBlockId: 'b-upd', googleEventId: 'ev-orig', calendarId: 'primary', lastSyncedAt: 't1' },
+      }),
+    };
+  };
+  try {
+    const res = await exportBlock({ id: 'b-upd', date: '2026-08-21', start: '11:00', end: '12:00' }, { title: 'Mới', update: true });
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.updated, true);
+    assert.strictEqual(body.update, true, 'gửi cờ update');
+    assert.strictEqual(body.blockId, 'b-upd');
+    assert.strictEqual(body.title, 'Mới');
+    assert.strictEqual(mappingForBlock('b-upd').lastSyncedAt, 't1', 'mapping cập nhật');
+    assert.strictEqual(mappingForBlock('b-upd').googleEventId, 'ev-orig', 'event id giữ nguyên');
+  } finally {
+    globalThis.fetch = origFetch;
+    delete globalThis.API_CONFIG;
+    resetStore();
+  }
+});
+
+test('unlinkBlock: không mapping → noop, không gọi mạng', async () => {
+  resetStore();
+  let calls = 0;
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async () => { calls++; return { ok: false, status: 500, json: async () => ({}) }; };
+  try {
+    const res = await unlinkBlock('b-ghost', { deleteEvent: true });
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.noop, true);
+    assert.strictEqual(calls, 0);
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('unlinkBlock deleteEvent=false → gọi server deleteEvent:false, xoá mapping local', async () => {
+  resetStore();
+  globalThis.API_CONFIG = { url: 'http://test.local' };
+  localStorage.setItem('planner-token', 'tok');
+  upsertMapping({ taskflowBlockId: 'b-keep', googleEventId: 'ev-keep', calendarId: 'primary', lastSyncedAt: 't' });
+  const origFetch = globalThis.fetch;
+  let body = null;
+  globalThis.fetch = async (url, init) => {
+    body = JSON.parse(init.body);
+    return { ok: true, status: 200, json: async () => ({ ok: true, deletedEvent: false }) };
+  };
+  try {
+    const res = await unlinkBlock('b-keep', { deleteEvent: false });
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(res.deleteEvent, false);
+    assert.strictEqual(body.deleteEvent, false, 'server nhận deleteEvent:false');
+    assert.strictEqual(mappingForBlock('b-keep'), null, 'mapping local đã bỏ');
+  } finally {
+    globalThis.fetch = origFetch;
+    delete globalThis.API_CONFIG;
+    resetStore();
+  }
+});
+
+test('unlinkBlock deleteEvent=true → server nhận deleteEvent:true; lỗi server → giữ mapping', async () => {
+  resetStore();
+  globalThis.API_CONFIG = { url: 'http://test.local' };
+  localStorage.setItem('planner-token', 'tok');
+  upsertMapping({ taskflowBlockId: 'b-del', googleEventId: 'ev-del', calendarId: 'primary', lastSyncedAt: 't' });
+  const origFetch = globalThis.fetch;
+  let body = null;
+  globalThis.fetch = async (url, init) => {
+    body = JSON.parse(init.body);
+    return { ok: false, status: 502, json: async () => ({ error: 'google-delete-failed' }) };
+  };
+  try {
+    const res = await unlinkBlock('b-del', { deleteEvent: true });
+    assert.strictEqual(res.ok, false);
+    assert.strictEqual(body.deleteEvent, true, 'server nhận deleteEvent:true');
+    assert.ok(mappingForBlock('b-del'), 'lỗi server → giữ mapping (không xoá nhầm)');
+  } finally {
+    globalThis.fetch = origFetch;
+    delete globalThis.API_CONFIG;
+    resetStore();
+  }
+});
+
+test('syncDeletes flag: mặc định false, setSyncDeletes bật/tắt đúng', () => {
+  resetStore();
+  const { getSyncDeletes, setSyncDeletes } = GCal;
+  assert.strictEqual(getSyncDeletes(), false, 'mặc định tắt (an toàn)');
+  setSyncDeletes(true);
+  assert.strictEqual(getSyncDeletes(), true);
+  setSyncDeletes(false);
+  assert.strictEqual(getSyncDeletes(), false);
+  resetStore();
 });
 
 /* ---------------- saveMappings tồn tại như API công khai ---------------- */

@@ -302,12 +302,25 @@ router.get('/events', authMiddleware, async (req, res) => {
   }
 });
 
-// ---- POST /api/calendar/export (Bearer) → tạo 1 Google Event + mapping ----
-// V1.6B. Body: { blockId, taskUid, title, startIso, endIso, calendarId }.
+// Gọi 1 thao tác Google API, retry MỘT lần khi lỗi nhất thời (5xx/network).
+// fn(tok) → { ok, status, data }. Trả lần chạy cuối cùng.
+async function retryTransient(fn) {
+  const run = async () => fn();
+  let r = await run();
+  if (r.status >= 500 || r.status === 0) {
+    await new Promise((ok) => setTimeout(ok, 300));
+    r = await run();
+  }
+  return r;
+}
+
+// ---- POST /api/calendar/export (Bearer) → tạo hoặc CẬP NHẬT 1 Google Event + mapping ----
+// V1.6B: tạo event + mapping (idempotent — duplicate trả mapping cũ, không tạo event 2).
+// V1.6C (push-only): body thêm `update: true` → block đã có mapping → PATCH event
+// Google với giờ mới (title nếu đổi), cập nhật last_synced_at. KHÔNG pull-back,
+// KHÔNG conflict engine — hướng tin cậy TaskFlow → Google.
 // startIso/endIso do CLIENT tính từ date+HH:mm của block theo múi giờ máy — server
 // chỉ validate + truyền qua, nên sự kiện mang đúng instant bất kể timezone calendar.
-// Idempotent: (user_id, taskflow_block_id) unique → click/retry lặp trả mapping cũ,
-// KHÔNG tạo event thứ hai. Google 5xx/mạng lỗi → retry một lần.
 router.post('/export', authMiddleware, async (req, res) => {
   try {
     const body = req.body || {};
@@ -317,6 +330,7 @@ router.post('/export', authMiddleware, async (req, res) => {
     const endIso = String(body.endIso || '');
     const calendarId = String(body.calendarId || 'primary');
     const taskUid = body.taskUid ? String(body.taskUid) : null;
+    const isUpdate = body.update === true;
     if (!blockId || !title || title.length > 200) {
       return res.status(400).json({ error: 'invalid-block' });
     }
@@ -337,13 +351,57 @@ router.post('/export', authMiddleware, async (req, res) => {
 
     const p = initDb();
 
-    // Duplicate guard: mapping đã tồn tại → trả mapping cũ, không tạo event mới.
+    // Mapping hiện có (nếu có).
     const existing = await p.query(
       'select taskflow_block_id, google_event_id, calendar_id, last_synced_at from google_cal_mapping where user_id = $1 and taskflow_block_id = $2',
       [req.user.id, blockId]
     );
-    if (existing.rows.length) {
-      const m = existing.rows[0];
+    const m = existing.rows[0] || null;
+
+    // ---- Path UPDATE (V1.6C push-only): block đã export, giờ đổi → PATCH event ----
+    if (isUpdate) {
+      if (!m) return res.status(409).json({ error: 'no-mapping' });
+      const r = await retryTransient(async () => withFreshGoogleToken(req.user.id, async (tok) => {
+        const f = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeCalendarId(m.calendar_id)}/events/${encodeURIComponent(m.google_event_id)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: 'Bearer ' + tok,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              summary: title,
+              start: { dateTime: startIso },
+              end: { dateTime: endIso },
+            }),
+          }
+        );
+        return { ok: f.ok, status: f.status, data: await f.json().catch(() => null) };
+      }));
+      if (r.status === 410 || r.status === 401) return res.status(410).json({ error: 'google-disconnected' });
+      if (!r.ok || !r.data || !r.data.id) {
+        return res.status(502).json({ error: 'google-update-failed' });
+      }
+      await p.query(
+        'update google_cal_mapping set last_synced_at = now() where user_id = $1 and taskflow_block_id = $2',
+        [req.user.id, blockId]
+      );
+      return res.json({
+        ok: true,
+        updated: true,
+        duplicate: false,
+        mapping: {
+          taskflowBlockId: blockId,
+          googleEventId: m.google_event_id,
+          calendarId: m.calendar_id,
+          lastSyncedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    // ---- Path CREATE: duplicate guard — mapping đã tồn tại → trả mapping cũ ----
+    if (m) {
       return res.json({
         ok: true,
         duplicate: true,
@@ -357,39 +415,27 @@ router.post('/export', authMiddleware, async (req, res) => {
     }
 
     // Tạo event trên Google — retry MỘT lần khi lỗi nhất thời (5xx/network).
-    let evData = null;
-    let evStatus = 0;
-    const attempt = async () => {
-      const r = await withFreshGoogleToken(req.user.id, async (tok) => {
-        const f = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${encodeCalendarId(calendarId)}/events`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: 'Bearer ' + tok,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              summary: title,
-              description: taskUid ? `TaskFlow block ${blockId} (task ${taskUid})` : `TaskFlow block ${blockId}`,
-              start: { dateTime: startIso },
-              end: { dateTime: endIso },
-            }),
-          }
-        );
-        return { ok: f.ok, status: f.status, data: await f.json().catch(() => null) };
-      });
-      evStatus = r.status;
-      evData = r.data;
-      return r;
-    };
-    let r = await attempt();
-    if ((r.status >= 500 || r.status === 0) && evStatus === r.status) {
-      await new Promise((ok) => setTimeout(ok, 300));
-      r = await attempt();
-    }
+    const r = await retryTransient(async () => withFreshGoogleToken(req.user.id, async (tok) => {
+      const f = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeCalendarId(calendarId)}/events`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer ' + tok,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            summary: title,
+            description: taskUid ? `TaskFlow block ${blockId} (task ${taskUid})` : `TaskFlow block ${blockId}`,
+            start: { dateTime: startIso },
+            end: { dateTime: endIso },
+          }),
+        }
+      );
+      return { ok: f.ok, status: f.status, data: await f.json().catch(() => null) };
+    }));
     if (r.status === 410 || r.status === 401) return res.status(410).json({ error: 'google-disconnected' });
-    if (!r.ok || !evData || !evData.id) {
+    if (!r.ok || !r.data || !r.data.id) {
       return res.status(502).json({ error: 'google-create-failed' });
     }
 
@@ -400,7 +446,7 @@ router.post('/export', authMiddleware, async (req, res) => {
        on conflict (user_id, taskflow_block_id)
        do update set google_event_id = excluded.google_event_id,
          calendar_id = excluded.calendar_id, last_synced_at = now()`,
-      [req.user.id, blockId, evData.id, calendarId]
+      [req.user.id, blockId, r.data.id, calendarId]
     );
     calListCache.delete(req.user.id);
     return res.json({
@@ -408,11 +454,56 @@ router.post('/export', authMiddleware, async (req, res) => {
       duplicate: false,
       mapping: {
         taskflowBlockId: blockId,
-        googleEventId: evData.id,
+        googleEventId: r.data.id,
         calendarId,
         lastSyncedAt: new Date().toISOString(),
       },
     });
+  } catch (e) {
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
+// ---- POST /api/calendar/unlink (Bearer) → bỏ mapping TimeBlock ↔ Google Event ----
+// V1.6C (push-only). Body: { blockId, deleteEvent: bool }.
+// - deleteEvent=true  (syncDeletes bật): DELETE event Google (404 = đã mất → coi là ok),
+//   rồi xoá mapping. Chỉ khi USER bật tuỳ chọn — không bao giờ tự động xoá calendar.
+// - deleteEvent=false: chỉ xoá mapping (event Google được GIỮ NGUYÊN — không tự xoá).
+// Idempotent: mapping không tồn tại → { ok:true } no-op.
+router.post('/unlink', authMiddleware, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const blockId = String(body.blockId || '').trim();
+    const deleteEvent = body.deleteEvent === true;
+    if (!blockId) return res.status(400).json({ error: 'invalid-block' });
+    const p = initDb();
+    const existing = await p.query(
+      'select taskflow_block_id, google_event_id, calendar_id from google_cal_mapping where user_id = $1 and taskflow_block_id = $2',
+      [req.user.id, blockId]
+    );
+    const m = existing.rows[0] || null;
+    if (!m) return res.json({ ok: true, noop: true });
+
+    if (deleteEvent) {
+      const r = await retryTransient(async () => withFreshGoogleToken(req.user.id, async (tok) => {
+        const f = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeCalendarId(m.calendar_id)}/events/${encodeURIComponent(m.google_event_id)}`,
+          { method: 'DELETE', headers: { Authorization: 'Bearer ' + tok } }
+        );
+        return { ok: f.ok, status: f.status, data: null };
+      }));
+      // 404 = event đã bị xoá từ phía Google → không phải lỗi; 410/401 = mất kết nối.
+      if (r.status === 404) { /* coi như xoá xong */ }
+      else if (r.status === 410 || r.status === 401) return res.status(410).json({ error: 'google-disconnected' });
+      else if (!r.ok) return res.status(502).json({ error: 'google-delete-failed' });
+    }
+
+    await p.query(
+      'delete from google_cal_mapping where user_id = $1 and taskflow_block_id = $2',
+      [req.user.id, blockId]
+    );
+    calListCache.delete(req.user.id);
+    return res.json({ ok: true, deletedEvent: !!deleteEvent });
   } catch (e) {
     return res.status(500).json({ error: 'server-error' });
   }

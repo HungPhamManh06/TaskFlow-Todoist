@@ -2235,12 +2235,16 @@ def gcal_write_checks(browser, base, width, height, errors, screenshot):
     today = datetime.date.today()
     day_iso = today.isoformat()
 
-    # Seed 1 TimeBlock hôm nay + onboarded
+    # Seed 2 TimeBlock hôm nay (block-e2e2 dùng cho test syncDeletes) + onboarded
     seed_block = json.dumps({
         "version": 1,
         "blocks": [{
             "id": "block-e2e1", "taskUid": None, "date": day_iso,
             "start": "09:00", "end": "10:00", "status": "planned",
+            "createdAt": "2026-08-20T00:00:00.000Z", "updatedAt": "2026-08-20T00:00:00.000Z",
+        }, {
+            "id": "block-e2e2", "taskUid": None, "date": day_iso,
+            "start": "14:00", "end": "15:00", "status": "planned",
             "createdAt": "2026-08-20T00:00:00.000Z", "updatedAt": "2026-08-20T00:00:00.000Z",
         }],
     })
@@ -2251,6 +2255,7 @@ def gcal_write_checks(browser, base, width, height, errors, screenshot):
     page.add_init_script("localStorage.removeItem('planner-gcal-cache');")
 
     export_calls = []
+    unlink_calls = []
 
     def handle_cal(route):
         url = route.request.url
@@ -2262,13 +2267,20 @@ def gcal_write_checks(browser, base, width, height, errors, screenshot):
             req = json.loads(route.request.post_data or "{}")
             export_calls.append(req)
             route.fulfill(status=200, content_type="application/json", body=json.dumps({
-                "ok": True, "duplicate": False,
+                "ok": True, "duplicate": False, "updated": req.get("update") is True,
                 "mapping": {
                     "taskflowBlockId": req.get("blockId"),
                     "googleEventId": "gcal-ev-" + req.get("blockId"),
                     "calendarId": req.get("calendarId", "primary"),
                     "lastSyncedAt": "2026-08-20T10:00:00.000Z",
                 },
+            }))
+            return
+        if url.endswith("/api/calendar/unlink"):
+            req = json.loads(route.request.post_data or "{}")
+            unlink_calls.append(req)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "ok": True, "deletedEvent": req.get("deleteEvent") is True,
             }))
             return
         if "/api/calendar/events" in url:
@@ -2309,6 +2321,48 @@ def gcal_write_checks(browser, base, width, height, errors, screenshot):
     """ % day_iso)
     assert dup.get("duplicate") is True, f"export lặp phải duplicate: {dup}"
     assert len(export_calls) == 1, f"duplicate KHÔNG được gọi stub lần 2, thấy {len(export_calls)}"
+
+    # 5) V1.6C push-only — sửa block đã export → PATCH (export update:true), event id giữ nguyên
+    block_row = page.locator('.tb-block[data-block-id="block-e2e1"]')
+    block_row.locator('[data-action="tb-edit"]').scroll_into_view_if_needed()
+    block_row.locator('[data-action="tb-edit"]').click()
+    page.wait_for_selector('[data-testid="timeblock-modal"]:visible', state="visible")
+    page.locator('[data-role="tb-start"]').fill("09:30")
+    page.locator('[data-action="tb-save"]').click()
+    page.wait_for_selector('[data-testid="timeblock-modal"]:visible', state="detached")
+    assert len(export_calls) == 2, f"sửa block đã export phải gọi export lần 2, thấy {len(export_calls)}"
+    assert export_calls[1].get("update") is True, "body lần 2 phải mang update:true (PATCH)"
+    assert export_calls[1]["blockId"] == "block-e2e1", "PATCH đúng block"
+    assert export_calls[1]["startIso"] > export_calls[0]["startIso"], "PATCH mang giờ mới (sau 09:00)"
+    mirror1 = page.evaluate("() => window.TaskFlowGCal.mappingForBlock('block-e2e1')")
+    assert mirror1 and mirror1["googleEventId"] == "gcal-ev-block-e2e1", "update giữ nguyên event id"
+
+    # 6) V1.6C — xóa block: syncDeletes mặc định OFF → unlink deleteEvent:false, event Google GIỮ
+    page.locator('.tb-block[data-block-id="block-e2e1"] [data-action="tb-del"]').scroll_into_view_if_needed()
+    page.locator('.tb-block[data-block-id="block-e2e1"] [data-action="tb-del"]').click()
+    page.wait_for_timeout(250)
+    assert len(unlink_calls) == 1, f"xóa block có mapping phải gọi unlink, thấy {len(unlink_calls)}"
+    assert unlink_calls[0]["blockId"] == "block-e2e1"
+    assert unlink_calls[0].get("deleteEvent") is False, "mặc định KHÔNG xóa event Google (deleteEvent:false)"
+    assert page.locator('.tb-block[data-block-id="block-e2e1"]').count() == 0, "block đã xóa khỏi timeline"
+    assert page.evaluate("() => window.TaskFlowGCal.mappingForBlock('block-e2e1')") is None, "mapping mirror đã bỏ"
+
+    # 7) V1.6C — bật syncDeletes → export block 2 → xóa → unlink deleteEvent:true (DELETE event)
+    page.evaluate("() => window.TaskFlowGCal.setSyncDeletes(true)")
+    assert page.evaluate("() => window.TaskFlowGCal.getSyncDeletes()") is True, "cờ phải bật"
+    row2 = page.locator('.tb-block[data-block-id="block-e2e2"]')
+    row2.locator('[data-action="gcal-export"]').scroll_into_view_if_needed()
+    row2.locator('[data-action="gcal-export"]').click()
+    page.wait_for_selector('.gcal-exported[data-exported="block-e2e2"]', state="visible", timeout=8000)
+    assert len(export_calls) == 3, f"export block 2 phải gọi stub, thấy {len(export_calls)}"
+    assert export_calls[2]["blockId"] == "block-e2e2" and export_calls[2].get("update") is not True
+    row2 = page.locator('.tb-block[data-block-id="block-e2e2"]')
+    row2.locator('[data-action="tb-del"]').scroll_into_view_if_needed()
+    row2.locator('[data-action="tb-del"]').click()
+    page.wait_for_timeout(250)
+    assert len(unlink_calls) == 2, f"xóa block 2 phải gọi unlink lần 2, thấy {len(unlink_calls)}"
+    assert unlink_calls[1]["blockId"] == "block-e2e2"
+    assert unlink_calls[1].get("deleteEvent") is True, "bật syncDeletes → deleteEvent:true (DELETE event Google)"
 
     assert_no_page_overflow(page, f"gcal-write {width}px")
     page.screenshot(path=screenshot, full_page=False)

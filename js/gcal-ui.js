@@ -120,7 +120,12 @@
       const calCount = uiState.calendars.length ? t('gcalCalCount', { n: uiState.calendars.length }) : '';
       body = `${eventsHTML(dateIso)}
         <p class="gcal-synced">${esc([synced, calCount].filter(Boolean).join(' · '))}${stale ? ' · ' + esc(t('gcalStale')) : ''}</p>`;
+      // V1.6C (push-only) — tuỳ chọn xoá: mặc định OFF, chỉ khi user bật thì xoá
+      // block mới xoá event Google. Checkbox không persist consent — đây là tuỳ chọn
+      // thiết bị về hành vi xoá.
+      const syncDeletes = g.getSyncDeletes ? g.getSyncDeletes() : false;
       actions = `<span class="gcal-actions">
+        <label class="gcal-syncdel"><input type="checkbox" data-action="gcal-syncdeletes" ${syncDeletes ? 'checked' : ''} aria-label="${esc(t('gcalSyncDeletes'))}"><span>${esc(t('gcalSyncDeletes'))}</span></label>
         <button type="button" class="pop-btn" data-action="gcal-refresh" aria-label="${esc(t('gcalRefresh'))}" title="${esc(t('gcalRefresh'))}">${icon('redo')}<span>${esc(t('gcalRefresh'))}</span></button>
         <button type="button" class="pop-btn danger" data-action="gcal-disconnect" aria-label="${esc(t('gcalDisconnect'))}" title="${esc(t('gcalDisconnect'))}">${esc(t('gcalDisconnect'))}</button>
       </span>`;
