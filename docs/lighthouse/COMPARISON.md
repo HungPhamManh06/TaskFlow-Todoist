@@ -41,8 +41,8 @@ numbers across tracks.
   | Lighthouse `--throttling-method=devtools` | **2202 ms** · CLS **0.0** · perf **79** | FCP 1.9 s · TBT 480 ms · SI 7.4 s |
   | Lighthouse `--throttling-method=provided` | **308 ms** (no throttle) | LCP element paints at parse, pre-boot |
 
-**Why the tracks differ and why this is correct:** the static Today header is
-rendered by an inline script before first paint, so a real browser paints LCP
+**Why the tracks differ and why this is correct:** the static Today
+header is rendered by an inline script before first paint, so a real browser paints LCP
 ~1.9–2.2 s under devtools throttling while Lantern still models the load-event
 cost of the 43-script boot chain. The static shell is a **legitimate real UX
 improvement** even though Track A app-mobile LCP barely moves. Optimizing the
@@ -50,6 +50,24 @@ load-event dependency graph purely to move the Lantern number (e.g. deferring
 more boot scripts) was deliberately NOT done — it would trade boot robustness
 for a simulator score. FCP / TBT / CLS remain the regression guards on both
 load paths; CLS 0.0 under devtools throttling is the key real-world check.
+
+### TRACK C — JS boot timing (`scripts/measure-perf.py`, Phase C/P12 harness)
+
+- Source: `scripts/measure-perf.py` (headless Chromium, local static server, no
+  throttling) — measures `nav→DOMContentLoaded`, `nav→load`, and the app-ready
+  evaluation mark, plus DOM node counts, view-switch cost, and localStorage
+  write frequency.
+- Purpose: **boot-time regression guard** across releases. DCL is NOT a
+  Lighthouse metric, so it never appears in `BASELINE.md` (Track A) or the
+  devtools-throttle files (Track B) — this is a separate harness with its own
+  numbers.
+- **Baseline (first persisted record, 2026-08-14, HEAD `2dcdc96`, V2.0.0):**
+  5 runs → DCL **median 313 ms** (268–320) · load **315 ms** · app ready
+  **370 ms** (325–391). Earlier ephemeral reads (~268 ms DCL / ~338 ms ready
+  during V2 hardening) were single-run and are superseded by this median.
+- Run-to-run spread is ±~24 ms (sd); treat only deltas > ~50 ms across the same
+  harness as signal. A regression here means the boot script chain grew; check
+  `app.html` script count / eager module list before optimizing.
 
 | Page | Device | Performance | Accessibility | Best Practices | SEO | FCP (ms) | LCP (ms) | CLS | TBT (ms) | Speed Index (ms) |
 |---|---|---|---|---|---|---|---|---|---|---|
