@@ -135,7 +135,9 @@
   }
 
   // 1 block trong timeline (absolute theo phút). Actions: edit (click row), focus, status, delete.
-  function blockRowHTML(block, state, inbox) {
+  // blockActions: (block) => html — hành động ngoài module (vd. xuất Google Calendar,
+  // V1.6B). Tuỳ chọn: mặc định null → không thêm gì, module giữ nguyên hành vi cũ.
+  function blockRowHTML(block, state, inbox, blockActions) {
     const tb = TB();
     const text = taskTextFor(block.taskUid, state, inbox);
     const missing = block.taskUid && !text;
@@ -155,6 +157,7 @@
       </button>
       <span class="tb-block-actions">
         ${block.taskUid ? `<button type="button" class="tb-act" data-action="tb-focus" data-id="${esc(block.id)}" aria-label="${esc(t('tbFocusStart'))}${text ? ': ' + esc(text) : ''}" title="${esc(t('tbFocusStart'))}">${icon('focus')}</button>` : ''}
+        ${typeof blockActions === 'function' ? blockActions(block) : ''}
         <button type="button" class="tb-act" data-action="tb-status" data-id="${esc(block.id)}" aria-label="${done ? esc(t('tbReopen')) : esc(t('tbMarkDone'))}" title="${done ? esc(t('tbReopen')) : esc(t('tbMarkDone'))}">${icon(done ? 'redo' : 'check')}</button>
         <button type="button" class="tb-act danger" data-action="tb-del" data-id="${esc(block.id)}" aria-label="${esc(t('tbDelete'))}" title="${esc(t('tbDelete'))}">${icon('trash')}</button>
       </span>
@@ -162,7 +165,7 @@
   }
 
   // Timeline dọc 00:00–23:59 + blocks của ngày.
-  function timelineHTML(store, date, state, inbox) {
+  function timelineHTML(store, date, state, inbox, blockActions) {
     const blocks = sortedBlocks(store, date);
     const PXM = 1.2;
     const HOURS = 24;
@@ -173,7 +176,7 @@
       grid += `<div class="tb-hour" style="top:${top}px" aria-hidden="true"><span>${label}</span></div>`;
     }
     const body = blocks.length
-      ? blocks.map((b) => blockRowHTML(b, state, inbox)).join('')
+      ? blocks.map((b) => blockRowHTML(b, state, inbox, blockActions)).join('')
       : `<div class="tb-empty">${esc(t('tbNoBlocks'))}</div>`;
     const overlaps = detectOverlaps(store, date);
     return `<div class="tb-timeline-wrap">
@@ -203,7 +206,7 @@
   }
 
   // Toàn bộ Schedule view cho 1 ngày (được render trong view-calendar khi mode=schedule).
-  function scheduleViewHTML({ store, date, state, inbox, planStart, todayIso, monthStart, monthEnd }) {
+  function scheduleViewHTML({ store, date, state, inbox, planStart, todayIso, monthStart, monthEnd, blockActions }) {
     const selIso = iso(parseISO(date) || new Date());
     const d = parseISO(selIso);
     const weekday = d.toLocaleDateString(t('locale') || 'vi-VN', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -224,7 +227,7 @@
           <button type="button" class="pop-btn" data-action="tb-next"><span>${esc(t('tbNextDay'))}</span>${icon('chevron-right')}</button>
         </span>
       </div>
-      ${timelineHTML(store, selIso, state, inbox)}
+      ${timelineHTML(store, selIso, state, inbox, blockActions)}
     </div>`;
   }
 

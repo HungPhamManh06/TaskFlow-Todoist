@@ -19,7 +19,10 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const APP_URL = process.env.APP_URL || '';
 
 const READ_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+const WRITE_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 const OAUTH_SCOPES = ['openid', 'email', 'profile', READ_SCOPE].join(' ');
+// Write-scope chỉ được yêu cầu khi user bật "Add to Google Calendar" (V1.6B).
+const WRITE_SCOPES = ['openid', 'email', 'profile', READ_SCOPE, WRITE_SCOPE].join(' ');
 
 const router = express.Router();
 
@@ -31,6 +34,12 @@ const calListCache = new Map(); // userId -> { fetchedAt, calendars }
 
 function encodeCalendarId(id) {
   return encodeURIComponent(String(id || 'primary'));
+}
+
+// Scope đã lưu khi connect (chuỗi cách nhau) có chứa quyền ghi events?
+function hasWriteScope(scopes) {
+  if (!scopes) return false;
+  return String(scopes).split(/\s+/).includes(WRITE_SCOPE);
 }
 
 function asIso(d) {
@@ -152,6 +161,28 @@ router.get('/connect', (req, res) => {
   res.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString());
 });
 
+// ---- GET /api/calendar/connect-write?token=<jwt> → 302 Google OAuth (readonly + write) ----
+// V1.6B: scope ghi CHỈ khi user bật "Add to Google Calendar". Không bao giờ tự động.
+router.get('/connect-write', (req, res) => {
+  if (!GOOGLE_CLIENT_ID) return res.status(503).json({ error: 'google-not-configured' });
+  const payload = verifyToken(String(req.query.token || ''));
+  if (!payload || !payload.uid) return res.status(401).json({ error: 'invalid-token' });
+  const state = crypto.randomBytes(16).toString('hex');
+  calStates.set(state, { userId: payload.uid, created: Date.now() });
+  const redirectUri = req.protocol + '://' + req.get('host') + '/api/calendar/callback';
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: WRITE_SCOPES,
+    state,
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+  });
+  res.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString());
+});
+
 // ---- GET /api/calendar/callback?code&state → lưu token → redirect APP_URL?cal=ok ----
 router.get('/callback', async (req, res) => {
   const fallback = APP_URL || '/';
@@ -197,7 +228,7 @@ router.get('/status', authMiddleware, async (req, res) => {
     if (!row || !row.google_access_token) return res.json({ connected: false, write: false, calendars: [], fetchedAt: null });
     const cached = calListCache.get(req.user.id);
     if (cached && Date.now() - cached.fetchedAt < CAL_LIST_TTL_MS) {
-      return res.json({ connected: true, write: false, calendars: cached.calendars, fetchedAt: asIso(cached.fetchedAt) });
+      return res.json({ connected: true, write: hasWriteScope(row.google_scopes), calendars: cached.calendars, fetchedAt: asIso(cached.fetchedAt) });
     }
     const r = await withFreshGoogleToken(req.user.id, async (tok) => {
       const f = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=50', {
@@ -211,7 +242,7 @@ router.get('/status', authMiddleware, async (req, res) => {
       .filter((c) => !c.deleted)
       .map((c) => ({ id: c.id, summary: c.summary || c.id, primary: !!c.primary }));
     calListCache.set(req.user.id, { fetchedAt: Date.now(), calendars });
-    return res.json({ connected: true, write: false, calendars, fetchedAt: new Date().toISOString() });
+    return res.json({ connected: true, write: hasWriteScope(row.google_scopes), calendars, fetchedAt: new Date().toISOString() });
   } catch (e) {
     return res.status(500).json({ error: 'server-error' });
   }
@@ -266,6 +297,122 @@ router.get('/events', authMiddleware, async (req, res) => {
       r.data.items.forEach((it) => events.push({ ...it, _calendarId: cal.id }));
     });
     return res.json({ events, errors, fetchedAt: new Date().toISOString() });
+  } catch (e) {
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
+// ---- POST /api/calendar/export (Bearer) → tạo 1 Google Event + mapping ----
+// V1.6B. Body: { blockId, taskUid, title, startIso, endIso, calendarId }.
+// startIso/endIso do CLIENT tính từ date+HH:mm của block theo múi giờ máy — server
+// chỉ validate + truyền qua, nên sự kiện mang đúng instant bất kể timezone calendar.
+// Idempotent: (user_id, taskflow_block_id) unique → click/retry lặp trả mapping cũ,
+// KHÔNG tạo event thứ hai. Google 5xx/mạng lỗi → retry một lần.
+router.post('/export', authMiddleware, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const blockId = String(body.blockId || '').trim();
+    const title = String(body.title || '').trim();
+    const startIso = String(body.startIso || '');
+    const endIso = String(body.endIso || '');
+    const calendarId = String(body.calendarId || 'primary');
+    const taskUid = body.taskUid ? String(body.taskUid) : null;
+    if (!blockId || !title || title.length > 200) {
+      return res.status(400).json({ error: 'invalid-block' });
+    }
+    const sMs = new Date(startIso).getTime();
+    const eMs = new Date(endIso).getTime();
+    if (isNaN(sMs) || isNaN(eMs) || eMs <= sMs) {
+      return res.status(400).json({ error: 'invalid-range' });
+    }
+    if (eMs - sMs > 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ error: 'invalid-range' });
+    }
+
+    const row = await getGoogleRow(req.user.id);
+    if (!row || !row.google_access_token) return res.status(410).json({ error: 'google-disconnected' });
+    if (!hasWriteScope(row.google_scopes)) {
+      return res.status(403).json({ error: 'write-scope-required' });
+    }
+
+    const p = initDb();
+
+    // Duplicate guard: mapping đã tồn tại → trả mapping cũ, không tạo event mới.
+    const existing = await p.query(
+      'select taskflow_block_id, google_event_id, calendar_id, last_synced_at from google_cal_mapping where user_id = $1 and taskflow_block_id = $2',
+      [req.user.id, blockId]
+    );
+    if (existing.rows.length) {
+      const m = existing.rows[0];
+      return res.json({
+        ok: true,
+        duplicate: true,
+        mapping: {
+          taskflowBlockId: m.taskflow_block_id,
+          googleEventId: m.google_event_id,
+          calendarId: m.calendar_id,
+          lastSyncedAt: asIso(m.last_synced_at),
+        },
+      });
+    }
+
+    // Tạo event trên Google — retry MỘT lần khi lỗi nhất thời (5xx/network).
+    let evData = null;
+    let evStatus = 0;
+    const attempt = async () => {
+      const r = await withFreshGoogleToken(req.user.id, async (tok) => {
+        const f = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeCalendarId(calendarId)}/events`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + tok,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              summary: title,
+              description: taskUid ? `TaskFlow block ${blockId} (task ${taskUid})` : `TaskFlow block ${blockId}`,
+              start: { dateTime: startIso },
+              end: { dateTime: endIso },
+            }),
+          }
+        );
+        return { ok: f.ok, status: f.status, data: await f.json().catch(() => null) };
+      });
+      evStatus = r.status;
+      evData = r.data;
+      return r;
+    };
+    let r = await attempt();
+    if ((r.status >= 500 || r.status === 0) && evStatus === r.status) {
+      await new Promise((ok) => setTimeout(ok, 300));
+      r = await attempt();
+    }
+    if (r.status === 410 || r.status === 401) return res.status(410).json({ error: 'google-disconnected' });
+    if (!r.ok || !evData || !evData.id) {
+      return res.status(502).json({ error: 'google-create-failed' });
+    }
+
+    // Lưu mapping (upsert — an toàn khi retry server chạy song song).
+    await p.query(
+      `insert into google_cal_mapping (user_id, taskflow_block_id, google_event_id, calendar_id, last_synced_at)
+       values ($1, $2, $3, $4, now())
+       on conflict (user_id, taskflow_block_id)
+       do update set google_event_id = excluded.google_event_id,
+         calendar_id = excluded.calendar_id, last_synced_at = now()`,
+      [req.user.id, blockId, evData.id, calendarId]
+    );
+    calListCache.delete(req.user.id);
+    return res.json({
+      ok: true,
+      duplicate: false,
+      mapping: {
+        taskflowBlockId: blockId,
+        googleEventId: evData.id,
+        calendarId,
+        lastSyncedAt: new Date().toISOString(),
+      },
+    });
   } catch (e) {
     return res.status(500).json({ error: 'server-error' });
   }

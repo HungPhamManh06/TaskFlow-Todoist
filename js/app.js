@@ -3638,6 +3638,7 @@ function renderCalendarSchedule() {
       todayIso,
       monthStart,
       monthEnd,
+      blockActions: gcalBlockActions,
     })}
     <div id="gcal-section-host">${gcalScheduleSection(calendarSelDate, monthStart, monthEnd)}</div>
   </div>`;
@@ -3699,6 +3700,58 @@ async function disconnectGcal() {
   } else {
     TaskFlowUI.toast(t('gcalDisconnectFailed'), 'error');
   }
+}
+
+// Action slot cho từng TimeBlock trong timeline (V1.6B): nút "Add to Google Calendar"
+// hoặc badge đã export. Trả '' khi module chưa load (timeline giữ hành vi cũ).
+function gcalBlockActions(block) {
+  if (!window.TaskFlowGCalUI || !window.TaskFlowGCalUI.exportActionsHTML) return '';
+  try {
+    const text = window.TimeBlocksUI && window.TimeBlocksUI.taskTextFor
+      ? window.TimeBlocksUI.taskTextFor(block.taskUid, state, inbox)
+      : '';
+    return window.TaskFlowGCalUI.exportActionsHTML(block, text);
+  } catch (e) {
+    return '';
+  }
+}
+
+// Xuất 1 TimeBlock → Google Calendar (V1.6B). Chặn trước: chưa kết nối → connect
+// đọc; kết nối nhưng thiếu scope ghi → connect-write (chỉ khi user bấm xuất).
+// Sau callback OAuth, app boot lại với ?cal=ok và render lại Schedule.
+async function exportTimeBlockToGcal(blockId) {
+  const g = window.TaskFlowGCal;
+  const ui = window.TaskFlowGCalUI;
+  if (!g || !ui || !blockId) return;
+  const blocks = loadTimeBlocksStore();
+  const block = window.TaskFlowTimeBlocks.getBlock(blocks, blockId);
+  if (!block) return;
+  const st = ui.getState();
+  if (!st.statusLoaded) await ui.ensureStatus(true);
+  if (!ui.getState().connected) {
+    TaskFlowUI.toast(t('gcalConnectFirst'), 'info');
+    g.connect();
+    return;
+  }
+  const text = window.TimeBlocksUI && window.TimeBlocksUI.taskTextFor
+    ? window.TimeBlocksUI.taskTextFor(block.taskUid, state, inbox)
+    : '';
+  const title = String(text || '').trim() || t('gcalExportBlockTitle', { t: block.start + '–' + block.end });
+  // Khi chưa có scope ghi, /export trả 403 → chuyển sang flow connect-write.
+  const res = await g.exportBlock(block, { title });
+  if (res && res.ok && res.mapping) {
+    TaskFlowUI.toast(res.duplicate ? t('gcalExportAlready') : t('gcalExportDone'), 'success');
+    trackEvent(res.duplicate ? 'gcal_export_duplicate' : 'gcal_export');
+    if (calendarMode === 'schedule') renderCalendarSchedule();
+    return;
+  }
+  if (res && res.status === 403 && res.data && res.data.error === 'write-scope-required') {
+    TaskFlowUI.toast(t('gcalExportNeedWrite'), 'info');
+    g.connectWrite();
+    return;
+  }
+  TaskFlowUI.toast(t('gcalExportFail'), 'error');
+  trackEvent('gcal_export_fail');
 }
 
 // Busy windows từ Google cho planner (chỉ khi cache có dữ liệu — offline-safe).
@@ -5465,6 +5518,8 @@ document.addEventListener('click', (e) => {
     }
   } else if (act === 'gcal-disconnect') {
     disconnectGcal();
+  } else if (act === 'gcal-export') {
+    exportTimeBlockToGcal(el.dataset.id);
   } else if (act === 'subtask-add') {
     const g = getTaskDetailTarget();
     const inp = document.querySelector('#taskDrawer [data-role="td-subtask-input"]');

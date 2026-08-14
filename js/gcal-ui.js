@@ -83,6 +83,24 @@
     return `<ul class="gcal-list">${rows}</ul>`;
   }
 
+  /* ============ V1.6B — Export TimeBlock → Google Calendar ============ */
+
+  // Action slot cho 1 TimeBlock trong timeline (.tb-block-actions). Đã export →
+  // badge calendar-check (không phải button — không tạo event lặp); chưa export →
+  // nút "Add to Google Calendar". taskText: tiêu đề sự kiện (app.js resolve).
+  function exportActionsHTML(block, taskText) {
+    const g = G();
+    if (!g || !block || !block.id) return '';
+    const mapping = g.mappingForBlock(block.id);
+    if (mapping) {
+      return `<span class="gcal-exported" data-exported="${esc(block.id)}" role="img" aria-label="${esc(t('gcalExported'))}" title="${esc(t('gcalExported'))}">${icon('calendar-check')}</span>`;
+    }
+    const label = taskText && String(taskText).trim()
+      ? t('gcalExportFor', { t: String(taskText).slice(0, 40) })
+      : t('gcalExport');
+    return `<button type="button" class="tb-act gcal-export" data-action="gcal-export" data-id="${esc(block.id)}" aria-label="${esc(label)}" title="${esc(t('gcalExport'))}">${icon('calendar')}</button>`;
+  }
+
   // HTML toàn section cho Schedule view của 1 ngày.
   function scheduleSectionHTML({ dateIso, monthStart, monthEnd }) {
     const g = G();
@@ -137,6 +155,6 @@
 
   return {
     getState, ensureStatus, refreshEvents, scheduleSectionHTML, afterRender,
-    eventsHTML,
+    eventsHTML, exportActionsHTML,
   };
 });

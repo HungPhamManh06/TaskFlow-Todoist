@@ -1,0 +1,1 @@
+.tb-act.gcal-export{color:var(--color-accent)}.tb-act.gcal-export:hover{background:var(--color-accent-soft, rgba(176, 138, 86, 0.12))}.gcal-exported{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:8px;color:var(--color-success, #4c7a5a);pointer-events:none}.gcal-exported svg{width:15px;height:15px}

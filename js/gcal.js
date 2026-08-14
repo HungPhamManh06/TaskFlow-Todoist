@@ -23,6 +23,10 @@
   const CACHE_VERSION = 1;
   const TTL_MS = 15 * 60 * 1000;
 
+  // V1.6B — mapping TimeBlock → Google Event (mirror offline của bảng server).
+  const MAPPINGS_KEY = 'planner-gcal-mappings';
+  const MAPPINGS_VERSION = 1;
+
   function apiBase() {
     const cfg = (typeof API_CONFIG !== 'undefined' && API_CONFIG) || {};
     return String(cfg.url || '').replace(/\/+$/, '');
@@ -233,6 +237,15 @@
     return true;
   }
 
+  // V1.6B — yêu cầu quyền ghi (chỉ khi user bật "Add to Google Calendar").
+  function connectWrite() {
+    const base = apiBase();
+    const token = getToken();
+    if (!base) return false;
+    window.location.href = base + '/api/calendar/connect-write?token=' + encodeURIComponent(token || '');
+    return true;
+  }
+
   async function disconnect() {
     const res = await gcalFetch('/api/calendar/disconnect', { method: 'POST', body: {} });
     if (res.ok) clearCache();
@@ -250,11 +263,117 @@
     return m[1];
   }
 
+  /* ============ V1.6B — Export TimeBlock → Google Calendar ============ */
+
+  // block { date: 'YYYY-MM-DD', start: 'HH:mm', end: 'HH:mm' } → { startIso, endIso }
+  // theo múi giờ MÁY của user (instant đúng bất kể timezone calendar của Google).
+  // Pure — test được. Trả null nếu date/time không hợp lệ (end phải sau start).
+  function buildBlockISO(block) {
+    if (!block || typeof block !== 'object') return null;
+    const date = String(block.date || '');
+    const start = String(block.start || '');
+    const end = String(block.end || '');
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (!m) return null;
+    const sm = /^(\d{2}):(\d{2})$/.exec(start);
+    const em = /^(\d{2}):(\d{2})$/.exec(end);
+    if (!sm || !em) return null;
+    const y = +m[1], mo = +m[2], d = +m[3];
+    const sMin = (+sm[1]) * 60 + (+sm[2]);
+    const eMin = (+em[1]) * 60 + (+em[2]);
+    if (eMin <= sMin) return null; // không xuyên ngày
+    const startD = new Date(y, mo - 1, d, +sm[1], +sm[2], 0, 0);
+    const endD = new Date(y, mo - 1, d, +em[1], +em[2], 0, 0);
+    if (isNaN(startD.getTime()) || isNaN(endD.getTime())) return null;
+    if (startD.getDate() !== d || startD.getMonth() !== mo - 1) return null; // chống roll-over
+    return { startIso: startD.toISOString(), endIso: endD.toISOString() };
+  }
+
+  /* ---------------- Mapping mirror (offline) ---------------- */
+
+  function loadMappings() {
+    try {
+      const raw = localStorage.getItem(MAPPINGS_KEY);
+      if (!raw) return { version: MAPPINGS_VERSION, mappings: [] };
+      const c = JSON.parse(raw);
+      if (!c || c.version !== MAPPINGS_VERSION || !Array.isArray(c.mappings)) {
+        return { version: MAPPINGS_VERSION, mappings: [] };
+      }
+      return c;
+    } catch (e) {
+      return { version: MAPPINGS_VERSION, mappings: [] };
+    }
+  }
+
+  function saveMappings(mappings) {
+    try {
+      localStorage.setItem(MAPPINGS_KEY, JSON.stringify({
+        version: MAPPINGS_VERSION,
+        mappings: Array.isArray(mappings) ? mappings : [],
+      }));
+    } catch (e) { /* quota — bỏ qua */ }
+  }
+
+  // Upsert mapping (theo taskflowBlockId) vào mirror. Trả mảng mới.
+  function upsertMapping(mapping) {
+    if (!mapping || !mapping.taskflowBlockId) return loadMappings().mappings;
+    const store = loadMappings();
+    const idx = store.mappings.findIndex((x) => x && x.taskflowBlockId === mapping.taskflowBlockId);
+    if (idx !== -1) store.mappings[idx] = { ...store.mappings[idx], ...mapping };
+    else store.mappings.push({ ...mapping });
+    saveMappings(store.mappings);
+    return store.mappings;
+  }
+
+  function mappingForBlock(blockId) {
+    if (!blockId) return null;
+    return loadMappings().mappings.find((x) => x && x.taskflowBlockId === blockId) || null;
+  }
+
+  // Xuất 1 TimeBlock → Google. Idempotent client-side: mapping đã tồn tại → trả
+  // mapping cũ (duplicate:true) KHÔNG gọi server (chống tạo event lặp khi click 2 lần).
+  // block: { id, taskUid, date, start, end } — title tự sinh từ task/block nếu thiếu.
+  async function exportBlock(block, opts) {
+    const o = opts || {};
+    if (!block || !block.id) return { ok: false, status: 400, data: { error: 'invalid-block' } };
+    const existing = mappingForBlock(block.id);
+    if (existing) {
+      return { ok: true, status: 200, duplicate: true, mapping: existing };
+    }
+    const iso = buildBlockISO(block);
+    if (!iso) return { ok: false, status: 400, data: { error: 'invalid-range' } };
+    const title = String(o.title || block.title || '').trim()
+      || 'TimeBlock ' + block.start + '–' + block.end;
+    const res = await gcalFetch('/api/calendar/export', {
+      method: 'POST',
+      body: {
+        blockId: block.id,
+        taskUid: block.taskUid || null,
+        title,
+        startIso: iso.startIso,
+        endIso: iso.endIso,
+        calendarId: o.calendarId || 'primary',
+      },
+    });
+    const data = res.data || {};
+    if (res.ok && data.mapping) {
+      upsertMapping(data.mapping);
+    }
+    return {
+      ok: res.ok,
+      status: res.status,
+      duplicate: !!data.duplicate,
+      mapping: data.mapping || null,
+      data,
+    };
+  }
+
   return {
     CACHE_KEY, TTL_MS,
     normalizeEvents, localDayRange, eventsForDate, busyForDate, mergeAndSort,
     loadCache, saveCache, clearCache, cacheValid,
-    fetchStatus, fetchEvents, connect, disconnect, consumeCalParam,
+    fetchStatus, fetchEvents, connect, connectWrite, disconnect, consumeCalParam,
+    buildBlockISO, loadMappings, saveMappings, upsertMapping, mappingForBlock, exportBlock,
     apiBase, toLocalHHMM,
   };
 });

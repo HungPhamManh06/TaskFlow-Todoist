@@ -35,3 +35,21 @@ alter table users add column if not exists google_refresh_token text;
 alter table users add column if not exists google_token_expires_at timestamptz;
 alter table users add column if not exists google_scopes text;
 alter table users add column if not exists google_connected_at timestamptz;
+
+-- ============================================================
+-- V1.6B — Google Calendar export mapping (TimeBlock → Google Event)
+-- Idempotent: chạy nhiều lần không lỗi. Một TimeBlock ↔ tối đa 1 Event
+-- (unique user_id + taskflow_block_id); retry/click lặp trả mapping cũ.
+-- ============================================================
+create table if not exists google_cal_mapping (
+  id serial primary key,
+  user_id integer not null references users (id) on delete cascade,
+  taskflow_block_id text not null,
+  google_event_id text not null,
+  calendar_id text not null default 'primary',
+  last_synced_at timestamptz not null default now(),
+  unique (user_id, taskflow_block_id)
+);
+
+create index if not exists google_cal_mapping_user_idx
+  on google_cal_mapping (user_id);

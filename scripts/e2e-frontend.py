@@ -2217,6 +2217,105 @@ def gcal_checks(browser, base, width, height, errors, screenshot):
     ctx.close()
 
 
+def gcal_write_checks(browser, base, width, height, errors, screenshot):
+    """V1.6B: export TimeBlock → Google Calendar (write scope + mapping + idempotent).
+    1) seed 1 TimeBlock hôm nay 09:00-10:00 + stub status connected write:true
+    2) Schedule view: block có nút .gcal-export (Add to Google Calendar)
+    3) click export → stub tạo event → badge .gcal-exported + mapping trong mirror
+    4) duplicate: gọi exportBlock lại → duplicate:true, KHÔNG gọi stub lần 2
+    """
+    import json
+    import datetime
+    ctx = browser.new_context(
+        viewport={"width": width, "height": height}, service_workers="block"
+    )
+    page = ctx.new_page()
+    page.emulate_media(reduced_motion="reduce")
+    page.on("pageerror", lambda error: errors.append(f"gcal-write {width}px: {error}"))
+    today = datetime.date.today()
+    day_iso = today.isoformat()
+
+    # Seed 1 TimeBlock hôm nay + onboarded
+    seed_block = json.dumps({
+        "version": 1,
+        "blocks": [{
+            "id": "block-e2e1", "taskUid": None, "date": day_iso,
+            "start": "09:00", "end": "10:00", "status": "planned",
+            "createdAt": "2026-08-20T00:00:00.000Z", "updatedAt": "2026-08-20T00:00:00.000Z",
+        }],
+    })
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.add_init_script("localStorage.setItem('planner-lang','en');")
+    page.add_init_script(f"localStorage.setItem('planner-timeblocks', {json.dumps(seed_block)});")
+    page.add_init_script("localStorage.removeItem('planner-gcal-mappings');")
+    page.add_init_script("localStorage.removeItem('planner-gcal-cache');")
+
+    export_calls = []
+
+    def handle_cal(route):
+        url = route.request.url
+        if url.endswith("/api/calendar/status"):
+            body = ('{"connected":true,"write":true,"calendars":[{"id":"primary","summary":"Main","primary":true}],"fetchedAt":"2026-08-20T00:00:00.000Z"}')
+            route.fulfill(status=200, content_type="application/json", body=body)
+            return
+        if url.endswith("/api/calendar/export"):
+            req = json.loads(route.request.post_data or "{}")
+            export_calls.append(req)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "ok": True, "duplicate": False,
+                "mapping": {
+                    "taskflowBlockId": req.get("blockId"),
+                    "googleEventId": "gcal-ev-" + req.get("blockId"),
+                    "calendarId": req.get("calendarId", "primary"),
+                    "lastSyncedAt": "2026-08-20T10:00:00.000Z",
+                },
+            }))
+            return
+        if "/api/calendar/events" in url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({"events": [], "errors": [], "fetchedAt": "2026-08-20T00:00:00.000Z"}))
+            return
+        route.continue_()
+
+    page.route("**/api/calendar/**", handle_cal)
+    page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').first.click()
+    page.wait_for_selector('[data-testid="schedule-view"]', state="visible", timeout=8000)
+
+    # 2) block row có nút export
+    page.wait_for_selector('.tb-block[data-block-id="block-e2e1"]', state="visible", timeout=8000)
+    assert page.locator('.tb-block[data-block-id="block-e2e1"] [data-action="gcal-export"]').count() >= 1, \
+        "block phải có nút Add to Google Calendar"
+
+    # 3) click export → badge exported + stub gọi đúng 1 lần với blockId đúng
+    page.locator('.tb-block[data-block-id="block-e2e1"] [data-action="gcal-export"]').click()
+    page.wait_for_selector('.gcal-exported[data-exported="block-e2e1"]', state="visible", timeout=8000)
+    assert len(export_calls) == 1, f"export phải gọi stub 1 lần, thấy {len(export_calls)}"
+    assert export_calls[0]["blockId"] == "block-e2e1", "body phải mang blockId đúng"
+    assert export_calls[0]["startIso"] and export_calls[0]["endIso"], "body phải có ISO instant"
+    assert export_calls[0]["endIso"] > export_calls[0]["startIso"], "end sau start"
+
+    # mirror mapping đã lưu localStorage
+    mirror = page.evaluate("() => window.TaskFlowGCal.mappingForBlock('block-e2e1')")
+    assert mirror and mirror["googleEventId"] == "gcal-ev-block-e2e1", f"mapping mirror sai: {mirror}"
+
+    # 4) duplicate — client guard: gọi lại không thêm call stub
+    dup = page.evaluate("""
+      () => window.TaskFlowGCal.exportBlock(
+        { id: 'block-e2e1', taskUid: null, date: %r, start: '09:00', end: '10:00' },
+        { title: 'x' }
+      )
+    """ % day_iso)
+    assert dup.get("duplicate") is True, f"export lặp phải duplicate: {dup}"
+    assert len(export_calls) == 1, f"duplicate KHÔNG được gọi stub lần 2, thấy {len(export_calls)}"
+
+    assert_no_page_overflow(page, f"gcal-write {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+    ctx.close()
+
+
 def ai_checks(browser, base, width, height, errors, screenshot):
     """V2.0: AI Copilot — proposal → preview → explicit Apply (không tự ghi state).
     1) seed 2 task hôm nay + 2 TimeBlock → mở planner → AI panel + consent chips
@@ -2458,7 +2557,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "ai"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "ai"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -2520,6 +2619,7 @@ def main():
                     ("quick-capture", quick_capture_checks),
                     ("insights", insights_checks),
                     ("gcal", gcal_checks),
+                    ("gcal-write", gcal_write_checks),
                     ("ai", ai_checks),
                 )
                 for width, height in matrix:
@@ -2600,6 +2700,9 @@ def main():
             elif args.view == "gcal":
                 gcal_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 gcal_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "gcal-write":
+                gcal_write_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                gcal_write_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "ai":
                 ai_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 ai_checks(browser, base, 390, 844, errors, shots["mobile"])
