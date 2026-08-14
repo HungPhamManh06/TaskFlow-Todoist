@@ -114,6 +114,21 @@ def interaction_ls_writes(page):
 
     page.evaluate("window.__lsWrites = []")
 
+    # 0. Seed one task via the real Quick Add flow (fresh profile has an empty
+    #    Today, so the toggle below would have nothing to act on).
+    page.evaluate("""() => {
+      runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.openQuickAdd());
+    }""")
+    page.wait_for_selector('#quickAddInput', state="visible", timeout=5000)
+    page.evaluate("""() => {
+      const input = document.getElementById('quickAddInput');
+      input.value = 'perf seed task';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      const submit = document.querySelector('#quickAddModal [data-action="quickadd-do"]');
+      if (submit) submit.click();
+    }""")
+    page.wait_for_timeout(450)
+
     # 1. Toggle a task checkbox in Today — clear AFTER setView (like step 3) so
     # setView's own save() is not attributed to the interaction, and wait out the
     # 350ms saveSoon debounce before reading the counter.
@@ -129,15 +144,17 @@ def interaction_ls_writes(page):
     if not clicked:
         w1 = None
 
-    # 2. Quick-add a task (openQuickAdd is a global fn; submit via data-action button)
+    # 2. Quick-add a task (Quick Add is lazy-loaded; open via the shell add
+    #    action exactly like app.js does, then submit via data-action button)
     page.evaluate("window.__lsWrites = []")
     page.evaluate("""() => {
-      openQuickAdd();
+      runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.openQuickAdd());
+    }""")
+    page.wait_for_selector('#quickAddInput', state="visible", timeout=5000)
+    page.evaluate("""() => {
       const input = document.getElementById('quickAddInput');
-      if (input) {
-        input.value = 'perf measure task';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
+      input.value = 'perf measure task';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
       const submit = document.querySelector('#quickAddModal [data-action="quickadd-do"]');
       if (submit) submit.click();
     }""")
@@ -147,6 +164,7 @@ def interaction_ls_writes(page):
     # captures the interaction itself (setView's own save persists view state).
     page.evaluate("setView('overview')")
     page.evaluate("window.__lsWrites = []")
+    page.wait_for_selector('[data-action="habit"]', state="visible", timeout=5000)
     page.evaluate("""() => {
       const h = document.querySelector('[data-action="habit"]');
       if (h) h.click();
