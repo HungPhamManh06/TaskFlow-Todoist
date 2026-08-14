@@ -8856,3 +8856,123 @@ body.focus-mode .container { padding: 0; }
   .tb-day-wd { font-size: 9px; }
   .tb-block-actions .tb-act { width: 24px; height: 24px; }
 }
+
+/* V1.4 — Flexible Habit Schedules (schedule editor modal + hint labels) */
+
+.habit-sched-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.25rem 0.25rem 0.5rem;
+  max-height: min(62vh, 520px);
+  overflow-y: auto;
+}
+
+.habit-sched-types {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.habit-sched-type {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid rgba(102, 104, 84, 0.22);
+  border-radius: 10px;
+  background: var(--color-surface-muted);
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.habit-sched-type:hover {
+  background: var(--color-surface-hover);
+}
+
+.habit-sched-type input {
+  accent-color: var(--color-accent);
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.habit-sched-sub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 0 0 0.4rem;
+}
+
+.habit-sched-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.habit-sched-chip {
+  min-width: 44px;
+  min-height: 36px;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgba(102, 104, 84, 0.25);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.habit-sched-chip:hover {
+  border-color: var(--color-accent);
+}
+
+.habit-sched-chip.on {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.habit-sched-count-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.habit-sched-count-row label {
+  font-size: 13px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.habit-sched-count-row input {
+  width: 90px;
+  min-height: 38px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(102, 104, 84, 0.3);
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+/* Hint nhỏ dưới tên habit trong bảng overview */
+.habit-sched-hint {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.25;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hint schedule trên Today */
+.today-habit-sched {
+  display: inline-block;
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}

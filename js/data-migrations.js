@@ -21,8 +21,49 @@
     return value && typeof value === 'object' && !Array.isArray(value) ? clone(value) : {};
   }
 
+  // V1.4 — Chuẩn hoá schedule habit (additive, idempotent, không phá legacy).
+  // Habit không có schedule → giữ nguyên (mặc định daily). Schedule malformed →
+  // reset về daily (không xoá habit, không đụng days/target/remind).
+  function normalizeHabitSchedule(s) {
+    if (!s || typeof s !== 'object' || Array.isArray(s)) return null;
+    const type = s.type;
+    if (type === 'daily') return { type: 'daily' };
+    if (type === 'weekdays') {
+      const days = Array.isArray(s.days)
+        ? s.days.map((d) => (Number.isInteger(d) ? d : NaN)).filter((d) => d >= 1 && d <= 7)
+          .filter((d, i, a) => a.indexOf(d) === i).sort((a, b) => a - b)
+        : [];
+      if (!days.length) return null;
+      return { type: 'weekdays', days };
+    }
+    if (type === 'weekly_count') {
+      const count = Number(s.count);
+      if (!Number.isInteger(count) || count < 1 || count > 31) return null;
+      return { type: 'weekly_count', count };
+    }
+    if (type === 'monthly_count') {
+      const count = Number(s.count);
+      if (!Number.isInteger(count) || count < 1 || count > 93) return null;
+      return { type: 'monthly_count', count };
+    }
+    return null;
+  }
+
+  function ensureHabitSchedules(state) {
+    const out = objectOrEmpty(state);
+    if (!Array.isArray(out.habits)) out.habits = [];
+    out.habits = out.habits.map((h) => {
+      if (!h || typeof h !== 'object' || Array.isArray(h)) return h;
+      const n = normalizeHabitSchedule(h.schedule);
+      if (n) h.schedule = n;
+      else if (h.schedule !== undefined) h.schedule = { type: 'daily' }; // malformed → daily
+      return h;
+    });
+    return out;
+  }
+
   function migrateMonthState(raw, context) {
-    const out = objectOrEmpty(raw);
+    const out = ensureHabitSchedules(objectOrEmpty(raw));
     out.schemaVersion = VERSION;
     out.monthlyGoals = Array.isArray(out.monthlyGoals) ? out.monthlyGoals : [];
     out.habits = Array.isArray(out.habits) ? out.habits : [];
@@ -128,6 +169,6 @@
   return {
     APP, VERSION, MONTH_KEY, PLANNER_KEY, LEGACY_KEY,
     migrateMonthState, migrateReflectionStore, migrateSnapshot, validateSnapshot,
-    isTaskTrulyEmpty, cleanupTrulyEmptyTasks,
+    isTaskTrulyEmpty, cleanupTrulyEmptyTasks, ensureHabitSchedules, normalizeHabitSchedule,
   };
 });

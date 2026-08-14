@@ -75,6 +75,14 @@
 
   function habitPct(h) {
     const days = Array.isArray(h.days) ? h.days : [];
+    // V1.4 — schedule-aware: daily giữ ngữ nghĩa legacy (PlanMath.habitPctFrom);
+    // weekdays/weekly_count/monthly_count dùng periodProgress (mục tiêu kỳ hiện tại).
+    const H = window.TaskFlowHabits;
+    const s = H && H.scheduleOf ? H.scheduleOf(h) : null;
+    if (s && s.type !== 'daily' && H && H.periodProgress) {
+      const r = H.periodProgress(s, days, h.target, PLAN_YEAR, PLAN_MONTH, NUM_DAYS, new Date());
+      return r ? r.pct : 0;
+    }
     return window.PlanMath ? window.PlanMath.habitPctFrom(days, habitDaysElapsed(PLAN_YEAR, PLAN_MONTH, NUM_DAYS), h.target) : 0;
   }
   function dayPct(day) {

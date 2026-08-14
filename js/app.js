@@ -1861,12 +1861,17 @@ function habitPanelHTML() {
           <tbody>
             ${state.habits.length ? state.habits.map((h) => {
               const p = habitPct(h);
+              const hsch = habitSchedOf(h);
+              const schedLbl = habitSchedLabel(hsch);
+              const schedTargetable = hsch.type === 'daily' || hsch.type === 'weekdays';
               return `<tr draggable="true" data-drag="habit" data-id="${h.id}" title="${t('dragHint')}">
                 <td class="sticky name-col"><span class="habit-name-cell">
                   <span class="habit-name-text" data-id="${h.id}" title="${esc(h.name)}">${esc(h.name)}</span>
+                  ${schedLbl ? `<span class="habit-sched-hint" data-role="habit-sched-hint" data-id="${h.id}" title="${esc(schedLbl)}">${esc(schedLbl)}</span>` : ''}
                   <span class="item-actions">
                     <button type="button" class="mini-btn" data-action="remind-habit" data-id="${h.id}" title="${t('remindHabitAria')}" aria-label="${t('remindHabitAria')}">${window.TaskFlowUI.icon('bell')}${h.remind && h.remind.enabled ? '<sup class="remind-dot"></sup>' : ''}</button>
-                    <button type="button" class="mini-btn" data-action="targetedit" data-id="${h.id}" title="${t('targetAria', { n: h.target || 100 })}" aria-label="${t('targetAria', { n: h.target || 100 })}">${window.TaskFlowUI.icon('target')}</button>
+                    <button type="button" class="mini-btn" data-action="habitsched" data-id="${h.id}" title="${t('habitSchedAria')}" aria-label="${t('habitSchedAria')}">${window.TaskFlowUI.icon('calendar')}</button>
+                    ${schedTargetable ? `<button type="button" class="mini-btn" data-action="targetedit" data-id="${h.id}" title="${t('targetAria', { n: h.target || 100 })}" aria-label="${t('targetAria', { n: h.target || 100 })}">${window.TaskFlowUI.icon('target')}</button>` : ''}
                     <button type="button" class="mini-btn" data-action="edithabit" data-id="${h.id}" title="${t('renameAria')}" aria-label="${t('renameAria')}">${window.TaskFlowUI.icon('edit')}</button>
                     <button type="button" class="mini-btn" data-action="delhabit" data-id="${h.id}" title="${t('delAria')}" aria-label="${t('delAria')}">${window.TaskFlowUI.icon('trash')}</button>
                   </span>
@@ -2221,7 +2226,10 @@ function copyHabitsToNextMonth() {
   let n = 0;
   state.habits.forEach((h) => {
     const old = habitInMonthState(s, h);
+    // V1.4: giữ schedule (đã chuẩn hoá) khi copy sang tháng sau; legacy không schedule → daily.
+    const sched = window.TaskFlowHabits && window.TaskFlowHabits.normalizeSchedule ? window.TaskFlowHabits.normalizeSchedule(h.schedule) : undefined;
     const next = { id: h.id, name: h.name, target: typeof h.target === 'number' && h.target >= 1 ? h.target : 100, days: freshDays.slice() };
+    if (sched) next.schedule = sched;
     if (old) s.habits[s.habits.indexOf(old)] = next;
     else s.habits.push(next);
     n++;
@@ -2260,6 +2268,98 @@ function beginTargetEdit(btn) {
     else if (e.key === 'Escape') { renderOverview(); }
   });
   input.addEventListener('blur', commit);
+}
+
+/* ===== V1.4 — Flexible Habit Schedules (schedule editor) ===== */
+function habitSchedOf(h) {
+  return window.TaskFlowHabits && window.TaskFlowHabits.scheduleOf ? window.TaskFlowHabits.scheduleOf(h) : { type: 'daily' };
+}
+
+function habitSchedLabel(hsch) {
+  const H = window.TaskFlowHabits;
+  const sum = H && H.scheduleSummary ? H.scheduleSummary(hsch) : { type: 'daily', value: null };
+  if (sum.type === 'weekdays') {
+    const names = t('dayNames');
+    return sum.value.map((d) => names[d - 1]).join(', ');
+  }
+  if (sum.type === 'weekly_count') return t('habitSchedWeeklyLabel', { n: sum.value });
+  if (sum.type === 'monthly_count') return t('habitSchedMonthlyLabel', { n: sum.value });
+  return '';
+}
+
+let _habitSchedId = null;
+let _habitSchedDraft = { type: 'daily', days: [], count: 3 };
+
+function renderHabitSchedForm() {
+  const el = document.getElementById('habitSchedContent');
+  if (!el) return;
+  const d = _habitSchedDraft;
+  const names = t('dayNames');
+  const isCount = d.type === 'weekly_count' || d.type === 'monthly_count';
+  const chips = names.map((n, i) => {
+    const on = d.days.indexOf(i + 1) >= 0;
+    return `<button type="button" class="habit-sched-chip${on ? ' on' : ''}" data-action="habitsched-weekday" data-day="${i + 1}" aria-pressed="${on}" aria-label="${esc(n)}">${esc(n)}</button>`;
+  }).join('');
+  el.innerHTML = `<div class="habit-sched-form">
+    <div class="habit-sched-types" role="radiogroup" aria-label="${esc(t('habitSchedTitle'))}">
+      <label class="habit-sched-type"><input type="radio" name="hsched-type" value="daily" data-action="habitsched-type" ${d.type === 'daily' ? 'checked' : ''}><span>${esc(t('habitSchedDaily'))}</span></label>
+      <label class="habit-sched-type"><input type="radio" name="hsched-type" value="weekdays" data-action="habitsched-type" ${d.type === 'weekdays' ? 'checked' : ''}><span>${esc(t('habitSchedWeekdays'))}</span></label>
+      <label class="habit-sched-type"><input type="radio" name="hsched-type" value="weekly_count" data-action="habitsched-type" ${d.type === 'weekly_count' ? 'checked' : ''}><span>${esc(t('habitSchedWeeklyCount'))}</span></label>
+      <label class="habit-sched-type"><input type="radio" name="hsched-type" value="monthly_count" data-action="habitsched-type" ${d.type === 'monthly_count' ? 'checked' : ''}><span>${esc(t('habitSchedMonthlyCount'))}</span></label>
+    </div>
+    <div class="habit-sched-weekdays" data-role="hsched-weekdays" ${d.type === 'weekdays' ? '' : 'hidden'}>
+      <p class="habit-sched-sub">${esc(t('habitSchedWeekdays'))}</p>
+      <div class="habit-sched-chips">${chips}</div>
+    </div>
+    <div class="habit-sched-count-row" data-role="hsched-count" ${isCount ? '' : 'hidden'}>
+      <label for="hsched-count-input">${esc(t(d.type === 'weekly_count' ? 'habitSchedWeeklyCount' : 'habitSchedMonthlyCount'))}</label>
+      <input id="hsched-count-input" type="number" min="1" max="${d.type === 'weekly_count' ? 31 : 93}" step="1" value="${d.count}" data-role="hsched-count-input" aria-label="${esc(t('habitSchedCountPh'))}">
+    </div>
+  </div>`;
+}
+
+function openHabitScheduleModal(id) {
+  const h = state.habits.find((x) => x.id === id);
+  if (!h) return;
+  const s = habitSchedOf(h);
+  _habitSchedId = id;
+  _habitSchedDraft = {
+    type: s.type,
+    days: s.type === 'weekdays' ? s.days.slice() : [],
+    count: s.type === 'weekly_count' || s.type === 'monthly_count' ? s.count : 3,
+  };
+  renderHabitSchedForm();
+  TaskFlowUI.openDialog('habitSchedModal');
+  const r = document.querySelector('.habit-sched-types input:checked');
+  if (r) setTimeout(() => r.focus(), 30);
+  trackEvent('habit_sched_open');
+}
+
+function saveHabitSchedule() {
+  const h = state.habits.find((x) => x.id === _habitSchedId);
+  if (!h) return;
+  const d = _habitSchedDraft;
+  if (d.type === 'weekdays' && !d.days.length) {
+    TaskFlowUI.toast(t('habitSchedNeedDay'), 'error');
+    return;
+  }
+  let sched;
+  if (d.type === 'daily') sched = { type: 'daily' };
+  else if (d.type === 'weekdays') sched = { type: 'weekdays', days: d.days.slice().sort((a, b) => a - b) };
+  else {
+    const inp = document.querySelector('[data-role="hsched-count-input"]');
+    let v = d.count;
+    if (inp) {
+      const n = parseInt(inp.value, 10);
+      if (Number.isInteger(n) && n >= 1) v = n;
+    }
+    sched = { type: d.type, count: d.type === 'weekly_count' ? Math.min(31, v) : Math.min(93, v) };
+  }
+  h.schedule = sched;
+  renderOverview();
+  save();
+  TaskFlowUI.closeDialog('habitSchedModal');
+  trackEvent('habit_schedule', { type: sched.type });
 }
 
 // Sửa tag của task: thay nút 🏷️ bằng input inline, Enter để lưu (phân cách bằng dấu phẩy).
@@ -4761,6 +4861,21 @@ document.addEventListener('click', (e) => {
       afterHabitToggle(); refreshFocusIfOpen();
       if (state.view === 'today') renderToday();
     }
+  } else if (act === 'habitsched') {
+    openHabitScheduleModal(el.dataset.id);
+  } else if (act === 'habitsched-close') {
+    TaskFlowUI.closeDialog('habitSchedModal');
+  } else if (act === 'habitsched-save') {
+    saveHabitSchedule();
+  } else if (act === 'habitsched-type') {
+    _habitSchedDraft.type = el.value;
+    renderHabitSchedForm();
+  } else if (act === 'habitsched-weekday') {
+    const d = +el.dataset.day;
+    const idx = _habitSchedDraft.days.indexOf(d);
+    if (idx >= 0) _habitSchedDraft.days.splice(idx, 1); else _habitSchedDraft.days.push(d);
+    el.setAttribute('aria-pressed', String(idx < 0));
+    el.classList.toggle('on', idx < 0);
   } else if (act === 'wgoal') {
     const w = state.weeks[+el.dataset.week - 1];
     const g = w.goals[+el.dataset.id];

@@ -1993,6 +1993,81 @@ def timeblock_ui_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def habits_schedule_checks(browser, base, width, height, errors, screenshot):
+    """V1.4: Flexible Habit Schedules.
+    1) seed habit weekly_count 4x/tuần (target 4) chưa tick ngày nào → hiển thị Today như progress optional
+    2) nhãn lịch hiển thị ("4 lần / tuần")
+    3) tick habit → lưu vào store, habit vẫn hiển thị (pct < 100)
+    4) reload → trạng thái tick persist
+    """
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"habsched {width}px: {error}"))
+    page.add_init_script("""(() => {
+      localStorage.setItem('planner-onboarded','1');
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = 'planner-' + year + '-' + (month + 1);
+      let state;
+      try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { state = null; }
+      if (!state) state = { version: 1, weeks: [], pillars: [], habits: [] };
+      state.monthKey = key;
+      state.schemaVersion = 2;
+      if (!Array.isArray(state.monthlyGoals)) state.monthlyGoals = [];
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const numWeeks = Math.ceil((offset + daysInMonth) / 7);
+      state.weeks = [];
+      for (let w = 0; w < numWeeks; w++) { const days = []; for (let d = 0; d < 7; d++) days.push({ tasks: [] }); state.weeks.push({ n: w + 1, goals: [], days }); }
+      if (!state.habits.some(h => h.id === 'hs-gym')) {
+        state.habits.push({
+          id: 'hs-gym', name: 'Gym', target: 4,
+          schedule: { type: 'weekly_count', count: 4 },
+          days: new Array(daysInMonth).fill(false),
+        });
+      }
+      localStorage.setItem(key, JSON.stringify(state));
+    })()""")
+    page.goto(f"{base}/app.html", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="today-view"]', state="visible")
+    page.wait_for_timeout(200)
+
+    # 1) Habit weekly_count hiển thị với nhãn lịch
+    habit_row = page.locator('[data-testid="today-view"] .today-habit').first
+    assert habit_row.count() == 1, "Habit weekly_count phải xuất hiện trên Today (optional progress)"
+    sched_lbl = habit_row.locator('.today-habit-sched').inner_text()
+    assert '4' in sched_lbl and 'tuần' in sched_lbl, f"Nhãn lịch phải là '4 lần / tuần', thấy '{sched_lbl}'"
+
+    # 2) Tick habit → persist trong store, vẫn hiển thị (pct 25% < 100)
+    today_idx = page.evaluate("new Date().getDate() - 1")
+    box = habit_row.locator('[data-action="habit"]')
+    box.scroll_into_view_if_needed()
+    box.click()
+    page.wait_for_timeout(150)
+    state_days = page.evaluate(
+        "JSON.parse(localStorage.getItem('planner-' + new Date().getFullYear() + '-' + (new Date().getMonth()+1))).habits.find(h => h.id === 'hs-gym').days"
+    )
+    assert state_days[today_idx] is True, "Tick phải lưu days[ngày hôm nay] = true"
+    assert habit_row.count() == 1, "Habit vẫn phải hiển thị khi mục tiêu tuần chưa đạt (pct < 100)"
+
+    # 3) Reload → trạng thái tick persist
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector('[data-testid="today-view"]', state="visible")
+    page.wait_for_timeout(200)
+    again = page.evaluate(
+        "JSON.parse(localStorage.getItem('planner-' + new Date().getFullYear() + '-' + (new Date().getMonth()+1))).habits.find(h => h.id === 'hs-gym').days"
+    )
+    assert again[today_idx] is True, "Sau reload, trạng thái tick phải còn"
+    row2 = page.locator('[data-testid="today-view"] .today-habit').first
+    assert row2.locator('.today-habit-sched').count() == 1, "Nhãn lịch phải còn sau reload"
+
+    assert_no_page_overflow(page, f"habsched {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -2028,7 +2103,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -2086,6 +2161,7 @@ def main():
                     ("projects", projects_checks),
                     ("planner", planner_checks),
                     ("timeblock-ui", timeblock_ui_checks),
+                    ("habits-schedule", habits_schedule_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -2153,6 +2229,9 @@ def main():
             elif args.view == "timeblock-ui":
                 timeblock_ui_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 timeblock_ui_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "habits-schedule":
+                habits_schedule_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                habits_schedule_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

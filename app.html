@@ -685,6 +685,20 @@
     </div>
   </div>
 
+  <!-- ===== Habit schedule dialog (V1.4) ===== -->
+  <div class="report-modal" id="habitSchedModal" hidden data-testid="habit-sched-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="habitSchedDialogTitle">
+      <button type="button" class="sync-close" data-action="habitsched-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+      <h2 class="sync-modal-title" id="habitSchedDialogTitle"><span data-i18n="habitSchedTitle">Lịch thói quen</span></h2>
+      <div id="habitSchedContent" class="habit-sched-body"></div>
+      <div class="planner-actions">
+        <button type="button" class="button button-ghost" data-action="habitsched-close"><span data-i18n="habitSchedCancel">Hủy</span></button>
+        <button type="button" class="button button-primary" data-action="habitsched-save"><span data-i18n="habitSchedSave">Lưu</span></button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Time Block dialog (V1.2 Phase 2) ===== -->
   <div class="report-modal" id="timeBlockModal" hidden data-testid="timeblock-modal">
     <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="timeBlockDialogTitle">
@@ -802,9 +816,9 @@
        runLazyModule() trong app.js — không nằm trong chuỗi script boot. mood + remind-ui
        ở lại vì nằm trên đường render boot (moodCardHTML/insertBeforeTaskActions). -->
   <script src="js/config.min.js?v=1"></script>
-  <script src="js/data-migrations.min.js?v=2"></script>
+  <script src="js/data-migrations.min.js?v=3"></script>
   <script src="js/widget.min.js?v=1"></script>
-  <script src="js/xp.min.js?v=1"></script>
+  <script src="js/xp.min.js?v=2"></script>
   <script src="js/streak-ui.min.js?v=3"></script>
   <script src="js/alignment.min.js?v=2"></script>
   <script src="js/weekly-review.min.js?v=1"></script>
@@ -812,7 +826,7 @@
   <script src="js/monthly-review.min.js?v=2"></script>
   <script src="js/report-insights.min.js?v=1"></script>
   <script src="js/reflection-history.min.js?v=1"></script>
-  <script src="js/today.min.js?v=9"></script>
+  <script src="js/today.min.js?v=10"></script>
   <script src="js/report-ui.min.js?v=4"></script>
   <script src="js/upcoming.min.js?v=2"></script>
   <script src="js/focus-stats.min.js?v=1"></script>
@@ -826,12 +840,12 @@
   <script src="js/sync.min.js?v=5"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=1"></script>
-  <script src="js/i18n.min.js?v=16"></script>
+  <script src="js/i18n.min.js?v=17"></script>
   <script src="js/storage.min.js?v=2"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
   <script src="js/stats.min.js?v=1"></script>
-  <script src="js/habits.min.js?v=1"></script>
+  <script src="js/habits.min.js?v=2"></script>
   <script src="js/keys.min.js?v=1"></script>
   <script src="js/remind.min.js?v=1"></script>
   <script src="js/theme.min.js?v=1"></script>
@@ -857,7 +871,7 @@
   <script src="js/planner-rules.min.js?v=1"></script>
   <script src="js/planner-ui.min.js?v=1"></script>
   <script src="js/timeblocks-ui.min.js?v=1"></script>
-  <script src="js/app.min.js?v=176"></script>
+  <script src="js/app.min.js?v=177"></script>
 </body>
 
 </html>

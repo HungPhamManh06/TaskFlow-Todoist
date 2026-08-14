@@ -56,7 +56,20 @@
     // Habit.days[] được index theo ngày-trong-tháng (0-based) — nhất quán với overview/week/day view.
     // KHÔNG dùng ti.dayIdx (số ngày từ PLAN_START neo theo thứ của tuần đầu) — sẽ lệch vài ngày.
     const habitIdx = viewedMonth === null && ti.inRange ? new Date().getDate() - 1 : -1;
-    const habitsToday = habits.filter((h) => habitIdx >= 0 && !(Array.isArray(h.skipDays) && h.skipDays.includes(habitIdx)));
+    const habitTodayDate = habitIdx >= 0 ? new Date() : null;
+    // V1.4 — Flexible schedules: chỉ hiển thị habit ĐẾN HẠN hôm nay. daily luôn hiển thị;
+    // weekdays chỉ vào ngày được chọn; weekly_count/monthly_count hiển thị khi mục tiêu
+    // kỳ hiện tại CHƯA đạt (optional progress) và ẩn khi đã đạt. Legacy không schedule → daily.
+    const habitsToday = habits.filter((h) => {
+      if (habitIdx < 0) return false;
+      if (Array.isArray(h.skipDays) && h.skipDays.includes(habitIdx)) return false;
+      const H = window.TaskFlowHabits;
+      const hs = H && H.scheduleOf ? H.scheduleOf(h) : { type: 'daily' };
+      if (hs.type === 'daily') return true;
+      if (hs.type === 'weekdays') return H.isDueToday(hs, habitTodayDate);
+      const pr = H.periodProgress(hs, Array.isArray(h.days) ? h.days : [], h.target, PLAN_YEAR, PLAN_MONTH, NUM_DAYS, habitTodayDate);
+      return pr.pct < 100;
+    });
     const habitsDone = habitsToday.filter((h) => Array.isArray(h.days) && h.days[habitIdx] === true).length;
     const alignmentGroups = window.TaskFlowAlignment.collectDailyAlignment(state, {
       inTodayMonth,
@@ -94,10 +107,18 @@
     const habitRows = habitsToday.length
       ? habitsToday.map((h) => {
           const on = Array.isArray(h.days) && h.days[habitIdx] === true;
+          const H = window.TaskFlowHabits;
+          const hs = H && H.scheduleOf ? H.scheduleOf(h) : { type: 'daily' };
+          let run = habitStreakCached(h).cur;
+          if ((hs.type === 'weekly_count' || hs.type === 'monthly_count') && H && H.runInfo) {
+            run = H.runInfo(hs, Array.isArray(h.days) ? h.days : [], h.target, PLAN_YEAR, PLAN_MONTH, NUM_DAYS, habitTodayDate).cur;
+          }
+          const schedLbl = typeof habitSchedLabel === 'function' ? habitSchedLabel(hs) : '';
           return `<div class="today-habit${on ? ' done' : ''}">
         ${checkboxHTML('', on, `data-action="habit" data-id="${esc(h.id)}" data-day="${habitIdx}"`, window.TaskFlowUI.checkboxLabel('habit', h.name, todayWeekdayLabel()))}
         <span class="today-habit-name">${esc(h.name)}</span>
-        <span class="today-habit-streak" title="${t('overviewMetricStreakMeta')}">🔥<span>${habitStreakCached(h).cur}</span></span>
+        ${schedLbl ? `<span class="today-habit-sched" title="${esc(schedLbl)}">${esc(schedLbl)}</span>` : ''}
+        <span class="today-habit-streak" title="${t('overviewMetricStreakMeta')}">🔥<span>${run}</span></span>
       </div>`;
         }).join('')
       : `<p class="today-habits-empty">${t('todayHabitsEmpty')} <button type="button" class="empty-btn" data-action="habit-focus" title="${t('emptyAddHabit')}">${t('emptyAddHabit')}</button></p>`;
