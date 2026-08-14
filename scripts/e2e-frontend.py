@@ -34,12 +34,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         super().handle_error(request, client_address)
 
-    # Mô phỏng Vercel cleanUrls: /app → /app.html (P6: internal links dùng clean URL)
+    # Mô phỏng Vercel cleanUrls: /app → /app.html (P6: internal links dùng clean URL).
+    # Chú ý: chỉ xét extension của PATH, không phải query string — payload share
+    # (?url=https%3A%2F%2Fexample.com%2Fa) chứa dấu chấm trong query, nếu xét cả
+    # query thì splitext tìm thấy extension giả → bỏ qua fallback .html → 404.
     def translate_path(self, path):
         translated = super().translate_path(path)
         if os.path.isfile(translated):
             return translated
-        if not os.path.splitext(path)[1] and not translated.endswith(os.sep):
+        clean_path = path.split("?", 1)[0].split("#", 1)[0]
+        if not os.path.splitext(clean_path)[1] and not translated.endswith(os.sep):
             candidate = translated + ".html"
             if os.path.isfile(candidate):
                 return candidate
@@ -2068,6 +2072,52 @@ def habits_schedule_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def quick_capture_checks(browser, base, width, height, errors, screenshot):
+    """V1.5: Quick Capture.
+    1) ?quick=1&text=.. → Quick Add mở với input đã prefill (preview trước Save)
+    2) share target GET (?title=&text=&url=) → ghép text + url, không có javascript: url
+    3) payload HTML độc hại → không render HTML, input giữ text thuần (sanitize)
+    4) Inbox persist: submit → task xuất hiện trong inbox localStorage
+    """
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"qcapture {width}px: {error}"))
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+
+    # 1) quick URL: text param prefill
+    page.goto(f"{base}/app?quick=1&text=Read%20article%20on%20habits", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="quick-add"]', state="visible", timeout=8000)
+    val = page.locator('#quickAddInput').input_value()
+    assert val == "Read article on habits", f"prefill text param, thấy: {val!r}"
+
+    # 2) share-target style: title+text+url → text + url, javascript: url bị loại
+    page.goto(f"{base}/app?title=Share&text=Interesting%20link&url=https%3A%2F%2Fexample.com%2Fa", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="quick-add"]', state="visible", timeout=8000)
+    val = page.locator('#quickAddInput').input_value()
+    assert "Interesting link" in val and "https://example.com/a" in val, f"text+url ghép, thấy: {val!r}"
+
+    # 3) malicious HTML + javascript: url → input giữ text thuần, không inject
+    page.goto(f"{base}/app?quick=1&text=%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E%20note&url=javascript%3Aalert(1)", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="quick-add"]', state="visible", timeout=8000)
+    val = page.locator('#quickAddInput').input_value()
+    assert "<img" in val and "javascript:" not in val, f"sanitize: img giữ text thuần, javascript: bị loại, thấy: {val!r}"
+    assert page.evaluate("document.querySelector('#quickAddModal img') === null"), "không được render <img> từ payload"
+    assert not page.evaluate("window.__quickAddXss || false"), "không có script chạy từ payload"
+    page.locator('[data-action="quickadd-close"]').first.click()
+    page.wait_for_selector('[data-testid="quick-add"]', state="hidden")
+
+    # 4) Inbox persist: submit với text đã prefill → task trong inbox
+    page.goto(f"{base}/app?quick=1&text=Capture%20into%20inbox", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="quick-add"]', state="visible", timeout=8000)
+    page.locator('[data-action="quickadd-do"]').first.click()
+    page.wait_for_selector('[data-testid="quick-add"]', state="hidden")
+    inbox = page.evaluate("JSON.parse(localStorage.getItem('planner-inbox') || '[]')")
+    assert any("Capture into inbox" in (t.get("text") or "") for t in inbox), "task phải vào Inbox"
+
+    assert_no_page_overflow(page, f"qcapture {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def dark_overview_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"dark overview {width}px: {error}"))
@@ -2103,7 +2153,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -2162,6 +2212,7 @@ def main():
                     ("planner", planner_checks),
                     ("timeblock-ui", timeblock_ui_checks),
                     ("habits-schedule", habits_schedule_checks),
+                    ("quick-capture", quick_capture_checks),
                 )
                 for width, height in matrix:
                     for scenario, check in scenarios:
@@ -2232,6 +2283,9 @@ def main():
             elif args.view == "habits-schedule":
                 habits_schedule_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 habits_schedule_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "quick-capture":
+                quick_capture_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                quick_capture_checks(browser, base, 390, 844, errors, shots["mobile"])
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

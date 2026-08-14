@@ -76,6 +76,7 @@ test('week URL round-trips through build and parse helpers', () => {
   const query = UI.buildViewUrl({ view: 'week', year: 2026, month: 7, week: 6 });
   assert.deepEqual(DeepLink.parse(`https://x.app/app.html${query}`), {
     view: 'week', year: 2026, month: 7, week: 6, quick: false,
+    text: null, url: null, title: null, // V1.5 share capture fields
   });
 });
 
@@ -833,7 +834,7 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
   assert.match(APP, /js\/app\.min\.js\?v=177/);
-  assert.match(SW, /const CACHE = 'taskflow-v217';/);
+  assert.match(SW, /const CACHE = 'taskflow-v218';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1157,7 +1158,8 @@ test('P11: quick-add extracted — openQuickAdd/closeQuickAdd/submitQuickAdd/qui
   assert.match(APP_JS, /act === 'quickadd-do'/);
   assert.match(APP_JS, /act === 'quickadd-close'/);
   assert.match(APP_JS, /act === 'shell-add-task'[\s\S]{0,140}window\.TaskFlowQuickAdd\.openQuickAdd\(\)\)/);
-  assert.match(APP_JS, /setTimeout\(\(\) => runLazyModule\('js\/quick-add\.min\.js', \(\) => window\.TaskFlowQuickAdd\.openQuickAdd\(\)\), 350\)/);
+  // V1.5: boot ?quick=1 / share capture mở Quick Add + prefill payload đã sanitize
+  assert.match(APP_JS, /setTimeout\(\(\) => runLazyModule\('js\/quick-add\.min\.js', \(\) => \{\s*window\.TaskFlowQuickAdd\.openQuickAdd\(\);\s*if \(capture && window\.TaskFlowQuickCapture\)/);
   // module export đủ API + logic giữ nguyên (target context, inbox scope, pushTaskToDate dùng chung)
   const qamod = readRequiredAsset('js/quick-add.js');
   assert.match(qamod, /return \{ openQuickAdd, closeQuickAdd, submitQuickAdd \}/);
@@ -1349,7 +1351,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v217';/);
+  assert.match(SW, /const CACHE = 'taskflow-v218';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2011,7 +2013,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v217';/);
+  assert.match(SW, /const CACHE = 'taskflow-v218';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2089,7 +2091,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v217';/);
+  assert.match(SW, /const CACHE = 'taskflow-v218';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2236,7 +2238,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v210', 'taskflow-v217', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v210', 'taskflow-v218', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);

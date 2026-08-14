@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import DeepLink from '../js/deeplink.js';
 
+// V1.5: emptyResult có thêm text/url/title (share target / quick URL payload)
+const EMPTY = { view: null, year: null, month: null, week: null, quick: false, text: null, url: null, title: null };
+
 test('parse: không tham số', () => {
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html'), { view: null, year: null, month: null, week: null, quick: false });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html'), EMPTY);
 });
 
 test('parse: view hợp lệ', () => {
@@ -43,9 +46,9 @@ test('parse: m=YYYY-M hợp lệ', () => {
 });
 
 test('parse: m ngoài phạm vi → null', () => {
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-0'), { view: null, year: null, month: null, week: null, quick: false });
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-13'), { view: null, year: null, month: null, week: null, quick: false });
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=1800-5'), { view: null, year: null, month: null, week: null, quick: false });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-0'), EMPTY);
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=2026-13'), EMPTY);
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?m=1800-5'), EMPTY);
 });
 
 test('parse: kết hợp view + m', () => {
@@ -56,12 +59,23 @@ test('parse: kết hợp view + m', () => {
 });
 
 test('parse: token OAuth bị bỏ qua', () => {
-  assert.deepEqual(DeepLink.parse('https://x.app/app.html?token=abc123'), { view: null, year: null, month: null, week: null, quick: false });
+  assert.deepEqual(DeepLink.parse('https://x.app/app.html?token=abc123'), EMPTY);
 });
 
 test('parse: chuỗi rỗng/null', () => {
-  assert.deepEqual(DeepLink.parse(''), { view: null, year: null, month: null, week: null, quick: false });
-  assert.deepEqual(DeepLink.parse(null), { view: null, year: null, month: null, week: null, quick: false });
+  assert.deepEqual(DeepLink.parse(''), EMPTY);
+  assert.deepEqual(DeepLink.parse(null), EMPTY);
+});
+
+test('parse: share capture payload (V1.5)', () => {
+  const r = DeepLink.parse('https://x.app/app?title=Share&text=Body&url=https%3A%2F%2Fe.com%2Fa');
+  assert.equal(r.title, 'Share');
+  assert.equal(r.text, 'Body');
+  assert.equal(r.url, 'https://e.com/a');
+  assert.equal(r.quick, false);
+  const onlyText = DeepLink.parse('https://x.app/app?quick=1&text=Hi');
+  assert.equal(onlyText.text, 'Hi');
+  assert.equal(onlyText.quick, true);
 });
 
 import { readFileSync } from 'node:fs';

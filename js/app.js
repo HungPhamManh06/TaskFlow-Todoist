@@ -6609,7 +6609,15 @@ if (window.DeepLink) {
   }
   if (dl.view) state.view = dl.view;
   if (dl.view === 'week' && dl.week !== null && dl.week <= NUM_WEEKS) state.currentWeek = dl.week;
-  if (dl.quick) window.__quickAddOnBoot = true;
+  const hasCapture = !!(dl.text || dl.title || dl.url);
+  if (dl.quick || hasCapture) window.__quickAddOnBoot = true;
+  // V1.5 Quick Capture: share target / quick URL → payload vào Inbox (preview trước Save).
+  // Nếu URL có sẵn view=.. thì tôn trọng; nếu không thì boot thẳng vào Inbox để Quick Add
+  // có target {scope:'inbox'} — capture không rơi vào Today.
+  if (hasCapture) {
+    window.__quickAddCapture = { text: dl.text || '', title: dl.title || '', url: dl.url || '' };
+    if (!dl.view) state.view = 'inbox';
+  }
   if (dl.view === 'day' && dl.week !== null && dl.week >= 1 && dl.week <= NUM_WEEKS) {
     state.dayWeek = dl.week;
     if (dl.day !== undefined && dl.day !== null && dl.day >= 0 && dl.day <= 6) state.dayDay = dl.day;
@@ -6632,10 +6640,21 @@ carryOverRepeatTasks();
 renderXP();
 setView(state.view, state.currentWeek);
 setTimeout(() => runLazyModule('js/digest.min.js', () => window.TaskFlowDigest.updateDigestCache()), 2000);
-// Manifest shortcut "Thêm công việc" (?quick=1) → mở Quick Add ngay sau khi view đầu render
+// Manifest shortcut "Thêm công việc" (?quick=1) → mở Quick Add ngay sau khi view đầu render.
+// V1.5 Quick Capture: nếu có payload share/quick-url, prefill input đã sanitize (preview trước Save).
 if (window.__quickAddOnBoot) {
-  setTimeout(() => runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.openQuickAdd()), 350);
+  const capture = window.__quickAddCapture || null;
   delete window.__quickAddOnBoot;
+  delete window.__quickAddCapture;
+  setTimeout(() => runLazyModule('js/quick-add.min.js', () => {
+    window.TaskFlowQuickAdd.openQuickAdd();
+    if (capture && window.TaskFlowQuickCapture) {
+      const text = window.TaskFlowQuickCapture.composeTaskText(capture);
+      const inp = document.getElementById('quickAddInput');
+      if (inp && text) inp.value = text;
+      trackEvent('quick_capture_prefill');
+    }
+  }), 350);
 }
 
 

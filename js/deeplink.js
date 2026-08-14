@@ -4,7 +4,7 @@
   'use strict';
 
   function emptyResult() {
-    return { view: null, year: null, month: null, week: null, quick: false };
+    return { view: null, year: null, month: null, week: null, quick: false, text: null, url: null, title: null };
   }
 
   function numWeeksOf(year, month) {
@@ -30,6 +30,11 @@
     }
     // quick=1 → mở Quick Add ngay sau khi boot (dùng cho manifest shortcut "Thêm công việc")
     out.quick = url.searchParams.get('quick') === '1';
+
+    // V1.5 Quick Capture: payload từ share target / quick URL (raw — sanitize ở quickcapture.js)
+    out.text = String(url.searchParams.get('text') || '').trim() || null;
+    out.title = String(url.searchParams.get('title') || '').trim() || null;
+    out.url = String(url.searchParams.get('url') || '').trim() || null;
 
     var m = /^(\d{4})-(\d{1,2})$/.exec(String(url.searchParams.get('m') || '').trim());
     if (m) {
