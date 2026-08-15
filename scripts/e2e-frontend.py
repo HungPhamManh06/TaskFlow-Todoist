@@ -489,6 +489,28 @@ def segmented_geometry_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def install_schedule_source_assets(page):
+    """Opt into authored Schedule assets before Task 5 regenerates bundles."""
+    page.route(
+        "**/css/styles-critical.min.css*",
+        lambda route: route.fulfill(
+            path=os.path.join(ROOT, "css", "styles.css"), content_type="text/css"
+        ),
+    )
+    page.route(
+        "**/css/styles-deferred.min.css*",
+        lambda route: route.fulfill(body="", content_type="text/css"),
+    )
+    for asset in ("i18n", "timeblocks-ui", "app"):
+        source = os.path.join(ROOT, "js", f"{asset}.js")
+        page.route(
+            f"**/js/{asset}.min.js*",
+            lambda route, _request, source=source: route.fulfill(
+                path=source, content_type="application/javascript"
+            ),
+        )
+
+
 def schedule_unscheduled_checks(
     browser, base, width, height, errors, screenshot, source_assets=False
 ):
@@ -505,14 +527,7 @@ def schedule_unscheduled_checks(
     # Tasks 1-4 can verify source before release assets are regenerated in Task 5.
     # The default remains production-like so --all exercises the real minified bundles.
     if source_assets:
-        for asset in ("i18n", "timeblocks-ui", "app"):
-            source = os.path.join(ROOT, "js", f"{asset}.js")
-            page.route(
-                f"**/js/{asset}.min.js*",
-                lambda route, _request, source=source: route.fulfill(
-                    path=source, content_type="application/javascript"
-                ),
-            )
+        install_schedule_source_assets(page)
     page.add_init_script("""(() => {
       localStorage.setItem('planner-onboarded','1');
       // Only seed on the FIRST load of the scenario — reload must keep UI-created data.
@@ -694,6 +709,302 @@ def schedule_unscheduled_checks(
     assert_no_page_overflow(page, f"schedule-unscheduled {width}px")
     page.screenshot(path=screenshot, full_page=False)
     page.close()
+
+
+def schedule_visual_case_checks(
+    browser,
+    base,
+    errors,
+    *,
+    case_id,
+    case_label,
+    theme,
+    dark,
+    task_count,
+    expanded,
+    width,
+    height,
+    screenshot,
+    source_assets=False,
+):
+    """Render and assert one deterministic Schedule visual fixture."""
+    page = make_page(browser, width, height, service_workers="block")
+    page.on(
+        "pageerror",
+        lambda error: errors.append(
+            f"schedule-matrix {case_id} {width}x{height}: {error}"
+        ),
+    )
+    if source_assets:
+        install_schedule_source_assets(page)
+
+    dark_value = "1" if dark else "0"
+    seed = f"""(() => {{
+      localStorage.setItem('planner-onboarded', '1');
+      localStorage.setItem('planner-theme', {json.dumps(theme)});
+      localStorage.setItem('planner-dark', {json.dumps(dark_value)});
+      localStorage.removeItem('planner-timeblocks');
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = 'planner-' + year + '-' + (month + 1);
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const numWeeks = Math.ceil((offset + daysInMonth) / 7);
+      const weeks = Array.from({{ length: numWeeks }}, (_, w) => ({{
+        n: w + 1,
+        goals: [],
+        days: Array.from({{ length: 7 }}, () => ({{ tasks: [] }})),
+      }}));
+      const planStart = new Date(year, month, 1 - offset);
+      const today = new Date(year, month, now.getDate());
+      const delta = Math.floor((today - planStart) / 86400000);
+      const week = Math.floor(delta / 7), day = delta % 7;
+      weeks[week].days[day].tasks = Array.from({{ length: {task_count} }}, (_, i) => ({{
+        uid: 'schedule-matrix-{case_id}-' + (i + 1),
+        kind: i === 0 ? 'priority' : 'regular',
+        done: false,
+        text: 'Visual Schedule Task ' + (i + 1),
+        duration: 20 + (i * 5),
+        tags: [],
+      }}));
+      localStorage.setItem(key, JSON.stringify({{
+        version: 1,
+        schemaVersion: 2,
+        monthKey: key,
+        weeks,
+        pillars: [],
+        habits: [],
+        monthlyGoals: [],
+      }}));
+    }})()"""
+    page.add_init_script(seed)
+    page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="calendar-view"]', state="visible")
+
+    root_state = page.evaluate(
+        "[document.documentElement.dataset.theme, document.documentElement.dataset.dark]"
+    )
+    assert root_state == [theme, str(dark).lower()], \
+        f"{case_label}: expected {theme}/{dark_value}, saw {root_state}"
+
+    # Month and Schedule must reuse the same segmented control and keep its geometry.
+    mode_toggle = page.locator(".cal-mode-toggle")
+    mode_handle = mode_toggle.element_handle()
+    legend = page.locator(".calendar-page .cal-legend")
+    legend_handle = legend.element_handle()
+    month_box = mode_toggle.bounding_box()
+    assert mode_handle and legend_handle and month_box, \
+        f"{case_label}: Calendar header controls must exist before switching modes"
+    month_grid = page.evaluate(
+        "getComputedStyle(document.querySelector('.calendar-page-header')).gridTemplateColumns"
+    )
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').click()
+    page.wait_for_selector('[data-testid="schedule-view"]', state="visible")
+    page.locator('[data-action="tb-today"]').first.click()
+    page.wait_for_timeout(100)
+
+    assert page.evaluate(
+        '(node) => node === document.querySelector(".cal-mode-toggle")', mode_handle
+    ), f"{case_label}: segmented control DOM identity changed"
+    assert page.evaluate(
+        '(node) => node === document.querySelector(".calendar-page .cal-legend")',
+        legend_handle,
+    ), f"{case_label}: legend slot DOM identity changed"
+    schedule_box = mode_toggle.bounding_box()
+    assert schedule_box, f"{case_label}: segmented control disappeared"
+    assert abs(month_box["x"] - schedule_box["x"]) <= 2, \
+        f"{case_label}: segmented control shifted horizontally"
+    assert abs(month_box["width"] - schedule_box["width"]) <= 2, \
+        f"{case_label}: segmented control width changed"
+    assert abs(month_box["height"] - schedule_box["height"]) <= 2, \
+        f"{case_label}: segmented control height changed"
+
+    schedule_grid = page.evaluate(
+        "getComputedStyle(document.querySelector('.calendar-page-header')).gridTemplateColumns"
+    )
+    assert schedule_grid == month_grid, \
+        f"{case_label}: Calendar header grid changed: {month_grid} -> {schedule_grid}"
+    if width > 720:
+        assert len(schedule_grid.split()) == 3, \
+            f"{case_label}: desktop Calendar header must retain three grid tracks"
+
+    # Empty Schedule legend is visually absent while its stable node/slot remains.
+    legend_style = legend.evaluate("""el => {
+      const s = getComputedStyle(el);
+      return {
+        visibility: s.visibility,
+        pointerEvents: s.pointerEvents,
+        background: s.backgroundColor,
+        borderWidths: [s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth],
+        childCount: el.childElementCount,
+      };
+    }""")
+    assert legend_style["childCount"] == 0, f"{case_label}: Schedule legend must be empty"
+    assert legend_style["visibility"] == "hidden", f"{case_label}: empty legend remains visible"
+    assert legend_style["pointerEvents"] == "none", f"{case_label}: empty legend accepts pointer events"
+    assert legend_style["background"] in ("rgba(0, 0, 0, 0)", "transparent"), \
+        f"{case_label}: empty legend has background {legend_style['background']}"
+    assert all(value == "0px" for value in legend_style["borderWidths"]), \
+        f"{case_label}: empty legend has a border {legend_style['borderWidths']}"
+
+    timeline = page.locator('[data-testid="tb-timeline"]')
+    assert timeline.count() == 1, f"{case_label}: timeline missing"
+    assert page.locator('.tb-hour').count() == 24, f"{case_label}: timeline hour grid incomplete"
+    rows = page.locator('[data-testid="tb-unscheduled"] .tb-uns-row')
+    toggle = page.locator('[data-action="tb-uns-toggle"]')
+    if task_count == 0:
+        assert page.locator('[data-testid="tb-unscheduled"]').count() == 0, \
+            f"{case_label}: empty fixture rendered an Unscheduled panel"
+        expected_rows = 0
+    else:
+        expected_rows = task_count if expanded else min(task_count, 5)
+        if task_count > 5:
+            assert toggle.count() == 1, f"{case_label}: disclosure control missing"
+            assert toggle.get_attribute("aria-expanded") == "false"
+            if expanded:
+                toggle.click()
+                assert toggle.get_attribute("aria-expanded") == "true"
+        else:
+            assert toggle.count() == 0, f"{case_label}: unnecessary disclosure control rendered"
+        assert rows.count() == expected_rows, \
+            f"{case_label}: expected {expected_rows} rows, saw {rows.count()}"
+
+        quick = rows.first.locator('[data-action="tb-quick"]')
+        assert quick.is_visible() and quick.is_enabled(), \
+            f"{case_label}: Quick Schedule is not usable"
+        quick.scroll_into_view_if_needed()
+        quick.click()
+        page.wait_for_selector('[data-testid="timeblock-modal"]:visible', state="visible")
+        assert page.locator('[data-role="tb-task"] option:checked').inner_text() == "Visual Schedule Task 1", \
+            f"{case_label}: Quick Schedule did not target its row"
+        page.locator('[data-action="tb-close"]').last.click()
+        page.wait_for_selector('[data-testid="timeblock-modal"]:visible', state="detached")
+
+    # The timeline must follow the preceding Schedule content directly. This
+    # relational guard catches accidental spacer/empty-state growth regardless
+    # of viewport height; the collapsed cap protects the initial-density goal.
+    timeline_box = page.locator('.tb-timeline-wrap').bounding_box()
+    assert timeline_box, f"{case_label}: timeline wrapper not rendered"
+    prior = page.locator('[data-testid="tb-unscheduled"]') if task_count else page.locator('.tb-toolbar')
+    prior_box = prior.bounding_box()
+    assert prior_box, f"{case_label}: content immediately before timeline is missing"
+    timeline_gap = timeline_box["y"] - (prior_box["y"] + prior_box["height"])
+    assert 8 <= timeline_gap <= 18, \
+        f"{case_label}: timeline gap must stay compact (8-18px), saw {timeline_gap:.1f}px"
+    if not expanded:
+        timeline_cap = 1120 if width <= 600 else 850
+        assert timeline_box["y"] <= timeline_cap, \
+            f"{case_label}: collapsed timeline starts at y={timeline_box['y']:.1f}, cap {timeline_cap}px"
+
+    mobile_text_ratio = None
+    if width <= 600 and task_count:
+        first_row = rows.first
+        row_box = first_row.bounding_box()
+        dot_box = first_row.locator('.tb-uns-dot').bounding_box()
+        text_box = first_row.locator('.tb-uns-text').bounding_box()
+        duration_box = first_row.locator('.tb-uns-dur').bounding_box()
+        quick_box = first_row.locator('.tb-uns-btn').bounding_box()
+        text_flex = first_row.locator('.tb-uns-text').evaluate("""el => {
+          const s = getComputedStyle(el);
+          return { grow: Number(s.flexGrow), basis: s.flexBasis, minWidth: s.minWidth };
+        }""")
+        wrap = first_row.evaluate("el => getComputedStyle(el).flexWrap")
+        assert row_box and dot_box and text_box and duration_box and quick_box, \
+            f"{case_label}: mobile row parts must be measurable"
+        assert wrap == "wrap", f"{case_label}: mobile unscheduled row does not wrap"
+        assert text_flex["grow"] >= 1 and text_flex["basis"] in ("0%", "0px") \
+            and text_flex["minWidth"] == "0px", \
+            f"{case_label}: task name must own flexible available width, saw {text_flex}"
+        min_text_width = max(96, row_box["width"] * 0.35)
+        assert text_box["width"] >= min_text_width, \
+            f"{case_label}: task name width {text_box['width']:.1f}px below {min_text_width:.1f}px"
+        mobile_text_ratio = text_box["width"] / row_box["width"]
+        dot_right = dot_box["x"] + dot_box["width"]
+        text_right = text_box["x"] + text_box["width"]
+        assert dot_right <= text_box["x"] + 1, \
+            f"{case_label}: priority dot overlaps or follows task text"
+        assert text_box["x"] < duration_box["x"] and text_right <= duration_box["x"] + 1, \
+            f"{case_label}: task text and duration overlap or render out of order"
+        assert duration_box["x"] + duration_box["width"] <= row_box["x"] + row_box["width"] + 1, \
+            f"{case_label}: duration overflows its row"
+        assert quick_box["width"] >= row_box["width"] - 18, \
+            f"{case_label}: mobile Quick Schedule is not full-row usable"
+        assert quick_box["height"] >= 44, \
+            f"{case_label}: mobile Quick Schedule target is under 44px"
+
+    assert_no_page_overflow(page, f"schedule-matrix {case_id} {width}x{height}")
+    page.evaluate("window.scrollTo(0, 0)")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+    return {
+        "collapsed": not expanded,
+        "timeline_y": timeline_box["y"],
+        "timeline_gap": timeline_gap,
+        "mobile_text_ratio": mobile_text_ratio,
+    }
+
+
+def schedule_visual_matrix_checks(browser, base, errors, source_assets=False):
+    """Six Schedule states across the required responsive viewport matrix."""
+    fixtures = (
+        ("a", "A cream dark / 0 unscheduled", "cream", True, 0, False),
+        ("b", "B cream dark / 3 unscheduled", "cream", True, 3, False),
+        ("c", "C cream dark / 10 collapsed", "cream", True, 10, False),
+        ("d", "D cream dark / 10 expanded", "cream", True, 10, True),
+        ("e", "E cream light / 10 collapsed", "cream", False, 10, False),
+        ("f", "F lavender dark / 10 collapsed", "lavender", True, 10, False),
+    )
+    viewports = (
+        (360, 800),
+        (390, 844),
+        (412, 915),
+        (768, 1024),
+        (1440, 900),
+        (1920, 1080),
+    )
+    screenshots = []
+    layout_metrics = []
+    for case_id, case_label, theme, dark, task_count, expanded in fixtures:
+        theme_label = f"{theme}-{'dark' if dark else 'light'}"
+        state_label = "expanded" if expanded else "collapsed"
+        for width, height in viewports:
+            screenshot = os.path.join(
+                tempfile.gettempdir(),
+                f"taskflow-schedule-matrix-{case_id}-{theme_label}-{task_count}-{state_label}-{width}x{height}.png",
+            )
+            layout_metrics.append(schedule_visual_case_checks(
+                browser,
+                base,
+                errors,
+                case_id=case_id,
+                case_label=case_label,
+                theme=theme,
+                dark=dark,
+                task_count=task_count,
+                expanded=expanded,
+                width=width,
+                height=height,
+                screenshot=screenshot,
+                source_assets=source_assets,
+            ))
+            screenshots.append(screenshot)
+    collapsed_tops = [item["timeline_y"] for item in layout_metrics if item["collapsed"]]
+    gaps = [item["timeline_gap"] for item in layout_metrics]
+    text_ratios = [
+        item["mobile_text_ratio"]
+        for item in layout_metrics
+        if item["mobile_text_ratio"] is not None
+    ]
+    print(
+        "SCHEDULE MATRIX LAYOUT:",
+        f"max-collapsed-timeline-y={max(collapsed_tops):.1f}px",
+        f"gap-range={min(gaps):.1f}-{max(gaps):.1f}px",
+        f"min-mobile-text-share={min(text_ratios) * 100:.1f}%",
+    )
+    print("SCHEDULE MATRIX SCREENSHOTS:", *screenshots)
 
 
 def load_inbox(page, base):
@@ -3043,6 +3354,11 @@ def main():
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--screenshots", action="store_true")
     parser.add_argument(
+        "--source-assets",
+        action="store_true",
+        help="serve authored Schedule CSS/JS for focused pre-release verification",
+    )
+    parser.add_argument(
         "--browser",
         choices=["chromium", "firefox", "webkit"],
         default="chromium",
@@ -3133,11 +3449,12 @@ def main():
                 segmented_geometry_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "schedule-unscheduled":
                 schedule_unscheduled_checks(
-                    browser, base, 1440, 900, errors, shots["desktop"], source_assets=True
+                    browser, base, 1440, 900, errors, shots["desktop"], source_assets=args.source_assets
                 )
                 schedule_unscheduled_checks(
-                    browser, base, 390, 844, errors, shots["mobile"], source_assets=True
+                    browser, base, 390, 844, errors, shots["mobile"], source_assets=args.source_assets
                 )
+                schedule_visual_matrix_checks(browser, base, errors, source_assets=args.source_assets)
             elif args.view == "inbox":
                 inbox_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 inbox_checks(browser, base, 390, 844, errors, shots["mobile"])
