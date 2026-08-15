@@ -84,8 +84,8 @@
           data-t-en="1. Without an account: data lives in your browser">1. Khi bạn chưa đăng nhập: dữ liệu nằm ngay trong trình duyệt của bạn</h2>
         <p data-t-vi="TaskFlow là ứng dụng offline-first. Khi chưa đăng nhập, toàn bộ kế hoạch, task, thói quen, reflection, ghi chú, cảm xúc, inbox, XP và cài đặt của bạn được lưu trong <strong>localStorage của chính trình duyệt</strong> (các khóa dạng <code>planner-*</code>) — nội dung kế hoạch của bạn không được gửi lên máy chủ TaskFlow."
           data-t-en="TaskFlow is an offline-first app. When you are not signed in, all of your plans, tasks, habits, reflections, notes, moods, inbox, XP, and settings are stored in your <strong>browser's own localStorage</strong> (keys like <code>planner-*</code>) — the contents of your planner are not sent to the TaskFlow server.">TaskFlow là ứng dụng offline-first. Khi chưa đăng nhập, toàn bộ kế hoạch, task, thói quen, reflection, ghi chú, cảm xúc, inbox, XP và cài đặt của bạn được lưu trong <strong>localStorage của chính trình duyệt</strong> (các khóa dạng <code>planner-*</code>) — nội dung kế hoạch của bạn không được gửi lên máy chủ TaskFlow.</p>
-        <p data-t-vi="Reflection và mood là dữ liệu riêng tư. TaskFlow hiện không gửi nội dung này tới AI hoặc API bên thứ ba để phân tích."
-          data-t-en="Reflections and moods are private data. TaskFlow currently does not send this content to AI or third-party APIs for analysis.">Reflection và mood là dữ liệu riêng tư. TaskFlow hiện không gửi nội dung này tới AI hoặc API bên thứ ba để phân tích.</p>
+        <p data-t-vi="Reflection và Mood là dữ liệu riêng tư. TaskFlow loại chúng khỏi context AI theo mặc định. Chúng chỉ được gửi tới nhà cung cấp AI khi bạn chủ động cho phép trong yêu cầu AI đó (xem mục 7)."
+          data-t-en="Reflections and Moods are private data. TaskFlow excludes them from AI context by default. They are sent to the AI provider only when you explicitly allow them in that AI request (see section 7).">Reflection và Mood là dữ liệu riêng tư. TaskFlow loại chúng khỏi context AI theo mặc định. Chúng chỉ được gửi tới nhà cung cấp AI khi bạn chủ động cho phép trong yêu cầu AI đó (xem mục 7).</p>
         <p data-t-vi="Điều này nghĩa là: dữ liệu gắn với đúng thiết bị và trình duyệt bạn đang dùng. Xóa dữ liệu duyệt web (hoặc dùng trình duyệt khác) sẽ không còn thấy kế hoạch cũ — trừ khi bạn đã đăng nhập và đồng bộ."
           data-t-en="This means: your data is tied to the exact device and browser you use. Clearing browsing data (or switching browsers) will not show your old plans — unless you signed in and synced.">Điều này nghĩa là: dữ liệu gắn với đúng thiết bị và trình duyệt bạn đang dùng. Xóa dữ liệu duyệt web (hoặc dùng trình duyệt khác) sẽ không còn thấy kế hoạch cũ — trừ khi bạn đã đăng nhập và đồng bộ.</p>
       </section>
@@ -110,8 +110,8 @@
             data-t-en="Sessions use a JWT token valid for 30 days; the token lives in your browser's localStorage.">Phiên đăng nhập dùng token JWT có hạn 30 ngày; token được giữ trong localStorage của trình duyệt.</li>
           <li data-t-vi="Đăng nhập/đăng ký được giới hạn tốc độ (10 lần mỗi 15 phút mỗi IP) để hạn chế đoán mật khẩu."
             data-t-en="Login/signup is rate-limited (10 attempts per 15 minutes per IP) to limit password guessing.">Đăng nhập/đăng ký được giới hạn tốc độ (10 lần mỗi 15 phút mỗi IP) để hạn chế đoán mật khẩu.</li>
-          <li data-t-vi="Đăng nhập bằng Google chuyển hướng qua máy chủ để lấy token; chúng tôi không lưu lại thông tin Google ngoài mã định danh tài khoản Google của bạn."
-            data-t-en="Google sign-in redirects through the server to obtain a token; we store no Google information beyond your Google account identifier.">Đăng nhập bằng Google chuyển hướng qua máy chủ để lấy token; chúng tôi không lưu lại thông tin Google ngoài mã định danh tài khoản Google của bạn.</li>
+          <li data-t-vi="<strong>Google Sign-In</strong> chỉ dùng cho xác thực tài khoản: trình duyệt chuyển hướng qua máy chủ để lấy token phiên; máy chủ không lưu thông tin Google ngoài mã định danh tài khoản Google của bạn. Việc này tách biệt hoàn toàn với kết nối Google Calendar (mục 7)."
+            data-t-en="<strong>Google Sign-In</strong> is used only for account authentication: the browser redirects through the server to obtain a session token; the server stores no Google information beyond your Google account identifier. This is entirely separate from the Google Calendar connection (section 7)."><strong>Google Sign-In</strong> chỉ dùng cho xác thực tài khoản: trình duyệt chuyển hướng qua máy chủ để lấy token phiên; máy chủ không lưu thông tin Google ngoài mã định danh tài khoản Google của bạn. Việc này tách biệt hoàn toàn với kết nối Google Calendar (mục 7).</li>
         </ul>
       </section>
 
@@ -140,7 +140,25 @@
       </section>
 
       <section class="legal-section">
-        <h2 data-t-vi="6. AI Planning Copilot (tùy chọn)" data-t-en="6. AI Planning Copilot (optional)">6. AI Planning Copilot (tùy chọn)</h2>
+        <h2 data-t-vi="6. Google Calendar (tùy chọn)" data-t-en="6. Google Calendar (optional)">6. Google Calendar (tùy chọn)</h2>
+        <p data-t-vi="Kết nối Google Calendar là <strong>tùy chọn</strong> và do bạn chủ động bật trong ứng dụng — không tự động. Lần đầu kết nối chỉ yêu cầu scope <strong>đọc</strong> (<code>calendar.readonly</code>) để hiển thị sự kiện bên ngoài trong TaskFlow; TaskFlow không sửa sự kiện Google nào ở chế độ này."
+          data-t-en="Connecting Google Calendar is <strong>optional</strong> and explicitly enabled by you in the app — never automatic. The first connection requests only a <strong>read-only</strong> scope (<code>calendar.readonly</code>) to display external events in TaskFlow; TaskFlow does not modify any Google event in this mode.">Kết nối Google Calendar là <strong>tùy chọn</strong> và do bạn chủ động bật trong ứng dụng — không tự động. Lần đầu kết nối chỉ yêu cầu scope <strong>đọc</strong> (<code>calendar.readonly</code>) để hiển thị sự kiện bên ngoài trong TaskFlow; TaskFlow không sửa sự kiện Google nào ở chế độ này.</p>
+        <p data-t-vi="Scope <strong>ghi</strong> (<code>calendar.events</code>) chỉ được yêu cầu khi bạn bật chức năng "Thêm vào Google Calendar" để xuất TimeBlock của TaskFlow thành sự kiện Google. Máy chủ có thể lưu thông tin OAuth cần cho tích hợp: <strong>access token, refresh token, thời hạn, scopes và trạng thái kết nối</strong>, gắn với tài khoản của bạn. Access token không bao giờ được gửi xuống trình duyệt — client chỉ nhận trạng thái kết nối và danh sách lịch."
+          data-t-en="A <strong>write</strong> scope (<code>calendar.events</code>) is requested only when you enable the "Add to Google Calendar" feature to export TaskFlow Time Blocks as Google events. The server may hold the OAuth information required for the integration: <strong>access token, refresh token, expiry, scopes and connection state</strong>, tied to your account. The access token is never sent down to the browser — the client only receives connection status and the calendar list.">Scope <strong>ghi</strong> (<code>calendar.events</code>) chỉ được yêu cầu khi bạn bật chức năng "Thêm vào Google Calendar" để xuất TimeBlock của TaskFlow thành sự kiện Google. Máy chủ có thể lưu thông tin OAuth cần cho tích hợp: <strong>access token, refresh token, thời hạn, scopes và trạng thái kết nối</strong>, gắn với tài khoản của bạn. Access token không bao giờ được gửi xuống trình duyệt — client chỉ nhận trạng thái kết nối và danh sách lịch.</p>
+        <ul class="legal-list">
+          <li data-t-vi="TimeBlock TaskFlow đã xuất có thể <strong>tạo hoặc cập nhật</strong> sự kiện trong Google Calendar của bạn."
+            data-t-en="Exported TaskFlow Time Blocks can <strong>create or update</strong> events in your Google Calendar.">TimeBlock TaskFlow đã xuất có thể <strong>tạo hoặc cập nhật</strong> sự kiện trong Google Calendar của bạn.</li>
+          <li data-t-vi="Việc <strong>xóa sự kiện</strong> phía Google được kiểm soát bằng cờ <code>syncDeletes</code> — mặc định <strong>tắt</strong>, tức TaskFlow không bao giờ tự xóa sự kiện Google trừ khi bạn bật."
+            data-t-en="<strong>Deleting</strong> Google events is gated by the <code>syncDeletes</code> flag — <strong>off by default</strong>, meaning TaskFlow never deletes Google events on its own unless you enable it.">Việc <strong>xóa sự kiện</strong> phía Google được kiểm soát bằng cờ <code>syncDeletes</code> — mặc định <strong>tắt</strong>, tức TaskFlow không bao giờ tự xóa sự kiện Google trừ khi bạn bật.</li>
+          <li data-t-vi="<strong>Không có</strong> đồng bộ hai chiều tự động và <strong>không có</strong> engine kéo sửa đổi (pull-back) chạy nền. TaskFlow vẫn là nguồn chính của kế hoạch."
+            data-t-en="There is <strong>no</strong> automatic full two-way sync and <strong>no</strong> background pull-back conflict engine. TaskFlow remains the source of truth for planning."><strong>Không có</strong> đồng bộ hai chiều tự động và <strong>không có</strong> engine kéo sửa đổi (pull-back) chạy nền. TaskFlow vẫn là nguồn chính của kế hoạch.</li>
+          <li data-t-vi="Bạn có thể <strong>ngắt kết nối</strong> bất cứ lúc nào từ ứng dụng; thao tác này xóa thông tin OAuth khỏi máy chủ."
+            data-t-en="You can <strong>disconnect</strong> at any time from the app; this clears the OAuth information from the server.">Bạn có thể <strong>ngắt kết nối</strong> bất cứ lúc nào từ ứng dụng; thao tác này xóa thông tin OAuth khỏi máy chủ.</li>
+        </ul>
+      </section>
+
+      <section class="legal-section">
+        <h2 data-t-vi="7. AI Planning Copilot (tùy chọn)" data-t-en="7. AI Planning Copilot (optional)">7. AI Planning Copilot (tùy chọn)</h2>
         <p data-t-vi="Tính năng AI Copilot là <strong>tùy chọn</strong> và mặc định tắt. Khi bạn bấm "Gợi ý với AI", ứng dụng gửi tới máy chủ một <strong>context tối thiểu</strong> (không phải toàn bộ dữ liệu): danh sách task, dự án, milestone, timeblock và khung giờ bận — được giới hạn số lượng và độ dài."
           data-t-en="AI Copilot is <strong>optional</strong> and off by default. When you press "Ask AI", the app sends a <strong>minimal context</strong> (not all of your data) to the server: a capped list of tasks, projects, milestones, time blocks and busy windows.">Tính năng AI Copilot là <strong>tùy chọn</strong> và mặc định tắt. Khi bạn bấm "Gợi ý với AI", ứng dụng gửi tới máy chủ một <strong>context tối thiểu</strong> (không phải toàn bộ dữ liệu): danh sách task, dự án, milestone, timeblock và khung giờ bận — được giới hạn số lượng và độ dài.</p>
         <p data-t-vi="AI là <strong>một dịch vụ bên thứ ba qua proxy máy chủ của TaskFlow</strong>: dữ liệu rời khỏi thiết bị của bạn và được gửi tới nhà cung cấp mô hình ngôn ngữ để tạo đề xuất. AI chỉ <strong>đọc</strong> context; mọi thay đổi chỉ được ghi sau khi bạn xem trước và bấm Áp dụng. AI không bao giờ tự sửa dữ liệu."
@@ -152,7 +170,7 @@
       </section>
 
       <section class="legal-section">
-        <h2 data-t-vi="7. Xóa tài khoản" data-t-en="7. Deleting your account">7. Xóa tài khoản</h2>
+        <h2 data-t-vi="8. Xóa tài khoản" data-t-en="8. Deleting your account">8. Xóa tài khoản</h2>
         <p data-t-vi="Trong Cài đặt → Tài khoản, bạn có thể xóa tài khoản của mình. Thao tác này gọi API <code>POST /api/auth/delete-account</code>: máy chủ xóa tài khoản và <strong>toàn bộ dữ liệu đồng bộ liên quan</strong> (bảng <code>planner_state</code> có khóa ngoại <code>on delete cascade</code>)."
           data-t-en="In Settings → Account, you can delete your account. This calls <code>POST /api/auth/delete-account</code>: the server deletes your account and <strong>all related synced data</strong> (the <code>planner_state</code> table uses <code>on delete cascade</code>).">Trong Cài đặt → Tài khoản, bạn có thể xóa tài khoản của mình. Thao tác này gọi API <code>POST /api/auth/delete-account</code>: máy chủ xóa tài khoản và <strong>toàn bộ dữ liệu đồng bộ liên quan</strong> (bảng <code>planner_state</code> có khóa ngoại <code>on delete cascade</code>).</p>
         <p data-t-vi="Việc xóa tài khoản <strong>không tự động xóa localStorage</strong> trên thiết bị của bạn — nếu muốn sạch hoàn toàn, hãy xóa dữ liệu duyệt web sau khi xóa tài khoản."
@@ -160,13 +178,13 @@
       </section>
 
       <section class="legal-section">
-        <h2 data-t-vi="8. Bảo mật truyền tải" data-t-en="8. Transport security">8. Bảo mật truyền tải</h2>
+        <h2 data-t-vi="9. Bảo mật truyền tải" data-t-en="9. Transport security">9. Bảo mật truyền tải</h2>
         <p data-t-vi="Mọi liên lạc với máy chủ đều qua HTTPS. Nội dung dữ liệu <em>đồng bộ</em> được lưu ở dạng JSON trong cơ sở dữ liệu — chúng tôi không mã hóa nội dung khi lưu (không có mã hóa end-to-end). Nếu dữ liệu của bạn nhạy cảm, hãy cân nhắc dùng TaskFlow mà không đăng nhập, hoặc chỉ giữ dữ liệu trên thiết bị."
           data-t-en="All communication with the server is over HTTPS. Synced data is stored as JSON in the database — we do not encrypt content at rest (there is no end-to-end encryption). If your data is sensitive, consider using TaskFlow without an account, or keep data on-device only.">Mọi liên lạc với máy chủ đều qua HTTPS. Nội dung dữ liệu <em>đồng bộ</em> được lưu ở dạng JSON trong cơ sở dữ liệu — chúng tôi không mã hóa nội dung khi lưu (không có mã hóa end-to-end). Nếu dữ liệu của bạn nhạy cảm, hãy cân nhắc dùng TaskFlow mà không đăng nhập, hoặc chỉ giữ dữ liệu trên thiết bị.</p>
       </section>
 
       <section class="legal-section">
-        <h2 data-t-vi="9. Liên hệ" data-t-en="9. Contact">9. Liên hệ</h2>
+        <h2 data-t-vi="10. Liên hệ" data-t-en="10. Contact">10. Liên hệ</h2>
         <p><span data-t-vi="Nếu bạn có câu hỏi về quyền riêng tư hoặc dữ liệu của mình, hãy mở một issue trên "
           data-t-en="If you have questions about privacy or your data, open an issue on ">Nếu bạn có câu hỏi về quyền riêng tư hoặc dữ liệu của mình, hãy mở một issue trên </span><a href="https://github.com/HungPhamManh06/Todoist" rel="noopener noreferrer">GitHub</a>.</p>
       </section>
