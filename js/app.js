@@ -1005,7 +1005,7 @@ function applyPlannerPlan() {
 // Lưu id block đang edit (null = thêm mới). Dùng cho save từ dialog.
 let _tbEditId = null;
 
-function openTimeBlockModal({ blockId, date, taskUid } = {}) {
+function openTimeBlockModal({ blockId, date, taskUid, durationMinutes } = {}) {
   const blocks = loadTimeBlocksStore();
   const block = blockId ? window.TaskFlowTimeBlocks.getBlock(blocks, blockId) : null;
   _tbEditId = blockId || null;
@@ -1018,6 +1018,8 @@ function openTimeBlockModal({ blockId, date, taskUid } = {}) {
       state,
       inbox,
       planStart: PLAN_START,
+      // Quick Schedule: đề xuất end = start + duration (chỉ block mới, user sửa được).
+      durationMinutes: block ? null : durationMinutes,
     });
   }
   TaskFlowUI.openDialog('timeBlockModal');
@@ -5531,6 +5533,13 @@ document.addEventListener('click', (e) => {
     renderCalendarSchedule();
   } else if (act === 'tb-add') {
     openTimeBlockModal({ date: el.dataset.date || calendarSelDate || localTodayIso() });
+  } else if (act === 'tb-quick') {
+    // Quick Schedule: mở dialog Thêm khung giờ với task + ngày + duration đề xuất.
+    openTimeBlockModal({
+      taskUid: el.dataset.uid || '',
+      date: el.dataset.date || calendarSelDate || localTodayIso(),
+      durationMinutes: el.dataset.dur ? parseInt(el.dataset.dur, 10) : undefined,
+    });
   } else if (act === 'td-tb-add') {
     openTimeBlockModal({ taskUid: el.dataset.uid || '' });
   } else if (act === 'tb-edit') {

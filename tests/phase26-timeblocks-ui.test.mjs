@@ -9,7 +9,20 @@ globalThis.window = globalThis;
 const TimeBlocks = (await import('../js/timeblocks.js')).default || (await import('../js/timeblocks.js'));
 const UI = (await import('../js/timeblocks-ui.js')).default || (await import('../js/timeblocks-ui.js'));
 window.TaskFlowTimeBlocks = TimeBlocks;
-window.TaskFlowI18N = { t: (k, v) => (k || ''), locale: 'en-US' };
+// Stub i18n: resolve V2 unscheduled keys (with {n} interpolation), keep unknown keys as-is.
+const T_KEYS = {
+  tbUnscheduled: 'Unscheduled', tbUnsCountOne: '1 task', tbUnsCount: '{n} tasks',
+  tbUnsDur: '{n} min', tbScheduleAction: 'Schedule',
+  tbNoTasksNoBlocks: 'No tasks or time blocks yet', tbNoBlocksUnscheduled: 'Unscheduled tasks above',
+};
+window.TaskFlowI18N = {
+  t: (k, v) => {
+    const s = T_KEYS[k];
+    if (s === undefined) return k || '';
+    return v ? String(s).replace(/\{(\w+)\}/g, (_, m) => (v[m] == null ? '' : v[m])) : s;
+  },
+  locale: 'en-US',
+};
 window.TaskFlowUI = { esc: (s) => String(s == null ? '' : s), icon: (n) => '<i>' + n + '</i>' };
 
 function makeState() {
@@ -209,4 +222,122 @@ test('dayStrip muted day (outside month) flagged', () => {
   const html = UI.dayStripHTML('2026-08-31', '2026-08-10', '2026-08-01', '2026-08-31');
   // 2026-08-31 is a Monday → strip covers 08-31..09-06 → 09-01..09-06 muted
   assert.ok(html.includes('muted'));
+});
+
+/* ---------------- V2 Schedule UX: unscheduled tasks ---------------- */
+
+test('unscheduledTasksForDate: scheduled iff any non-cancelled block on the day', () => {
+  const state = {
+    weeks: [{
+      n: 1, days: [
+        { date: '2026-08-10', tasks: [
+          { uid: 'a', text: 'No block' },
+          { uid: 'b', text: 'Planned block' },
+          { uid: 'c', text: 'Cancelled-only' },
+          { uid: 'd', text: 'Done task', done: true },
+          { uid: 'e', text: 'Two blocks' },
+        ] },
+        { date: '2026-08-11', tasks: [{ uid: 'f', text: 'Other day' }] },
+      ],
+    }],
+  };
+  const store = { version: 2, blocks: [
+    { id: 'x1', taskUid: 'b', date: '2026-08-10', start: '09:00', end: '10:00', status: 'planned' },
+    { id: 'x2', taskUid: 'c', date: '2026-08-10', start: '11:00', end: '12:00', status: 'cancelled' },
+    { id: 'x3', taskUid: 'e', date: '2026-08-10', start: '08:00', end: '08:30', status: 'planned' },
+    { id: 'x4', taskUid: 'e', date: '2026-08-10', start: '16:00', end: '17:00', status: 'completed' },
+  ] };
+  // 1 no block, 2 planned block, 3 cancelled-only, 4 done, 5 two blocks (planned+completed)
+  const res = UI.unscheduledTasksForDate({ state, planStart, date: '2026-08-10', timeblockStore: store });
+  assert.deepEqual(res.map((t) => t.uid).sort(), ['a', 'c']);
+  // 6 task from another date excluded
+  const day2 = UI.unscheduledTasksForDate({ state, planStart, date: '2026-08-11', timeblockStore: store });
+  assert.deepEqual(day2.map((t) => t.uid), ['f']);
+  // cancelled-only task disappears once a real block is added
+  store.blocks.push({ id: 'x5', taskUid: 'c', date: '2026-08-10', start: '13:00', end: '13:30', status: 'planned' });
+  const after = UI.unscheduledTasksForDate({ state, planStart, date: '2026-08-10', timeblockStore: store });
+  assert.deepEqual(after.map((t) => t.uid), ['a']);
+});
+
+test('unscheduledTasksForDate: no store / no blocks → all day tasks unscheduled', () => {
+  const state = makeState();
+  const res = UI.unscheduledTasksForDate({ state, planStart, date: '2026-08-10', timeblockStore: null });
+  assert.deepEqual(res.map((t) => t.uid), ['u1']);
+  const empty = UI.unscheduledTasksForDate({ state, planStart, date: '2026-08-12', timeblockStore: null });
+  assert.deepEqual(empty, []);
+});
+
+test('unscheduledSectionHTML: rows with duration, priority dot, quick action; empty → ""', () => {
+  const tasks = [
+    { uid: 'a', text: 'Làm bài Database', duration: 60, kind: 'regular' },
+    { uid: 'c', text: 'Học English', estimatedMinutes: 30, kind: 'priority' },
+  ];
+  const html = UI.unscheduledSectionHTML(tasks, '2026-08-15');
+  assert.ok(html.includes('tb-unscheduled'));
+  assert.ok(html.includes('tb-uns-row'));
+  assert.ok(html.includes('Làm bài Database'));
+  assert.ok(html.includes('data-action="tb-quick"'));
+  assert.ok(html.includes('data-uid="a"'));
+  assert.ok(html.includes('data-date="2026-08-15"'));
+  assert.ok(html.includes('data-dur="60"'));
+  assert.ok(html.includes('data-dur="30"'));
+  assert.ok(html.includes('60 min'));
+  assert.ok(html.includes('2 tasks'));
+  assert.ok(html.includes('tb-uns-dot priority'));
+  assert.ok(html.includes('aria-label="Schedule: Làm bài Database"'));
+  assert.equal(UI.unscheduledSectionHTML([], '2026-08-15'), '');
+  // task without duration → row without duration chip
+  const noDur = UI.unscheduledSectionHTML([{ uid: 'z', text: 'Quick note' }], '2026-08-15');
+  assert.ok(noDur.includes('Quick note'));
+  assert.ok(!noDur.includes('tb-uns-dur'));
+});
+
+test('unscheduledSectionHTML: one row per given task (derivation dedupes upstream)', () => {
+  const tasks = [
+    { uid: 'a', text: 'Again' },
+    { uid: 'a', text: 'Again' }, // defensive: callers pass the derived list; section renders rows 1:1
+  ];
+  const html = UI.unscheduledSectionHTML(tasks, '2026-08-15');
+  assert.equal((html.match(/tb-uns-row/g) || []).length, 2);
+});
+
+test('timelineEmptyMessage: context variants', () => {
+  assert.equal(UI.timelineEmptyMessage(0, 0), 'No tasks or time blocks yet');
+  assert.equal(UI.timelineEmptyMessage(3, 2), 'Unscheduled tasks above');
+  assert.equal(UI.timelineEmptyMessage(3, 0), 'tbNoBlocks');
+});
+
+test('scheduleViewHTML: unscheduled section above timeline, present only when tasks exist', () => {
+  const state = {
+    weeks: [{ n: 1, days: [{ date: '2026-08-10', tasks: [{ uid: 'u1', text: 'Learn Spring Boot' }] }] }],
+  };
+  const store = makeStore(); // b1 planned for u1 on 08-10 → scheduled, no unscheduled section
+  const html = UI.scheduleViewHTML({ store, date: '2026-08-10', state, inbox, planStart, todayIso: '2026-08-10', monthStart: '2026-08-01', monthEnd: '2026-08-31' });
+  assert.ok(!html.includes('tb-unscheduled'));
+  // drop the planned block → section appears above the timeline
+  const bare = { version: 2, blocks: store.blocks.filter((b) => b.taskUid !== 'u1' || b.date !== '2026-08-10') };
+  const html2 = UI.scheduleViewHTML({ store: bare, date: '2026-08-10', state, inbox, planStart, todayIso: '2026-08-10', monthStart: '2026-08-01', monthEnd: '2026-08-31' });
+  assert.ok(html2.includes('tb-unscheduled'));
+  assert.ok(html2.indexOf('tb-unscheduled') < html2.indexOf('tb-timeline'));
+  // empty day → combined message, no section
+  const empty = UI.scheduleViewHTML({ store: bare, date: '2026-08-12', state, inbox, planStart, todayIso: '2026-08-10', monthStart: '2026-08-01', monthEnd: '2026-08-31' });
+  assert.ok(!empty.includes('tb-unscheduled'));
+  assert.ok(empty.includes('No tasks or time blocks yet'));
+});
+
+test('blockDialogHTML: durationMinutes proposes end = start + duration for new block only', () => {
+  const state = makeState();
+  // 09:00 default start + 90m → 10:30 (distinct from the 10:00 default end)
+  const fresh = UI.blockDialogHTML({ date: '2026-08-10', state, inbox, planStart, durationMinutes: 90 });
+  assert.ok(fresh.includes('value="09:00"'));
+  assert.ok(fresh.includes('value="10:30"'));
+  assert.ok(!fresh.includes('value="10:00"'));
+  // editing an existing block never prefills — keeps its own end (b2 ends 15:00)
+  const editing = UI.blockDialogHTML({ block: makeStore().blocks[1], date: '2026-08-10', state, inbox, planStart, durationMinutes: 90 });
+  assert.ok(editing.includes('value="15:00"'));
+  assert.ok(!editing.includes('value="10:30"'));
+  // invalid duration → no prefill, plain default end
+  const bad = UI.blockDialogHTML({ date: '2026-08-10', state, inbox, planStart, durationMinutes: 0 });
+  assert.ok(bad.includes('value="10:00"'));
+  assert.ok(!bad.includes('value="10:30"'));
 });

@@ -109,6 +109,70 @@
     return (d && Array.isArray(d.tasks)) ? d.tasks.filter((x) => x && x.uid) : [];
   }
 
+  /* ---------------- Unscheduled tasks (V2 Schedule UX) ---------------- */
+
+  // Thời lượng dự kiến (phút) của task — field duration (Quick Add) hoặc
+  // estimatedMinutes (AI/contexts, như taskEstimatedMinutes của contexts.js).
+  function taskDurationMin(task) {
+    if (!task) return null;
+    if (typeof task.duration === 'number' && Number.isFinite(task.duration) && task.duration > 0) {
+      return Math.round(task.duration);
+    }
+    if (typeof task.estimatedMinutes === 'number' && Number.isFinite(task.estimatedMinutes) && task.estimatedMinutes > 0) {
+      return Math.round(task.estimatedMinutes);
+    }
+    return null;
+  }
+
+  // Tasks của ngày CHƯA có TimeBlock hợp lệ (non-cancelled) — section "Chưa lên lịch".
+  // Một task được coi là ĐÃ lên lịch nếu có BẤT KỲ block planned/completed cùng ngày;
+  // block cancelled-only → task quay về unscheduled. Loại task đã hoàn thành.
+  // Pure — không mutate. Độ phức tạp O(tasks + blocks) (Set tính 1 lần mỗi render).
+  function unscheduledTasksForDate({ state, planStart, date, timeblockStore }) {
+    const tasks = tasksForDate(state, planStart, date);
+    const tb = TB();
+    const scheduled = new Set();
+    if (tb && timeblockStore && Array.isArray(timeblockStore.blocks)) {
+      for (const b of timeblockStore.blocks) {
+        if (b && b.date === date && b.taskUid && b.status !== 'cancelled') {
+          scheduled.add(b.taskUid);
+        }
+      }
+    }
+    return tasks.filter((tk) => tk && tk.uid && !tk.done && !scheduled.has(tk.uid));
+  }
+
+  // Section "Chưa lên lịch": header + count + rows (dot ưu tiên, text, duration,
+  // nút Xếp lịch). Trả '' khi không có task unscheduled (tất cả đã xếp lịch / không
+  // có task) — giữ giao diện nhẹ nhàng. Không thêm checkbox: hành động của hàng là
+  // Xếp lịch, không phải đánh dấu hoàn thành.
+  function unscheduledSectionHTML(tasks, dateIso) {
+    if (!Array.isArray(tasks) || !tasks.length) return '';
+    const n = tasks.length;
+    const countLabel = n === 1 ? t('tbUnsCountOne') : t('tbUnsCount', { n });
+    const rows = tasks.map((tk) => {
+      const text = String(tk.text || '').trim();
+      if (!text) return '';
+      const dur = taskDurationMin(tk);
+      const durHtml = dur !== null
+        ? `<span class="tb-uns-dur">${esc(t('tbUnsDur', { n: dur }))}</span>`
+        : '';
+      const dotCls = tk.kind === 'priority' ? 'priority' : 'regular';
+      return `<div class="tb-uns-row">
+        <span class="tb-uns-dot ${dotCls}" aria-hidden="true"></span>
+        <span class="tb-uns-text">${esc(text)}</span>
+        ${durHtml}
+        <button type="button" class="pop-btn tb-uns-btn" data-action="tb-quick"
+          data-uid="${esc(tk.uid)}" data-date="${esc(dateIso)}" data-dur="${dur === null ? '' : dur}"
+          aria-label="${esc(t('tbScheduleAction'))}: ${esc(text)}">${esc(t('tbScheduleAction'))}</button>
+      </div>`;
+    }).join('');
+    return `<section class="tb-unscheduled" aria-label="${esc(t('tbUnscheduled'))}" data-testid="tb-unscheduled">
+      <h2 class="tb-uns-heading">${esc(t('tbUnscheduled'))}<span class="tb-uns-count">${esc(countLabel)}</span></h2>
+      <div class="tb-uns-list">${rows}</div>
+    </section>`;
+  }
+
   /* ---------------- Schedule view ---------------- */
 
   // Dải 7 ngày trong tuần chứa selected — click chọn ngày.
@@ -164,8 +228,19 @@
     </div>`;
   }
 
+  // Message rỗng của timeline theo ngữ cảnh:
+  // - Không có task nào trong ngày → thông báo gộp (task + khung giờ).
+  // - Có task unscheduled → nhắc section nằm phía trên.
+  // - Còn lại (task đều đã xếp lịch / đã hoàn thành) → message mặc định.
+  function timelineEmptyMessage(totalTasks, unscheduledCount) {
+    if (!totalTasks) return t('tbNoTasksNoBlocks');
+    if (unscheduledCount > 0) return t('tbNoBlocksUnscheduled');
+    return t('tbNoBlocks');
+  }
+
   // Timeline dọc 00:00–23:59 + blocks của ngày.
-  function timelineHTML(store, date, state, inbox, blockActions) {
+  // opts = { unscheduledCount, totalTasks } — chọn message rỗng theo ngữ cảnh.
+  function timelineHTML(store, date, state, inbox, blockActions, opts) {
     const blocks = sortedBlocks(store, date);
     const PXM = 1.2;
     const HOURS = 24;
@@ -175,9 +250,10 @@
       const label = String(h).padStart(2, '0') + ':00';
       grid += `<div class="tb-hour" style="top:${top}px" aria-hidden="true"><span>${label}</span></div>`;
     }
+    const o = opts || {};
     const body = blocks.length
       ? blocks.map((b) => blockRowHTML(b, state, inbox, blockActions)).join('')
-      : `<div class="tb-empty">${esc(t('tbNoBlocks'))}</div>`;
+      : `<div class="tb-empty">${esc(timelineEmptyMessage(o.totalTasks || 0, o.unscheduledCount || 0))}</div>`;
     const overlaps = detectOverlaps(store, date);
     return `<div class="tb-timeline-wrap">
       ${overlaps ? `<p class="tb-overlap-note" role="status">${icon('bell')}<span>${esc(t('tbOverlapNote'))}</span></p>` : ''}
@@ -210,8 +286,8 @@
     const selIso = iso(parseISO(date) || new Date());
     const d = parseISO(selIso);
     const weekday = d.toLocaleDateString(t('locale') || 'vi-VN', { weekday: 'long', day: 'numeric', month: 'long' });
-    const prevIso = iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1));
-    const nextIso = iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1));
+    const dayTasks = tasksForDate(state, planStart, selIso);
+    const unscheduled = unscheduledTasksForDate({ state, planStart, date: selIso, timeblockStore: store });
     return `<div class="tb-schedule" data-testid="schedule-view">
       <div class="tb-nav">
         <button type="button" class="tb-nav-btn" data-action="tb-prev" aria-label="${esc(t('tbPrevDay'))}" title="${esc(t('tbPrevDay'))}">${icon('chevron-left')}</button>
@@ -227,7 +303,11 @@
           <button type="button" class="pop-btn" data-action="tb-next"><span>${esc(t('tbNextDay'))}</span>${icon('chevron-right')}</button>
         </span>
       </div>
-      ${timelineHTML(store, selIso, state, inbox, blockActions)}
+      ${unscheduledSectionHTML(unscheduled, selIso)}
+      ${timelineHTML(store, selIso, state, inbox, blockActions, {
+        unscheduledCount: unscheduled.length,
+        totalTasks: dayTasks.length,
+      })}
     </div>`;
   }
 
@@ -251,9 +331,18 @@
     return opts.join('');
   }
 
-  function blockDialogHTML({ block, date, state, inbox, planStart }) {
+  function blockDialogHTML({ block, date, state, inbox, planStart, durationMinutes }) {
     const b = block || {};
     const selIso = b.date || date || '';
+    // Đề xuất thời lượng từ task.duration (Quick Schedule): end = start + duration.
+    // Chỉ pre-fill cho block MỚI; user luôn có thể sửa (không ép buộc).
+    const startDefault = b.start || '09:00';
+    let endDefault = b.end || '10:00';
+    if (!block && !b.end && typeof durationMinutes === 'number' && durationMinutes > 0) {
+      const tb = TB();
+      const proposed = tb ? tb.defaultBlockEnd(startDefault, durationMinutes) : null;
+      if (proposed) endDefault = proposed;
+    }
     const statusOpts = ['planned', 'completed', 'cancelled'].map((s) =>
       `<option value="${s}" ${b.status === s ? 'selected' : ''}>${esc(t('tbStatus' + (s === 'planned' ? 'Planned' : s === 'completed' ? 'Completed' : 'Cancelled')))}</option>`).join('');
     return `<div class="tb-dialog-form">
@@ -268,11 +357,11 @@
       <div class="tb-dialog-times">
         <label class="td-field">
           <span class="td-field-label">${esc(t('tbStart'))}</span>
-          <input type="time" data-role="tb-start" value="${esc(b.start || '09:00')}" aria-label="${esc(t('tbStart'))}">
+          <input type="time" data-role="tb-start" value="${esc(startDefault)}" aria-label="${esc(t('tbStart'))}">
         </label>
         <label class="td-field">
           <span class="td-field-label">${esc(t('tbEnd'))}</span>
-          <input type="time" data-role="tb-end" value="${esc(b.end || '10:00')}" aria-label="${esc(t('tbEnd'))}">
+          <input type="time" data-role="tb-end" value="${esc(endDefault)}" aria-label="${esc(t('tbEnd'))}">
         </label>
       </div>
       <label class="td-field">
@@ -328,7 +417,8 @@
 
   return {
     iso, parseISO, mondayOf, weekDayForDate, tasksForDate, taskTextFor, focusRefForUid,
-    dayStripHTML, blockRowHTML, timelineHTML, detectOverlaps, scheduleViewHTML,
+    taskDurationMin, unscheduledTasksForDate, unscheduledSectionHTML,
+    dayStripHTML, blockRowHTML, timelineHTML, timelineEmptyMessage, detectOverlaps, scheduleViewHTML,
     taskOptionsHTML, blockDialogHTML, readBlockDialog, taskDetailBlocksHTML,
     fmtTimeRange, sortedBlocks,
   };

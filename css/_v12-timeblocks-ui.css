@@ -116,6 +116,34 @@
 .tb-act:hover { background: var(--surface-soft, #f4f0e8); }
 .tb-act.danger:hover { background: #f8e4dc; color: #b04a2a; }
 .tb-empty { padding: 14px; font-size: 13px; color: var(--text-faint, #9a927f); }
+/* Unscheduled tasks section (Schedule view) — compact, calmer than timeline */
+.tb-unscheduled {
+  margin: 0 0 14px; padding: 10px 12px;
+  border: 1px solid var(--border-soft, #e3dccb); border-radius: 12px;
+  background: var(--surface-soft, #f4f0e8);
+}
+.tb-uns-heading {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 0 0 6px; font-size: 12px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text-faint, #9a927f);
+}
+.tb-uns-count { font-weight: 600; text-transform: none; letter-spacing: 0; opacity: .85; }
+.tb-uns-list { display: flex; flex-direction: column; gap: 4px; }
+.tb-uns-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 8px;
+  border: 1px solid var(--border-faint, #efe9db);
+  background: var(--surface, #fffdf7); font-size: 13px;
+}
+.tb-uns-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--text-faint, #9a927f); }
+.tb-uns-dot.priority { background: var(--accent, #b97d3b); }
+.tb-uns-text {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-strong, #2f2a20);
+}
+.tb-uns-dur { font-size: 12px; color: var(--text-faint, #9a927f); white-space: nowrap; }
+.tb-uns-btn { flex: 0 0 auto; font-size: 12px; padding: 6px 10px; }
 .tb-dialog-form { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px; }
 .tb-dialog-times { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .tb-dialog-warn {
@@ -141,4 +169,7 @@
   .tb-block { left: 40px; }
   .tb-day-wd { font-size: 9px; }
   .tb-block-actions .tb-act { width: 24px; height: 24px; }
+  /* Unscheduled rows: text + duration on first line, button full-width below */
+  .tb-uns-row { flex-wrap: wrap; }
+  .tb-uns-btn { width: 100%; justify-content: center; }
 }

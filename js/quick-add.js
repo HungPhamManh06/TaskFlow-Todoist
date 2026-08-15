@@ -31,6 +31,13 @@
         ? { dt: today }
         : { dt: new Date(PLAN_START.getTime() + (state.currentWeek - 1) * 7 * 86400000) };
     }
+    if (state.view === 'calendar' && typeof calendarMode !== 'undefined' && calendarMode === 'schedule') {
+      // Schedule view: mặc định ngày = ngày đang chọn trong timeline (nếu đã chọn).
+      if (typeof calendarSelDate === 'string' && calendarSelDate) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(calendarSelDate);
+        if (m) return { dt: new Date(+m[1], +m[2] - 1, +m[3]) };
+      }
+    }
     return { dt: today };
   }
 
