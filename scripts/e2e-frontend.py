@@ -1969,8 +1969,13 @@ def timeblock_ui_checks(browser, base, width, height, errors, screenshot):
     row.locator('[data-action="task-menu"]').click()
     row.locator('[data-action="task-detail"]').click()
     page.wait_for_selector('[data-testid="task-drawer"]', state="visible")
-    assert page.locator('[data-testid="td-blocks"] .td-tb-row').count() == 2, \
-        f"Task Detail phải liệt kê 2 blocks, thấy {page.locator('[data-testid=\"td-blocks\"] .td-tb-row').count()}"
+    block_count = page.locator(
+        '[data-testid="td-blocks"] .td-tb-row'
+    ).count()
+
+    assert block_count == 2, (
+        f"Task Detail phải liệt kê 2 blocks, thấy {block_count}"
+    )
     # nút Focus từ block có trong task detail
     assert page.locator('#taskDrawer [data-action="tb-focus"]').count() == 2, "mỗi block phải có nút Focus"
     page.keyboard.press('Escape')
