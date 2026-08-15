@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày</title>
   <meta name="description"
-    content="TaskFlow giúp bạn kết nối mục tiêu năm, kế hoạch tuần, công việc và thói quen trong một không gian riêng tư, dùng được offline." />
+    content="TaskFlow biến mục tiêu dài hạn thành việc có thể làm hôm nay: dự án & mốc tiến độ, time blocking, smart planner, thói quen linh hoạt và insights — riêng tư, offline-first." />
   <meta name="keywords"
     content="lập kế hoạch, quản lý mục tiêu, kế hoạch tuần, habit tracker, reflection, offline, productivity" />
   <meta name="author" content="Hung Pham" />
@@ -26,7 +26,7 @@
   <meta property="og:locale" content="vi_VN" />
   <meta property="og:locale:alternate" content="en_US" />
   <meta property="og:title" content="TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày" />
-  <meta property="og:description" content="Mục tiêu, công việc, thói quen và reflection trong một planner riêng tư, offline-first." />
+  <meta property="og:description" content="Từ mục tiêu đến dự án, mốc tiến độ, time block và focus — một planner riêng tư, offline-first." />
   <meta property="og:url" content="https://taskflow-todoist.vercel.app/" />
   <meta property="og:site_name" content="TaskFlow" />
   <meta property="og:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
@@ -36,7 +36,7 @@
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="TaskFlow — Lập kế hoạch rõ ràng, tiến bộ mỗi ngày" />
-  <meta name="twitter:description" content="Một planner riêng tư cho mục tiêu, công việc, thói quen và reflection." />
+  <meta name="twitter:description" content="Từ mục tiêu đến dự án, mốc tiến độ, time block và focus — một planner riêng tư, offline-first." />
   <meta name="twitter:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
 
   <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
@@ -67,7 +67,7 @@
     "description": "Ứng dụng lập kế hoạch cá nhân cho mục tiêu, công việc, thói quen và reflection, dùng được offline.",
     "inLanguage": ["vi", "en"],
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-    "featureList": "Mục tiêu năm, kế hoạch tháng và tuần, habit tracker, focus timer, reflection, báo cáo, xuất dữ liệu, PWA offline"
+    "featureList": "Dự án & mốc tiến độ, time blocking, smart planner theo quy tắc, thói quen linh hoạt, insights, quick capture, Google Calendar tùy chọn, AI Copilot tùy chọn, focus timer, reflection, báo cáo, xuất dữ liệu, PWA offline"
   }
   </script>
 </head>
@@ -179,37 +179,37 @@
         <article class="feature-card feature-card-wide">
           <span class="feature-index">01</span>
           <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#year"></use></svg>
-          <h3 data-t-vi="Từ định hướng năm đến kế hoạch tuần" data-t-en="From yearly direction to weekly plans">Từ định hướng năm đến kế hoạch tuần</h3>
-          <p data-t-vi="Chia mục tiêu lớn thành các mốc tháng và công việc tuần, luôn thấy bối cảnh thay vì một danh sách rời rạc."
-            data-t-en="Break big goals into monthly milestones and weekly work, keeping context instead of a disconnected list.">Chia mục tiêu lớn thành các mốc tháng và công việc tuần, luôn thấy bối cảnh thay vì một danh sách rời rạc.</p>
+          <h3 data-t-vi="Từ mục tiêu lớn đến dự án &amp; mốc tiến độ" data-t-en="From big goals to projects and milestones">Từ mục tiêu lớn đến dự án &amp; mốc tiến độ</h3>
+          <p data-t-vi="Biến mục tiêu lớn thành các mốc tiến độ rõ ràng: dự án, milestone và task luôn nằm trong một bối cảnh thay vì một danh sách rời rạc."
+            data-t-en="Turn big goals into clear milestones: projects, milestones and tasks always live in one context instead of a disconnected list.">Biến mục tiêu lớn thành các mốc tiến độ rõ ràng: dự án, milestone và task luôn nằm trong một bối cảnh thay vì một danh sách rời rạc.</p>
         </article>
         <article class="feature-card">
           <span class="feature-index">02</span>
           <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#calendar"></use></svg>
-          <h3 data-t-vi="Theo dõi thói quen theo nhịp thực tế" data-t-en="Track habits at a realistic pace">Theo dõi thói quen theo nhịp thực tế</h3>
-          <p data-t-vi="Lưới 31 ngày, tỷ lệ hoàn thành và chuỗi liên tục giúp bạn nhận ra tiến bộ mà không tạo thêm áp lực."
-            data-t-en="A 31-day grid, completion rate, and streaks reveal progress without adding pressure.">Lưới 31 ngày, tỷ lệ hoàn thành và chuỗi liên tục giúp bạn nhận ra tiến bộ mà không tạo thêm áp lực.</p>
+          <h3 data-t-vi="Lập kế hoạch thông minh, đưa việc vào lịch" data-t-en="Plan smartly, put work on the calendar">Lập kế hoạch thông minh, đưa việc vào lịch</h3>
+          <p data-t-vi="Chọn việc quan trọng, kiểm tra khối lượng và đưa việc vào lịch: Smart Planner đề xuất time block theo khung giờ trống thật, bạn xem trước rồi mới áp dụng."
+            data-t-en="Pick the important tasks, check the workload, and put them on the calendar: the rule-based planner proposes time blocks in real free windows, and you preview before applying.">Chọn việc quan trọng, kiểm tra khối lượng và đưa việc vào lịch: Smart Planner đề xuất time block theo khung giờ trống thật, bạn xem trước rồi mới áp dụng.</p>
         </article>
         <article class="feature-card">
           <span class="feature-index">03</span>
           <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#focus"></use></svg>
-          <h3 data-t-vi="Tập trung vào một việc quan trọng" data-t-en="Focus on one important thing">Tập trung vào một việc quan trọng</h3>
-          <p data-t-vi="Chế độ tập trung và Pomodoro giữ công việc ưu tiên trước mắt, tạm ẩn phần còn lại khi bạn cần làm sâu."
-            data-t-en="Focus mode and Pomodoro keep the priority in view and quiet everything else when it is time for deep work.">Chế độ tập trung và Pomodoro giữ công việc ưu tiên trước mắt, tạm ẩn phần còn lại khi bạn cần làm sâu.</p>
+          <h3 data-t-vi="Thực thi, nhìn lại và cải thiện" data-t-en="Do, reflect, and improve">Thực thi, nhìn lại và cải thiện</h3>
+          <p data-t-vi="Bắt đầu Focus ngay từ time block, hoàn thành, rồi điều chỉnh kế hoạch bằng reflection và insights rút ra từ dữ liệu thật của bạn."
+            data-t-en="Start Focus right from a time block, complete the work, then adjust with reflection and insights drawn from your real data.">Bắt đầu Focus ngay từ time block, hoàn thành, rồi điều chỉnh kế hoạch bằng reflection và insights rút ra từ dữ liệu thật của bạn.</p>
         </article>
         <article class="feature-card">
           <span class="feature-index">04</span>
-          <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#report"></use></svg>
-          <h3 data-t-vi="Nhìn lại bằng dữ liệu và reflection" data-t-en="Reflect with data and prompts">Nhìn lại bằng dữ liệu và reflection</h3>
-          <p data-t-vi="Báo cáo tuần, tháng, năm và câu hỏi gợi mở giúp bạn điều chỉnh kế hoạch dựa trên điều đã thật sự xảy ra."
-            data-t-en="Weekly, monthly, and yearly reports pair with reflection prompts so you can adjust based on what actually happened.">Báo cáo tuần, tháng, năm và câu hỏi gợi mở giúp bạn điều chỉnh kế hoạch dựa trên điều đã thật sự xảy ra.</p>
+          <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#habit"></use></svg>
+          <h3 data-t-vi="Thói quen theo nhịp thực tế" data-t-en="Track habits at a realistic pace">Thói quen theo nhịp thực tế</h3>
+          <p data-t-vi="Lịch linh hoạt — hằng ngày, chọn ngày trong tuần, X lần/tuần hoặc X lần/tháng — cùng tỷ lệ hoàn thành và chuỗi liên tục giúp bạn nhận ra tiến bộ không tạo áp lực."
+            data-t-en="Flexible schedules — daily, selected weekdays, X per week or X per month — with completion rate and streaks reveal progress without adding pressure.">Lịch linh hoạt — hằng ngày, chọn ngày trong tuần, X lần/tuần hoặc X lần/tháng — cùng tỷ lệ hoàn thành và chuỗi liên tục giúp bạn nhận ra tiến bộ không tạo áp lực.</p>
         </article>
         <article class="feature-card feature-card-accent">
           <span class="feature-index">05</span>
           <svg class="landing-icon" aria-hidden="true"><use href="icons/ui-sprite.svg#data"></use></svg>
           <h3 data-t-vi="Sở hữu và mang dữ liệu theo bạn" data-t-en="Own and take your data with you">Sở hữu và mang dữ liệu theo bạn</h3>
-          <p data-t-vi="Sao lưu JSON, xuất CSV, in PDF hoặc bật đồng bộ tùy chọn. TaskFlow không khóa dữ liệu của bạn trong một nền tảng."
-            data-t-en="Back up JSON, export CSV, print PDF, or enable optional sync. TaskFlow never locks your data into one platform.">Sao lưu JSON, xuất CSV, in PDF hoặc bật đồng bộ tùy chọn. TaskFlow không khóa dữ liệu của bạn trong một nền tảng.</p>
+          <p data-t-vi="Quick Capture ghi nhanh từ mọi nơi, kết nối Google Calendar tùy chọn, AI Copilot tùy chọn — cùng sao lưu JSON, xuất CSV/ICS và đồng bộ đám mây chỉ khi bạn bật. TaskFlow không khóa dữ liệu của bạn."
+            data-t-en="Quick Capture from anywhere, optional Google Calendar, optional AI Copilot — plus JSON backup, CSV/ICS export and cloud sync only when you enable it. TaskFlow never locks your data into one platform.">Quick Capture ghi nhanh từ mọi nơi, kết nối Google Calendar tùy chọn, AI Copilot tùy chọn — cùng sao lưu JSON, xuất CSV/ICS và đồng bộ đám mây chỉ khi bạn bật. TaskFlow không khóa dữ liệu của bạn.</p>
         </article>
       </div>
     </section>
@@ -221,9 +221,9 @@
           data-t-en="A workflow you can repeat every day.">Một nhịp làm việc lặp lại được mỗi ngày.</h2>
       </div>
       <ol class="workflow-list">
-        <li><span>1</span><div><h3 data-t-vi="Đặt hướng" data-t-en="Set direction">Đặt hướng</h3><p data-t-vi="Chọn mục tiêu năm và ưu tiên tháng hiện tại." data-t-en="Choose yearly goals and this month's priorities.">Chọn mục tiêu năm và ưu tiên tháng hiện tại.</p></div></li>
-        <li><span>2</span><div><h3 data-t-vi="Chia nhỏ" data-t-en="Break it down">Chia nhỏ</h3><p data-t-vi="Đưa việc quan trọng vào từng tuần và ngày." data-t-en="Move important work into each week and day.">Đưa việc quan trọng vào từng tuần và ngày.</p></div></li>
-        <li><span>3</span><div><h3 data-t-vi="Làm và nhìn lại" data-t-en="Do and reflect">Làm và nhìn lại</h3><p data-t-vi="Hoàn thành, theo dõi nhịp và điều chỉnh bằng báo cáo." data-t-en="Complete, track your rhythm, and adjust with reports.">Hoàn thành, theo dõi nhịp và điều chỉnh bằng báo cáo.</p></div></li>
+        <li><span>1</span><div><h3 data-t-vi="Đặt hướng" data-t-en="Set direction">Đặt hướng</h3><p data-t-vi="Chọn mục tiêu, tạo dự án và chia thành các mốc tiến độ rõ ràng." data-t-en="Choose goals, create projects, and break them into clear milestones.">Chọn mục tiêu, tạo dự án và chia thành các mốc tiến độ rõ ràng.</p></div></li>
+        <li><span>2</span><div><h3 data-t-vi="Lập kế hoạch" data-t-en="Plan the day">Lập kế hoạch</h3><p data-t-vi="Smart Planner chọn việc quan trọng, kiểm tra khối lượng và đề xuất time block theo khung giờ trống." data-t-en="The rule-based planner picks the important tasks, checks the workload, and proposes time blocks in free windows.">Smart Planner chọn việc quan trọng, kiểm tra khối lượng và đề xuất time block theo khung giờ trống.</p></div></li>
+        <li><span>3</span><div><h3 data-t-vi="Làm và nhìn lại" data-t-en="Do and reflect">Làm và nhìn lại</h3><p data-t-vi="Tập trung từ lịch, hoàn thành, rồi điều chỉnh bằng insights và reflection." data-t-en="Start Focus from the calendar, complete, then adjust with insights and reflection.">Tập trung từ lịch, hoàn thành, rồi điều chỉnh bằng insights và reflection.</p></div></li>
       </ol>
     </section>
 

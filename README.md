@@ -2,7 +2,7 @@
 
 #  TaskFlow
 
-**Ứng dụng lập kế hoạch cá nhân miễn phí — Today · Inbox · Upcoming · Mục tiêu năm/tháng/tuần · Thói quen & streak · Focus/Pomodoro · Lịch · Báo cáo**
+**Ứng dụng lập kế hoạch cá nhân miễn phí — Dự án & Mốc tiến độ · Time Blocking · Smart Planner · Thói quen linh hoạt · Insights · Focus/Pomodoro · Lịch · Báo cáo · AI Copilot tùy chọn**
 
 **Calm Productivity** · **Offline-first** — dùng được không cần tài khoản, dữ liệu lưu trong trình duyệt (localStorage) · **Đồng bộ đám mây tùy chọn** khi đăng nhập · Hỗ trợ **tiếng Việt & tiếng Anh**
 
@@ -33,8 +33,16 @@
 - 📅 **Week planning** — 7 ngày, task + ghi chú + mục tiêu tuần + Pomodoro + **Weekly Review**
 - 📊 **Month planning** — **Monthly Life Pillars** (Cơ thể · Việc chính · Tương tác), **Monthly Focus & Metrics**, habit tracker, reflection
 - 🎯 **Year goals** — mục tiêu năm, biểu đồ quý/tháng, line chart 12 tháng
-- 🗓️ **Calendar** — lịch task & focus theo ngày
-- 🔁 **Habit tracking** — streak 🔥 & heatmap kiểu GitHub, mục tiêu habit riêng, **liên kết metric tháng**
+- 🗓️ **Calendar** — lịch task & focus theo ngày, **Tháng / Lịch trình (Schedule)**
+- 📂 **Projects & Milestones** — biến mục tiêu lớn thành các mốc tiến độ rõ ràng, task gắn dự án/milestone
+- ⏱️ **Time Blocking** — tạo time block cho task, phát hiện trùng lịch, bắt đầu Focus ngay từ block
+- ⚡ **Energy & Context** — ước lượng thời lượng, năng lượng và ngữ cảnh cho từng task
+- 🧠 **Smart Daily Planner** — planner quy tắc (không AI): chọn việc quan trọng, kiểm tra khối lượng, đề xuất time block — luôn xem trước rồi mới Áp dụng
+- 🔁 **Habit tracking** — **lịch linh hoạt** (hằng ngày / chọn ngày trong tuần / X lần tuần / X lần tháng), streak 🔥, tỷ lệ hoàn thành, consistency, current/best run
+- 💡 **Actionable Insights** — insight theo quy tắc từ dữ liệu thật của bạn (không phải AI), kèm hành động gợi ý
+- ⚡ **Quick Capture** — chia sẻ ngoài / URL nhanh đưa thẳng vào Inbox, nhập liệu được sanitize
+- 📅 **Google Calendar (tùy chọn)** — đọc lịch ngoài; xuất TimeBlock thành event Google — **push-only, không đồng bộ hai chiều**
+- ✨ **AI Copilot (tùy chọn)** — đề xuất kế hoạch có cấu trúc, bạn xem trước rồi Áp dụng; AI không bao giờ tự sửa dữ liệu
 - 🍅 **Focus / Pomodoro** — timer 25/5, thống kê phiên, chế độ tập trung
 - 🪞 **Daily / Weekly / Monthly Reflection** — Quick & Deep Reflection, **Monthly Review**, carry-over tháng sau
 - 📈 **Reports** — báo cáo tháng/tuần/năm, huy hiệu, cân bằng trụ cột, mood trend, chia sẻ ảnh 1080×1080
@@ -63,27 +71,35 @@
 
 **TaskFlow** là hệ thống năng suất cá nhân **offline-first** — *Calm Productivity*: một nơi duy nhất kết nối mục tiêu dài hạn với thực thi hằng ngày.
 
-**Luồng sản phẩm chính:**
+**Luồng sản phẩm chính (V2):**
 
 ```
-Capture
+Goal
   ↓
-Inbox
+Project
   ↓
-Plan
+Milestone
   ↓
-Upcoming
+Task
   ↓
-Today
+Smart Plan
+  ↓
+Time Block
   ↓
 Focus
   ↓
 Complete
   ↓
 Reflect
+  ↓
+Insight
 ```
 
-Cấu trúc kế hoạch: **Year → Month → Week → Today** — mục tiêu năm được rải xuống tháng, tuần và việc của hôm nay.
+Cấu trúc kế hoạch: **Goal → Project → Milestone → Task → Time Block** — mục tiêu lớn được chia thành dự án và mốc tiến độ, rồi đưa vào lịch dưới dạng time block và thực thi bằng Focus.
+
+> **Google Calendar ≠ đồng bộ hai chiều.** Kết nối là tùy chọn: đọc sự kiện để hiển thị, và *đẩy* TimeBlock thành event Google khi bạn bật (push-only, xóa event bị khóa sau cờ `syncDeletes` mặc định tắt). Không có engine kéo sửa đổi (pull-back).
+>
+> **AI Copilot ≠ chủ sở hữu trạng thái.** AI là tùy chọn, chỉ *đọc* context tối thiểu và trả về đề xuất; mọi thay đổi đi qua schema-validation → xem trước → bạn bấm Áp dụng → ghi bằng API TaskFlow chuẩn. AI không bao giờ trực tiếp sửa dữ liệu. Khi AI không khả dụng, planner quy tắc vẫn hoạt động.
 
 Khi chưa đăng nhập, dữ liệu của bạn được lưu cục bộ trong trình duyệt — nội dung kế hoạch của bạn không được gửi lên máy chủ TaskFlow. Đăng nhập chỉ để bật **đồng bộ đám mây tùy chọn** (xem [Offline-first & Sync](#-offline-first--sync)).
 
@@ -411,7 +427,9 @@ TaskFlow/
 ## 🔒 Privacy & Data
 
 - Không đăng nhập → dữ liệu chỉ nằm trong trình duyệt của bạn.
-- Đăng nhập → đồng bộ đám mây tùy chọn; chi tiết ở các trang pháp lý:
+- Đăng nhập → đồng bộ đám mây tùy chọn; chi tiết ở các trang pháp lý.
+- **AI Copilot** (tùy chọn): context tối thiểu được gửi qua proxy máy chủ tới nhà cung cấp mô hình bên thứ ba khi bạn bấm "Gợi ý với AI". Reflection/Mood bị loại trừ theo mặc định, chỉ gửi khi bạn cho phép trong từng yêu cầu.
+- **Google Calendar** (tùy chọn): máy chủ lưu thông tin OAuth (access/refresh token, scopes) gắn với tài khoản; access token không bao giờ xuống trình duyệt.
 
 [Chính sách bảo mật](https://taskflow-todoist.vercel.app/privacy) · [Điều khoản sử dụng](https://taskflow-todoist.vercel.app/terms) · [Dữ liệu & Bảo mật](https://taskflow-todoist.vercel.app/data-and-security)
 
