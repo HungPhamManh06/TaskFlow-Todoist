@@ -299,6 +299,7 @@ App hỗ trợ **đồng bộ dữ liệu đa thiết bị qua backend riêng** 
 
 1. Tạo **OAuth Client ID** loại *Web application* tại [console.cloud.google.com](https://console.cloud.google.com) → *APIs & Services → Credentials*; thêm *Authorized redirect URI*: `https://<tên-backend>.onrender.com/api/auth/google/callback` (và `http://localhost:4000/api/auth/google/callback` nếu chạy local).
 2. Điền **GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET** + **APP_URL** (URL trang app của bạn, vd `https://<tên-trang>.github.io/Todoist/app.html`) vào **Environment** của Web Service trên Render, rồi **Deploy** lại.
+3. **(Google Calendar)** thêm **GOOGLE_REDIRECT_URI** = `https://<tên-backend>.onrender.com/api/calendar/callback` (đăng ký đúng URI này trong *Authorized redirect URIs* của OAuth Client). Khi chưa set, server tự suy từ request (chạy local không cần).
 3. Sau khi đăng nhập Google, app quay về `APP_URL?token=...` và tự đăng nhập.
 
 ### 🧪 Kiểm tra

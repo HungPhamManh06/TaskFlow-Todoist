@@ -17,6 +17,10 @@ const { authMiddleware, verifyToken } = require('./auth');
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const APP_URL = process.env.APP_URL || '';
+// Redirect URI đăng ký trong Google OAuth console. Render chấm dứt TLS trước khi
+// chuyển tiếp tới Node nên req.protocol/req.host có thể sai ở production — dùng
+// GOOGLE_REDIRECT_URI khi được cấu hình; local dev dùng fallback từ request.
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || '';
 
 const READ_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 const WRITE_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
@@ -24,9 +28,17 @@ const OAUTH_SCOPES = ['openid', 'email', 'profile', READ_SCOPE].join(' ');
 // Write-scope chỉ được yêu cầu khi user bật "Add to Google Calendar" (V1.6B).
 const WRITE_SCOPES = ['openid', 'email', 'profile', READ_SCOPE, WRITE_SCOPE].join(' ');
 
+// Redirect URI dùng nhất quán trong connect/connect-write/callback.
+function getRedirectUri(req) {
+  if (GOOGLE_REDIRECT_URI) return GOOGLE_REDIRECT_URI;
+  return req.protocol + '://' + req.get('host') + '/api/calendar/callback';
+}
+
 const router = express.Router();
 
-// state → { userId, created } — CSRF cho flow kết nối calendar
+// state → { userId, created, requestedScopes } — CSRF cho flow kết nối calendar.
+// requestedScopes: OAUTH_SCOPES (read) hoặc WRITE_SCOPES (connect-write) — lưu
+// vào DB khi callback để /status trả write:true đúng với scope được cấp.
 const calStates = new Map();
 const STATE_TTL_MS = 10 * 60 * 1000;
 const CAL_LIST_TTL_MS = 60 * 60 * 1000; // cache calendarList 1h/user trong bộ nhớ
@@ -146,8 +158,8 @@ router.get('/connect', (req, res) => {
   const payload = verifyToken(String(req.query.token || ''));
   if (!payload || !payload.uid) return res.status(401).json({ error: 'invalid-token' });
   const state = crypto.randomBytes(16).toString('hex');
-  calStates.set(state, { userId: payload.uid, created: Date.now() });
-  const redirectUri = req.protocol + '://' + req.get('host') + '/api/calendar/callback';
+  calStates.set(state, { userId: payload.uid, created: Date.now(), requestedScopes: OAUTH_SCOPES });
+  const redirectUri = getRedirectUri(req);
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: redirectUri,
@@ -168,8 +180,8 @@ router.get('/connect-write', (req, res) => {
   const payload = verifyToken(String(req.query.token || ''));
   if (!payload || !payload.uid) return res.status(401).json({ error: 'invalid-token' });
   const state = crypto.randomBytes(16).toString('hex');
-  calStates.set(state, { userId: payload.uid, created: Date.now() });
-  const redirectUri = req.protocol + '://' + req.get('host') + '/api/calendar/callback';
+  calStates.set(state, { userId: payload.uid, created: Date.now(), requestedScopes: WRITE_SCOPES });
+  const redirectUri = getRedirectUri(req);
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: redirectUri,
@@ -193,7 +205,7 @@ router.get('/callback', async (req, res) => {
     if (!st) return res.redirect(withParam('cal=error=bad-state'));
     calStates.delete(state);
     if (!code) return res.redirect(withParam('cal=error=no-code'));
-    const redirectUri = req.protocol + '://' + req.get('host') + '/api/calendar/callback';
+    const redirectUri = getRedirectUri(req);
     const tok = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -208,12 +220,14 @@ router.get('/callback', async (req, res) => {
     const j = await tok.json();
     if (!tok.ok || !j.access_token) return res.redirect(withParam('cal=error=token-exchange'));
     const p = initDb();
+    // Hạn dùng tính ở server (tương đương now() + expires_in giây) — truyền làm
+    // timestamp param để tương thích cả Postgres thật lẫn pg-mem (thiếu int * interval).
+    const expiresAt = new Date(Date.now() + ((j.expires_in || 3600) * 1000));
     await p.query(
       `update users set google_access_token = $2, google_refresh_token = $3,
-         google_token_expires_at = now() + ($4 * interval '1 second'),
-         google_scopes = $5, google_connected_at = now()
+         google_token_expires_at = $4, google_scopes = $5, google_connected_at = now()
        where id = $1`,
-      [st.userId, j.access_token, j.refresh_token || null, j.expires_in || 3600, OAUTH_SCOPES]
+      [st.userId, j.access_token, j.refresh_token || null, expiresAt, j.scope || st.requestedScopes || OAUTH_SCOPES]
     );
     return res.redirect(withParam('cal=ok'));
   } catch (e) {
