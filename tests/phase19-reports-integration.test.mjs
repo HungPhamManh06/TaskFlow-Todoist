@@ -202,9 +202,9 @@ test('P9 production assets load in dependency order and cache offline', () => {
   const report = APP_HTML.indexOf('js/report-ui.min.js?v=5');
   const app = APP_HTML.indexOf('js/app.min.js?v=182');
   assert.ok(insights >= 0 && history > insights && report > history && app > report);
-  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=17/);
+  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=18/);
   assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=\d+/g) || []).length, 2);
-  assert.match(SW, /const CACHE = 'taskflow-v226'/);
+  assert.match(SW, /const CACHE = 'taskflow-v227'/);
   assert.match(SW, /'\.\/js\/report-insights\.min\.js'/);
   assert.match(SW, /'\.\/js\/reflection-history\.min\.js'/);
 });

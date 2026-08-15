@@ -43,6 +43,20 @@ jobs:
       - name: Server security test (JWT fail-fast, CORS allowlist, headers, rate limit)
         run: node test-server-security.js
 
+  # Release-asset cache-bust consistency: every ?v=N pin in app.html must be at
+  # least as new as the last commit that changed the asset, or a stale SW cache
+  # could serve mismatched HTML/JS on first load after deploy (see 2824e39).
+  # Needs FULL history (git log -S pickaxe) — shallow checkout would miss it.
+  release-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Versioned assets in app.html consistent with their last commit"
+        run: python scripts/check-release-assets.py
+
   # Critical smoke suite runs on all three engines (P1.2). The suite is
   # deterministic across engines: it emulates prefers-reduced-motion (the app
   # honors it) so smooth-scroll timing can't race clicks, and measures geometry
