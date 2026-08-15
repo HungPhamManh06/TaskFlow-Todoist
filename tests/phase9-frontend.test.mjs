@@ -834,8 +834,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=184/);
-  assert.match(SW, /const CACHE = 'taskflow-v230';/);
+  assert.match(APP, /js\/app\.min\.js\?v=185/);
+  assert.match(SW, /const CACHE = 'taskflow-v231';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1344,7 +1344,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=184/);
+  assert.match(APP, /js\/app\.min\.js\?v=185/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
@@ -1352,7 +1352,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v230';/);
+  assert.match(SW, /const CACHE = 'taskflow-v231';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2014,7 +2014,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v230';/);
+  assert.match(SW, /const CACHE = 'taskflow-v231';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2092,7 +2092,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v230';/);
+  assert.match(SW, /const CACHE = 'taskflow-v231';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2330,7 +2330,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v230', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v231', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);
@@ -2352,7 +2352,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
   // Activate: cache cũ (v210) bị xoá, v211 + digest giữ lại
   const activateChain = handlers.activate({ waitUntil(p) { return p; } });
   await activateChain;
-  assert.deepStrictEqual(deleteCalls.sort(), ['taskflow-v220'], 'activate phải xoá cache cũ, giữ v226 + digest');
+  assert.deepStrictEqual(deleteCalls.sort(), ['taskflow-v220'], 'activate phải xoá cache cũ, giữ v231 + digest');
 
   // Fetch online cho request mới v5: exact match miss → network phục vụ file MỚI
   // ngay trong lần load nâng cấp đầu tiên (không cần reload lần 2)
@@ -2988,6 +2988,57 @@ test('V2 segmented control: shared capsule primitive + stable render shells', ()
   const UP = readFileSync(path.join(ROOT, 'js/upcoming.js'), 'utf8');
   assert.match(UP, /class="up-range segmented"/);
   assert.match(UP, /up-range-btn segmented-item/);
+});
+
+test('Schedule semantic colors: Time Blocking uses defined tokens and hides an empty legend without collapsing layout', () => {
+  const styles = readRequiredAsset('css/styles.css');
+  const start = styles.indexOf('/* ===== Time Blocking UI');
+  const end = styles.indexOf('/* V1.4', start);
+  assert.notEqual(start, -1, 'Time Blocking source section must exist');
+  assert.notEqual(end, -1, 'Time Blocking source section must have a feature boundary');
+  const timeBlocking = styles.slice(start, end);
+
+  for (const legacy of ['--surface', '--surface-soft', '--text', '--text-strong', '--text-faint', '--border-soft', '--border-faint', '--accent', '--sage', '--warn-text', '--warn-soft']) {
+    assert.doesNotMatch(timeBlocking, new RegExp(`var\\(${legacy}(?=[,)])`));
+  }
+  assert.doesNotMatch(timeBlocking, /#[0-9a-f]{3,8}\b|rgba?\(/i, 'Time Blocking must not contain hard-coded color literals');
+  assert.equal(timeBlocking.trim(), readRequiredAsset('css/_v12-timeblocks-ui.css').trim(), 'Time Blocking sources must remain exact copies');
+
+  assert.match(timeBlocking, /\.tb-day \.tb-day-wd\s*{[^}]*color:\s*var\(--color-text-secondary\)/s);
+  assert.match(timeBlocking, /\.tb-day \.tb-day-n\s*{[^}]*color:\s*var\(--color-text\)/s);
+  assert.match(timeBlocking, /\.tb-day\.muted \.tb-day-wd,[^{]*\.tb-day\.muted \.tb-day-n\s*{[^}]*color:\s*var\(--color-text-muted\)/s);
+  assert.doesNotMatch(timeBlocking, /\.tb-day(?: \.tb-day-wd|\.muted)\s*{[^}]*opacity:/s);
+  assert.doesNotMatch(timeBlocking, /\.tb-block\.tb-status-(?:completed|cancelled)\s*{[^}]*opacity:/s);
+  assert.match(timeBlocking, /\.tb-block-status\s*{[^}]*color:\s*var\(--color-text-secondary\)/s);
+  assert.match(timeBlocking, /\.tb-block\.tb-status-completed \.tb-block-status\s*{[^}]*color:\s*var\(--color-positive\)/s);
+  assert.match(timeBlocking, /\.tb-block\.tb-status-cancelled \.tb-block-(?:time|text),/s);
+  assert.doesNotMatch(timeBlocking, /\.tb-block-status\s*{[^}]*opacity:/s);
+  assert.doesNotMatch(timeBlocking, /\.td-tb-row\.cancelled\s*{[^}]*opacity:/s);
+  assert.match(timeBlocking, /\.td-tb-row\.completed \.td-tb-status\s*{[^}]*color:\s*var\(--color-positive\)/s);
+  assert.match(timeBlocking, /\.td-tb-row\.cancelled \.td-tb-(?:time|date),/s);
+  assert.match(styles, /\.calendar-page \.cal-legend:empty\s*{/);
+  assert.match(styles, /\.calendar-page \.cal-legend:empty\s*{[^}]*visibility:\s*hidden/s);
+  assert.doesNotMatch(styles, /\.calendar-page \.cal-legend:empty[^}]*display:\s*none/s);
+  assert.match(styles, /\.tb-act\.gcal-export:hover\s*{[^}]*var\(--color-accent-soft\)/s);
+  assert.match(styles, /\.gcal-exported\s*{[^}]*color:\s*var\(--color-positive\)/s);
+  assert.match(timeBlocking, /\.tb-uns-btn\s*{[^}]*min-height:\s*24px/s);
+  assert.match(timeBlocking, /\.tb-uns-toggle\s*{[^}]*min-height:\s*24px/s);
+  assert.match(timeBlocking, /\.tb-unscheduled\s*{[^}]*background:\s*var\(--color-surface-muted\)/s);
+  assert.match(timeBlocking, /\.tb-uns-btn\s*{[^}]*border-color:\s*var\(--color-control-border\)/s);
+  assert.match(timeBlocking, /\.tb-block\.tb-status-completed\s*{[^}]*border-left-color:\s*var\(--color-positive\)/s);
+  assert.match(timeBlocking, /\.tb-block\.tb-status-cancelled\s*{[^}]*border-left-color:\s*var\(--color-text-muted\)/s);
+});
+
+test('Schedule contrast audit freezes Date before every audited app context', () => {
+  const audit = readRequiredAsset('scripts/audit-dark-contrast.py');
+  assert.match(audit, /FIXED_LOCAL_ISO\s*=\s*"2026-08-15T10:00:00"/);
+  assert.match(audit, /FIXED_DATE_SCRIPT\s*=/);
+  assert.match(audit, /new Proxy\(RealDate/);
+  assert.match(audit, /prop === 'now'/);
+  assert.match(audit, /def freeze_browser_date\(page\):/);
+  assert.ok((audit.match(/freeze_browser_date\(page\)/g) || []).length >= 3,
+    'helper plus both audited app contexts must freeze Date');
+  assert.match(audit, /page\.add_init_script\(FIXED_DATE_SCRIPT \+ seed_script\)/);
 });
 
 test('Phase 3: Inbox — nav item, view section, capture flow and schedule keeping uid', () => {
