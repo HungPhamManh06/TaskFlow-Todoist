@@ -408,7 +408,8 @@
       const done = b.status === 'completed';
       const d = parseISO(b.date);
       const dateLabel = d ? `${d.getDate()}/${d.getMonth() + 1}` : b.date;
-      return `<div class="td-tb-row ${b.status === 'cancelled' ? 'cancelled' : ''}" data-block-id="${esc(b.id)}">
+      const statusClass = b.status === 'completed' ? 'completed' : b.status === 'cancelled' ? 'cancelled' : 'planned';
+      return `<div class="td-tb-row ${statusClass}" data-block-id="${esc(b.id)}">
         <span class="td-tb-time">${esc(fmtTimeRange(b.start, b.end))}</span>
         <span class="td-tb-date">${esc(dateLabel)}</span>
         <span class="td-tb-status">${esc(statusLabel)}</span>

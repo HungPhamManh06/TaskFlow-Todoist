@@ -192,6 +192,17 @@ test('taskDetailBlocksHTML lists task blocks across days, sorted', () => {
   assert.ok(!html2.includes('07:00–07:30'));
 });
 
+test('taskDetailBlocksHTML exposes semantic status classes without opacity-only state', () => {
+  const store = makeStore();
+  store.blocks.push(
+    { id: 'b7', taskUid: 'u1', date: '2026-08-12', start: '08:00', end: '08:30', status: 'completed', createdAt: 'x', updatedAt: 'x' },
+    { id: 'b8', taskUid: 'u1', date: '2026-08-13', start: '08:00', end: '08:30', status: 'cancelled', createdAt: 'x', updatedAt: 'x' },
+  );
+  const html = UI.taskDetailBlocksHTML(store, 'u1');
+  assert.match(html, /td-tb-row completed/);
+  assert.match(html, /td-tb-row cancelled/);
+});
+
 test('taskDetailBlocksHTML empty state', () => {
   const store = makeStore();
   const html = UI.taskDetailBlocksHTML(store, 'ghost');
