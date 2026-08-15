@@ -103,3 +103,27 @@ jobs:
 
       - name: E2E frontend suite (landing/overview/week/year/calendar/dialogs/focus × desktop/tablet/mobile)
         run: python scripts/e2e-frontend.py --all
+
+  # Offline PWA hardening: reproduces the Vercel cleanUrls environment (HTML
+  # navigation responses carry Content-Disposition: inline; filename="...")
+  # and verifies every first-party route loads offline through a REAL service
+  # worker lifecycle, plus the SW upgrade purge (old cache generation removed,
+  # current + digest retained). Chromium only — the cross-engine smoke matrix
+  # above covers the other engines.
+  offline-e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Playwright (Python, Chromium)
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Offline PWA e2e (routes, content, header invariant, SW upgrade)
+        run: python scripts/e2e-offline.py
