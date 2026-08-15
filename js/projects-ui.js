@@ -102,7 +102,7 @@
         ${target}
       </div>
       <div class="pj-card-actions">
-        <button type="button" class="btn btn-primary pj-open-btn" data-action="project-open" data-id="${esc(pj.id)}" aria-label="${esc(t('projectOpen'))} · ${esc(pj.title)}">
+        <button type="button" class="button button-primary pj-open-btn" data-action="project-open" data-id="${esc(pj.id)}" aria-label="${esc(t('projectOpen'))} · ${esc(pj.title)}">
           ${icon('briefcase')} ${esc(t('projectOpen'))}
         </button>
         <button type="button" class="mini-btn" data-action="project-edit" data-id="${esc(pj.id)}" title="${esc(t('projectEditTitle'))}" aria-label="${esc(t('projectEditTitle'))} · ${esc(pj.title)}">${icon('edit')}</button>
@@ -126,7 +126,7 @@
         <h2 class="pj-page-title">${icon('briefcase')} ${esc(t('projectsPageTitle'))}</h2>
         <p class="pj-page-sub">${esc(t('projectsPageSubtitle'))}</p>
       </div>
-      <button type="button" class="btn btn-primary" data-action="project-new" aria-label="${esc(t('projectAdd'))}">${icon('plus')} ${esc(t('projectAdd'))}</button>
+      <button type="button" class="button button-primary" data-action="project-new" aria-label="${esc(t('projectAdd'))}">${icon('plus')} ${esc(t('projectAdd'))}</button>
     </header>
     <div class="pj-filters" role="group" aria-label="${esc(t('projectFilterAll'))}">
       ${['all', 'active', 'completed', 'archived'].map((k) => `<button type="button" class="pj-filter ${f === k ? 'active' : ''}" data-action="project-filter" data-filter="${k}" aria-pressed="${f === k}">${esc(t('projectFilter' + (k[0].toUpperCase() + k.slice(1))))}</button>`).join('')}
@@ -229,8 +229,8 @@
         <textarea id="pj-notes-input" class="inline-input pj-notes-input" data-role="project-notes" rows="3" placeholder="${esc(t('projectNotesPh'))}">${esc(v('notes'))}</textarea>
       </div>
       <div class="form-actions">
-        <button type="button" class="btn btn-primary" data-action="${isEdit ? 'project-edit-save' : 'project-create-save'}" data-id="${isEdit ? esc(pj.id) : ''}">${icon('check')} ${esc(t('projectSave'))}</button>
-        <button type="button" class="btn btn-ghost" data-action="project-edit-close">${esc(t('closeBtn'))}</button>
+        <button type="button" class="button button-primary" data-action="${isEdit ? 'project-edit-save' : 'project-create-save'}" data-id="${isEdit ? esc(pj.id) : ''}">${icon('check')} ${esc(t('projectSave'))}</button>
+        <button type="button" class="button" data-action="project-edit-close">${esc(t('closeBtn'))}</button>
       </div>
     </form>`;
   }
@@ -250,8 +250,8 @@
         <input id="mile-target-input" type="date" class="inline-input" data-role="milestone-target" value="${esc(v('targetDate') || '')}" />
       </div>
       <div class="form-actions">
-        <button type="button" class="btn btn-primary" data-action="mile-edit-save" data-pid="${esc(projectId)}" data-mid="${isEdit ? esc(m.id) : ''}">${icon('check')} ${esc(t('milestoneSave'))}</button>
-        <button type="button" class="btn btn-ghost" data-action="mile-edit-close">${esc(t('closeBtn'))}</button>
+        <button type="button" class="button button-primary" data-action="mile-edit-save" data-pid="${esc(projectId)}" data-mid="${isEdit ? esc(m.id) : ''}">${icon('check')} ${esc(t('milestoneSave'))}</button>
+        <button type="button" class="button" data-action="mile-edit-close">${esc(t('closeBtn'))}</button>
       </div>
     </form>`;
   }

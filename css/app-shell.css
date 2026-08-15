@@ -241,6 +241,23 @@ body:has(.app-layout) {
   font: 700 .8125rem/1 var(--font-body);
 }
 
+/* Primary-action class alias (used by Projects, AI panel, Pillars, Reflection,
+   Month Carry-over). Mirrors components.css [data-variant="primary"] so the
+   class form resolves in-app (V2 release hardening). */
+.button.button-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+.button.button-primary:hover {
+  color: var(--color-on-accent);
+  background: var(--color-accent-hover);
+}
+
 .app-primary-action.button-primary {
   display: inline-flex;
   align-items: center;
