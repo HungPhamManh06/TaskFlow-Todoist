@@ -57,7 +57,7 @@ def assert_no_page_overflow(page, label):
     assert overflow <= 1, f"{label} horizontal overflow: {overflow}px"
 
 
-def make_page(browser, width, height):
+def make_page(browser, width, height, service_workers="allow"):
     # Motion determinism: emulate prefers-reduced-motion (the app honors it in
     # CSS + JS) so every smooth scroll is instant. Without this, WebKit
     # suppresses or mis-targets clicks that land while a scroll is still in
@@ -65,7 +65,10 @@ def make_page(browser, width, height):
     # retries, flaky toggles), and Firefox scrolls more slowly than Chromium so
     # geometry reads can straddle two scroll positions. Reduced-motion removes
     # animation timing from the suite on every engine.
-    page = browser.new_page(viewport={"width": width, "height": height})
+    page = browser.new_page(
+        viewport={"width": width, "height": height},
+        service_workers=service_workers,
+    )
     page.emulate_media(reduced_motion="reduce")
     return page
 
@@ -486,18 +489,30 @@ def segmented_geometry_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
-def schedule_unscheduled_checks(browser, base, width, height, errors, screenshot):
-    """V2 Schedule UX: unscheduled tasks + quick schedule.
-    1) Calendar → Schedule mode on an empty today
-    2) + Thêm công việc → Quick Add date defaults to the selected schedule date
-    3) save → task appears under "Chưa lên lịch", timeline does NOT invent a block
-    4) Xếp lịch → existing TimeBlock dialog pre-filled (task + date + duration) → 19:00–20:00 → save
-    5) task leaves unscheduled, timeline shows the block; reload persists
-    6) Month→Schedule→Month→Schedule: toggle position stable, no duplicated task/block
+def schedule_unscheduled_checks(
+    browser, base, width, height, errors, screenshot, source_assets=False
+):
+    """V2 Schedule UX: disclosure density + quick schedule.
+    1) Seed nine real tasks today; Quick Add creates the tenth
+    2) collapsed/expanded disclosure renders 5 → 10 → 5 rows
+    3) expand and quick-schedule Test Schedule Task through the real dialog
+    4) save leaves nine unscheduled tasks and exactly one persisted block
+    5) Month/Schedule switches preserve the Calendar shell and toggle DOM node
     """
-    page = make_page(browser, width, height)
+    page = make_page(browser, width, height, service_workers="block")
     page.on("pageerror", lambda error: errors.append(f"tbsched {width}px: {error}"))
     page.on("dialog", lambda dialog: dialog.accept())
+    # Tasks 1-4 can verify source before release assets are regenerated in Task 5.
+    # The default remains production-like so --all exercises the real minified bundles.
+    if source_assets:
+        for asset in ("i18n", "timeblocks-ui", "app"):
+            source = os.path.join(ROOT, "js", f"{asset}.js")
+            page.route(
+                f"**/js/{asset}.min.js*",
+                lambda route, _request, source=source: route.fulfill(
+                    path=source, content_type="application/javascript"
+                ),
+            )
     page.add_init_script("""(() => {
       localStorage.setItem('planner-onboarded','1');
       // Only seed on the FIRST load of the scenario — reload must keep UI-created data.
@@ -523,6 +538,17 @@ def schedule_unscheduled_checks(browser, base, width, height, errors, screenshot
         for (let d = 0; d < 7; d++) days.push({ tasks: [] });
         state.weeks.push({ n: w + 1, goals: [], days });
       }
+      const planStart = new Date(year, month, 1 - offset);
+      const today = new Date(year, month, now.getDate());
+      const delta = Math.floor((today - planStart) / 86400000);
+      const week = Math.floor(delta / 7), day = delta % 7;
+      state.weeks[week].days[day].tasks = Array.from({ length: 9 }, (_, i) => ({
+        uid: 'tbsched-seed-' + (i + 1),
+        kind: i === 0 ? 'priority' : 'regular',
+        done: false,
+        text: 'Seed Schedule Task ' + (i + 1),
+        duration: 15 + (i * 5),
+      }));
       localStorage.setItem(key, JSON.stringify(state));
     })()""")
     page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
@@ -541,8 +567,8 @@ def schedule_unscheduled_checks(browser, base, width, height, errors, screenshot
       const n = new Date();
       return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
     })()""")
-    assert page.locator('[data-testid="tb-unscheduled"]').count() == 0, \
-        "ngày trống không được có section unscheduled"
+    assert page.locator('[data-testid="tb-unscheduled"] .tb-uns-row').count() == 5, \
+        "nine seeded tasks must initially render only five rows"
 
     # 2) + Thêm công việc (global header button; mobile falls back to the FAB)
     add_task = page.locator('[data-action="shell-add-task"]')
@@ -561,16 +587,31 @@ def schedule_unscheduled_checks(browser, base, width, height, errors, screenshot
     page.locator('[data-action="quickadd-do"]').click()
     page.wait_for_selector('[data-testid="quick-add"]:visible', state="detached")
 
-    # 3) Task appears under "Chưa lên lịch"; timeline must NOT invent a block
+    # 3) The tenth task is initially collapsed; disclosure expands and collapses accessibly.
     page.wait_for_selector('[data-testid="tb-unscheduled"]', state="visible")
+    rows = page.locator('[data-testid="tb-unscheduled"] .tb-uns-row')
+    assert rows.count() == 5, f"collapsed disclosure must show 5 rows, saw {rows.count()}"
+    toggle = page.locator('[data-action="tb-uns-toggle"]')
+    assert toggle.get_attribute('aria-expanded') == 'false'
+    assert '5' in toggle.inner_text(), "collapsed disclosure must announce five remaining tasks"
+    toggle.click()
+    assert rows.count() == 10, f"expanded disclosure must show 10 rows, saw {rows.count()}"
+    assert toggle.get_attribute('aria-expanded') == 'true'
     assert "Test Schedule Task" in page.locator('[data-testid="tb-unscheduled"]').inner_text(), \
-        "task phải xuất hiện trong section Chưa lên lịch"
+        "expanded section must expose the Quick Added task"
+    toggle.click()
+    assert rows.count() == 5, f"collapsed disclosure must return to 5 rows, saw {rows.count()}"
+    assert toggle.get_attribute('aria-expanded') == 'false'
     assert page.locator('.tb-block').count() == 0, \
         "Add Task KHÔNG được tự tạo TimeBlock"
 
-    # 4) Xếp lịch → existing TimeBlock dialog pre-filled
-    page.locator('[data-testid="tb-unscheduled"] [data-action="tb-quick"]').first.scroll_into_view_if_needed()
-    page.locator('[data-testid="tb-unscheduled"] [data-action="tb-quick"]').first.click()
+    # 4) Expand and target the Quick Added task, not whichever row happens to be first.
+    toggle.click()
+    target_row = page.locator('[data-testid="tb-unscheduled"] .tb-uns-row', has_text="Test Schedule Task")
+    assert target_row.count() == 1, "expanded disclosure must contain exactly one Test Schedule Task row"
+    target_quick = target_row.locator('[data-action="tb-quick"]')
+    target_quick.scroll_into_view_if_needed()
+    target_quick.click()
     page.wait_for_selector('[data-testid="timeblock-modal"]:visible', state="visible")
     sel_text = page.locator('[data-role="tb-task"] option:checked').inner_text()
     assert sel_text == "Test Schedule Task", f"dialog phải pre-select task, thấy {sel_text}"
@@ -584,11 +625,21 @@ def schedule_unscheduled_checks(browser, base, width, height, errors, screenshot
     page.wait_for_selector('[data-testid="timeblock-modal"]:visible', state="detached")
     page.wait_for_timeout(250)
 
-    # 5) task leaves unscheduled; timeline shows the block
-    assert page.locator('[data-testid="tb-unscheduled"]').count() == 0, \
-        "task phải rời section Chưa lên lịch sau khi xếp lịch"
+    # 5) The scheduled task leaves the collection; the nine seed tasks remain exactly once.
+    assert page.locator('[data-testid="tb-unscheduled"] .tb-uns-row').count() == 9, \
+        "saving one of ten tasks must leave nine unscheduled rows while expanded"
+    assert "Test Schedule Task" not in page.locator('[data-testid="tb-unscheduled"]').inner_text(), \
+        "scheduled task must leave the unscheduled collection"
     assert page.locator('.tb-block').count() == 1, "timeline phải hiển thị đúng 1 block"
     assert "Test Schedule Task" in page.locator('.tb-block').inner_text(), "block phải mang tên task"
+
+    # Selected-day navigation resets disclosure state without changing the collection.
+    page.locator('[data-action="tb-next"]').first.click()
+    page.locator('[data-action="tb-prev"]').first.click()
+    page.wait_for_timeout(150)
+    assert page.locator('[data-testid="tb-unscheduled"] .tb-uns-row').count() == 5, \
+        "day navigation must reset the disclosure to five visible rows"
+    assert page.locator('.tb-block').count() == 1, "day navigation must preserve the saved block"
 
     # reload → persists (init script must not wipe)
     page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
@@ -598,23 +649,34 @@ def schedule_unscheduled_checks(browser, base, width, height, errors, screenshot
     page.wait_for_selector('[data-testid="schedule-view"]', state="visible")
     page.locator('[data-action="tb-today"]').first.click()
     page.wait_for_timeout(200)
-    assert page.locator('[data-testid="tb-unscheduled"]').count() == 0, "reload: task không được quay lại unscheduled"
+    reload_rows = page.locator('[data-testid="tb-unscheduled"] .tb-uns-row').count()
+    assert reload_rows == 5, \
+        f"reload must reset ephemeral disclosure state to five visible rows, saw {reload_rows}"
+    assert "Test Schedule Task" not in page.locator('[data-testid="tb-unscheduled"]').inner_text(), \
+        "reload: scheduled task must not return to unscheduled"
     assert page.locator('.tb-block').count() == 1, "reload: block phải còn trong timeline"
 
     # 6) Mode switch Month→Schedule→(back): toggle position stable, no duplicates
     toggle = page.locator(".cal-mode-toggle")
+    toggle_handle = toggle.element_handle()
+    assert toggle_handle, "cal-mode-toggle must have a stable DOM handle"
     page.locator('[data-action="cal-mode"][data-mode="month"]').click()
     page.wait_for_timeout(200)
+    assert page.evaluate('(node) => node === document.querySelector(".cal-mode-toggle")', toggle_handle), \
+        "Month switch must preserve cal-mode-toggle DOM identity"
     month_box = toggle.bounding_box()
     assert month_box, "cal-mode-toggle phải hiển thị ở Month mode"
     page.locator('[data-action="cal-mode"][data-mode="schedule"]').click()
     page.wait_for_timeout(200)
+    assert page.evaluate('(node) => node === document.querySelector(".cal-mode-toggle")', toggle_handle), \
+        "Schedule switch must preserve cal-mode-toggle DOM identity"
     sched_box = toggle.bounding_box()
     assert sched_box, "cal-mode-toggle phải hiển thị ở Schedule mode"
     assert abs(month_box["x"] - sched_box["x"]) <= 2, \
         f"cal-mode-toggle nhảy vị trí: month {month_box['x']:.1f} vs schedule {sched_box['x']:.1f}"
     assert page.locator('.tb-block').count() == 1, "mode switch không được tạo block trùng"
-    assert page.locator('[data-testid="tb-unscheduled"]').count() == 0, "mode switch không được tạo task trùng"
+    assert page.locator('[data-testid="tb-unscheduled"] .tb-uns-row').count() == 5, \
+        "mode switch must preserve nine-task collection in collapsed presentation"
     n_tasks = page.evaluate("""(() => {
       const n = new Date();
       const key = 'planner-' + n.getFullYear() + '-' + (n.getMonth() + 1);
@@ -627,7 +689,7 @@ def schedule_unscheduled_checks(browser, base, width, height, errors, screenshot
       const day = s.weeks[w] && s.weeks[w].days[d];
       return day && Array.isArray(day.tasks) ? day.tasks.length : 0;
     })()""")
-    assert n_tasks == 1, f"mode switch không được tạo task trùng (thấy {n_tasks})"
+    assert n_tasks == 10, f"mode switch không được tạo task trùng (thấy {n_tasks})"
 
     assert_no_page_overflow(page, f"schedule-unscheduled {width}px")
     page.screenshot(path=screenshot, full_page=False)
@@ -3070,8 +3132,12 @@ def main():
                 segmented_geometry_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 segmented_geometry_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "schedule-unscheduled":
-                schedule_unscheduled_checks(browser, base, 1440, 900, errors, shots["desktop"])
-                schedule_unscheduled_checks(browser, base, 390, 844, errors, shots["mobile"])
+                schedule_unscheduled_checks(
+                    browser, base, 1440, 900, errors, shots["desktop"], source_assets=True
+                )
+                schedule_unscheduled_checks(
+                    browser, base, 390, 844, errors, shots["mobile"], source_assets=True
+                )
             elif args.view == "inbox":
                 inbox_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 inbox_checks(browser, base, 390, 844, errors, shots["mobile"])

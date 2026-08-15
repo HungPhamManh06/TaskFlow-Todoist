@@ -648,6 +648,7 @@ const TimeBlocksUI = window.TaskFlowTimeBlocksUI;
 // State thuần UI, không lưu vào month state (không phải dữ liệu planner).
 let calendarMode = 'month';
 let calendarSelDate = ''; // 'YYYY-MM-DD' — ngày đang chọn trong Schedule view
+let calendarUnscheduledExpanded = false;
 
 function loadTimeBlocksStore() {
   return window.TaskFlowTimeBlocks.loadTimeBlocks();
@@ -3718,6 +3719,7 @@ function renderCalendarSchedule() {
       monthStart,
       monthEnd,
       blockActions: gcalBlockActions,
+      unscheduledExpanded: calendarUnscheduledExpanded,
     })}
     <div id="gcal-section-host">${gcalScheduleSection(calendarSelDate, monthStart, monthEnd)}</div>`;
   scheduleGcalRefresh(calendarSelDate || todayIso, monthStart, monthEnd);
@@ -5541,18 +5543,25 @@ document.addEventListener('click', (e) => {
     calendarMode = el.dataset.mode === 'schedule' ? 'schedule' : 'month';
     renderCalendar();
   } else if (act === 'tb-day') {
+    calendarUnscheduledExpanded = false;
     calendarSelDate = el.dataset.date || localTodayIso();
     renderCalendarSchedule();
   } else if (act === 'tb-prev') {
+    calendarUnscheduledExpanded = false;
     const d = TimeBlocksUI.parseISO(calendarSelDate || localTodayIso());
     calendarSelDate = TimeBlocksUI.iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1));
     renderCalendarSchedule();
   } else if (act === 'tb-next') {
+    calendarUnscheduledExpanded = false;
     const d = TimeBlocksUI.parseISO(calendarSelDate || localTodayIso());
     calendarSelDate = TimeBlocksUI.iso(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1));
     renderCalendarSchedule();
   } else if (act === 'tb-today') {
+    calendarUnscheduledExpanded = false;
     calendarSelDate = localTodayIso();
+    renderCalendarSchedule();
+  } else if (act === 'tb-uns-toggle') {
+    calendarUnscheduledExpanded = el.getAttribute('aria-expanded') !== 'true';
     renderCalendarSchedule();
   } else if (act === 'tb-add') {
     openTimeBlockModal({ date: el.dataset.date || calendarSelDate || localTodayIso() });
