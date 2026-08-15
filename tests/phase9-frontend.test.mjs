@@ -833,8 +833,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=181/);
-  assert.match(SW, /const CACHE = 'taskflow-v225';/);
+  assert.match(APP, /js\/app\.min\.js\?v=182/);
+  assert.match(SW, /const CACHE = 'taskflow-v226';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1343,7 +1343,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=181/);
+  assert.match(APP, /js\/app\.min\.js\?v=182/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
@@ -1351,7 +1351,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v225';/);
+  assert.match(SW, /const CACHE = 'taskflow-v226';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2013,7 +2013,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v225';/);
+  assert.match(SW, /const CACHE = 'taskflow-v226';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2091,7 +2091,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v225';/);
+  assert.match(SW, /const CACHE = 'taskflow-v226';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2215,6 +2215,97 @@ test('release: sync.min.js cache-bust upgraded to v5 with no stale v4 reference'
   assert.ok(SW.includes("\'./js/sync.min.js\'"), 'sw.js phải precache js/sync.min.js');
 });
 
+test('release: app.min.js version pin is current — asset on disk, no stale version, SW generation matches release', () => {
+  // P1.1/P1.3 release-consistency invariant: app.html phải tham chiếu
+  // app.min.js có ?v=N; N phải là pin release hiện tại; asset min tồn tại trên
+  // disk; không để lại tham chiếu version cũ (N-1); SW cache generation phải
+  // thuộc cùng release và precache app.min.js.
+  const ver = APP.match(/js\/app\.min\.js\?v=(\d+)/);
+  assert.ok(ver, 'app.html phải tham chiếu js/app.min.js có ?v=');
+  const current = Number(ver[1]);
+  assert.ok(current >= 182, `app.min.js version phải >= 182 (release hiện tại), tìm thấy ${current}`);
+  assert.ok(existsSync(path.join(ROOT, 'js/app.min.js')), 'js/app.min.js phải tồn tại trên disk (min sibling up to date)');
+  assert.doesNotMatch(
+    APP,
+    new RegExp(`js/app\\.min\\.js\\?v=${current - 1}(?!\\d)`),
+    `không được để lại tham chiếu app.min.js version cũ (v${current - 1})`
+  );
+  const gen = SW.match(/const CACHE = 'taskflow-v(\d+)'/);
+  assert.ok(gen, 'sw.js phải khai báo CACHE generation');
+  assert.ok(SW.includes("\'./js/app.min.js\'"), 'sw.js phải precache js/app.min.js');
+});
+
+test('release: SW upgrade cache — new app.min.js versioned URL never satisfies the previous release key, old generation purged', async () => {
+  // P1.3 upgrade scenario: user có SW cũ + entry app.min.js?v=N-1 trong cache.
+  // Deploy release mới: HTML yêu cầu ?v=N → exact-URL match phải miss online,
+  // network phục vụ file MỚI ngay lần load đầu, entry release cũ không bao
+  // giờ được trả; activate xoá cache generation cũ (taskflow-v{C-1}).
+  const ver = APP.match(/js\/app\.min\.js\?v=(\d+)/);
+  assert.ok(ver, 'app.html phải tham chiếu app.min.js có version query');
+  const current = Number(ver[1]);
+  const prev = current - 1;
+  const gen = SW.match(/const CACHE = 'taskflow-v(\d+)'/);
+  assert.ok(gen, 'sw.js phải khai báo CACHE generation');
+  const cacheGen = Number(gen[1]);
+  const prevGen = `taskflow-v${cacheGen - 1}`;
+  const newKey = `app.min.js?v=${current}`;
+  const oldKey = `app.min.js?v=${prev}`;
+  const handlers = {};
+  const matchCalls = [];
+  const deleteCalls = [];
+  const staleEntry = { source: 'stale-prev-release' };
+  const context = {
+    URL,
+    location: { origin: 'https://taskflow.test' },
+    caches: {
+      match(request, options) {
+        matchCalls.push({ request, options });
+        // Cache cũ vẫn giữ entry v{prev}; request mới v{current} → exact match miss
+        if (String(request.url || request).includes(oldKey)) {
+          return Promise.resolve(staleEntry);
+        }
+        return Promise.resolve(undefined);
+      },
+      open() { return Promise.resolve({ put() {} }); },
+      keys() {
+        return Promise.resolve([prevGen, `taskflow-v${cacheGen}`, 'taskflow-digest']);
+      },
+      delete(key) { deleteCalls.push(key); return Promise.resolve(true); },
+    },
+    fetch() {
+      return Promise.resolve({ ok: true, source: 'network-new-release', clone: () => ({}) });
+    },
+    self: {
+      addEventListener(type, handler) { handlers[type] = handler; },
+      clients: { claim() {} },
+      skipWaiting() {},
+      registration: { showNotification() {} },
+    },
+  };
+  vm.runInNewContext(SW, context);
+
+  // Activate: cache generation cũ bị xoá, generation hiện tại + digest giữ lại
+  const activateChain = handlers.activate({ waitUntil(p) { return p; } });
+  await activateChain;
+  assert.deepStrictEqual(
+    deleteCalls.sort(),
+    [prevGen],
+    `activate phải xoá cache generation cũ (${prevGen}), giữ taskflow-v${cacheGen} + digest`
+  );
+
+  // Fetch online cho app.min.js?v=N: exact match miss → network phục vụ file MỚI
+  let responsePromise;
+  handlers.fetch({
+    request: { method: 'GET', mode: 'cors', url: `https://taskflow.test/js/${newKey}` },
+    respondWith(promise) { responsePromise = promise; },
+  });
+  const res = await responsePromise;
+  assert.ok(res && res.source === 'network-new-release', `lần load đầu sau nâng cấp phải lấy ${newKey} từ network`);
+  assert.notEqual(res, staleEntry, 'entry release cũ không bao giờ được trả cho request mới');
+  assert.equal(matchCalls.length, 1, 'chỉ 1 lần match exact URL (online không dùng ignoreSearch)');
+  assert.equal(matchCalls[0].request.url, `https://taskflow.test/js/${newKey}`);
+});
+
 test('release: SW upgrade cache — old v4 entry never satisfies new v5 request, old cache purged on activate', async () => {
   // Upgrade scenario (P1.3): user có SW cũ + entry sync.min.js?v=4 trong cache.
   // Deploy bản mới: HTML yêu cầu ?v=5 → exact-URL match phải miss online,
@@ -2238,7 +2329,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v225', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v226', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);
@@ -2260,7 +2351,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
   // Activate: cache cũ (v210) bị xoá, v211 + digest giữ lại
   const activateChain = handlers.activate({ waitUntil(p) { return p; } });
   await activateChain;
-  assert.deepStrictEqual(deleteCalls.sort(), ['taskflow-v220'], 'activate phải xoá cache cũ, giữ v225 + digest');
+  assert.deepStrictEqual(deleteCalls.sort(), ['taskflow-v220'], 'activate phải xoá cache cũ, giữ v226 + digest');
 
   // Fetch online cho request mới v5: exact match miss → network phục vụ file MỚI
   // ngay trong lần load nâng cấp đầu tiên (không cần reload lần 2)
