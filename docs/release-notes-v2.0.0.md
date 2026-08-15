@@ -86,18 +86,56 @@ Highlights in this release:
 - Rule-based planner remains the fallback when AI is unavailable; minimum
   structured context (no full localStorage); privacy docs updated.
 
+## Release polish — cache busting & V2 metadata alignment
+
+Applied after the feature range (`84eaa51…65a83de`) as release hardening;
+no product-behavior changes.
+
+### Cache-busting / release consistency
+- `js/app.min.js?v=181 → 182`: the Calendar Tháng/Lịch trình toggle fix
+  changed app.min.js content without a version bump — under the SW's
+  stale-while-revalidate strategy an old client could serve new HTML/CSS
+  with the cached old app.min.js on first load after deploy.
+- Missed bumps from earlier commits fixed: `css/components.min.css v7→8`,
+  `js/fab.min.js v1→2`, `js/i18n.min.js v17→18`, `js/plan-carry.min.js v1→2`,
+  `js/storage.min.js v2→3`.
+- SW cache generation advanced to `taskflow-v227` (via v226) so `activate`
+  purges the previous generation and re-precaches the new asset content.
+- New **`release-assets` CI job** (`scripts/check-release-assets.py`, run with
+  `fetch-depth: 0`): every `?v=N` pin in app.html must be at least as new as
+  the last commit that changed the asset, otherwise CI fails. The first run
+  surfaced the 5 stale pins above; verified to fail at `e365259` (the
+  original `app.min.js?v=181` regression) and pass on current HEAD.
+
+### V2 metadata / copy alignment
+- `/app` SEO: `description`, `keywords`, `og:description`,
+  `twitter:description` aligned to V2 — Goals → Projects → Milestones →
+  Tasks → Time Blocks, Smart Planner, flexible habits, Focus, Reflection,
+  optional cloud sync, no account required. No overclaims (no implied
+  mandatory account/cloud, no two-way sync, no "100% offline").
+- Landing hero lead (VI + EN): "kết nối mục tiêu, dự án, mốc tiến độ, công
+  việc và lịch thực thi…" — copy-only; layout, CTAs and feature cards
+  untouched.
+
 ## Verification
 
-- Unit: **736/736** · Sync 2-client: 13/13 · Server security/AI/calendar
+- Unit: **738/738** · Sync 2-client: 13/13 · Server security/AI/calendar
   suites: PASS (incl. 16 export/update/delete server tests)
 - Full Chromium E2E matrix + Firefox/WebKit smokes: RELEASE OK
 - Mobile QA 0 FAIL / a11y 62 PASS / dark contrast ALL PASS / CSS verifier 0 diffs
-- Minify check 85 files up to date · Offline/SW smoke green (cache v223)
+- Minify check 86 files up to date · release-assets check green (SW cache v227)
 
 ## Notes
 
 - Additive-only migrations: every V1.x release imports into V2.0 (old JSON
   backups remain importable; removed fields never; unknown fields ignored).
-- SW cache `taskflow-v223`; app.min.js `?v=181`.
+- SW cache `taskflow-v227`; app.min.js `?v=182`; styles `?v=21` (see the
+  Release polish section above for the full cache-busting history).
 - Known debt documented in `docs/gcal-sync-design.md` §10 (no mapping hash/state,
   no extended-property recovery; acceptable for push-only scope).
+- Offline app shell on Vercel (open, not shipped): SW-cached navigations for
+  clean URLs (`/app`, `/privacy`, `/terms`) fail offline with `ERR_FAILED`
+  because Vercel serves them with `Content-Disposition: inline; filename="…"`;
+  `/` works. Verified end-to-end against production; the minimal fix
+  (strip the header when serving cached navigations) is proven in-browser
+  but not yet released.
