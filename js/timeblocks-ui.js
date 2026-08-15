@@ -11,6 +11,8 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
 
+  const INITIAL_VISIBLE = 5;
+
   function t(key, vars) {
     return (window.TaskFlowI18N && window.TaskFlowI18N.t) ? window.TaskFlowI18N.t(key, vars) : (key || '');
   }
@@ -146,11 +148,16 @@
   // nút Xếp lịch). Trả '' khi không có task unscheduled (tất cả đã xếp lịch / không
   // có task) — giữ giao diện nhẹ nhàng. Không thêm checkbox: hành động của hàng là
   // Xếp lịch, không phải đánh dấu hoàn thành.
-  function unscheduledSectionHTML(tasks, dateIso) {
+  function unscheduledSectionHTML(tasks, dateIso, expanded = false) {
     if (!Array.isArray(tasks) || !tasks.length) return '';
-    const n = tasks.length;
+    const renderableTasks = tasks.filter((tk) => tk && String(tk.text || '').trim());
+    if (!renderableTasks.length) return '';
+    const n = renderableTasks.length;
     const countLabel = n === 1 ? t('tbUnsCountOne') : t('tbUnsCount', { n });
-    const rows = tasks.map((tk) => {
+    const visibleTasks = expanded ? renderableTasks : renderableTasks.slice(0, INITIAL_VISIBLE);
+    const remaining = Math.max(0, renderableTasks.length - INITIAL_VISIBLE);
+    const listId = `tb-uns-list-${dateIso}`;
+    const rows = visibleTasks.map((tk) => {
       const text = String(tk.text || '').trim();
       if (!text) return '';
       const dur = taskDurationMin(tk);
@@ -167,9 +174,14 @@
           aria-label="${esc(t('tbScheduleAction'))}: ${esc(text)}">${esc(t('tbScheduleAction'))}</button>
       </div>`;
     }).join('');
+    const disclosure = renderableTasks.length > INITIAL_VISIBLE
+      ? `<button type="button" class="pop-btn tb-uns-toggle" data-action="tb-uns-toggle"
+          aria-expanded="${expanded ? 'true' : 'false'}" aria-controls="${esc(listId)}">${esc(expanded ? t('tbUnsCollapse') : t('tbUnsShowMore', { n: remaining }))}</button>`
+      : '';
     return `<section class="tb-unscheduled" aria-label="${esc(t('tbUnscheduled'))}" data-testid="tb-unscheduled">
       <h2 class="tb-uns-heading">${esc(t('tbUnscheduled'))}<span class="tb-uns-count">${esc(countLabel)}</span></h2>
-      <div class="tb-uns-list">${rows}</div>
+      <div class="tb-uns-list" id="${esc(listId)}">${rows}</div>
+      ${disclosure}
     </section>`;
   }
 
@@ -282,7 +294,7 @@
   }
 
   // Toàn bộ Schedule view cho 1 ngày (được render trong view-calendar khi mode=schedule).
-  function scheduleViewHTML({ store, date, state, inbox, planStart, todayIso, monthStart, monthEnd, blockActions }) {
+  function scheduleViewHTML({ store, date, state, inbox, planStart, todayIso, monthStart, monthEnd, blockActions, unscheduledExpanded = false }) {
     const selIso = iso(parseISO(date) || new Date());
     const d = parseISO(selIso);
     const weekday = d.toLocaleDateString(t('locale') || 'vi-VN', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -303,7 +315,7 @@
           <button type="button" class="pop-btn" data-action="tb-next"><span>${esc(t('tbNextDay'))}</span>${icon('chevron-right')}</button>
         </span>
       </div>
-      ${unscheduledSectionHTML(unscheduled, selIso)}
+      ${unscheduledSectionHTML(unscheduled, selIso, unscheduledExpanded)}
       ${timelineHTML(store, selIso, state, inbox, blockActions, {
         unscheduledCount: unscheduled.length,
         totalTasks: dayTasks.length,
@@ -416,6 +428,7 @@
   }
 
   return {
+    INITIAL_VISIBLE,
     iso, parseISO, mondayOf, weekDayForDate, tasksForDate, taskTextFor, focusRefForUid,
     taskDurationMin, unscheduledTasksForDate, unscheduledSectionHTML,
     dayStripHTML, blockRowHTML, timelineHTML, timelineEmptyMessage, detectOverlaps, scheduleViewHTML,

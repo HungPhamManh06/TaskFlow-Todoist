@@ -13,6 +13,7 @@ window.TaskFlowTimeBlocks = TimeBlocks;
 const T_KEYS = {
   tbUnscheduled: 'Unscheduled', tbUnsCountOne: '1 task', tbUnsCount: '{n} tasks',
   tbUnsDur: '{n} min', tbScheduleAction: 'Schedule',
+  tbUnsShowMore: 'Show {n} more', tbUnsCollapse: 'Collapse',
   tbNoTasksNoBlocks: 'No tasks or time blocks yet', tbNoBlocksUnscheduled: 'Unscheduled tasks above',
 };
 window.TaskFlowI18N = {
@@ -299,6 +300,43 @@ test('unscheduledSectionHTML: one row per given task (derivation dedupes upstrea
   ];
   const html = UI.unscheduledSectionHTML(tasks, '2026-08-15');
   assert.equal((html.match(/tb-uns-row/g) || []).length, 2);
+});
+
+test('unscheduledSectionHTML: 10 tasks show five rows then accessible disclosure', () => {
+  const tasks = Array.from({ length: 10 }, (_, i) => ({ uid: `u${i}`, text: `Task ${i + 1}` }));
+  const html = UI.unscheduledSectionHTML(tasks, '2026-08-15');
+  assert.equal((html.match(/class="tb-uns-row"/g) || []).length, 5);
+  assert.match(html, /data-action="tb-uns-toggle"/);
+  assert.match(html, /aria-expanded="false"/);
+  assert.match(html, /aria-controls="tb-uns-list-2026-08-15"/);
+  assert.match(html, /Show 5 more/);
+  assert.doesNotMatch(html, /Task 6/);
+});
+
+test('unscheduledSectionHTML: expanded renders all rows and collapse control', () => {
+  const tasks = Array.from({ length: 10 }, (_, i) => ({ uid: `u${i}`, text: `Task ${i + 1}` }));
+  const html = UI.unscheduledSectionHTML(tasks, '2026-08-15', true);
+  assert.equal((html.match(/class="tb-uns-row"/g) || []).length, 10);
+  assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /Collapse/);
+});
+
+test('unscheduledSectionHTML: collapsed view uses the first five tasks with renderable text', () => {
+  const tasks = [
+    { uid: 'u1', text: 'Task 1' },
+    { uid: 'blank', text: '   ' },
+    { uid: 'u2', text: 'Task 2' },
+    { uid: 'u3', text: 'Task 3' },
+    { uid: 'u4', text: 'Task 4' },
+    { uid: 'u5', text: 'Task 5' },
+    { uid: 'u6', text: 'Task 6' },
+  ];
+  const html = UI.unscheduledSectionHTML(tasks, '2026-08-15');
+  assert.equal((html.match(/class="tb-uns-row"/g) || []).length, 5);
+  assert.match(html, />6 tasks</);
+  assert.match(html, /Task 5/);
+  assert.doesNotMatch(html, /Task 6/);
+  assert.match(html, /Show 1 more/);
 });
 
 test('timelineEmptyMessage: context variants', () => {
