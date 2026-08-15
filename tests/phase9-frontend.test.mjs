@@ -478,9 +478,10 @@ test('year summary synchronizes after an inline annual-goal change', () => {
 });
 
 test('calendar renders one heading with desktop grid and mobile agenda from shared entries', () => {
-  const calendar = APP_JS.slice(APP_JS.indexOf('function renderCalendar()'), APP_JS.indexOf('Phase 2: Template'));
-  assert.match(calendar, /class="calendar-page"/);
-  assert.match(calendar, /<h1[^>]*class="calendar-page-title"/);
+  // Shell (ensureCalendarShell) owns the page + heading; month render fills the content.
+  const calendar = APP_JS.slice(APP_JS.indexOf('function ensureCalendarShell()'), APP_JS.indexOf('Phase 2: Template'));
+  assert.match(calendar, /calendar-page/);
+  assert.match(calendar, /calendar-page-title/);
   assert.match(calendar, /class="calendar-grid-desktop"/);
   assert.match(calendar, /class="calendar-agenda-mobile"/);
   assert.match(calendar, /calendarDayEntries\(\)/);
@@ -833,8 +834,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=183/);
-  assert.match(SW, /const CACHE = 'taskflow-v229';/);
+  assert.match(APP, /js\/app\.min\.js\?v=184/);
+  assert.match(SW, /const CACHE = 'taskflow-v230';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1343,7 +1344,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=183/);
+  assert.match(APP, /js\/app\.min\.js\?v=184/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
@@ -1351,7 +1352,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v229';/);
+  assert.match(SW, /const CACHE = 'taskflow-v230';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2013,7 +2014,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v229';/);
+  assert.match(SW, /const CACHE = 'taskflow-v230';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2091,7 +2092,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v229';/);
+  assert.match(SW, /const CACHE = 'taskflow-v230';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2329,7 +2330,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v229', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v230', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);
@@ -2958,6 +2959,35 @@ test('Phase 2: Upcoming view — nav item, view section, range filter and cross-
   assert.match(upStyles, /\.up-range-btn\.active\s*{/);
   assert.match(upStyles, /\.up-task-row\s*{/);
   assert.match(upStyles, /\.up-focus\s*{/);
+});
+
+test('V2 segmented control: shared capsule primitive + stable render shells', () => {
+  // 1. Shared geometry in styles.css (source of truth) — .up-range aliased for 7/14/30.
+  const styles = readRequiredAsset('css/styles.css');
+  assert.match(styles, /\.segmented,\s*\.up-range\s*{/);
+  assert.match(styles, /\.segmented-item,\s*\.up-range-btn\s*{/);
+  assert.match(styles, /\.segmented-item\.active,\s*\.up-range-btn\.active\s*{/);
+  assert.match(styles, /\.segmented--accent\s*\.segmented-item\.active\s*{/);
+  // no leftover square-active rules for calendar/projects (was border-radius: 0 + clip)
+  assert.doesNotMatch(styles, /\.cal-mode-toggle\s*\.pop-btn\s*{/);
+  assert.doesNotMatch(styles, /\.pj-filter\s*{/);
+  // 2. Calendar: shell built once, toggle uses the primitive, content region swapped.
+  assert.match(APP_JS, /function ensureCalendarShell\(\)/);
+  assert.match(APP_JS, /function syncCalendarShell\(page\)/);
+  assert.match(APP_JS, /cal-mode-toggle segmented segmented--accent/);
+  assert.match(APP_JS, /data-role="cal-content"/);
+  assert.match(APP_JS, /data-role="cal-legend"/);
+  assert.doesNotMatch(APP_JS, /class="pop-btn\$\{calendarMode/);
+  // 3. Projects: shell + content-only updates on filter change.
+  const PJ = readFileSync(path.join(ROOT, 'js/projects-ui.js'), 'utf8');
+  assert.match(PJ, /function ensureProjectsShell\(root, f\)/);
+  assert.match(PJ, /pj-filters segmented segmented--accent/);
+  assert.match(PJ, /data-role="pj-content"/);
+  assert.doesNotMatch(PJ, /class="pj-filter\b/);
+  // 4. Upcoming 7/14/30 migrated onto the primitive (no visual change).
+  const UP = readFileSync(path.join(ROOT, 'js/upcoming.js'), 'utf8');
+  assert.match(UP, /class="up-range segmented"/);
+  assert.match(UP, /up-range-btn segmented-item/);
 });
 
 test('Phase 3: Inbox — nav item, view section, capture flow and schedule keeping uid', () => {

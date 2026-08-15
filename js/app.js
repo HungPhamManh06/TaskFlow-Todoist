@@ -3652,30 +3652,63 @@ function localTodayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// Schedule view: timeline 1 ngày cho TimeBlocks + toggle mode trong header calendar.
-function renderCalendarSchedule() {
+// Calendar page shell — header (heading + segmented mode toggle + legend slot) is
+// rendered ONCE and survives Month ↔ Schedule switches, so the .cal-mode-toggle DOM
+// node (and its grid-column position) never changes. Only .calendar-mode-content is
+// swapped per mode — no whole-view innerHTML churn, no flash, focus preserved.
+function ensureCalendarShell() {
   const el = document.getElementById('view-calendar');
+  let page = el.querySelector(':scope > .calendar-page');
+  if (page) return page;
+  page = document.createElement('div');
+  page.className = 'calendar-page';
+  page.innerHTML = `<header class="calendar-page-header">
+      <div class="calendar-page-heading">
+        <p class="calendar-page-eyebrow">${t('calendarWorkspaceEyebrow')}</p>
+        <h1 class="calendar-page-title" data-role="cal-title"></h1>
+        <p class="calendar-page-subtitle">${t('calendarPageSubtitle')}</p>
+      </div>
+      <div class="cal-mode-toggle segmented segmented--accent" role="group" aria-label="${esc(t('calModeToggleAria'))}">
+        <button type="button" class="segmented-item" data-action="cal-mode" data-mode="month" aria-pressed="false">${esc(t('calModeMonth'))}</button>
+        <button type="button" class="segmented-item" data-action="cal-mode" data-mode="schedule" aria-pressed="false">${esc(t('calModeSchedule'))}</button>
+      </div>
+      <div class="cal-legend" data-role="cal-legend"></div>
+    </header>
+    <div class="calendar-mode-content" data-role="cal-content"></div>`;
+  el.replaceChildren(page);
+  return page;
+}
+
+// Đồng bộ trạng thái toggle + tiêu đề tháng trên shell đã tồn tại (không rebuild).
+function syncCalendarShell(page) {
+  const title = page.querySelector('[data-role="cal-title"]');
+  if (title) {
+    const next = t('calendarPageTitle', { m: monthLabel(PLAN_MONTH), y: PLAN_YEAR });
+    if (title.textContent !== next) title.textContent = next;
+  }
+  page.querySelectorAll('.cal-mode-toggle [data-action="cal-mode"]').forEach((btn) => {
+    const on = btn.dataset.mode === calendarMode;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+}
+
+// Schedule view: timeline 1 ngày cho TimeBlocks — chỉ swap vùng content.
+function renderCalendarSchedule() {
   const todayIso = localTodayIso();
   if (!calendarSelDate) calendarSelDate = todayIso;
   const sel = TimeBlocksUI.parseISO(calendarSelDate);
   if (!sel) calendarSelDate = todayIso;
+  const page = ensureCalendarShell();
+  syncCalendarShell(page);
+  const legend = page.querySelector('[data-role="cal-legend"]');
+  if (legend) legend.innerHTML = '';
   const blocks = loadTimeBlocksStore();
   const monthStart = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-01`;
   const nd = new Date(PLAN_YEAR, PLAN_MONTH + 1, 0).getDate();
   const monthEnd = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
-  el.innerHTML = `<div class="calendar-page">
-    <header class="calendar-page-header">
-      <div class="calendar-page-heading">
-        <p class="calendar-page-eyebrow">${t('calendarWorkspaceEyebrow')}</p>
-        <h1 class="calendar-page-title">${t('calendarPageTitle', { m: monthLabel(PLAN_MONTH), y: PLAN_YEAR })}</h1>
-        <p class="calendar-page-subtitle">${t('calendarPageSubtitle')}</p>
-      </div>
-      <div class="cal-mode-toggle" role="group" aria-label="${esc(t('calModeToggleAria'))}">
-        <button type="button" class="pop-btn ${calendarMode === 'month' ? 'active' : ''}" data-action="cal-mode" data-mode="month" aria-pressed="${calendarMode === 'month'}">${esc(t('calModeMonth'))}</button>
-        <button type="button" class="pop-btn ${calendarMode === 'schedule' ? 'active' : ''}" data-action="cal-mode" data-mode="schedule" aria-pressed="${calendarMode === 'schedule'}">${esc(t('calModeSchedule'))}</button>
-      </div>
-    </header>
-    ${TimeBlocksUI.scheduleViewHTML({
+  const content = page.querySelector('[data-role="cal-content"]');
+  content.innerHTML = `${TimeBlocksUI.scheduleViewHTML({
       store: blocks,
       date: calendarSelDate,
       state,
@@ -3686,8 +3719,7 @@ function renderCalendarSchedule() {
       monthEnd,
       blockActions: gcalBlockActions,
     })}
-    <div id="gcal-section-host">${gcalScheduleSection(calendarSelDate, monthStart, monthEnd)}</div>
-  </div>`;
+    <div id="gcal-section-host">${gcalScheduleSection(calendarSelDate, monthStart, monthEnd)}</div>`;
   scheduleGcalRefresh(calendarSelDate || todayIso, monthStart, monthEnd);
 }
 
@@ -3829,20 +3861,12 @@ function renderCalendar() {
       <span>🎯 ${t('calFocusMonth', { n: Math.round(monthFocusSecs / 60) })}</span>
       ${best && bestM > 0 ? `<span>⭐ ${t('calFocusBestDay', { d: best.dayNumber + '/' + (PLAN_MONTH + 1), n: Math.round(bestM / 60) })}</span>` : ''}
     </div>`;
-  el.innerHTML = `<div class="calendar-page">
-    <header class="calendar-page-header">
-      <div class="calendar-page-heading">
-        <p class="calendar-page-eyebrow">${t('calendarWorkspaceEyebrow')}</p>
-        <h1 class="calendar-page-title">${t('calendarPageTitle', { m: monthLabel(PLAN_MONTH), y: PLAN_YEAR })}</h1>
-        <p class="calendar-page-subtitle">${t('calendarPageSubtitle')}</p>
-      </div>
-      <div class="cal-mode-toggle" role="group" aria-label="${esc(t('calModeToggleAria'))}">
-        <button type="button" class="pop-btn ${calendarMode === 'month' ? 'active' : ''}" data-action="cal-mode" data-mode="month" aria-pressed="${calendarMode === 'month' ? 'true' : 'false'}">${esc(t('calModeMonth'))}</button>
-        <button type="button" class="pop-btn ${calendarMode === 'schedule' ? 'active' : ''}" data-action="cal-mode" data-mode="schedule" aria-pressed="${calendarMode === 'schedule' ? 'true' : 'false'}">${esc(t('calModeSchedule'))}</button>
-      </div>
-      <div class="cal-legend"><span class="dot on"></span> ${t('legendDone')} <span class="dot off"></span> ${t('legendNotDone')}</div>
-    </header>
-    ${calFocusSummary}
+  const page = ensureCalendarShell();
+  syncCalendarShell(page);
+  const legend = page.querySelector('[data-role="cal-legend"]');
+  if (legend) legend.innerHTML = `<span class="dot on"></span> ${t('legendDone')} <span class="dot off"></span> ${t('legendNotDone')}`;
+  const content = page.querySelector('[data-role="cal-content"]');
+  content.innerHTML = `${calFocusSummary}
     ${calendarTagFilterBar()}
     <section class="calendar-grid-desktop" aria-label="${t('viewCalendar')}">
       ${dowLbl.map((day) => `<div class="cal-dow">${day}</div>`).join('')}
@@ -3861,8 +3885,7 @@ function renderCalendar() {
         <header><time datetime="${localISODate(entry.date)}">${entry.date.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</time><span>${t('calendarTaskCount', { n: calendarVisibleTasks(entry).length })}</span></header>
         <div class="calendar-agenda-tasks">${calendarTasksHTML(entry, 'calendar-agenda-task')}</div>
       </article>`).join('') : `<p class="calendar-agenda-empty">${t('calendarAgendaEmpty')}</p>`}
-    </section>
-  </div>`;
+    </section>`;
 }
 
 /* ============================ Phase 2: Template tháng ============================ */

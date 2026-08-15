@@ -5183,6 +5183,11 @@ body.focus-mode .container { padding: 0; }
   gap: var(--space-6);
   min-width: 0;
 }
+/* Calendar mode content host (Month grid / Schedule timeline) — must shrink with
+   the grid track on mobile, otherwise the schedule's intrinsic width overflows. */
+.calendar-mode-content {
+  min-width: 0;
+}
 
 .year-page-header {
   display: flex;
@@ -7953,16 +7958,29 @@ body.focus-mode .container { padding: 0; }
   color: var(--color-text-muted);
   font: 450 .96rem/1.55 var(--font-body);
 }
-.up-range {
+/* ============================================================
+   Segmented control primitive — shared capsule language.
+   Geometry source of truth for Upcoming 7/14/30, Calendar
+   Tháng/Lịch trình and Projects filters: the outer .segmented
+   owns border/surface/radius/padding; items are borderless pills;
+   the active item is a rounded pill that sits INSIDE the capsule.
+   .up-range/.up-range-btn are kept as aliases (Upcoming markup +
+   release pin test). .segmented--accent keeps amber semantics for
+   Calendar/Projects while sharing the exact geometry.
+   ============================================================ */
+.segmented, .up-range {
   display: inline-flex;
+  align-items: center;
   gap: var(--space-2);
+  width: max-content;
+  max-width: 100%;
+  padding: 3px;
   background: var(--surface-2, rgba(var(--ink-rgb), .05));
   border: 1px solid var(--card-border, #e8dfd0);
   border-radius: 999px;
-  padding: 3px;
   flex: none;
 }
-.up-range-btn {
+.segmented-item, .up-range-btn {
   appearance: none;
   border: 0;
   background: transparent;
@@ -7971,15 +7989,25 @@ body.focus-mode .container { padding: 0; }
   padding: 7px 14px;
   border-radius: 999px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
   transition: background .18s ease, color .18s ease, box-shadow .18s ease;
 }
-.up-range-btn:hover { color: var(--color-text); }
-.up-range-btn.active {
+.segmented-item:hover, .up-range-btn:hover { color: var(--color-text); }
+.segmented-item.active, .up-range-btn.active {
   background: var(--card-bg, #fff);
   color: var(--color-text);
   box-shadow: 0 2px 8px rgba(var(--ink-rgb), .14);
 }
-.up-range-btn:focus-visible { outline: 3px solid var(--blue-tag); outline-offset: 2px; }
+.segmented-item:focus-visible, .up-range-btn:focus-visible { outline: 3px solid var(--blue-tag); outline-offset: 2px; }
+/* Brand variant: accent-filled active pill (Calendar + Projects keep amber selection). */
+.segmented--accent .segmented-item.active {
+  background: var(--color-accent, #a84f2e);
+  color: var(--color-on-accent, #fffdf8);
+  box-shadow: 0 2px 8px rgba(var(--ink-rgb), .16);
+}
 
 /* Header density (P3): tóm tắt số lượng từ dữ liệu Upcoming đã có — chip nhỏ gọn, không tạo analytics mới. */
 .up-summary {
@@ -8784,41 +8812,9 @@ body.focus-mode .container { padding: 0; }
 /* ===== Time Blocking UI (V1.2 Phase 2) =====
    Zen Linen × Amber Hearth × Sage Mist. No gradients, no glass.
    Schedule view + block dialog + task-detail blocks. */
-.cal-mode-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  padding: 3px;
-  background: var(--color-surface-muted, #f7f2e9);
-  border: 1px solid var(--color-border, #e3dace);
-  border-radius: 999px;
-  overflow: hidden;
-}
-/* Segmented control: the container owns border/radius/clipping; segments are
-   borderless so no nested frame appears (V2 release hardening). */
-.cal-mode-toggle .pop-btn {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-secondary, #544d45);
-  padding: 7px 14px;
-  min-height: 30px;
-  justify-content: center;
-  white-space: nowrap;
-  transform: none;
-}
-.cal-mode-toggle .pop-btn:hover {
-  background: color-mix(in srgb, var(--color-accent, #a84f2e) 10%, transparent);
-  color: var(--color-text, #332f2a);
-}
-.cal-mode-toggle .pop-btn.active {
-  background: var(--color-accent, #a84f2e);
-  color: var(--color-on-accent, #fffdf8);
-}
-.cal-mode-toggle .pop-btn:focus-visible {
-  outline: 2px solid var(--color-focus, #963c25);
-  outline-offset: -2px;
-}
+/* Calendar mode toggle: capsule + accent active come from the shared segmented
+   primitive (.segmented .segmented--accent). Grid column placement and the
+   responsive single-column rules live with the calendar-page-header rules above. */
 .tb-schedule { padding: 4px 0 8px; min-width: 0; }
 .tb-nav {
   display: flex;
@@ -9452,58 +9448,20 @@ body.focus-mode .container { padding: 0; }
 #view-projects .button-primary .ui-icon { width: 16px; height: 16px; }
 
 /* ---- Filter segmented control (same geometry as calendar mode toggle) ---- */
-.pj-filters {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  padding: 3px;
-  margin: 0 0 18px;
-  background: var(--color-surface-muted, #f7f2e9);
-  border: 1px solid var(--color-border, #e3dace);
-  border-radius: 999px;
-  overflow: hidden;
-  max-width: 100%;
-}
-.pj-filter {
-  appearance: none;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-secondary, #544d45);
-  font: 700 12.5px/1 var(--font-body, sans-serif);
-  padding: 8px 14px;
-  min-height: 32px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background var(--motion-fast, .15s) var(--ease-standard, ease),
-    color var(--motion-fast, .15s) var(--ease-standard, ease);
-}
-.pj-filter:hover {
-  background: color-mix(in srgb, var(--color-accent, #a84f2e) 10%, transparent);
-  color: var(--color-text, #332f2a);
-}
-.pj-filter.active {
-  background: var(--color-accent, #a84f2e);
-  color: var(--color-on-accent, #fffdf8);
-}
-.pj-filter:focus-visible {
-  outline: 2px solid var(--color-focus, #963c25);
-  outline-offset: -2px;
-}
+/* Projects filters: capsule from the shared segmented primitive (accent active).
+   Only context (spacing below the page head) and the mobile wrap stay here. */
+.pj-filters { margin: 0 0 18px; }
 @media (max-width: 600px) {
   /* Vietnamese labels overflow 360px as one row: wrap into pill segments. */
   .pj-filters {
     flex-wrap: wrap;
     border-radius: 14px;
-    overflow: visible;
     width: 100%;
   }
-  .pj-filter {
+  .pj-filters .segmented-item {
     flex: 1 1 auto;
     min-width: 0;
     min-height: 40px;
-    border-radius: 999px;
     padding: 8px 10px;
   }
 }

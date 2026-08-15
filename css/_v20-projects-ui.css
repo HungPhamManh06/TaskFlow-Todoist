@@ -33,59 +33,20 @@
 }
 #view-projects .button-primary .ui-icon { width: 16px; height: 16px; }
 
-/* ---- Filter segmented control (same geometry as calendar mode toggle) ---- */
-.pj-filters {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  padding: 3px;
-  margin: 0 0 18px;
-  background: var(--color-surface-muted, #f7f2e9);
-  border: 1px solid var(--color-border, #e3dace);
-  border-radius: 999px;
-  overflow: hidden;
-  max-width: 100%;
-}
-.pj-filter {
-  appearance: none;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-secondary, #544d45);
-  font: 700 12.5px/1 var(--font-body, sans-serif);
-  padding: 8px 14px;
-  min-height: 32px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    background var(--motion-fast, .15s) var(--ease-standard, ease),
-    color var(--motion-fast, .15s) var(--ease-standard, ease);
-}
-.pj-filter:hover {
-  background: color-mix(in srgb, var(--color-accent, #a84f2e) 10%, transparent);
-  color: var(--color-text, #332f2a);
-}
-.pj-filter.active {
-  background: var(--color-accent, #a84f2e);
-  color: var(--color-on-accent, #fffdf8);
-}
-.pj-filter:focus-visible {
-  outline: 2px solid var(--color-focus, #963c25);
-  outline-offset: -2px;
-}
+/* ---- Filter segmented control: capsule from the shared segmented primitive
+   (accent active). Only context (spacing) + mobile wrap stay here. ---- */
+.pj-filters { margin: 0 0 18px; }
 @media (max-width: 600px) {
   /* Vietnamese labels overflow 360px as one row: wrap into pill segments. */
   .pj-filters {
     flex-wrap: wrap;
     border-radius: 14px;
-    overflow: visible;
     width: 100%;
   }
-  .pj-filter {
+  .pj-filters .segmented-item {
     flex: 1 1 auto;
     min-width: 0;
     min-height: 40px;
-    border-radius: 999px;
     padding: 8px 10px;
   }
 }

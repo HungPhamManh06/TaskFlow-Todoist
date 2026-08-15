@@ -1,7 +1,7 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 31 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 32 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
@@ -370,6 +370,117 @@ def calendar_checks(browser, base, width, height, errors, screenshot):
     assert back_box, "cal-mode-toggle phải hiển thị sau khi quay lại Month"
     assert abs(month_box["x"] - back_box["x"]) <= 2
     assert abs(month_box["width"] - back_box["width"]) <= 1
+
+    # Regression guard (V2 segmented + flicker): the .cal-mode-toggle DOM node and the
+    # #view-calendar root must survive Month <-> Schedule switches — the calendar page
+    # shell (header + toggle + legend slot) is built once; only .calendar-mode-content
+    # swaps. A whole-view wipe (removedNodes >= 3 at root level) fails the test.
+    page.evaluate("""() => {
+      window.__calToggle = document.querySelector('.cal-mode-toggle');
+      window.__calRoot = document.querySelector('#view-calendar');
+      const root = document.querySelector('#view-calendar');
+      window.__calWipe = false;
+      const mo = new MutationObserver((muts) => {
+        for (const m of muts) {
+          // whole-view wipe = the ROOT's direct children are removed in bulk
+          if (m.type === 'childList' && m.target === root && m.removedNodes.length >= 3) window.__calWipe = true;
+        }
+      });
+      mo.observe(root, { childList: true, subtree: true });
+      window.__calMo = mo;
+    }""")
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').click()
+    page.wait_for_timeout(200)
+    assert page.evaluate(
+        "window.__calToggle === document.querySelector('.cal-mode-toggle') && "
+        "window.__calRoot === document.querySelector('#view-calendar')"), \
+        "mode switch phải GIỮ NGUYÊN .cal-mode-toggle + #view-calendar"
+    assert not page.evaluate("window.__calWipe"), "đổi mode không được xoá toàn bộ #view-calendar"
+    assert page.evaluate("document.activeElement === document.querySelector('[data-mode=\"schedule\"]')"), \
+        "focus phải giữ trên nút vừa bấm sau khi đổi mode"
+    page.locator('[data-action="cal-mode"][data-mode="month"]').click()
+    page.wait_for_timeout(200)
+    assert page.evaluate(
+        "window.__calToggle === document.querySelector('.cal-mode-toggle')"), \
+        "quay lại Month phải giữ nguyên toggle"
+
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
+def segmented_geometry_checks(browser, base, width, height, errors, screenshot):
+    """V2 segmented control: geometry parity between the reference (Upcoming
+    7/14/30), Calendar Tháng/Lịch trình and Projects filters — same capsule
+    language (outer radius, item height, active-pill radius). Desktop only;
+    mobile asserts the wrap stays on-page with no overflow."""
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"seggeo {width}px: {error}"))
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+
+    # Reference: Upcoming 7/14/30 control.
+    page.goto(f"{base}/app.html?view=upcoming", wait_until="networkidle")
+    page.wait_for_selector('.up-range', state="visible")
+    ref = page.evaluate("""() => {
+      const c = document.querySelector('.up-range');
+      const it = c && c.querySelector('.segmented-item');
+      const act = c && c.querySelector('.segmented-item.active');
+      if (!c || !it || !act) return null;
+      const cs = getComputedStyle(c), is = getComputedStyle(it), as = getComputedStyle(act);
+      return {
+        outerRadius: parseFloat(cs.borderTopLeftRadius),
+        itemHeight: it.getBoundingClientRect().height,
+        itemRadius: parseFloat(is.borderTopLeftRadius),
+        activeRadius: parseFloat(as.borderTopLeftRadius),
+      };
+    }""")
+    assert ref, "không đo được reference control (.up-range)"
+    tol = 2
+
+    def measure(sel, itemSel, actSel):
+        return page.evaluate("""([sel, itemSel, actSel]) => {
+          const c = document.querySelector(sel);
+          const it = c && c.querySelector(itemSel);
+          const act = c && c.querySelector(actSel);
+          if (!c || !it || !act) return null;
+          const cs = getComputedStyle(c), is = getComputedStyle(it), as = getComputedStyle(act);
+          return {
+            outerRadius: parseFloat(cs.borderTopLeftRadius),
+            itemHeight: it.getBoundingClientRect().height,
+            itemRadius: parseFloat(is.borderTopLeftRadius),
+            activeRadius: parseFloat(as.borderTopLeftRadius),
+          };
+        }""", [sel, itemSel, actSel])
+
+    if width >= 768:
+        # Calendar
+        page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+        page.wait_for_selector('.cal-mode-toggle', state="visible")
+        cal = measure('.cal-mode-toggle', '.segmented-item', '.segmented-item.active')
+        assert cal, "không đo được .cal-mode-toggle"
+        assert abs(cal["outerRadius"] - ref["outerRadius"]) <= tol, \
+            f"calendar outer radius lệch: {cal['outerRadius']} vs {ref['outerRadius']}"
+        assert abs(cal["itemHeight"] - ref["itemHeight"]) <= tol, \
+            f"calendar item height lệch: {cal['itemHeight']} vs {ref['itemHeight']}"
+        assert abs(cal["activeRadius"] - ref["activeRadius"]) <= tol, \
+            f"calendar active pill radius lệch: {cal['activeRadius']} vs {ref['activeRadius']}"
+        # Projects
+        page.goto(f"{base}/app.html?view=projects", wait_until="networkidle")
+        page.wait_for_selector('.pj-filters', state="visible")
+        pj = measure('.pj-filters', '.segmented-item', '.segmented-item.active')
+        assert pj, "không đo được .pj-filters"
+        assert abs(pj["outerRadius"] - ref["outerRadius"]) <= tol, \
+            f"projects outer radius lệch: {pj['outerRadius']} vs {ref['outerRadius']}"
+        assert abs(pj["itemHeight"] - ref["itemHeight"]) <= tol, \
+            f"projects item height lệch: {pj['itemHeight']} vs {ref['itemHeight']}"
+        assert abs(pj["activeRadius"] - ref["activeRadius"]) <= tol, \
+            f"projects active pill radius lệch: {pj['activeRadius']} vs {ref['activeRadius']}"
+    else:
+        # Mobile: filters wrap without body overflow; labels not clipped.
+        page.goto(f"{base}/app.html?view=projects", wait_until="networkidle")
+        page.wait_for_selector('.pj-filters', state="visible")
+        assert_no_page_overflow(page, f"segmented-projects {width}px")
+        labels = page.locator('.pj-filters .segmented-item').all_inner_texts()
+        assert any("Đang thực hiện" in s for s in labels), f"label Đang thực hiện bị thiếu: {labels}"
 
     page.screenshot(path=screenshot, full_page=False)
     page.close()
@@ -1870,6 +1981,39 @@ def projects_checks(browser, base, width, height, errors, screenshot):
     assert abs(centers["iconC"] - centers["btnC"]) <= 4, f"CTA plus icon lệch dọc: {centers}"
     assert abs(centers["textC"] - centers["btnC"]) <= 4, f"CTA text lệch dọc: {centers}"
 
+    # Regression guard (V2 segmented + flicker): switching filters must preserve the
+    # .pj-filters node + #view-projects root + page head — only .pj-content updates.
+    page.evaluate("""() => {
+      window.__pjFilterNode = document.querySelector('.pj-filters');
+      window.__pjRoot = document.querySelector('#view-projects');
+      const root = document.querySelector('#view-projects');
+      window.__pjWipe = false;
+      const mo = new MutationObserver((muts) => {
+        for (const m of muts) {
+          // whole-view wipe = the ROOT's direct children are removed in bulk
+          if (m.type === 'childList' && m.target === root && m.removedNodes.length >= 3) window.__pjWipe = true;
+        }
+      });
+      mo.observe(root, { childList: true, subtree: true });
+      window.__pjMo = mo;
+    }""")
+    heading_text = page.locator('.pj-page-title').inner_text()
+    page.locator('[data-action="project-filter"][data-filter="active"]').click()
+    page.wait_for_timeout(150)
+    assert page.evaluate(
+        "window.__pjFilterNode === document.querySelector('.pj-filters') && "
+        "window.__pjRoot === document.querySelector('#view-projects')"), \
+        "đổi filter phải GIỮ NGUYÊN .pj-filters + #view-projects"
+    assert not page.evaluate("window.__pjWipe"), "đổi filter không được xoá toàn bộ #view-projects"
+    assert page.locator('.pj-filters').count() == 1, "chỉ 1 bộ filter (không nhân đôi)"
+    assert page.locator('.pj-page-title').inner_text() == heading_text, "heading phải giữ nguyên"
+    assert page.locator('[data-action="project-filter"][data-filter="active"]').get_attribute("aria-pressed") == "true", \
+        "filter active phải có aria-pressed=true"
+    assert page.locator('[data-action="project-filter"][data-filter="all"]').get_attribute("aria-pressed") == "false", \
+        "filter cũ phải hạ aria-pressed=false"
+    assert page.evaluate("document.activeElement === document.querySelector('[data-filter=\"active\"]')"), \
+        "focus phải giữ trên nút filter vừa bấm"
+
     # header + empty-state đều có nút project-new → dùng .first
     page.locator('[data-action="project-new"]').first.click()
     page.wait_for_selector('[data-testid="project-edit-modal"]:visible', state="visible")
@@ -2831,7 +2975,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "schedule-unscheduled", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "ai"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "ai"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -2870,6 +3014,7 @@ def main():
                     ("week", week_checks),
                     ("year", year_checks),
                     ("calendar", calendar_checks),
+                    ("segmented-geometry", segmented_geometry_checks),
                     ("schedule-unscheduled", schedule_unscheduled_checks),
                     ("inbox", inbox_checks),
                     ("deeplink", deeplink_checks),
@@ -2921,6 +3066,9 @@ def main():
             elif args.view == "calendar":
                 calendar_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 calendar_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "segmented-geometry":
+                segmented_geometry_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                segmented_geometry_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "schedule-unscheduled":
                 schedule_unscheduled_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 schedule_unscheduled_checks(browser, base, 390, 844, errors, shots["mobile"])

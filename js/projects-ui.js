@@ -113,6 +113,37 @@
     </article>`;
   }
 
+  // Shell: header (title/subtitle/Add) + segmented filters + content host, created
+  // ONCE per list view. Filter switches only update the buttons in place and swap
+  // .pj-content — no whole-#view-projects replacement, no flash, focus preserved.
+  const PJ_FILTER_KEYS = ['all', 'active', 'completed', 'archived'];
+  function ensureProjectsShell(root, f) {
+    let shell = root.querySelector(':scope > .pj-shell');
+    if (shell) {
+      shell.querySelectorAll('[data-action="project-filter"]').forEach((btn) => {
+        const on = btn.dataset.filter === f;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', String(on));
+      });
+      return shell;
+    }
+    shell = document.createElement('div');
+    shell.className = 'pj-shell';
+    shell.innerHTML = `<header class="pj-page-head">
+      <div>
+        <h2 class="pj-page-title">${icon('briefcase')} ${esc(t('projectsPageTitle'))}</h2>
+        <p class="pj-page-sub">${esc(t('projectsPageSubtitle'))}</p>
+      </div>
+      <button type="button" class="button button-primary" data-action="project-new" aria-label="${esc(t('projectAdd'))}">${icon('plus')} ${esc(t('projectAdd'))}</button>
+    </header>
+    <div class="pj-filters segmented segmented--accent" role="group" aria-label="${esc(t('projectFilterAll'))}">
+      ${PJ_FILTER_KEYS.map((k) => `<button type="button" class="segmented-item${f === k ? ' active' : ''}" data-action="project-filter" data-filter="${k}" aria-pressed="${f === k}">${esc(t('projectFilter' + (k[0].toUpperCase() + k.slice(1))))}</button>`).join('')}
+    </div>
+    <div class="pj-content" data-role="pj-content"></div>`;
+    root.replaceChildren(shell);
+    return shell;
+  }
+
   // List view — render vào #view-projects. `filter`: 'all' | 'active' | 'completed' | 'archived'.
   function renderProjects(store, filter, openId) {
     const root = document.getElementById('view-projects');
@@ -121,18 +152,10 @@
     const tasks = allTasks();
     const f = filter || 'active';
     const visible = f === 'all' ? projects : projects.filter((p) => p.status === f);
-    const head = `<header class="pj-page-head">
-      <div>
-        <h2 class="pj-page-title">${icon('briefcase')} ${esc(t('projectsPageTitle'))}</h2>
-        <p class="pj-page-sub">${esc(t('projectsPageSubtitle'))}</p>
-      </div>
-      <button type="button" class="button button-primary" data-action="project-new" aria-label="${esc(t('projectAdd'))}">${icon('plus')} ${esc(t('projectAdd'))}</button>
-    </header>
-    <div class="pj-filters" role="group" aria-label="${esc(t('projectFilterAll'))}">
-      ${['all', 'active', 'completed', 'archived'].map((k) => `<button type="button" class="pj-filter ${f === k ? 'active' : ''}" data-action="project-filter" data-filter="${k}" aria-pressed="${f === k}">${esc(t('projectFilter' + (k[0].toUpperCase() + k.slice(1))))}</button>`).join('')}
-    </div>`;
+    const shell = ensureProjectsShell(root, f);
+    const content = shell.querySelector('[data-role="pj-content"]');
     if (!visible.length) {
-      root.innerHTML = `${head}<div class="empty-state">${icon('briefcase')}
+      content.innerHTML = `<div class="empty-state">${icon('briefcase')}
         <p class="empty-title">${esc(t('projectsEmptyT'))}</p>
         <p class="empty-hint">${esc(t('projectsEmptyH'))}</p>
         <div class="empty-actions"><button type="button" class="empty-btn" data-action="project-new">${icon('plus')} ${esc(t('projectsEmptyCta'))}</button></div>
@@ -140,7 +163,7 @@
       return;
     }
     const statusKey = { active: 'projectStatusActive', completed: 'projectStatusCompleted', archived: 'projectStatusArchived' };
-    root.innerHTML = `${head}<div class="pj-list">${visible.map((p) => projectCardHTML(p, window.TaskFlowProjects.projectProgress(p, tasks), statusKey[p.status])).join('')}</div>`;
+    content.innerHTML = `<div class="pj-list">${visible.map((p) => projectCardHTML(p, window.TaskFlowProjects.projectProgress(p, tasks), statusKey[p.status])).join('')}</div>`;
     if (openId) openProjectDetail(store, openId);
   }
 

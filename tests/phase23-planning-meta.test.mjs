@@ -254,15 +254,15 @@ test('saveContexts/loadContexts: localStorage + Sync.push', () => {
 
 test('wiring: app.html nạp contexts.min.js trước app.min.js + cache-bust đúng', () => {
   const ctxIdx = APP.indexOf('js/contexts.min.js?v=1');
-  const appIdx = APP.indexOf('js/app.min.js?v=183');
+  const appIdx = APP.indexOf('js/app.min.js?v=184');
   assert.ok(ctxIdx !== -1, 'contexts.min.js phải được nạp');
-  assert.ok(appIdx !== -1, 'app.min.js?v=183');
+  assert.ok(appIdx !== -1, 'app.min.js?v=184');
   assert.ok(ctxIdx < appIdx, 'contexts nạp trước app.min.js');
 });
 
 test('wiring: sw.js precache contexts.min.js + cache bump v214', () => {
   assert.ok(SW.includes("'./js/contexts.min.js'"), 'SW precache contexts.min.js');
-  assert.ok(SW.includes("const CACHE = 'taskflow-v229'"), 'SW cache bump v229');
+  assert.ok(SW.includes("const CACHE = 'taskflow-v230'"), 'SW cache bump v229');
 });
 
 test('wiring: app.js dispatcher có td-energy / td-ctx-toggle / ctx-* actions', () => {

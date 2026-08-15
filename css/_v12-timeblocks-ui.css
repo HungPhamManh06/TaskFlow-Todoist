@@ -1,41 +1,9 @@
 /* ===== Time Blocking UI (V1.2 Phase 2) =====
    Zen Linen × Amber Hearth × Sage Mist. No gradients, no glass.
    Schedule view + block dialog + task-detail blocks. */
-.cal-mode-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  padding: 3px;
-  background: var(--color-surface-muted, #f7f2e9);
-  border: 1px solid var(--color-border, #e3dace);
-  border-radius: 999px;
-  overflow: hidden;
-}
-/* Segmented control: the container owns border/radius/clipping; segments are
-   borderless so no nested frame appears (V2 release hardening). */
-.cal-mode-toggle .pop-btn {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text-secondary, #544d45);
-  padding: 7px 14px;
-  min-height: 30px;
-  justify-content: center;
-  white-space: nowrap;
-  transform: none;
-}
-.cal-mode-toggle .pop-btn:hover {
-  background: color-mix(in srgb, var(--color-accent, #a84f2e) 10%, transparent);
-  color: var(--color-text, #332f2a);
-}
-.cal-mode-toggle .pop-btn.active {
-  background: var(--color-accent, #a84f2e);
-  color: var(--color-on-accent, #fffdf8);
-}
-.cal-mode-toggle .pop-btn:focus-visible {
-  outline: 2px solid var(--color-focus, #963c25);
-  outline-offset: -2px;
-}
+/* Calendar mode toggle: capsule + accent active come from the shared segmented
+   primitive (.segmented .segmented--accent). Grid column placement and the
+   responsive single-column rules live with the calendar-page-header rules. */
 .tb-schedule { padding: 4px 0 8px; min-width: 0; }
 .tb-nav {
   display: flex;

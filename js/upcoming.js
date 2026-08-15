@@ -171,7 +171,7 @@
       ${summaryChip(summary.d7, t('upcomingRange7'))}
       ${summaryChip(summary.d30, t('upcomingRange30'))}
     </div>`;
-    const rangeBtn = (n) => `<button type="button" class="up-range-btn${upcomingRange === n ? ' active' : ''}" data-action="upcoming-range" data-days="${n}" aria-pressed="${upcomingRange === n}">${t('upcomingRange' + n)}</button>`;
+    const rangeBtn = (n) => `<button type="button" class="up-range-btn segmented-item${upcomingRange === n ? ' active' : ''}" data-action="upcoming-range" data-days="${n}" aria-pressed="${upcomingRange === n}">${t('upcomingRange' + n)}</button>`;
     const overdueMoreBtn = overdueHidden > 0
       ? `<button type="button" class="up-overdue-more" data-action="upcoming-overdue-toggle" aria-expanded="false" aria-controls="up-overdue-body">${t('upcomingOverdueMore', { n: overdueHidden })}<span class="up-overdue-more-n">${overdueHidden}</span></button>`
       : (overdueExpanded ? `<button type="button" class="up-overdue-more" data-action="upcoming-overdue-toggle" aria-expanded="true" aria-controls="up-overdue-body">${t('upcomingOverdueShowLess')}</button>` : '');
@@ -197,7 +197,7 @@
         <h1 class="upcoming-title">${t('upcomingTitle')}</h1>
         <p class="upcoming-subtitle">${t('upcomingSubtitle')}</p>
       </div>
-      <div class="up-range" role="group" aria-label="${t('upcomingRangeAria', { n: upcomingRange })}">
+      <div class="up-range segmented" role="group" aria-label="${t('upcomingRangeAria', { n: upcomingRange })}">
         ${rangeBtn(7)}${rangeBtn(14)}${rangeBtn(30)}
       </div>
     </header>
