@@ -194,7 +194,7 @@ test('app.html: plannerAi host + ai.min.js script + app.min bump', () => {
 });
 
 test('sw.js: cache v221 + precache ai.min.js', () => {
-  assert.ok(SW.includes("const CACHE = 'taskflow-v227';"), 'cache v223');
+  assert.ok(SW.includes("const CACHE = 'taskflow-v228';"), 'cache v223');
   assert.ok(SW.includes("'./js/ai.min.js',"), 'precache ai.min.js');
 });
 

@@ -107,6 +107,33 @@ no product-behavior changes.
   surfaced the 5 stale pins above; verified to fail at `e365259` (the
   original `app.min.js?v=181` regression) and pass on current HEAD.
 
+### Offline PWA hardening — Vercel clean URLs (FIXED)
+
+- **Root cause:** Vercel `cleanUrls` serves `/app`, `/privacy`, `/terms`,
+  `/data-and-security` with `Content-Disposition: inline; filename="…"`
+  (root `/` has no filename= and always worked). When the SW served such a
+  cached response for an OFFLINE navigation, Chromium rejected it with
+  `ERR_FAILED` — contradicting the offline-first promise.
+- **Fix:** `sw.js` (`taskflow-v227 → v228`) normalizes HTML navigation
+  responses — `normalizeNavigationResponse()` strips only `Content-Disposition`
+  and preserves every other header (Content-Type, CSP, security headers) — at
+  all three touch points: precache install (HTML shells only), network-first
+  cache write (online response returned untouched, only the cached copy is
+  sanitized), and the offline fallback (defense in depth for legacy entries).
+  Clean URLs and their query params are preserved (`/app?view=today` stays
+  `/app?view=today`); unknown routes still fall back to the landing shell.
+- **Regression coverage:** new `scripts/e2e-offline.py` (Chromium) runs a real
+  SW lifecycle against a Vercel-like local server — every first-party route
+  loads online then offline with content assertions, the cached HTML header
+  invariant is asserted directly, and a deterministic upgrade scenario proves
+  the old cache generation is purged on activate while `taskflow-digest` is
+  retained and offline still works. Wired as the `offline-e2e` CI job.
+  Verified to FAIL against the pre-fix `sw.js` (poisoned cached header) and
+  pass 3/3 against the fix.
+- The checker now covers **all five first-party HTML pages** (app/index/privacy/
+  terms/data-and-security) and immediately surfaced 9 more real stale pins
+  (`landing.css v9→10`, `tokens.css v5→6`, `legal.css v1→2`), all fixed.
+
 ### V2 metadata / copy alignment
 - `/app` SEO: `description`, `keywords`, `og:description`,
   `twitter:description` aligned to V2 — Goals → Projects → Milestones →
@@ -123,19 +150,18 @@ no product-behavior changes.
   suites: PASS (incl. 16 export/update/delete server tests)
 - Full Chromium E2E matrix + Firefox/WebKit smokes: RELEASE OK
 - Mobile QA 0 FAIL / a11y 62 PASS / dark contrast ALL PASS / CSS verifier 0 diffs
-- Minify check 86 files up to date · release-assets check green (SW cache v227)
+- Minify check 86 files up to date · release-assets check green (SW cache v228)
+- Offline PWA e2e (`scripts/e2e-offline.py`): all routes offline + SW upgrade
+  purge — RELEASE OK
 
 ## Notes
 
 - Additive-only migrations: every V1.x release imports into V2.0 (old JSON
   backups remain importable; removed fields never; unknown fields ignored).
-- SW cache `taskflow-v227`; app.min.js `?v=182`; styles `?v=21` (see the
+- SW cache `taskflow-v228`; app.min.js `?v=182`; styles `?v=21` (see the
   Release polish section above for the full cache-busting history).
 - Known debt documented in `docs/gcal-sync-design.md` §10 (no mapping hash/state,
   no extended-property recovery; acceptable for push-only scope).
-- Offline app shell on Vercel (open, not shipped): SW-cached navigations for
-  clean URLs (`/app`, `/privacy`, `/terms`) fail offline with `ERR_FAILED`
-  because Vercel serves them with `Content-Disposition: inline; filename="…"`;
-  `/` works. Verified end-to-end against production; the minimal fix
-  (strip the header when serving cached navigations) is proven in-browser
-  but not yet released.
+- Offline clean-URL navigation on Vercel: **FIXED** in the Release polish
+  section (sanitized cached HTML navigation responses, SW `v228`, offline
+  regression e2e).

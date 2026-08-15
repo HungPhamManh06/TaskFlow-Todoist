@@ -164,7 +164,7 @@ test('landing preserves language and theme preferences without decorative emoji 
   assert.match(LANDING, /id=["']darkBtn["']/);
   assert.match(LANDING, /aria-pressed/);
   assert.doesNotMatch(LANDING, /[🎀🐥🪿🌸🌼📔📤📱🎯✅🌱🔥🏆]/u);
-  assert.match(LANDING, /css\/tokens\.css\?v=5/);
+  assert.match(LANDING, /css\/tokens\.css\?v=6/);
   assert.match(LANDING_CSS, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
 });
 
@@ -834,7 +834,7 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
   assert.match(APP, /js\/app\.min\.js\?v=182/);
-  assert.match(SW, /const CACHE = 'taskflow-v227';/);
+  assert.match(SW, /const CACHE = 'taskflow-v228';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1351,7 +1351,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v227';/);
+  assert.match(SW, /const CACHE = 'taskflow-v228';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2013,7 +2013,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v227';/);
+  assert.match(SW, /const CACHE = 'taskflow-v228';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2091,7 +2091,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v227';/);
+  assert.match(SW, /const CACHE = 'taskflow-v228';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2329,7 +2329,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v227', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v228', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);
@@ -2366,6 +2366,175 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
   assert.equal(matchCalls.length, 1, 'chỉ 1 lần match exact URL (online không dùng ignoreSearch)');
   assert.equal(matchCalls[0].options?.ignoreSearch, undefined);
   assert.equal(matchCalls[0].request.url, 'https://taskflow.test/js/sync.min.js?v=5');
+});
+
+test('release: offline navigation fallback strips Content-Disposition from cached HTML', async () => {
+  // PWA offline hardening: Vercel cleanUrls phục vụ /app, /privacy... kèm
+  // `Content-Disposition: inline; filename="..."` — khi SW trả response này
+  // cho navigation OFFLINE, Chromium từ chối với ERR_FAILED (chỉ root "/"
+  // không có filename= nên vẫn chạy). Fallback phải trả bản đã bỏ header đó,
+  // giữ nguyên status + Content-Type + các header an toàn khác.
+  const handlers = {};
+  const poisoned = new Response('<!doctype html><title>App</title><div id="appMain"></div>', {
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'content-disposition': 'inline; filename="app"',
+      'x-keep': 'preserved',
+    },
+  });
+  const context = {
+    URL,
+    Response,
+    Headers,
+    Blob,
+    location: { origin: 'https://taskflow.test' },
+    caches: {
+      match(request, options) {
+        if (options?.ignoreSearch && String(request.url || request).includes('/app')) {
+          return Promise.resolve(poisoned);
+        }
+        return Promise.resolve(undefined);
+      },
+      open() { return Promise.resolve({ put() {} }); },
+      keys() { return Promise.resolve([]); },
+    },
+    fetch() { return Promise.reject(new Error('offline')); },
+    self: {
+      addEventListener(type, handler) { handlers[type] = handler; },
+      clients: { claim() {} },
+      skipWaiting() {},
+      registration: { showNotification() {} },
+    },
+  };
+  vm.runInNewContext(SW, context);
+
+  let responsePromise;
+  handlers.fetch({
+    request: { method: 'GET', mode: 'navigate', url: 'https://taskflow.test/app' },
+    respondWith(promise) { responsePromise = promise; },
+  });
+  const served = await responsePromise;
+  assert.ok(served, 'offline navigation phải trả response từ cache');
+  assert.equal(served.status, 200);
+  assert.equal(served.headers.get('content-disposition'), null,
+    'navigation response offline KHÔNG được mang Content-Disposition');
+  assert.match(served.headers.get('content-type'), /^text\/html/, 'Content-Type phải giữ text/html');
+  assert.equal(served.headers.get('x-keep'), 'preserved', 'header an toàn khác phải được giữ');
+  assert.match(await served.text(), /appMain/, 'body HTML phải nguyên vẹn');
+});
+
+test('release: online navigation caches a normalized copy, online response untouched', async () => {
+  // Network-first: online vẫn trả NGUYÊN response mạng (kèm header Vercel);
+  // chỉ bản sao ghi cache bị chuẩn hoá — offline về sau sạch header.
+  const handlers = {};
+  const network = new Response('<!doctype html><div id="appMain"></div>', {
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'content-disposition': 'inline; filename="app"',
+    },
+  });
+  let putArg = null;
+  const context = {
+    URL,
+    Response,
+    Headers,
+    Blob,
+    location: { origin: 'https://taskflow.test' },
+    caches: {
+      match() { return Promise.resolve(undefined); },
+      open() { return Promise.resolve({ put(url, res) { putArg = res; } }); },
+      keys() { return Promise.resolve([]); },
+    },
+    fetch() { return Promise.resolve(network); },
+    self: {
+      addEventListener(type, handler) { handlers[type] = handler; },
+      clients: { claim() {} },
+      skipWaiting() {},
+      registration: { showNotification() {} },
+    },
+  };
+  vm.runInNewContext(SW, context);
+
+  let responsePromise;
+  handlers.fetch({
+    request: { method: 'GET', mode: 'navigate', url: 'https://taskflow.test/app' },
+    respondWith(promise) { responsePromise = promise; },
+  });
+  const served = await responsePromise;
+  assert.equal(served, network, 'online phải trả response mạng gốc (không clone)');
+  assert.equal(served.headers.get('content-disposition'), 'inline; filename="app"',
+    'online response mạng không bị mutate');
+  // Chuỗi put là async detached (không được await trong handler fetch) —
+  // poll tới khi bản cache xuất hiện rồi mới kiểm tra.
+  const deadline = Date.now() + 2000;
+  while (!putArg && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.ok(putArg, 'navigation response phải được ghi vào cache');
+  assert.equal(putArg.headers.get('content-disposition'), null,
+    'bản cache phải sạch Content-Disposition');
+  assert.match(putArg.headers.get('content-type'), /^text\/html/);
+});
+
+test('release: SW install precaches HTML shells without Content-Disposition', async () => {
+  // APP_SHELL precache fetch ./app.html, ./privacy.html... — response từ Vercel
+  // cũng mang header độc hại. Entry HTML lưu vào cache phải được chuẩn hoá
+  // ngay từ install để `caches.match('/app.html')` trả bản sạch (header
+  // invariant kiểm tra được trực tiếp), non-HTML assets giữ nguyên.
+  const handlers = {};
+  const putCalls = [];
+  const fetchCalls = [];
+  const htmlResponse = () =>
+    new Response('<!doctype html><title>Shell</title>', {
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'content-disposition': 'inline; filename="shell.html"',
+      },
+    });
+  const context = {
+    URL,
+    Response,
+    Headers,
+    Blob,
+    location: { origin: 'https://taskflow.test' },
+    caches: {
+      open() {
+        return Promise.resolve({
+          put(url, res) { putCalls.push({ url: String(url), res }); },
+        });
+      },
+      match() { return Promise.resolve(undefined); },
+      keys() { return Promise.resolve([]); },
+    },
+    fetch(url) {
+      fetchCalls.push(String(url));
+      const u = new URL(String(url), 'https://taskflow.test/sw.js');
+      return Promise.resolve(u.pathname.endsWith('.html') || u.pathname === '/' ? htmlResponse() : new Response('js'));
+    },
+    self: {
+      addEventListener(type, handler) { handlers[type] = handler; },
+      clients: { claim() {} },
+      skipWaiting() {},
+      registration: { showNotification() {} },
+    },
+  };
+  vm.runInNewContext(SW, context);
+
+  // Handler install KHÔNG return e.waitUntil(...) — bắt promise qua waitUntil.
+  let installChain;
+  handlers.install({ waitUntil(p) { installChain = p; } });
+  await installChain;
+  assert.ok(fetchCalls.length >= 90, `install phải precache toàn bộ APP_SHELL, được ${fetchCalls.length}`);
+  const htmlPuts = putCalls.filter(({ url }) => url.endsWith('.html') || url.endsWith('/'));
+  assert.ok(htmlPuts.length >= 6, `phải có >= 6 HTML shell entries, được ${htmlPuts.length}`);
+  for (const { res } of htmlPuts) {
+    assert.equal(res.headers.get('content-disposition'), null,
+      'HTML precache entry phải sạch Content-Disposition');
+    assert.match(res.headers.get('content-type'), /^text\/html/);
+  }
 });
 
 test('hardening: muted and secondary text meet 4.5 contrast against every theme canvas', () => {

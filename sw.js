@@ -3,7 +3,7 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v227';
+const CACHE = 'taskflow-v228';
 const APP_SHELL = [
   './',
   './index.html',
@@ -101,9 +101,40 @@ const APP_SHELL = [
   './icons/icon-maskable-512.png',
 ];
 
+/* ---------- Chuẩn hoá HTML navigation responses ----------
+   Vercel cleanUrls phục vụ /app, /privacy, /terms... kèm header delivery-only
+   `Content-Disposition: inline; filename="..."`. Khi SW trả response này cho
+   một navigation OFFLINE, Chromium từ chối với ERR_FAILED (root "/" không có
+   filename= nên vẫn chạy). Chỉ bỏ ĐÚNG header đó; giữ nguyên mọi header khác
+   (Content-Type, CSP, security headers...).
+   Blob: HTML được phục vụ không nén (Vercel text/html không kèm
+   Content-Encoding), blob() trả body đã giải mã — an toàn cho HTML. */
+async function normalizeNavigationResponse(response) {
+  if (!response || !response.headers) return response;
+  if (!response.headers.has('content-disposition')) return response;
+  const headers = new Headers(response.headers);
+  headers.delete('content-disposition');
+  return new Response(await response.blob(), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 self.addEventListener('install', (e) => {
+  // Precache APP_SHELL; chỉ riêng entry HTML (./, *.html) được chuẩn hoá
+  // trước khi lưu để entry cache sạch header độc hại ngay từ đầu.
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((c) =>
+      Promise.all(
+        APP_SHELL.map(async (url) => {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Precache failed: ' + url);
+          const isHtml = url === './' || url.endsWith('.html');
+          c.put(url, isHtml ? await normalizeNavigationResponse(res) : res);
+        })
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
@@ -124,27 +155,17 @@ self.addEventListener('fetch', (e) => {
 
   // Điều hướng: ưu tiên mạng, offline → cache shell (cache theo đúng URL trang)
   if (req.mode === 'navigate') {
-    // Clean URL (Vercel cleanUrls): /app lẫn /app.html đều là app shell
-    const offlineShell = (url.pathname.endsWith('/app') || url.pathname.endsWith('/app.html'))
-      ? './app.html'
-      : './index.html';
     e.respondWith(
       fetch(req)
         .then((res) => {
+          // Online: trả NGUYÊN response mạng; chỉ bản sao cache bị chuẩn hoá.
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
+          caches.open(CACHE).then((c) =>
+            normalizeNavigationResponse(copy).then((normalized) => c.put(req, normalized))
+          );
           return res;
         })
-        .catch(() =>
-          caches.match(req, { ignoreSearch: true })
-            .then((cached) => {
-              // Offline: thử URL chính xác → URL + '.html' (cleanUrls /privacy → privacy.html)
-              if (cached) return cached;
-              const htmlPath = url.pathname.endsWith('.html') ? null : url.pathname + '.html';
-              return htmlPath ? caches.match(htmlPath) : null;
-            })
-            .then((cached) => cached || caches.match(offlineShell))
-        )
+        .catch(() => offlineNavigationResponse(req, url))
     );
     return;
   }
@@ -175,6 +196,25 @@ self.addEventListener('fetch', (e) => {
     })
   );
 });
+
+/* Offline navigation: URL chính xác (ignoreSearch để /app?view=today vẫn
+   khớp /app đã cache) → clean URL + '.html' (cleanUrls /privacy →
+   privacy.html) → shell (app.html / index.html). Mọi HTML phục vụ đều được
+   chuẩn hoá để header Content-Disposition của Vercel không sống sót vào
+   navigation response offline. */
+async function offlineNavigationResponse(req, url) {
+  let cached = await caches.match(req, { ignoreSearch: true });
+  if (!cached && !url.pathname.endsWith('.html')) {
+    cached = await caches.match(url.pathname + '.html');
+  }
+  if (!cached) {
+    const offlineShell = (url.pathname.endsWith('/app') || url.pathname.endsWith('/app.html'))
+      ? './app.html'
+      : './index.html';
+    cached = await caches.match(offlineShell);
+  }
+  return cached ? normalizeNavigationResponse(cached) : cached;
+}
 
 /* ---------- Nhắc việc hằng ngày (Periodic Background Sync) ---------- */
 
