@@ -1,3 +1,8 @@
+/* ============================================================
+   styles-deferred.css — non-boot-critical remainder of styles.css
+   (loaded after first paint; precached in the service worker).
+   ============================================================ */
+
 
 .bricks-top {
   background-color: var(--brick-top-a);
@@ -2753,12 +2758,38 @@ body.focus-mode .container { padding: 0; }
   min-width: 0;
 }
 
-.year-page-header,
-.calendar-page-header {
+.year-page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-5);
+}
+
+/* Calendar header: explicit 3-column grid (heading | mode toggle | legend).
+   The toggle is pinned to column 2, so it stays at the exact same position
+   whether the legend is present (Month) or absent (Schedule) — no flex
+   space-between redistribution between the two modes. */
+.calendar-page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5);
+}
+
+.calendar-page-heading {
+  grid-column: 1;
+  justify-self: start;
+  min-width: 0;
+}
+
+.calendar-page-header .cal-mode-toggle {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.calendar-page-header .cal-legend {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .year-page-eyebrow,
@@ -3222,10 +3253,24 @@ body.focus-mode .container { padding: 0; }
     gap: var(--space-4);
   }
 
-  .year-page-header,
-  .calendar-page-header {
+  .year-page-header {
     flex-direction: column;
     gap: var(--space-4);
+  }
+
+  .calendar-page-header {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .calendar-page-heading,
+  .calendar-page-header .cal-mode-toggle,
+  .calendar-page-header .cal-legend {
+    grid-column: 1;
+  }
+
+  .calendar-page-header .cal-mode-toggle {
+    justify-self: start;
   }
 
   .year-page-actions {
@@ -6570,10 +6615,29 @@ body.focus-mode .container { padding: 0; }
   margin: 44px auto 0;
   padding: 24px 16px;
 }
-#view-projects .empty-state .ui-icon {
+/* Chỉ icon trang trí (briefcase) là con TRỰC TIẾP của .empty-state — không áp
+   34px cho icon plus bên trong nút CTA (.empty-btn .ui-icon), tránh nút bị lệch
+   baseline và icon quá to. */
+#view-projects .empty-state > .ui-icon {
   width: 34px;
   height: 34px;
   color: var(--color-text-muted, #6e665c);
+}
+/* Empty-state CTA: inline-flex control — plus icon nhỏ (16px, cùng cỡ với
+   "+ Thêm dự án" .button-primary), text căn giữa dọc theo icon. */
+#view-projects .empty-state .empty-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 16px;
+  line-height: 1.2;
+}
+#view-projects .empty-state .empty-btn .ui-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
 #view-projects .empty-state .empty-title { font-size: 15.5px; }
 #view-projects .empty-state .empty-hint { max-width: 320px; }

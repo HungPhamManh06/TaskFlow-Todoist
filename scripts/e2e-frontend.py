@@ -347,6 +347,30 @@ def calendar_checks(browser, base, width, height, errors, screenshot):
         task.click()
         assert task.get_attribute("aria-checked") != before
 
+    # Regression guard (V2 fix): the Tháng/Lịch trình segmented control must
+    # keep its exact position when switching modes — Month has 3 header children
+    # (heading + toggle + legend), Schedule only 2 (heading + toggle). With a flex
+    # space-between header the toggle used to jump to the far right in Schedule;
+    # the header is now an explicit 3-column grid so column 2 is mode-independent.
+    toggle = page.locator(".cal-mode-toggle")
+    month_box = toggle.bounding_box()
+    assert month_box, "cal-mode-toggle phải hiển thị ở Month mode"
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').click()
+    page.wait_for_timeout(200)
+    sched_box = toggle.bounding_box()
+    assert sched_box, "cal-mode-toggle phải hiển thị ở Schedule mode"
+    assert abs(month_box["x"] - sched_box["x"]) <= 2, \
+        f"cal-mode-toggle nhảy vị trí x: month {month_box['x']:.1f} vs schedule {sched_box['x']:.1f}"
+    assert abs(month_box["width"] - sched_box["width"]) <= 1, \
+        f"cal-mode-toggle đổi width: month {month_box['width']:.1f} vs schedule {sched_box['width']:.1f}"
+    # Reverse direction: Schedule -> Month cũng phải đứng yên.
+    page.locator('[data-action="cal-mode"][data-mode="month"]').click()
+    page.wait_for_timeout(200)
+    back_box = toggle.bounding_box()
+    assert back_box, "cal-mode-toggle phải hiển thị sau khi quay lại Month"
+    assert abs(month_box["x"] - back_box["x"]) <= 2
+    assert abs(month_box["width"] - back_box["width"]) <= 1
+
     page.screenshot(path=screenshot, full_page=False)
     page.close()
 
@@ -1655,6 +1679,49 @@ def projects_checks(browser, base, width, height, errors, screenshot):
     # 1) empty state → tạo project (name + target date). Sau create-save app tự mở
     #    Project Detail (renderProjectsViewWith openId=created.id) → assert detail.
     assert page.locator('.pj-card').count() == 0, "empty state phải không có card"
+
+    # Regression guard (V2 fix): empty-state CTA geometry — plus icon nhỏ
+    # (không bị 34px rule của icon trang trí), button đủ cao, icon + text căn
+    # giữa dọc theo button.
+    cta = page.locator('#view-projects .empty-state .empty-btn')
+    assert cta.is_visible(), "empty CTA phải hiển thị khi không có project"
+    cta_box = cta.bounding_box()
+    assert cta_box is not None and cta_box["height"] >= 40, \
+        f"empty CTA height {cta_box and round(cta_box['height'], 1)}px < 40px"
+    plus = page.locator('#view-projects .empty-state .empty-btn .ui-icon')
+    assert plus.count() == 1
+    plus_box = plus.bounding_box()
+    assert plus_box is not None and plus_box["width"] <= 18 and plus_box["height"] <= 18, \
+        f"CTA plus icon quá to: {plus_box}"
+    deco = page.locator('#view-projects .empty-state > .ui-icon')
+    assert deco.count() == 1, "icon trang trí (briefcase) phải là con trực tiếp của .empty-state"
+    deco_box = deco.bounding_box()
+    assert deco_box is not None and deco_box["width"] >= 30, \
+        f"icon trang trí bị thu nhỏ: {deco_box}"
+    centers = page.evaluate("""() => {
+      const btn = document.querySelector('#view-projects .empty-state .empty-btn');
+      if (!btn) return null;
+      const icon = btn.querySelector('.ui-icon');
+      const walker = document.createTreeWalker(btn, NodeFilter.SHOW_TEXT, {
+        acceptNode: (n) => (n.nodeValue || '').trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+      });
+      const text = walker.nextNode();
+      if (!text) return null;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const b = btn.getBoundingClientRect();
+      const i = icon.getBoundingClientRect();
+      const t = range.getBoundingClientRect();
+      return {
+        btnC: (b.top + b.bottom) / 2,
+        iconC: (i.top + i.bottom) / 2,
+        textC: (t.top + t.bottom) / 2,
+      };
+    }""")
+    assert centers, "không đo được tâm icon/text của CTA"
+    assert abs(centers["iconC"] - centers["btnC"]) <= 4, f"CTA plus icon lệch dọc: {centers}"
+    assert abs(centers["textC"] - centers["btnC"]) <= 4, f"CTA text lệch dọc: {centers}"
+
     # header + empty-state đều có nút project-new → dùng .first
     page.locator('[data-action="project-new"]').first.click()
     page.wait_for_selector('[data-testid="project-edit-modal"]:visible', state="visible")

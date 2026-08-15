@@ -3663,7 +3663,7 @@ function renderCalendarSchedule() {
   const monthEnd = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
   el.innerHTML = `<div class="calendar-page">
     <header class="calendar-page-header">
-      <div>
+      <div class="calendar-page-heading">
         <p class="calendar-page-eyebrow">${t('calendarWorkspaceEyebrow')}</p>
         <h1 class="calendar-page-title">${t('calendarPageTitle', { m: monthLabel(PLAN_MONTH), y: PLAN_YEAR })}</h1>
         <p class="calendar-page-subtitle">${t('calendarPageSubtitle')}</p>
@@ -3829,7 +3829,7 @@ function renderCalendar() {
     </div>`;
   el.innerHTML = `<div class="calendar-page">
     <header class="calendar-page-header">
-      <div>
+      <div class="calendar-page-heading">
         <p class="calendar-page-eyebrow">${t('calendarWorkspaceEyebrow')}</p>
         <h1 class="calendar-page-title">${t('calendarPageTitle', { m: monthLabel(PLAN_MONTH), y: PLAN_YEAR })}</h1>
         <p class="calendar-page-subtitle">${t('calendarPageSubtitle')}</p>

@@ -1,4 +1,15 @@
 /* ============================================================
+   styles-critical.css — boot-critical subset of styles.css
+   Generated: kept rules match the boot DOM (Today + shell + modals)
+   at desktop AND mobile, plus theme/dark selectors (old variable
+   system consumed by the app) and referenced keyframes.
+   SYNC DISCIPLINE: when editing styles.css, re-run
+   scripts/_measure_used_css.py + scripts/_split_css.py (or keep new
+   rules in both files), then python scripts/minify.py and bump the
+   ?v= in app.html + sw.js CACHE.
+   ============================================================ */
+
+/* ============================================================
    January Planner 🐥 — Aesthetic Kawaii Spreadsheet Planner
    ============================================================ */
 
