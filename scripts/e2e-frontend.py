@@ -1,7 +1,7 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 34 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 35 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
@@ -3264,16 +3264,34 @@ def gcal_checks(browser, base, width, height, errors, screenshot):
     assert "Tomorrow call" not in joined, f"event ngày mai không được hiện hôm nay, thấy: {summaries}"
     assert page.locator('.gcal-event.all-day').count() >= 1, "all-day event phải đánh dấu distinct"
     assert page.locator('.gcal-event-time.all-day').count() >= 1, "all-day có nhãn Cả ngày / All day"
-    assert page.locator('.gcal-badge').count() >= 1, "connected phải có badge"
-
-    # 3) planner busyForDate: timed windows, _gcal flag, all-day bị loại
-    busy = page.evaluate("""
+    assert page.locator('.gcal-badge').count() >= 1, "connected phải có badge"    # 3) planner busyForDate: timed windows, _gcal flag, all-day bị loại
+    busy = page.evaluate(
+      """
       (d) => window.TaskFlowGCal.busyForDate(window.TaskFlowGCal.loadCache().events, d)
     """, day_iso)
     assert len(busy) == 1, f"busy phải có đúng 1 timed window, thấy: {busy}"
     assert busy[0]["_gcal"] is True, "busy window phải đánh dấu _gcal"
 
-    # 4) no horizontal overflow on mobile
+    # 4) KEY REGRESSION: Google events hiển thị trên TIMELINE (read-only), không chỉ
+    # trong section. Standup (timed) → block .tb-google-event; Holiday (all-day) →
+    # strip .tb-gcal-allday; Tomorrow call (ngày khác) → không lên timeline.
+    page.wait_for_selector(".tb-google-event", state="visible", timeout=8000)
+    tl_summaries = page.locator(".tb-google-event-summary").all_inner_texts()
+    tl_joined = " ".join(tl_summaries)
+    assert "Standup" in tl_joined, f"timeline phải có Standup, thấy: {tl_summaries}"
+    assert "Tomorrow call" not in tl_joined, \
+        f"event ngày mai không được lên timeline hôm nay, thấy: {tl_summaries}"
+    assert page.locator(".tb-google-event button").count() == 0, \
+        "google event phải read-only (không có mutation controls)"
+    aria = page.locator(".tb-google-event").first.get_attribute("aria-label") or ""
+    assert "Standup" in aria, f"google event cần aria-label chứa title, thấy: {aria}"
+    # all-day → strip compact phía trên timeline (không phải block 24h)
+    assert page.locator(".tb-gcal-allday").count() >= 1, "all-day phải có strip"
+    allday = " ".join(page.locator(".tb-gcal-allday-chip span:last-child").all_inner_texts())
+    assert "Holiday" in allday, f"strip all-day phải có Holiday, thấy: {allday}"
+    assert page.locator(".tb-gcal-allday .tb-google-event").count() == 0
+
+    # 5) no horizontal overflow on mobile
     assert_no_page_overflow(page, f"gcal {width}px")
     page.screenshot(path=screenshot, full_page=False)
     page.close()
@@ -3432,6 +3450,142 @@ def gcal_write_checks(browser, base, width, height, errors, screenshot):
     page.close()
     ctx.close()
 
+
+def gcal_refresh_checks(browser, base, width, height, errors, screenshot):
+    """V2: Google refresh consistency — timeline + section luôn cập nhật cùng nhau.
+    1) cache 2 phút tuổi (fresh cho TTL 15', cũ hơn cooldown 60') + connected →
+       load KHÔNG fetch; focus (quay lại tab) → background refresh → event mới
+       "hi" lên CẢ section lẫn timeline (không reload)
+    2) cooldown 60s: focus ngay lần nữa → KHÔNG fetch thêm (đếm /events)
+    3) manual Làm mới → force fetch → cả hai vùng cập nhật
+    4) dedup: mirror Google của TimeBlock đã export (mapping + block tồn tại) →
+       KHÔNG vẽ external block lần 2
+    """
+    import datetime
+    import json
+    import time
+    ctx = browser.new_context(
+        viewport={"width": width, "height": height}, service_workers="block"
+    )
+    page = ctx.new_page()
+    page.emulate_media(reduced_motion="reduce")
+    page.on("pageerror", lambda error: errors.append(f"gcal-refresh {width}px: {error}"))
+    today = datetime.date.today()
+    day_iso = today.isoformat()
+    tomorrow_iso = (today + datetime.timedelta(days=1)).isoformat()
+
+    # Cache 2 phút tuổi — không trigger auto-refresh lúc load, nhưng cũ hơn cooldown
+    # 60s để focus-refresh được phép chạy.
+    old_cache = json.dumps({
+        "version": 1,
+        "fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "events": [],
+    })
+    # Cache cũ 2 phút — fetchedAt quá khứ
+    init_script = f"""
+    (() => {{
+      localStorage.setItem('planner-onboarded','1');
+      localStorage.setItem('planner-lang','en');
+      localStorage.removeItem('planner-gcal-mappings');
+      const past = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      localStorage.setItem('planner-gcal-cache', JSON.stringify({{version:1, fetchedAt:past, events:[]}}));
+      localStorage.setItem('planner-timeblocks', JSON.stringify({{
+        version: 2,
+        blocks: [{{ id:'block-g1', taskUid:null, date:'{day_iso}', start:'09:00', end:'10:00',
+                   status:'planned', createdAt:'x', updatedAt:'x' }}],
+      }}));
+      localStorage.setItem('planner-gcal-mappings', JSON.stringify({{
+        version: 1,
+        mappings: [{{ taskflowBlockId:'block-g1', googleEventId:'mirror1', calendarId:'primary' }}],
+      }}));
+    }})()
+    """
+    page.add_init_script(init_script)
+
+    server_events = [
+        # mirror của block-g1 (09:00-10:00) — dedup test
+        {"_calendarId": "primary", "id": "mirror1", "summary": "Mirror Block",
+         "start": {"dateTime": f"{day_iso}T09:00:00+07:00"},
+         "end": {"dateTime": f"{day_iso}T10:00:00+07:00"}},
+    ]
+    event_hits = {"n": 0}
+
+    def handle_cal(route):
+        url = route.request.url
+        if url.endswith("/api/calendar/status"):
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "connected": True, "write": False,
+                "calendars": [{"id": "primary", "summary": "Main", "primary": True}],
+                "fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }))
+            return
+        if "/api/calendar/events" in url:
+            event_hits["n"] += 1
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "events": server_events, "errors": [],
+                "fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }))
+            return
+        route.continue_()
+
+    page.route("**/api/calendar/**", handle_cal)
+    page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').first.click()
+    page.wait_for_selector('[data-testid="schedule-view"]', state="visible", timeout=8000)
+    page.wait_for_timeout(300)
+    hits_after_load = event_hits["n"]
+
+    # 1) Focus (simulate quay lại tab) → background refresh → "hi" lên cả hai vùng
+    server_events.append(
+        {"_calendarId": "primary", "id": "hi1", "summary": "hi",
+         "start": {"dateTime": f"{day_iso}T13:30:00+07:00"},
+         "end": {"dateTime": f"{day_iso}T14:30:00+07:00"}},
+    )
+    page.evaluate("window.dispatchEvent(new Event('focus'))")
+    page.wait_for_selector(".tb-google-event", state="visible", timeout=8000)
+    assert event_hits["n"] == hits_after_load + 1, \
+        f"focus phải fetch đúng 1 lần, hits: {event_hits['n']} vs {hits_after_load}"
+    tl = " ".join(page.locator(".tb-google-event-summary").all_inner_texts())
+    assert "hi" in tl, f"timeline phải có 'hi' sau focus refresh, thấy: {tl}"
+    sec = " ".join(page.locator(".gcal-event-summary").all_inner_texts())
+    assert "hi" in sec, f"section phải có 'hi' sau focus refresh, thấy: {sec}"
+    # mirror của block-g1 KHÔNG được vẽ external (dedup)
+    assert "Mirror Block" not in tl, f"mirror đã export không được vẽ lần 2, thấy: {tl}"
+    assert page.locator('[data-block-id="block-g1"]').count() >= 1, \
+        "block TaskFlow vẫn phải hiển thị"
+    # read-only + aria
+    assert page.locator(".tb-google-event button").count() == 0
+
+    # 2) Cooldown: focus ngay lần nữa → KHÔNG fetch thêm (không polling)
+    before = event_hits["n"]
+    page.evaluate("window.dispatchEvent(new Event('focus'))")
+    page.wait_for_timeout(400)
+    assert event_hits["n"] == before, \
+        f"cooldown 60s phải chặn focus thứ 2, hits: {event_hits['n']} vs {before}"
+
+    # 3) Manual Làm mới → force fetch → event mới cập nhật cả hai vùng (không reload)
+    server_events.append(
+        {"_calendarId": "primary", "id": "manual1", "summary": "Manual event",
+         "start": {"dateTime": f"{day_iso}T15:00:00+07:00"},
+         "end": {"dateTime": f"{day_iso}T16:00:00+07:00"}},
+    )
+    page.locator('[data-action="gcal-refresh"]').first.click()
+    page.wait_for_selector(".tb-google-event-summary:has-text('Manual event')",
+                           state="visible", timeout=8000)
+    assert event_hits["n"] == before + 1, \
+        f"manual refresh phải fetch 1 lần, hits: {event_hits['n']} vs {before}"
+    tl2 = " ".join(page.locator(".tb-google-event-summary").all_inner_texts())
+    sec2 = " ".join(page.locator(".gcal-event-summary").all_inner_texts())
+    assert "Manual event" in tl2 and "Manual event" in sec2, \
+        f"manual refresh phải cập nhật CẢ timeline + section, tl={tl2} sec={sec2}"
+
+    # 4) no horizontal overflow
+    assert_no_page_overflow(page, f"gcal-refresh {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+    ctx.close()
 
 def ai_checks(browser, base, width, height, errors, screenshot):
     """V2.0: AI Copilot — proposal → preview → explicit Apply (không tự ghi state).
@@ -3674,7 +3828,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "ai"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "gcal-refresh", "ai"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -3746,6 +3900,7 @@ def main():
                     ("insights", insights_checks),
                     ("gcal", gcal_checks),
                     ("gcal-write", gcal_write_checks),
+                    ("gcal-refresh", gcal_refresh_checks),
                     ("ai", ai_checks),
                 )
                 for width, height in matrix:
@@ -3848,6 +4003,9 @@ def main():
             elif args.view == "gcal-write":
                 gcal_write_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 gcal_write_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "gcal-refresh":
+                gcal_refresh_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                gcal_refresh_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "ai":
                 ai_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 ai_checks(browser, base, 390, 844, errors, shots["mobile"])

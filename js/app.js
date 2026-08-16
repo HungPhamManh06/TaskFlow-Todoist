@@ -3704,7 +3704,9 @@ function syncCalendarShell(page) {
 }
 
 // Schedule view: timeline 1 ngày cho TimeBlocks — chỉ swap vùng content.
-function renderCalendarSchedule() {
+// skipGcalRefresh=true: đang ở trong chu trình refresh Google (đã fetch xong) —
+// tránh loop render→refresh→render. Dùng cho onChange sau khi refresh/cache đổi.
+function renderCalendarSchedule(skipGcalRefresh) {
   const todayIso = localTodayIso();
   if (!calendarSelDate) calendarSelDate = todayIso;
   const sel = TimeBlocksUI.parseISO(calendarSelDate);
@@ -3718,6 +3720,7 @@ function renderCalendarSchedule() {
   const nd = new Date(PLAN_YEAR, PLAN_MONTH + 1, 0).getDate();
   const monthEnd = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
   const content = page.querySelector('[data-role="cal-content"]');
+  const gcalTimeline = gcalTimelineData(calendarSelDate);
   content.innerHTML = `${TimeBlocksUI.scheduleViewHTML({
       store: blocks,
       date: calendarSelDate,
@@ -3729,12 +3732,38 @@ function renderCalendarSchedule() {
       monthEnd,
       blockActions: gcalBlockActions,
       unscheduledExpanded: calendarUnscheduledExpanded,
+      googleEvents: gcalTimeline ? gcalTimeline.events : undefined,
+      gcalMappedKeys: gcalTimeline ? gcalTimeline.mappedKeys : undefined,
     })}
     <div id="gcal-section-host">${gcalScheduleSection(calendarSelDate, monthStart, monthEnd)}</div>`;
-  scheduleGcalRefresh(calendarSelDate || todayIso, monthStart, monthEnd);
+  if (!skipGcalRefresh) scheduleGcalRefresh(calendarSelDate || todayIso, monthStart, monthEnd);
 }
 
 /* ============ V1.6A Google Calendar (read-only) — section + actions ============ */
+
+// Google events external cho timeline của 1 ngày (từ cache — KHÔNG fetch network ở
+// đây; timeblocks-ui không sở hữu network/cache). Dedup: event Google là mirror của
+// TimeBlock đã export (mapping) → không vẽ lần 2; chỉ dedup khi block local còn tồn
+// tại (block đã xoá → event hiển thị như external bình thường).
+function gcalTimelineData(dateIso) {
+  const g = window.TaskFlowGCal;
+  if (!g || !window.TaskFlowGCalUI) return null;
+  try {
+    if (!window.TaskFlowGCalUI.getState().connected) return null;
+    const cache = g.loadCache();
+    const events = g.eventsForDate(cache.events, dateIso);
+    const mappedKeys = [];
+    const store = loadTimeBlocksStore();
+    (g.loadMappings().mappings || []).forEach((m) => {
+      if (!m || !m.googleEventId || !m.calendarId) return;
+      if (!window.TaskFlowTimeBlocks.getBlock(store, m.taskflowBlockId)) return;
+      mappedKeys.push(m.calendarId + ':' + m.googleEventId);
+    });
+    return { events, mappedKeys };
+  } catch (e) {
+    return null;
+  }
+}
 
 // Section "Sự kiện Google" trong Schedule view. Trả '' nếu module chưa load.
 function gcalScheduleSection(dateIso, monthStart, monthEnd) {
@@ -3756,16 +3785,55 @@ async function scheduleGcalRefresh(dateIso, monthStart, monthEnd, force) {
   if (!window.TaskFlowGCalUI || gcalSyncScheduled) return;
   gcalSyncScheduled = true;
   try {
+    const before = window.TaskFlowGCal.loadCache().fetchedAt;
     await window.TaskFlowGCalUI.afterRender({
       dateIso,
       monthStart,
       monthEnd,
-      onChange: () => renderGcalSection(dateIso, monthStart, monthEnd),
+      onChange: () => {
+        // Cache Google thực sự đổi (refresh thành công) → re-render CẢ timeline +
+        // section để event mới xuất hiện trên timeline; còn lại chỉ cập nhật section
+        // trạng thái (không đụng timeline đang hiển thị). skipGcalRefresh=true chặn
+        // vòng render→refresh→render.
+        const after = window.TaskFlowGCal.loadCache().fetchedAt;
+        if (force || before !== after) {
+          renderCalendarSchedule(true);
+        } else {
+          renderGcalSection(dateIso, monthStart, monthEnd);
+        }
+      },
       force: !!force,
     });
   } catch (e) { /* ẩn lỗi mạng */ } finally {
     gcalSyncScheduled = false;
   }
+}
+
+// Background refresh Google khi quay lại tab (visibilitychange/focus) — cooldown 60s:
+// user tạo event trên Google Calendar rồi quay lại TaskFlow → Schedule tự cập nhật
+// (timeline + section). KHÔNG polling, KHÔNG setInterval; chỉ fetch khi schedule đang
+// hiển thị + connected + lần fetch gần nhất đủ cũ.
+let gcalLastVisibleRefresh = 0;
+const GCAL_VISIBLE_COOLDOWN_MS = 60 * 1000;
+
+async function gcalVisibilityRefresh() {
+  if (!window.TaskFlowGCal || !window.TaskFlowGCalUI) return;
+  if (calendarMode !== 'schedule') return;
+  try {
+    if (!window.TaskFlowGCalUI.getState().connected) return;
+    const now = Date.now();
+    if (now - gcalLastVisibleRefresh < GCAL_VISIBLE_COOLDOWN_MS) return;
+    const cache = window.TaskFlowGCal.loadCache();
+    const lastFetch = cache.fetchedAt ? new Date(cache.fetchedAt).getTime() : 0;
+    if (now - lastFetch < GCAL_VISIBLE_COOLDOWN_MS) return;
+    gcalLastVisibleRefresh = now;
+    const todayIso = localTodayIso();
+    const monthStart = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-01`;
+    const nd = new Date(PLAN_YEAR, PLAN_MONTH + 1, 0).getDate();
+    const monthEnd = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
+    await window.TaskFlowGCalUI.refreshEvents(monthStart, monthEnd);
+    if (calendarMode === 'schedule') renderCalendarSchedule(true);
+  } catch (e) { /* ẩn lỗi mạng */ }
 }
 
 // Re-render chỉ riêng section Google events trong Schedule view (không đụng timeline).
@@ -6783,9 +6851,9 @@ setInterval(syncNow, 1000);
 
 // Đồng bộ lại ngay khi quay lại tab (trình duyệt làm chậm timer khi tab ẩn)
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) { syncNow(); pomoSync(); }
+  if (!document.hidden) { syncNow(); pomoSync(); gcalVisibilityRefresh(); }
 });
-window.addEventListener('focus', () => { syncNow(); pomoSync(); });
+window.addEventListener('focus', () => { syncNow(); pomoSync(); gcalVisibilityRefresh(); });
 
 /* ============================ Đồng bộ đám mây ============================ */
 

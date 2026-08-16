@@ -15,6 +15,9 @@ const T_KEYS = {
   tbUnsDur: '{n} min', tbScheduleAction: 'Schedule',
   tbUnsShowMore: 'Show {n} more', tbUnsCollapse: 'Collapse',
   tbNoTasksNoBlocks: 'No tasks or time blocks yet', tbNoBlocksUnscheduled: 'Unscheduled tasks above',
+  gcalAllDay: 'All day', gcalTimelineLabel: 'Google Calendar',
+  gcalAriaTimed: 'Google Calendar, {start} to {end}, {title}', gcalAriaAllDay: 'All day, Google Calendar, {title}',
+  tbOverlapNote: 'Some time blocks overlap',
 };
 window.TaskFlowI18N = {
   t: (k, v) => {
@@ -390,3 +393,118 @@ test('blockDialogHTML: durationMinutes proposes end = start + duration for new b
   assert.ok(bad.includes('value="10:00"'));
   assert.ok(!bad.includes('value="10:30"'));
 });
+
+
+/* ---------------- Google events trên timeline (read-only) ---------------- */
+
+// Local 13:30 ngày 2026-08-10 (giờ máy — không phụ thuộc timezone của runner).
+function localMs(y, mo, day, h, mi) {
+  return new Date(y, mo - 1, day, h, mi, 0, 0).getTime();
+}
+
+test('googleEventGeo: 13:30-14:30 → top 972px, height 72px (PXM 1.2)', () => {
+  const ev = { id: 'g1', calendarId: 'primary', summary: 'hi', allDay: false,
+    startMs: localMs(2026, 8, 10, 13, 30), endMs: localMs(2026, 8, 10, 14, 30) };
+  const geo = UI.googleEventGeo(ev, '2026-08-10');
+  assert.ok(geo, 'event phải có geo');
+  assert.equal(geo.top, 13.5 * 60 * 1.2);
+  assert.equal(geo.height, 60 * 1.2);
+  assert.equal(geo.startMin, 810);
+  assert.equal(geo.endMin, 870);
+});
+
+test('googleEventGeo: xuyên đêm clamp theo ngày local (00:00-01:00)', () => {
+  // 23:30 hôm trước → 01:00 hôm nay
+  const ev = { id: 'g2', calendarId: 'primary', summary: 'Night', allDay: false,
+    startMs: localMs(2026, 8, 9, 23, 30), endMs: localMs(2026, 8, 10, 1, 0) };
+  const geo = UI.googleEventGeo(ev, '2026-08-10');
+  assert.ok(geo, 'phần xuyên đêm phải hiển thị trên ngày sau');
+  assert.equal(geo.top, 0);
+  assert.equal(geo.height, 60 * 1.2);
+  // 23:00 hôm nay → 01:00 hôm sau: chỉ 23:00-24:00 nhìn thấy
+  const ev2 = { id: 'g3', calendarId: 'primary', summary: 'Late', allDay: false,
+    startMs: localMs(2026, 8, 10, 23, 0), endMs: localMs(2026, 8, 11, 1, 0) };
+  const geo2 = UI.googleEventGeo(ev2, '2026-08-10');
+  assert.ok(geo2, 'phần trước nửa đêm phải hiển thị');
+  assert.equal(geo2.top, 23 * 60 * 1.2);
+  assert.equal(geo2.height, 60 * 1.2);
+});
+
+test('googleEventGeo: event ngoài ngày → null; all-day không vào geo', () => {
+  const ev = { id: 'g4', calendarId: 'primary', summary: 'Other day', allDay: false,
+    startMs: localMs(2026, 8, 12, 9, 0), endMs: localMs(2026, 8, 12, 10, 0) };
+  assert.equal(UI.googleEventGeo(ev, '2026-08-10'), null);
+  assert.equal(UI.googleEventRowHTML(ev, '2026-08-10'), '');
+});
+
+test('googleEventRowHTML: label Google Calendar + time + summary, không có nút mutation', () => {
+  const ev = { id: 'g5', calendarId: 'primary', summary: 'hi', allDay: false,
+    startMs: localMs(2026, 8, 10, 13, 30), endMs: localMs(2026, 8, 10, 14, 30) };
+  const html = UI.googleEventRowHTML(ev, '2026-08-10');
+  assert.ok(html.includes('tb-google-event'));
+  assert.ok(html.includes('Google Calendar'));
+  assert.ok(html.includes('13:30–14:30'));
+  assert.ok(html.includes('hi'));
+  assert.ok(!/<button/.test(html), 'google event không được có button mutation');
+  assert.ok(html.includes('data-gcal-id="g5"'));
+});
+
+test('timelineHTML: google timed event được render cùng timeline (không cần block)', () => {
+  const ev = { key: 'primary:g6', id: 'g6', calendarId: 'primary', summary: 'Standup', allDay: false,
+    startMs: localMs(2026, 8, 10, 9, 0), endMs: localMs(2026, 8, 10, 10, 0) };
+  const empty = UI.timelineHTML({ version: 2, blocks: [] }, '2026-08-10', makeState(), inbox, null, {
+    googleEvents: [ev],
+  });
+  assert.ok(empty.includes('tb-google-event'));
+  assert.ok(empty.includes('Standup'));
+  assert.ok(!empty.includes('tb-empty'), 'có google event thì không show message rỗng');
+});
+
+test('timelineHTML: all-day event → strip phía trên, KHÔNG thành block 24 giờ', () => {
+  const ad = { key: 'primary:g7', id: 'g7', calendarId: 'primary', summary: 'Sinh nhật', allDay: true,
+    startMs: localMs(2026, 8, 10, 0, 0), endMs: localMs(2026, 8, 11, 0, 0) };
+  const html = UI.timelineHTML({ version: 2, blocks: [] }, '2026-08-10', makeState(), inbox, null, {
+    googleEvents: [ad],
+  });
+  assert.ok(html.includes('tb-gcal-allday'), 'all-day phải nằm trong strip');
+  assert.ok(html.includes('Sinh nhật'));
+  assert.ok(!html.includes('tb-google-event'), 'all-day không được thành block timeline');
+});
+
+test('timelineHTML: mirror đã export (mapped key) không vẽ lần 2', () => {
+  const store = makeStore(); // b1 09:00-10:30
+  const mirror = { key: 'primary:mirror1', id: 'mirror1', calendarId: 'primary', summary: 'Learn Spring Boot', allDay: false,
+    startMs: localMs(2026, 8, 10, 9, 0), endMs: localMs(2026, 8, 10, 10, 30) };
+  const html = UI.timelineHTML(store, '2026-08-10', makeState(), inbox, null, {
+    googleEvents: [mirror],
+    gcalMappedKeys: ['primary:mirror1'],
+  });
+  assert.ok(!html.includes('tb-google-event'), 'mirror mapped không được vẽ external');
+  assert.ok(html.includes('tb-block'), 'block TaskFlow vẫn hiển thị');
+});
+
+test('timelineHTML: external google event + block TaskFlow cùng ngày render đủ cả hai', () => {
+  const store = makeStore(); // b1 09:00-10:30
+  const external = { key: 'primary:g8', id: 'g8', calendarId: 'primary', summary: 'Họp khách', allDay: false,
+    startMs: localMs(2026, 8, 10, 14, 0), endMs: localMs(2026, 8, 10, 15, 0) };
+  const html = UI.timelineHTML(store, '2026-08-10', makeState(), inbox, null, {
+    googleEvents: [external],
+    gcalMappedKeys: [],
+  });
+  assert.ok(html.includes('tb-block'));
+  assert.ok(html.includes('Họp khách'));
+  assert.ok(html.includes('tb-google-event'));
+});
+
+test('detectOverlaps: block TaskFlow trùng google event → note có Google Calendar', () => {
+  const store = makeStore(); // b1 09:00-10:30
+  const busy = { key: 'primary:g9', id: 'g9', calendarId: 'primary', summary: 'Busy', allDay: false,
+    startMs: localMs(2026, 8, 10, 10, 0), endMs: localMs(2026, 8, 10, 11, 0) };
+  const note = UI.detectOverlaps(store, '2026-08-10', [busy]);
+  assert.ok(note.includes('Google Calendar'), `overlap note phải nhắc Google, thấy: ${note}`);
+  // không trùng → note rỗng
+  const free = { key: 'primary:g10', id: 'g10', calendarId: 'primary', summary: 'Free', allDay: false,
+    startMs: localMs(2026, 8, 10, 12, 0), endMs: localMs(2026, 8, 10, 13, 0) };
+  assert.equal(UI.detectOverlaps(store, '2026-08-10', [free]), '');
+});
+

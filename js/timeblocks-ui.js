@@ -250,8 +250,72 @@
     return t('tbNoBlocks');
   }
 
+  /* ---------------- Google events trên timeline (read-only) ---------------- */
+
+  // 'HH:mm' local từ ms (không dùng toISOString — lệch UTC).
+  function gcalHHMM(ms) {
+    const d = new Date(ms);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  // Vị trí của 1 Google event trên timeline theo NGÀY LOCAL đang xem (clamp xuyên
+  // đêm: 23:30 hôm trước → 01:00 hôm nay hiển thị 00:00–01:00; 23:00 hôm nay →
+  // 01:00 hôm sau hiển thị 23:00–24:00). Trả null nếu event không còn phần nhìn
+  // thấy trong ngày. Cùng thang PXM với TimeBlock.
+  function googleEventGeo(event, dateIso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateIso || ''));
+    if (!m || !event || typeof event.startMs !== 'number' || typeof event.endMs !== 'number') return null;
+    const PXM = 1.2;
+    const dayStart = new Date(+m[1], +m[2] - 1, +m[3], 0, 0, 0, 0).getTime();
+    const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+    const vs = Math.max(event.startMs, dayStart);
+    const ve = Math.min(event.endMs, dayEnd);
+    if (ve <= vs) return null;
+    const topMin = (vs - dayStart) / 60000;
+    const heightMin = (ve - vs) / 60000;
+    return {
+      top: topMin * PXM,
+      height: Math.max(heightMin * PXM, 28),
+      startMs: vs,
+      endMs: ve,
+      startMin: Math.round(topMin),
+      endMin: Math.round(topMin + heightMin),
+    };
+  }
+
+  // 1 Google event timed → block đọc-chỉ trên timeline (không có mutation controls).
+  function googleEventRowHTML(event, dateIso) {
+    const geo = googleEventGeo(event, dateIso);
+    if (!geo) return '';
+    const time = `${gcalHHMM(geo.startMs)}–${gcalHHMM(geo.endMs)}`;
+    const start = gcalHHMM(geo.startMs);
+    const end = gcalHHMM(geo.endMs);
+    return `<div class="tb-google-event" style="top:${geo.top}px;height:${geo.height}px" data-gcal-id="${esc(event.id)}" role="group" aria-label="${esc(t('gcalAriaTimed', { start, end, title: event.summary }))}">
+      <span class="tb-google-event-label">${icon('calendar')}<span>${esc(t('gcalTimelineLabel'))}</span></span>
+      <span class="tb-google-event-time">${esc(time)}</span>
+      <span class="tb-google-event-summary">${esc(event.summary)}</span>
+    </div>`;
+  }
+
+  // All-day events → dải compact PHÍA TRÊN timeline (không phải block 24 giờ).
+  function googleAllDayStripHTML(events) {
+    if (!Array.isArray(events) || !events.length) return '';
+    const chips = events.map((e) =>
+      `<span class="tb-gcal-allday-chip" role="img" aria-label="${esc(t('gcalAriaAllDay', { title: e.summary }))}" title="${esc(e.summary)}">${icon('calendar')}<span>${esc(e.summary)}</span></span>`
+    ).join('');
+    return `<div class="tb-gcal-allday" data-testid="tb-gcal-allday">
+      <span class="tb-gcal-allday-label">${esc(t('gcalAllDay'))}</span>
+      <span class="tb-gcal-allday-chips">${chips}</span>
+    </div>`;
+  }
+
   // Timeline dọc 00:00–23:59 + blocks của ngày.
-  // opts = { unscheduledCount, totalTasks } — chọn message rỗng theo ngữ cảnh.
+  // opts = {
+  //   unscheduledCount, totalTasks — chọn message rỗng theo ngữ cảnh.
+  //   googleEvents      — normalized Google events của NGÀY NÀY (chỉ khi connected).
+  //   gcalMappedKeys    — mảng key 'calendarId:googleEventId' đã export từ TimeBlock
+  //                       (dedup: mirror Google của block KHÔNG vẽ lần 2).
+  // }
   function timelineHTML(store, date, state, inbox, blockActions, opts) {
     const blocks = sortedBlocks(store, date);
     const PXM = 1.2;
@@ -263,20 +327,36 @@
       grid += `<div class="tb-hour" style="top:${top}px" aria-hidden="true"><span>${label}</span></div>`;
     }
     const o = opts || {};
-    const body = blocks.length
-      ? blocks.map((b) => blockRowHTML(b, state, inbox, blockActions)).join('')
+    // Google external events: dedup mirror đã export, tách timed (timeline) vs all-day (strip).
+    const mappedKeys = Array.isArray(o.gcalMappedKeys) ? new Set(o.gcalMappedKeys) : new Set();
+    let gcalTimed = [];
+    let gcalAllDay = [];
+    if (Array.isArray(o.googleEvents)) {
+      o.googleEvents.forEach((e) => {
+        if (!e || !e.key || mappedKeys.has(e.key)) return;
+        if (e.allDay) gcalAllDay.push(e);
+        else gcalTimed.push(e);
+      });
+      gcalTimed.sort((a, b) => (a.startMs - b.startMs) || (a.endMs - b.endMs));
+    }
+    const gcalBlocks = gcalTimed.map((e) => googleEventRowHTML(e, date)).join('');
+    const body = (blocks.length || gcalTimed.length)
+      ? `${gcalBlocks}${blocks.map((b) => blockRowHTML(b, state, inbox, blockActions)).join('')}`
       : `<div class="tb-empty">${esc(timelineEmptyMessage(o.totalTasks || 0, o.unscheduledCount || 0))}</div>`;
-    const overlaps = detectOverlaps(store, date);
+    const overlaps = detectOverlaps(store, date, gcalTimed);
+    const allDayStrip = gcalAllDay.length ? googleAllDayStripHTML(gcalAllDay) : '';
     return `<div class="tb-timeline-wrap">
       ${overlaps ? `<p class="tb-overlap-note" role="status">${icon('bell')}<span>${esc(t('tbOverlapNote'))}</span></p>` : ''}
+      ${allDayStrip}
       <div class="tb-timeline" style="height:${HOURS * 60 * PXM}px" data-testid="tb-timeline">
         ${grid}${body}
       </div>
     </div>`;
   }
 
-  // Phát hiện overlap giữa các block cùng ngày (không tính cancelled). Trả text mô tả / ''.
-  function detectOverlaps(store, date) {
+  // Phát hiện overlap giữa các block cùng ngày (không tính cancelled) + với Google
+  // events timed (busy external). Trả text mô tả / ''.
+  function detectOverlaps(store, date, googleEvents) {
     const tb = TB();
     if (!tb || !store || !Array.isArray(store.blocks)) return '';
     const blocks = store.blocks.filter((b) => b && b.date === date && b.status !== 'cancelled');
@@ -290,11 +370,25 @@
         if (as < be && bs < ae) parts.push(`${a.start}–${a.end} / ${b.start}–${b.end}`);
       }
     }
+    if (Array.isArray(googleEvents)) {
+      for (let i = 0; i < blocks.length; i++) {
+        const a = blocks[i];
+        const as = tb.toMinutes(a.start), ae = tb.toMinutes(a.end);
+        if (as === null || ae === null) continue;
+        googleEvents.forEach((ge) => {
+          const g = googleEventGeo(ge, date);
+          if (!g) return;
+          if (as < g.endMin && g.startMin < ae) parts.push(`${a.start}–${a.end} / Google Calendar`);
+        });
+      }
+    }
     return parts.length ? parts.join(', ') : '';
   }
 
   // Toàn bộ Schedule view cho 1 ngày (được render trong view-calendar khi mode=schedule).
-  function scheduleViewHTML({ store, date, state, inbox, planStart, todayIso, monthStart, monthEnd, blockActions, unscheduledExpanded = false }) {
+  // googleEvents / gcalMappedKeys: Google events external (read-only) hiển thị trên
+  // timeline — app.js truyền từ TaskFlowGCal cache (không fetch network ở đây).
+  function scheduleViewHTML({ store, date, state, inbox, planStart, todayIso, monthStart, monthEnd, blockActions, unscheduledExpanded = false, googleEvents, gcalMappedKeys }) {
     const selIso = iso(parseISO(date) || new Date());
     const d = parseISO(selIso);
     const weekday = d.toLocaleDateString(t('locale') || 'vi-VN', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -319,6 +413,8 @@
       ${timelineHTML(store, selIso, state, inbox, blockActions, {
         unscheduledCount: unscheduled.length,
         totalTasks: dayTasks.length,
+        googleEvents,
+        gcalMappedKeys,
       })}
     </div>`;
   }
@@ -435,5 +531,6 @@
     dayStripHTML, blockRowHTML, timelineHTML, timelineEmptyMessage, detectOverlaps, scheduleViewHTML,
     taskOptionsHTML, blockDialogHTML, readBlockDialog, taskDetailBlocksHTML,
     fmtTimeRange, sortedBlocks,
+    googleEventGeo, googleEventRowHTML, googleAllDayStripHTML,
   };
 });
