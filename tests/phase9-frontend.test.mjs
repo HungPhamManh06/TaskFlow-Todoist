@@ -834,8 +834,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=185/);
-  assert.match(SW, /const CACHE = 'taskflow-v231';/);
+  assert.match(APP, /js\/app\.min\.js\?v=186/);
+  assert.match(SW, /const CACHE = 'taskflow-v232';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1344,7 +1344,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=185/);
+  assert.match(APP, /js\/app\.min\.js\?v=186/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
@@ -1352,7 +1352,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v231';/);
+  assert.match(SW, /const CACHE = 'taskflow-v232';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2014,7 +2014,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v231';/);
+  assert.match(SW, /const CACHE = 'taskflow-v232';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2092,7 +2092,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v231';/);
+  assert.match(SW, /const CACHE = 'taskflow-v232';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2330,7 +2330,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v231', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v232', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);
@@ -3391,4 +3391,26 @@ test('Phase 22: P0.2 e2e hardening — task-detail flow, extended viewports, rea
   // 5. P0.2 bug fix 2: delete-toast Undo button must be clickable (pointer-events auto)
   const COMPONENTS_CSS = readRequiredAsset('css/components.css');
   assert.match(COMPONENTS_CSS, /\.toast \{[\s\S]*?pointer-events: auto;/);
+});
+
+test('P0: Tools drawer / More sheet close cleanup is idempotent (no stale body scroll-lock)', () => {
+  // 1. The early returns that skipped body-class cleanup are gone from both closers.
+  assert.doesNotMatch(APP_JS, /if \(!drawer \|\| drawer\.hidden\) return;/);
+  assert.doesNotMatch(APP_JS, /if \(!sheet \|\| sheet\.hidden\) return;/);
+  // 2. Body scroll-lock removal must run BEFORE the wasOpen gate in closeToolsDrawer.
+  const closer = (APP_JS.match(/function closeToolsDrawer\(\) \{[\s\S]*?\n\}/) || [''])[0];
+  assert.ok(closer.length > 100, 'closeToolsDrawer body must be present');
+  const cleanupIdx = closer.indexOf("classList.remove('tools-drawer-open')");
+  const gateIdx = closer.indexOf('const wasOpen');
+  assert.ok(cleanupIdx >= 0 && gateIdx > cleanupIdx,
+    'body.tools-drawer-open removal must run before the wasOpen gate');
+  assert.match(closer, /if \(drawer\) TaskFlowUI\.closeDrawer\('toolsDrawer'\);/);
+  // 3. Defensive reconciliation at boot + on BFCache restore (pageshow).
+  assert.match(APP_JS, /function reconcileOverlayScrollLocks\(\)/);
+  assert.match(APP_JS, /reconcileOverlayScrollLocks\(\);/);
+  assert.match(APP_JS, /addEventListener\('pageshow', reconcileOverlayScrollLocks\)/);
+  // 4. More-sheet closer mirrors the idempotent pattern (same body scroll-lock class).
+  const sheetCloser = (APP_JS.match(/function closeMoreSheet\(\) \{[\s\S]*?\n\}/) || [''])[0];
+  assert.match(sheetCloser, /classList\.remove\('more-sheet-open'\)/);
+  assert.match(sheetCloser, /if \(sheet\) TaskFlowUI\.closeDrawer\('moreSheet'\);/);
 });

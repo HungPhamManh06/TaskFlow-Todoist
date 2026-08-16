@@ -711,6 +711,196 @@ def schedule_unscheduled_checks(
     page.close()
 
 
+def scroll_lock_checks(browser, base, width, height, errors, screenshot):
+    """P0 desktop scroll-lock regression (Calendar -> Schedule + Tools drawer).
+
+    1) seed 30 tasks today + 10 projects so long views exceed the viewport
+    2) Calendar -> Schedule: document height > viewport and scrollY increases
+       (#view-calendar must NOT be a fixed-height overflow:hidden box in Schedule)
+    3) Tools drawer open locks body; X / Escape / backdrop each unlock it
+    4) stale state (drawer hidden + body.tools-drawer-open) -> closeToolsDrawer()
+       removes the class (the P0 idempotency contract)
+    5) Month -> Schedule -> Month -> Schedule stays scrollable
+    6) Week / Upcoming / Projects stay scrollable
+    7) sidebar scrolls independently while body is locked
+    """
+    page = make_page(browser, width, height, service_workers="block")
+    page.on("pageerror", lambda error: errors.append(f"scrolllock {width}px: {error}"))
+    page.on("dialog", lambda dialog: dialog.accept())
+    page.add_init_script("""(() => {
+      localStorage.setItem('planner-onboarded','1');
+      if (localStorage.getItem('scrolllock-seeded')) return;
+      localStorage.setItem('scrolllock-seeded','1');
+      localStorage.removeItem('planner-timeblocks');
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = 'planner-' + year + '-' + (month + 1);
+      let state;
+      try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { state = null; }
+      if (!state) state = { version: 1, weeks: [], pillars: [], habits: [] };
+      state.monthKey = key; state.schemaVersion = 2;
+      if (!Array.isArray(state.monthlyGoals)) state.monthlyGoals = [];
+      if (!Array.isArray(state.habits)) state.habits = [];
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const numWeeks = Math.ceil((offset + daysInMonth) / 7);
+      state.weeks = [];
+      for (let w = 0; w < numWeeks; w++) {
+        const days = [];
+        for (let d = 0; d < 7; d++) days.push({ tasks: [] });
+        state.weeks.push({ n: w + 1, goals: [], days });
+      }
+      const planStart = new Date(year, month, 1 - offset);
+      const today = new Date(year, month, now.getDate());
+      const delta = Math.floor((today - planStart) / 86400000);
+      const week = Math.floor(delta / 7), day = delta % 7;
+      state.weeks[week].days[day].tasks = Array.from({ length: 30 }, (_, i) => ({
+        uid: 'scrolllock-seed-' + (i + 1), kind: i % 3 === 0 ? 'priority' : 'regular',
+        done: false, text: 'Scroll Lock Seed Task ' + (i + 1), duration: 15 + (i * 5),
+      }));
+      localStorage.setItem(key, JSON.stringify(state));
+      localStorage.setItem('planner-projects', JSON.stringify({
+        version: 1,
+        projects: Array.from({ length: 40 }, (_, i) => ({
+          id: 'scrolllock-proj-' + i, title: 'Scroll Lock Project ' + (i + 1),
+          status: 'active', milestones: [], notes: '', createdAt: '', updatedAt: '',
+        })),
+      }));
+    })()""")
+    page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="calendar-view"]', state="visible")
+
+    # 1+2) Calendar -> Schedule: document must exceed viewport and scroll.
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').click()
+    page.wait_for_selector('[data-testid="schedule-view"]', state="visible")
+    page.wait_for_timeout(200)
+    dims = page.evaluate("""() => ({
+      scrollHeight: document.documentElement.scrollHeight,
+      innerHeight: window.innerHeight,
+      mode: document.getElementById('view-calendar').getAttribute('data-cal-mode'),
+      overflowY: getComputedStyle(document.getElementById('view-calendar')).overflowY,
+    })""")
+    assert dims["scrollHeight"] > dims["innerHeight"], \
+        f"Schedule document must exceed viewport ({dims})"
+    assert dims["mode"] == "schedule" and dims["overflowY"] == "visible", \
+        "Schedule must not be a fixed-height overflow:hidden box"
+    page.evaluate("window.scrollTo(0, 800)")
+    page.wait_for_timeout(150)
+    y = page.evaluate("window.scrollY")
+    assert y > 300, f"document must scroll in Schedule view, scrollY={y}"
+
+    def body_state():
+        return page.evaluate("""() => ({
+            locked: document.body.classList.contains('tools-drawer-open'),
+            overflowY: getComputedStyle(document.body).overflowY,
+        })""")
+
+    def open_tools_drawer():
+        if width >= 768:
+            page.locator('[data-action="tools-open"]:visible').first.click()
+        else:
+            page.locator('#mobileNav [data-action="more"]').click()
+            page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+            page.locator('#moreSheet [data-action="tools-open"]').click()
+        page.wait_for_selector('[data-testid="tools-drawer"]', state="visible")
+
+    def assert_unlocked(label):
+        s = body_state()
+        assert not s["locked"] and s["overflowY"] == "visible", \
+            f"{label}: body must be unlocked, got {s}"
+
+    def assert_can_scroll(label):
+        page.evaluate("window.scrollTo(0, 800)")
+        page.wait_for_timeout(150)
+        assert page.evaluate("window.scrollY") > 300, f"{label}: scroll must work"
+
+    # 3) Drawer open locks body; X / Escape / backdrop each unlock it.
+    open_tools_drawer()
+    s = body_state()
+    assert s["locked"] and s["overflowY"] == "hidden", f"open drawer must lock body, got {s}"
+    page.locator('[data-testid="tools-drawer"] [data-action="tools-close"]').click()
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="hidden")
+    assert_unlocked("X close")
+    assert_can_scroll("after X close")
+
+    open_tools_drawer()
+    page.keyboard.press("Escape")
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="hidden")
+    assert_unlocked("Escape")
+
+    open_tools_drawer()
+    page.locator('#toolsDrawerBackdrop').click(position={"x": 10, "y": 10})
+    page.wait_for_selector('[data-testid="tools-drawer"]', state="hidden")
+    assert_unlocked("backdrop")
+
+    # 4) Stale-state cleanup (P0 contract): drawer already hidden + stale body
+    #    class -> closeToolsDrawer() must remove the class and unlock the body.
+    page.evaluate("""() => {
+      const d = document.getElementById('toolsDrawer');
+      d.hidden = true;
+      document.body.classList.add('tools-drawer-open');
+      closeToolsDrawer();
+    }""")
+    s = body_state()
+    assert not s["locked"] and s["overflowY"] == "visible", \
+        f"stale-state cleanup must remove body.tools-drawer-open, got {s}"
+    assert_can_scroll("after stale-state cleanup")
+
+    # 5) Month -> Schedule -> Month -> Schedule stays scrollable.
+    for mode in ("month", "schedule", "month", "schedule"):
+        page.locator(f'[data-action="cal-mode"][data-mode="{mode}"]').click()
+        page.wait_for_timeout(120)
+    page.wait_for_selector('[data-testid="schedule-view"]', state="visible")
+    assert_can_scroll("after mode round-trips")
+
+    # 6) Other long views (Week / Upcoming / Projects) stay scrollable.
+    for view, testid in (("week", "week-view"), ("upcoming", "upcoming-view"), ("projects", "projects-view")):
+        page.goto(f"{base}/app.html?view={view}", wait_until="networkidle")
+        page.wait_for_selector(f'[data-testid="{testid}"]', state="visible")
+        page.wait_for_timeout(150)
+        dims = page.evaluate("""() => ({
+          scrollHeight: document.documentElement.scrollHeight,
+          innerHeight: window.innerHeight,
+        })""")
+        assert dims["scrollHeight"] > dims["innerHeight"], \
+            f"{view} must exceed viewport ({dims})"
+        page.evaluate("window.scrollTo(0, 600)")
+        page.wait_for_timeout(120)
+        assert page.evaluate("window.scrollY") > 150, f"{view} must scroll"
+
+    # 7) Body lock blocks wheel scroll; sidebar scrolls independently.
+    page.evaluate("window.scrollTo(0, 0)")
+    page.mouse.move(700, 450)
+    page.mouse.wheel(0, 400)
+    page.wait_for_timeout(150)
+    unlocked_y = page.evaluate("window.scrollY")
+    assert unlocked_y > 100, f"wheel must scroll the unlocked document, scrollY={unlocked_y}"
+    page.evaluate("document.body.classList.add('tools-drawer-open')")
+    before_y = page.evaluate("window.scrollY")
+    page.mouse.wheel(0, 400)
+    page.wait_for_timeout(150)
+    locked_y = page.evaluate("window.scrollY")
+    assert locked_y == before_y,         f"wheel must NOT scroll the locked document ({before_y} -> {locked_y})"
+    sb = page.evaluate("""() => {
+      const el = document.querySelector('.app-sidebar');
+      const cs = getComputedStyle(el);
+      const scrollable = el.scrollHeight > el.clientHeight + 1;
+      let moved = 0;
+      if (scrollable) { el.scrollTop = 80; moved = el.scrollTop; }
+      return { overflowY: cs.overflowY, scrollable, moved };
+    }""")
+    assert sb["overflowY"] == "auto",         "sidebar must be its own scroll container (independent of body lock)"
+    if sb["scrollable"]:
+        assert sb["moved"] > 0, "sidebar must scroll while body is locked"
+    page.evaluate("document.body.classList.remove('tools-drawer-open')")
+
+    assert_no_page_overflow(page, f"scroll-lock {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
 def schedule_visual_case_checks(
     browser,
     base,
@@ -3348,7 +3538,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "ai"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "ai"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -3394,6 +3584,7 @@ def main():
                     ("calendar", calendar_checks),
                     ("segmented-geometry", segmented_geometry_checks),
                     ("schedule-unscheduled", schedule_unscheduled_checks),
+                    ("scroll-lock", scroll_lock_checks),
                     ("inbox", inbox_checks),
                     ("deeplink", deeplink_checks),
                     ("taskdetail", taskdetail_checks),
@@ -3455,6 +3646,9 @@ def main():
                     browser, base, 390, 844, errors, shots["mobile"], source_assets=args.source_assets
                 )
                 schedule_visual_matrix_checks(browser, base, errors, source_assets=args.source_assets)
+            elif args.view == "scroll-lock":
+                scroll_lock_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                scroll_lock_checks(browser, base, 1600, 900, errors, shots["desktop"])
             elif args.view == "inbox":
                 inbox_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 inbox_checks(browser, base, 390, 844, errors, shots["mobile"])

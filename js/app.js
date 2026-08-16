@@ -3663,6 +3663,10 @@ function ensureCalendarShell() {
   if (page) return page;
   page = document.createElement('div');
   page.className = 'calendar-page';
+  // P0: mode attribute trên view để CSS phân biệt tháng (fixed-height grid có
+  // cuộn nội bộ) vs schedule (document là scroll container). Set ngay khi tạo
+  // shell để không có frame nào mất scope trước lần render đầu.
+  el.setAttribute('data-cal-mode', calendarMode);
   page.innerHTML = `<header class="calendar-page-header">
       <div class="calendar-page-heading">
         <p class="calendar-page-eyebrow">${t('calendarWorkspaceEyebrow')}</p>
@@ -3682,6 +3686,11 @@ function ensureCalendarShell() {
 
 // Đồng bộ trạng thái toggle + tiêu đề tháng trên shell đã tồn tại (không rebuild).
 function syncCalendarShell(page) {
+  // P0: đồng bộ data-cal-mode trên #view-calendar mỗi lần render (cả month lẫn
+  // schedule) — CSS scope theo mode: month giữ fixed-height + overflow:hidden
+  // (grid khớp viewport, cell cuộn nội bộ), schedule để document scroll tự nhiên.
+  const viewEl = document.getElementById('view-calendar');
+  if (viewEl) viewEl.setAttribute('data-cal-mode', calendarMode);
   const title = page.querySelector('[data-role="cal-title"]');
   if (title) {
     const next = t('calendarPageTitle', { m: monthLabel(PLAN_MONTH), y: PLAN_YEAR });
@@ -4584,12 +4593,34 @@ function openMoreSheet(opener) {
 function closeMoreSheet() {
   const sheet = document.getElementById('moreSheet');
   const backdrop = document.getElementById('moreSheetBackdrop');
-  if (!sheet || sheet.hidden) return;
+  // P0: cleanup idempotent — backdrop + body.more-sheet-open (scroll-lock) phải
+  // được khôi phục kể cả khi sheet đã bị ẩn qua lifecycle khác (cùng contract
+  // với closeToolsDrawer). closeDrawer() của UI layer cũng idempotent.
   if (backdrop) backdrop.hidden = true;
   document.body.classList.remove('more-sheet-open');
-  TaskFlowUI.closeDrawer('moreSheet');
+  if (sheet) TaskFlowUI.closeDrawer('moreSheet');
   const btn = document.querySelector('#mobileNav [data-action="more"]');
   if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+// P0: khôi phục trạng thái scroll-lock nếu drawer/sheet đã ẩn bất thường.
+// Trường hợp thực tế: bấm Back với drawer đang mở → trang khôi phục từ BFCache
+// (DOM bị đóng băng, body class không được gỡ) → document bị khóa scroll vĩnh
+// viễn. Chạy ở boot + mỗi lần pageshow; idempotent, không có side-effect khi
+// drawer/sheet thực sự đang mở.
+function reconcileOverlayScrollLocks() {
+  const drawer = document.getElementById('toolsDrawer');
+  const sheet = document.getElementById('moreSheet');
+  const backdrop = document.getElementById('toolsDrawerBackdrop');
+  const moreBackdrop = document.getElementById('moreSheetBackdrop');
+  if (!drawer || drawer.hidden) {
+    document.body.classList.remove('tools-drawer-open');
+    if (backdrop) backdrop.hidden = true;
+  }
+  if (!sheet || sheet.hidden) {
+    document.body.classList.remove('more-sheet-open');
+    if (moreBackdrop) moreBackdrop.hidden = true;
+  }
 }
 
 function openToolsDrawer(opener) {
@@ -4611,22 +4642,31 @@ function openToolsDrawer(opener) {
 function closeToolsDrawer() {
   const drawer = document.getElementById('toolsDrawer');
   const backdrop = document.getElementById('toolsDrawerBackdrop');
-  if (!drawer || drawer.hidden) return;
+  // P0: cleanup idempotent. Cleanup an toàn (backdrop, body scroll-lock, aria)
+  // phải chạy TRƯỚC mọi early-return — nếu drawer đã bị ẩn qua lifecycle khác
+  // (vd: requestLayerClose fallback gọi TaskFlowUI.closeDrawer trực tiếp), giữ
+  // body.tools-drawer-open (overflow:hidden) làm document mất scroll cho tới
+  // khi reload. closeDrawer() của UI layer cũng idempotent (hidden/aria/stack).
   if (backdrop) backdrop.hidden = true;
   document.body.classList.remove('tools-drawer-open');
   document.querySelectorAll('[data-action="tools-open"]').forEach((button) => button.setAttribute('aria-expanded', 'false'));
-  TaskFlowUI.closeDrawer('toolsDrawer');
+  const wasOpen = !!(drawer && !drawer.hidden);
+  if (drawer) TaskFlowUI.closeDrawer('toolsDrawer');
   const wasSheetTrigger = toolsDrawerOpenedFromSheet;
   const returnTarget = toolsDrawerReturnFocusSelector
     ? document.querySelector(toolsDrawerReturnFocusSelector)
     : null;
   toolsDrawerReturnFocusSelector = null;
   toolsDrawerOpenedFromSheet = false;
-  if (returnTarget && returnTarget.getClientRects().length) returnTarget.focus();
-  else if (wasSheetTrigger) {
-    // Sheet đã đóng trước khi mở drawer → trả focus về nút More trong bottom nav.
-    const moreBtn = document.querySelector('#mobileNav [data-action="more"]');
-    if (moreBtn) moreBtn.focus();
+  // Focus restore chỉ khi drawer thực sự đang mở; nếu đã ẩn từ trước thì
+  // restoreLayerFocus (trong closeDrawer) tự xử lý nếu còn opener được lưu.
+  if (wasOpen) {
+    if (returnTarget && returnTarget.getClientRects().length) returnTarget.focus();
+    else if (wasSheetTrigger) {
+      // Sheet đã đóng trước khi mở drawer → trả focus về nút More trong bottom nav.
+      const moreBtn = document.querySelector('#mobileNav [data-action="more"]');
+      if (moreBtn) moreBtn.focus();
+    }
   }
 }
 
@@ -7070,6 +7110,12 @@ if (window.TaskFlowGCal) {
     }
   }
 }
+
+// P0: reconcile scroll-lock state trước khi render view đầu tiên + mỗi lần
+// pageshow (BFCache restore giữ nguyên DOM → body class sót lại nếu drawer
+// đang mở khi rời trang). Idempotent; không ảnh hưởng khi drawer/sheet mở thật.
+reconcileOverlayScrollLocks();
+window.addEventListener('pageshow', reconcileOverlayScrollLocks);
 
 setTheme(THEME);
 applyDark(DARK);
