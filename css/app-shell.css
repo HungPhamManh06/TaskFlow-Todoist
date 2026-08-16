@@ -323,6 +323,14 @@ body.tools-drawer-open {
   overflow: hidden;
 }
 
+/* P0: overflow của body không propagate tới viewport vì html đã đặt
+   overflow-x: clip (Chromium) — body lock vô hiệu với wheel scroll. Khóa trực
+   tiếp trên html qua :has() để drawer mở thật sự chặn scroll của document.
+   Khi drawer đóng, class biến mất → html trở lại overflow-x: clip. */
+html:has(body.tools-drawer-open) {
+  overflow: hidden;
+}
+
 body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
   visibility: hidden;
   pointer-events: none;
@@ -910,6 +918,11 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
 }
 
 body.more-sheet-open {
+  overflow: hidden;
+}
+
+/* P0: cùng lý do với tools drawer — khóa viewport thật sự khi More sheet mở. */
+html:has(body.more-sheet-open) {
   overflow: hidden;
 }
 

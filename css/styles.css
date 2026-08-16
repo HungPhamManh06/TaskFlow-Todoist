@@ -5640,7 +5640,10 @@ body.focus-mode .container { padding: 0; }
 }
 
 @media (min-width: 768px) {
-  #view-calendar.active {
+  /* P0: fixed-height + clip CHỈ áp dụng cho month mode (grid khớp viewport,
+     mỗi ô cuộn nội bộ). Schedule mode phải để document làm scroll container —
+     nếu khóa chiều cao ở đây, timeline 1728px bị clip và trang không scroll được. */
+  #view-calendar.active[data-cal-mode="month"] {
     /* 68px topbar + 24px top + 64px bottom padding của .container */
     height: calc(100dvh - 156px);
     overflow: hidden;
@@ -5648,9 +5651,9 @@ body.focus-mode .container { padding: 0; }
 }
 
 /* 721-767px: shell mobile (topbar 64px, container padding 16px/108px) —
-   grid vẫn hiển thị nên khóa chiều cao theo shell này. */
+   grid vẫn hiển thị nên khóa chiều cao theo shell này (month mode only). */
 @media (min-width: 721px) and (max-width: 767px) {
-  #view-calendar.active {
+  #view-calendar.active[data-cal-mode="month"] {
     height: calc(100dvh - 188px);
     overflow: hidden;
   }
