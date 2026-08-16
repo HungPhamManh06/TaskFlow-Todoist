@@ -280,7 +280,7 @@ test('UI: buildApplyPlan không có suggestion → blocks rỗng', () => {
 test('wiring: app.html load planner-rules + planner-ui trước app.js + v176', () => {
   assert.match(APP, /src="js\/planner-rules\.min\.js\?v=\d+"/);
   assert.match(APP, /src="js\/planner-ui\.min\.js\?v=\d+"/);
-  assert.match(APP, /js\/app\.min\.js\?v=186/);
+  assert.match(APP, /js\/app\.min\.js\?v=187/);
   const rulesIdx = APP.indexOf('js/planner-rules.min.js?v=');
   const uiIdx = APP.indexOf('js/planner-ui.min.js?v=');
   const appIdx = APP.indexOf('js/app.min.js?v=');
