@@ -289,7 +289,7 @@ App hỗ trợ **đồng bộ dữ liệu đa thiết bị qua backend riêng** 
 2. **Dán URL vào config**: mở [`js/api-config.js`](js/api-config.js), sửa:
    ```js
    const API_CONFIG = {
-     url: 'https://taskflow-backend.onrender.com', // URL Web Service vừa tạo
+     url: 'https://todoist-m3c7.onrender.com', // URL Web Service vừa tạo
      google: true, // bật/tắt nút "Tiếp tục với Google"
    };
    ```
@@ -298,9 +298,32 @@ App hỗ trợ **đồng bộ dữ liệu đa thiết bị qua backend riêng** 
 ### 🔑 Đăng nhập Google (tuỳ chọn)
 
 1. Tạo **OAuth Client ID** loại *Web application* tại [console.cloud.google.com](https://console.cloud.google.com) → *APIs & Services → Credentials*; thêm *Authorized redirect URI*: `https://<tên-backend>.onrender.com/api/auth/google/callback` (và `http://localhost:4000/api/auth/google/callback` nếu chạy local).
-2. Điền **GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET** + **APP_URL** (URL trang app của bạn, vd `https://<tên-trang>.github.io/Todoist/app.html`) vào **Environment** của Web Service trên Render, rồi **Deploy** lại.
+2. Điền **GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET** + **APP_URL** (URL app của bạn, vd `https://taskflow-todoist.vercel.app/app`) vào **Environment** của Web Service trên Render, rồi **Deploy** lại.
 3. **(Google Calendar)** thêm **GOOGLE_REDIRECT_URI** = `https://<tên-backend>.onrender.com/api/calendar/callback` (đăng ký đúng URI này trong *Authorized redirect URIs* của OAuth Client). Khi chưa set, server tự suy từ request (chạy local không cần).
 3. Sau khi đăng nhập Google, app quay về `APP_URL?token=...` và tự đăng nhập.
+
+### 🤖 AI Copilot (tuỳ chọn)
+
+AI Copilot proxy gọi **OpenAI-compatible chat completions** từ `server/ai.js`. Không cấu hình → server trả `503 ai-not-configured` và app ngầm dùng planner quy tắc (không lỗi):
+
+- `AI_API_KEY` — **secret**, bắt buộc để bật AI
+- `AI_API_URL` — mặc định `https://api.openai.com/v1/chat/completions` (có thể trỏ tới OpenAI-compatible endpoint khác)
+- `AI_MODEL` — mặc định `gpt-4o-mini`
+- `AI_TIMEOUT_MS` — mặc định `25000`
+
+### 🔒 Phân biệt PUBLIC / SECRET config
+
+| Biến | Loại | Ghi chú |
+|---|---|---|
+| `APP_URL` | public | `https://taskflow-todoist.vercel.app/app` |
+| `GOOGLE_REDIRECT_URI` | public | `https://<backend>.onrender.com/api/calendar/callback` |
+| `AI_API_URL` / `AI_MODEL` / `AI_TIMEOUT_MS` | public | mặc định như trên |
+| `DATABASE_URL` | secret | Render tự tạo từ Blueprint (`fromDatabase`) |
+| `JWT_SECRET` | secret | Render tự sinh (`generateValue`) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | secret | nhập tay trên Render (`sync: false`) |
+| `AI_API_KEY` | secret | nhập tay trên Render (`sync: false`) |
+
+> Không bao giờ commit giá trị thật của biến secret vào repo — `render.yaml` chỉ khai báo chúng.
 
 ### 🧪 Kiểm tra
 ```bash

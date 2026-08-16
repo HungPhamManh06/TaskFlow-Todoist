@@ -2,6 +2,16 @@
 # TaskFlow-Todoist — Render Blueprint (backend)
 # Cách dùng: render.com → New → Blueprint → chọn repo này.
 # Tạo: Postgres (miễn phí) + Web Service chạy server/.
+#
+# Sản xuất hiện tại:
+#   Frontend (Vercel):  https://taskflow-todoist.vercel.app/app
+#   Backend  (Render):  https://todoist-m3c7.onrender.com
+#   OAuth callback:     https://todoist-m3c7.onrender.com/api/calendar/callback
+#
+# Quy ước bảo mật:
+#   - sync: false  → giá trị được nhập thủ công trên Render (không bao giờ
+#                    commit secret vào repo).
+#   - generateValue → Render tự sinh secret lần đầu.
 # ============================================================
 databases:
   - name: taskflow-db
@@ -22,11 +32,21 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: APP_URL
-        value: https://hungphammanh06.github.io/Todoist/app.html
+        value: https://taskflow-todoist.vercel.app/app
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://todoist-m3c7.onrender.com/api/calendar/callback
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_API_URL
+        value: https://api.openai.com/v1/chat/completions
+      - key: AI_MODEL
+        value: gpt-4o-mini
+      - key: AI_TIMEOUT_MS
+        value: "25000"
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health

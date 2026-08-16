@@ -3587,6 +3587,216 @@ def gcal_refresh_checks(browser, base, width, height, errors, screenshot):
     page.close()
     ctx.close()
 
+def gcal_month_pending_checks(browser, base, width, height, errors, screenshot):
+    """V2 hardening — Google refresh edge case khi quay lại tab lúc đang ở Month.
+
+    B) Month active: tab hidden → server đổi → visible → KHÔNG fetch ngay,
+       chỉ mark pending; Month → Schedule → render cache ngay + fetch nền 1 lần
+       → event mới lên CẢ timeline lẫn section, không reload.
+    C/D) visibility+focus liên tiếp + cooldown → KHÔNG fetch thêm.
+    F) refresh thất bại → giữ cache cũ, Schedule vẫn dùng được.
+    G) disconnected → ZERO fetch khi Month → Schedule.
+    """
+    import datetime
+    import json
+    ctx = browser.new_context(
+        viewport={"width": width, "height": height}, service_workers="block"
+    )
+    page = ctx.new_page()
+    page.emulate_media(reduced_motion="reduce")
+    page.on("pageerror", lambda error: errors.append(f"gcal-month-pending {width}px: {error}"))
+    today = datetime.date.today()
+    day_iso = today.isoformat()
+
+    event_hits = {"n": 0}
+
+    def handle_cal(route):
+        url = route.request.url
+        if url.endswith("/api/calendar/status"):
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "connected": True, "write": False,
+                "calendars": [{"id": "primary", "summary": "Main", "primary": True}],
+                "fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }))
+            return
+        if "/api/calendar/events" in url:
+            event_hits["n"] += 1
+            # Chậm 300ms để test "render cache ngay, fetch nền sau".
+            page.wait_for_timeout(300)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "events": server_events, "errors": [],
+                "fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }))
+            return
+        route.continue_()
+
+    page.route("**/api/calendar/**", handle_cal)
+
+    # ---- B) Month → pending → Schedule entry refresh ----
+    server_events = []
+    page.add_init_script(f"""
+    (() => {{
+      localStorage.setItem('planner-onboarded','1');
+      localStorage.setItem('planner-lang','en');
+      localStorage.removeItem('planner-gcal-mappings');
+      const past = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      localStorage.setItem('planner-gcal-cache', JSON.stringify({{version:1, fetchedAt:past, events:[]}}));
+    }})()
+    """)
+    page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    # Đang ở Month (mặc định) — shell + toggle tồn tại.
+    page.wait_for_selector('.cal-mode-toggle', state="visible", timeout=8000)
+    page.evaluate("window.__calShell = document.getElementById('view-calendar')")
+    page.evaluate("window.__calToggle = document.querySelector('.cal-mode-toggle')")
+    hits_before = event_hits["n"]
+
+    # Server đổi: thêm event "hi" 13:30-14:30 trong lúc tab ẩn
+    server_events.append(
+        {"_calendarId": "primary", "id": "hi1", "summary": "hi",
+         "start": {"dateTime": f"{day_iso}T13:30:00+07:00"},
+         "end": {"dateTime": f"{day_iso}T14:30:00+07:00"}},
+    )
+    # Quay lại tab (visible) khi đang ở Month → KHÔNG fetch ngay
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    page.wait_for_timeout(400)
+    assert event_hits["n"] == hits_before, (
+        f"Month active: visibility KHÔNG được fetch ngay, hits: {event_hits['n']} vs {hits_before}")
+
+    # Month → Schedule: render cache ngay (chưa có 'hi'), rồi fetch nền 1 lần
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').first.click()
+    page.wait_for_selector('[data-testid="schedule-view"]', state="visible", timeout=8000)
+    # Trước khi fetch nền xong: timeline từ cache cũ (chưa có external event)
+    assert page.locator(".tb-google-event").count() == 0, \
+        "Schedule phải render cache ngay (chưa có google event) trước khi fetch nền xong"
+    page.wait_for_selector(".tb-google-event-summary", state="visible", timeout=8000)
+    assert event_hits["n"] == hits_before + 1, (
+        f"Month → Schedule phải fetch ĐÚNG 1 lần, hits: {event_hits['n']} vs {hits_before + 1}")
+    tl = " ".join(page.locator(".tb-google-event-summary").all_inner_texts())
+    assert "hi" in tl, f"timeline phải có 'hi' sau entry refresh, thấy: {tl}"
+    sec = " ".join(page.locator(".gcal-event-summary").all_inner_texts())
+    assert "hi" in sec, f"section phải có 'hi' sau entry refresh, thấy: {sec}"
+    # Không reload / không rebuild shell
+    shell_same = page.evaluate(
+        "document.getElementById('view-calendar') === window.__calShell")
+    toggle_same = page.evaluate(
+        "document.querySelector('.cal-mode-toggle') === window.__calToggle")
+    assert shell_same, "Month → Schedule phải giữ nguyên #view-calendar (không reload)"
+    assert toggle_same, "Month → Schedule phải giữ nguyên .cal-mode-toggle"
+
+    # ---- C/D) visibility+focus liên tiếp + cooldown → không fetch thêm ----
+    before = event_hits["n"]
+    page.evaluate("window.dispatchEvent(new Event('focus'))")
+    page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    page.wait_for_timeout(500)
+    assert event_hits["n"] == before, (
+        f"cooldown 60s phải chặn fetch thêm sau entry, hits: {event_hits['n']} vs {before}")
+
+    # ---- F) refresh thất bại → giữ cache cũ, Schedule vẫn dùng được ----
+    server_events.clear()
+    page2 = ctx.new_page()
+    page2.emulate_media(reduced_motion="reduce")
+    page2.on("pageerror", lambda error: errors.append(f"gcal-month-pending-fail {width}px: {error}"))
+    norm = {
+        "id": "hi1", "calendarId": "primary", "summary": "hi", "allDay": False,
+        "startMs": f"new Date('{day_iso}T13:30:00').getTime()",
+        "endMs": f"new Date('{day_iso}T14:30:00').getTime()",
+        "key": "primary:hi1",
+    }
+    page2.add_init_script(f"""
+    (() => {{
+      localStorage.setItem('planner-onboarded','1');
+      localStorage.setItem('planner-lang','en');
+      localStorage.removeItem('planner-gcal-mappings');
+      const past = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      localStorage.setItem('planner-gcal-cache', JSON.stringify({{version:1, fetchedAt:past, events:[
+        {{id:'hi1', calendarId:'primary', summary:'hi', allDay:false,
+          startMs:{norm['startMs']}, endMs:{norm['endMs']}, key:'primary:hi1'}}
+      ]}}));
+    }})()
+    """)
+    fail_hits = {"n": 0}
+
+    def handle_fail(route):
+        url = route.request.url
+        if url.endswith("/api/calendar/status"):
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "connected": True, "write": False, "calendars": [],
+                "fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }))
+            return
+        if "/api/calendar/events" in url:
+            fail_hits["n"] += 1
+            route.fulfill(status=500, content_type="application/json",
+                          body=json.dumps({"error": "boom"}))
+            return
+        route.continue_()
+
+    page2.route("**/api/calendar/**", handle_fail)
+    page2.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page2.locator('[data-testid="onboard-modal"]:visible').count():
+        page2.locator('[data-action="ob-skip"]').click()
+    page2.wait_for_selector('.cal-mode-toggle', state="visible", timeout=8000)
+    page2.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    page2.wait_for_timeout(200)
+    page2.locator('[data-action="cal-mode"][data-mode="schedule"]').first.click()
+    page2.wait_for_selector('[data-testid="schedule-view"]', state="visible", timeout=8000)
+    page2.wait_for_selector(".tb-google-event-summary", state="visible", timeout=8000)
+    assert fail_hits["n"] == 1, f"failure test phải fetch đúng 1 lần, hits: {fail_hits['n']}"
+    tl2 = " ".join(page2.locator(".tb-google-event-summary").all_inner_texts())
+    assert "hi" in tl2, f"refresh fail phải giữ cache cũ 'hi' trên timeline, thấy: {tl2}"
+    assert page2.locator('[data-testid="schedule-view"]').count() == 1, \
+        "Schedule vẫn phải hiển thị dù refresh Google thất bại"
+    page2.close()
+
+    # ---- G) disconnected → ZERO fetch khi Month → Schedule ----
+    page3 = ctx.new_page()
+    page3.emulate_media(reduced_motion="reduce")
+    page3.add_init_script("""
+    (() => {
+      localStorage.setItem('planner-onboarded','1');
+      localStorage.setItem('planner-lang','en');
+      localStorage.removeItem('planner-gcal-mappings');
+    })()
+    """)
+    hits3 = {"n": 0}
+
+    def handle_disc(route):
+        url = route.request.url
+        if url.endswith("/api/calendar/status"):
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "connected": False, "write": False, "calendars": [],
+                "fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }))
+            return
+        if "/api/calendar/events" in url:
+            hits3["n"] += 1
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "events": [], "errors": [],
+                "fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }))
+            return
+        route.continue_()
+
+    page3.route("**/api/calendar/**", handle_disc)
+    page3.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page3.locator('[data-testid="onboard-modal"]:visible').count():
+        page3.locator('[data-action="ob-skip"]').click()
+    page3.wait_for_selector('.cal-mode-toggle', state="visible", timeout=8000)
+    page3.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    page3.wait_for_timeout(200)
+    page3.locator('[data-action="cal-mode"][data-mode="schedule"]').first.click()
+    page3.wait_for_selector('[data-testid="schedule-view"]', state="visible", timeout=8000)
+    page3.wait_for_timeout(300)
+    assert hits3["n"] == 0, f"disconnected phải KHÔNG fetch events, hits: {hits3['n']}"
+    page3.close()
+
+    assert_no_page_overflow(page, f"gcal-month-pending {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+    ctx.close()
+
 def ai_checks(browser, base, width, height, errors, screenshot):
     """V2.0: AI Copilot — proposal → preview → explicit Apply (không tự ghi state).
     1) seed 2 task hôm nay + 2 TimeBlock → mở planner → AI panel + consent chips
@@ -3828,7 +4038,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "gcal-refresh", "ai"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "gcal-refresh", "gcal-month-pending", "ai"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -3901,6 +4111,7 @@ def main():
                     ("gcal", gcal_checks),
                     ("gcal-write", gcal_write_checks),
                     ("gcal-refresh", gcal_refresh_checks),
+                    ("gcal-month-pending", gcal_month_pending_checks),
                     ("ai", ai_checks),
                 )
                 for width, height in matrix:
@@ -4006,6 +4217,9 @@ def main():
             elif args.view == "gcal-refresh":
                 gcal_refresh_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 gcal_refresh_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "gcal-month-pending":
+                gcal_month_pending_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                gcal_month_pending_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "ai":
                 ai_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 ai_checks(browser, base, 390, 844, errors, shots["mobile"])

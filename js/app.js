@@ -3811,29 +3811,63 @@ async function scheduleGcalRefresh(dateIso, monthStart, monthEnd, force) {
 
 // Background refresh Google khi quay lại tab (visibilitychange/focus) — cooldown 60s:
 // user tạo event trên Google Calendar rồi quay lại TaskFlow → Schedule tự cập nhật
-// (timeline + section). KHÔNG polling, KHÔNG setInterval; chỉ fetch khi schedule đang
-// hiển thị + connected + lần fetch gần nhất đủ cũ.
+// (timeline + section). KHÔNG polling, KHÔNG setInterval.
+//
+// State machine (edge case Month): khi user quay lại tab lúc đang ở Month, KHÔNG
+// fetch ngay — đánh dấu gcalRefreshPending. Lúc user bấm Month → Schedule, render
+// cache ngay (không block UI) rồi fetch nền ĐÚNG 1 lần nếu pending + connected.
 let gcalLastVisibleRefresh = 0;
+let gcalRefreshPending = false;
 const GCAL_VISIBLE_COOLDOWN_MS = 60 * 1000;
+
+// Fetch events của tháng đang xem (month range) — ghi vào cache duy nhất (single source).
+async function gcalFetchMonthEvents() {
+  const todayIso = localTodayIso();
+  const monthStart = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-01`;
+  const nd = new Date(PLAN_YEAR, PLAN_MONTH + 1, 0).getDate();
+  const monthEnd = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
+  await window.TaskFlowGCalUI.refreshEvents(monthStart, monthEnd);
+}
 
 async function gcalVisibilityRefresh() {
   if (!window.TaskFlowGCal || !window.TaskFlowGCalUI) return;
-  if (calendarMode !== 'schedule') return;
   try {
-    if (!window.TaskFlowGCalUI.getState().connected) return;
     const now = Date.now();
     if (now - gcalLastVisibleRefresh < GCAL_VISIBLE_COOLDOWN_MS) return;
     const cache = window.TaskFlowGCal.loadCache();
     const lastFetch = cache.fetchedAt ? new Date(cache.fetchedAt).getTime() : 0;
     if (now - lastFetch < GCAL_VISIBLE_COOLDOWN_MS) return;
     gcalLastVisibleRefresh = now;
-    const todayIso = localTodayIso();
-    const monthStart = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-01`;
-    const nd = new Date(PLAN_YEAR, PLAN_MONTH + 1, 0).getDate();
-    const monthEnd = `${PLAN_YEAR}-${String(PLAN_MONTH + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
-    await window.TaskFlowGCalUI.refreshEvents(monthStart, monthEnd);
-    if (calendarMode === 'schedule') renderCalendarSchedule(true);
+    if (calendarMode === 'schedule') {
+      if (!window.TaskFlowGCalUI.getState().connected) return;
+      await gcalFetchMonthEvents();
+      if (calendarMode === 'schedule') renderCalendarSchedule(true);
+    } else {
+      // Month (hoặc view khác): không fetch — chỉ đánh dấu pending; khi vào
+      // Schedule sẽ refresh nền đúng 1 lần (xem gcalConsumePendingRefresh).
+      gcalRefreshPending = true;
+    }
   } catch (e) { /* ẩn lỗi mạng */ }
+}
+
+// Tiêu thụ pending refresh khi vào Schedule: KHÔNG bị cooldown chặn (đây là fetch
+// duy nhất cho lần quay lại tab). Trạng thái connected được resolve qua ensureStatus
+// (đã load → không tốn mạng) để bắt kịp cả trường hợp boot lần đầu vào Month. Đặt
+// stamp để visibility/focus sau đó trong cooldown không fetch thêm.
+function gcalConsumePendingRefresh() {
+  if (!gcalRefreshPending) return;
+  gcalRefreshPending = false;
+  if (!window.TaskFlowGCal || !window.TaskFlowGCalUI) return;
+  const ui = window.TaskFlowGCalUI;
+  ui.ensureStatus(false)
+    .then(() => {
+      if (!ui.getState().connected) return;
+      gcalLastVisibleRefresh = Date.now();
+      gcalFetchMonthEvents()
+        .then(() => { if (calendarMode === 'schedule') renderCalendarSchedule(true); })
+        .catch(() => { /* lỗi mạng: giữ cache cũ, Schedule vẫn dùng được */ });
+    })
+    .catch(() => { /* lỗi mạng status: giữ nguyên, không toast lặp */ });
 }
 
 // Re-render chỉ riêng section Google events trong Schedule view (không đụng timeline).
@@ -3851,6 +3885,7 @@ async function disconnectGcal() {
     window.TaskFlowGCalUI.getState().connected = false;
     window.TaskFlowGCalUI.getState().calendars = [];
     window.TaskFlowGCalUI.getState().statusLoaded = true;
+    gcalRefreshPending = false;
     if (calendarMode === 'schedule') renderCalendarSchedule();
     TaskFlowUI.toast(t('gcalDisconnected'), 'success');
     trackEvent('gcal_disconnect');
@@ -5648,8 +5683,17 @@ document.addEventListener('click', (e) => {
     if (targets) targets.hidden = !(kind === 'breakdown_project' || kind === 'breakdown_milestone');
   } else if (act === 'cal-mode') {
     // V1.2 Phase 2 — Calendar mode toggle: month grid | schedule timeline.
-    calendarMode = el.dataset.mode === 'schedule' ? 'schedule' : 'month';
-    renderCalendar();
+    const nextMode = el.dataset.mode === 'schedule' ? 'schedule' : 'month';
+    const enteringSchedule = nextMode === 'schedule' && calendarMode !== 'schedule';
+    calendarMode = nextMode;
+    if (enteringSchedule && gcalRefreshPending) {
+      // Edge case Month → Schedule: render cache NGAY (không block UI), rồi
+      // fetch nền đúng 1 lần nếu đang chờ refresh từ lúc quay lại tab.
+      renderCalendarSchedule(true);
+      gcalConsumePendingRefresh();
+    } else {
+      renderCalendar();
+    }
   } else if (act === 'tb-day') {
     calendarUnscheduledExpanded = false;
     calendarSelDate = el.dataset.date || localTodayIso();
