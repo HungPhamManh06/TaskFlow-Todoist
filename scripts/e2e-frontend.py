@@ -1,7 +1,7 @@
 """Focused browser checks for the TaskFlow refined frontend views.
 
 Cross-browser: --browser chromium|firefox|webkit (default chromium).
-The full matrix (--all, 32 scenarios x 5 viewports) targets Chromium;
+The full matrix (--all, 34 scenarios x 5 viewports) targets Chromium;
 single scenarios also run on Firefox/WebKit.
 """
 import argparse
@@ -900,6 +900,142 @@ def scroll_lock_checks(browser, base, width, height, errors, screenshot):
     assert_no_page_overflow(page, f"scroll-lock {width}px")
     page.screenshot(path=screenshot, full_page=False)
     page.close()
+
+def calendar_month_scroll_checks(browser, base, width, height, errors, screenshot):
+    """P0.3: Calendar Month must never clip week rows below the viewport.
+
+    Desktop regression: month mode was locked to a fixed calc(100dvh - 156px)
+    with overflow:hidden. With realistic cell content the grid rows resolve to
+    their content height (~1050px) and the document never grew, so the last
+    week rows were clipped and unreachable (wheel/trackpad did nothing). Month
+    must now auto-grow with content (document is the scroll container) while
+    still filling the viewport when content is sparse.
+    """
+    page = make_page(browser, width, height, service_workers="block")
+    page.on("pageerror", lambda error: errors.append(f"calmonth {width}px: {error}"))
+    page.add_init_script("""(() => {
+      localStorage.setItem('planner-onboarded','1');
+      localStorage.removeItem('planner-timeblocks');
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = 'planner-' + year + '-' + (month + 1);
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const numWeeks = Math.ceil((offset + daysInMonth) / 7);
+      const state = { version: 1, monthKey: key, schemaVersion: 2,
+        monthlyGoals: [], habits: [], weeks: [] };
+      for (let w = 0; w < numWeeks; w++) {
+        const days = [];
+        for (let d = 0; d < 7; d++) days.push({ tasks: [] });
+        state.weeks.push({ n: w + 1, goals: [], days });
+      }
+      // Realistic density: 3-5 tasks in every in-month day.
+      for (let w = 0; w < numWeeks; w++) {
+        for (let d = 0; d < 7; d++) {
+          const dayIdx = w * 7 + d;
+          const inMonth = dayIdx >= offset && dayIdx < offset + daysInMonth;
+          if (!inMonth) continue;
+          const n = 3 + ((w + d) % 3);
+          state.weeks[w].days[d].tasks = Array.from({ length: n }, (_, i) => ({
+            uid: 'calmonth-seed-' + w + '-' + d + '-' + i,
+            kind: i === 0 ? 'priority' : 'regular',
+            done: false,
+            text: 'CalMonth Task ' + (w + 1) + '-' + (d + 1) + ' #' + (i + 1),
+          }));
+        }
+      }
+      localStorage.setItem(key, JSON.stringify(state));
+    })()""")
+    page.goto(f"{base}/app.html?view=calendar", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="calendar-view"]', state="visible")
+    page.wait_for_timeout(250)
+    assert_no_page_overflow(page, f"calmonth {width}px")
+
+    if width <= 720:
+        # Mobile: grid hidden, agenda is the content — must render without clip.
+        assert page.locator(".calendar-agenda-mobile").is_visible(), \
+            "mobile month must show the agenda"
+        assert not page.locator(".calendar-grid-desktop").is_visible(), \
+            "mobile month must hide the desktop grid"
+        return
+
+    # Desktop/tablet: month grid visible with 5-6 week rows.
+    grid = page.locator(".calendar-grid-desktop")
+    assert grid.is_visible(), "month grid must be visible on desktop"
+    assert grid.locator(".cal-cell").count() >= 35, \
+        f"expected 5-6 week rows, got {grid.locator('.cal-cell').count()} cells"
+
+    dims = page.evaluate("""() => ({
+      mode: document.getElementById('view-calendar').getAttribute('data-cal-mode'),
+      overflowY: getComputedStyle(document.getElementById('view-calendar')).overflowY,
+      vcClientH: document.getElementById('view-calendar').clientHeight,
+      vcScrollH: document.getElementById('view-calendar').scrollHeight,
+      docScrollH: document.documentElement.scrollHeight,
+      innerH: window.innerHeight,
+    })""")
+    assert dims["mode"] == "month", f"expected month mode, got {dims['mode']}"
+    assert dims["overflowY"] == "visible", \
+        f"month must not use overflow hidden — {dims}"
+    assert dims["vcScrollH"] <= dims["vcClientH"] + 1, \
+        f"#view-calendar itself must not clip content — {dims}"
+    assert dims["docScrollH"] > dims["innerH"], \
+        f"month document must exceed the viewport with dense content — {dims}"
+
+    # Last week row must be reachable via DOCUMENT scroll.
+    page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+    page.wait_for_timeout(150)
+    y = page.evaluate("window.scrollY")
+    assert y > 0, f"document must scroll in Month view, scrollY={y}"
+    last = page.evaluate("""() => {
+      const cells = document.querySelectorAll('.calendar-grid-desktop > .cal-cell');
+      const last = cells[cells.length - 1];
+      if (!last) return null;
+      const r = last.getBoundingClientRect();
+      return { top: Math.round(r.top), bottom: Math.round(r.bottom),
+               innerH: window.innerHeight };
+    }""")
+    assert last is not None, "last calendar cell not found"
+    assert last["top"] < last["innerH"], \
+        f"last week row must be visible after scrolling — {last}"
+
+    # Month -> Schedule -> Month: every mode stays document-scrollable.
+    page.locator('[data-action="cal-mode"][data-mode="schedule"]').click()
+    page.wait_for_selector('[data-testid="schedule-view"]', state="visible")
+    page.wait_for_timeout(200)
+    dims2 = page.evaluate("""() => ({
+      mode: document.getElementById('view-calendar').getAttribute('data-cal-mode'),
+      overflowY: getComputedStyle(document.getElementById('view-calendar')).overflowY,
+      docScrollH: document.documentElement.scrollHeight,
+      innerH: window.innerHeight,
+    })""")
+    assert dims2["mode"] == "schedule" and dims2["overflowY"] == "visible", \
+        f"schedule must stay document-scrollable — {dims2}"
+    assert dims2["docScrollH"] > dims2["innerH"], \
+        "schedule document must exceed the viewport with dense seed"
+    page.evaluate("window.scrollTo(0, 800)")
+    page.wait_for_timeout(150)
+    assert page.evaluate("window.scrollY") > 300, \
+        "schedule must scroll via the document"
+
+    page.locator('[data-action="cal-mode"][data-mode="month"]').click()
+    page.wait_for_timeout(200)
+    dims3 = page.evaluate("""() => ({
+      mode: document.getElementById('view-calendar').getAttribute('data-cal-mode'),
+      overflowY: getComputedStyle(document.getElementById('view-calendar')).overflowY,
+      docScrollH: document.documentElement.scrollHeight,
+      innerH: window.innerHeight,
+    })""")
+    assert dims3["mode"] == "month" and dims3["overflowY"] == "visible", \
+        f"month must stay document-scrollable after switching back — {dims3}"
+    assert dims3["docScrollH"] > dims3["innerH"], \
+        "month must scroll again after the mode switch"
+    page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
+    page.wait_for_timeout(150)
+    assert page.evaluate("window.scrollY") > 0, \
+        "month must scroll after switching back"
 
 def schedule_visual_case_checks(
     browser,
@@ -3538,7 +3674,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "ai"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "ai"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -3585,6 +3721,7 @@ def main():
                     ("segmented-geometry", segmented_geometry_checks),
                     ("schedule-unscheduled", schedule_unscheduled_checks),
                     ("scroll-lock", scroll_lock_checks),
+                    ("calendar-month-scroll", calendar_month_scroll_checks),
                     ("inbox", inbox_checks),
                     ("deeplink", deeplink_checks),
                     ("taskdetail", taskdetail_checks),
@@ -3649,6 +3786,11 @@ def main():
             elif args.view == "scroll-lock":
                 scroll_lock_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 scroll_lock_checks(browser, base, 1600, 900, errors, shots["desktop"])
+            elif args.view == "calendar-month-scroll":
+                calendar_month_scroll_checks(browser, base, 1366, 768, errors, shots["desktop"])
+                calendar_month_scroll_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                # 125% Windows display-scaling simulation (1440x900 -> 1152x720 CSS px)
+                calendar_month_scroll_checks(browser, base, 1152, 720, errors, shots["desktop"])
             elif args.view == "inbox":
                 inbox_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 inbox_checks(browser, base, 390, 844, errors, shots["mobile"])

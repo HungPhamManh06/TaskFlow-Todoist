@@ -3183,7 +3183,30 @@ body.focus-mode .container { padding: 0; }
     display: flex;
     flex-direction: column;
     gap: var(--space-5);
-    height: 100%;
+    min-height: 0;
+  }
+
+  /* Month mode: viewport fill WITHOUT clipping. #view-calendar auto-grows with
+     content (document là scroll container — không bao giờ giấu hàng tuần dưới
+     viewport), min-height (các block dưới) giữ grid khớp viewport khi nội dung
+     ngắn. Chuỗi flex .calendar-page → .calendar-mode-content → .calendar-grid-desktop
+     truyền chiều cao xuống grid để các hàng tuần chia đều khi đủ chỗ. */
+  #view-calendar.active[data-cal-mode="month"] {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100dvh - 156px);
+    overflow: visible;
+  }
+
+  #view-calendar.active[data-cal-mode="month"] .calendar-page {
+    flex: 1 1 auto;
+  }
+
+  #view-calendar.active[data-cal-mode="month"] .calendar-mode-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
     min-height: 0;
   }
 
@@ -3214,22 +3237,18 @@ body.focus-mode .container { padding: 0; }
 }
 
 @media (min-width: 768px) {
-  /* P0: fixed-height + clip CHỈ áp dụng cho month mode (grid khớp viewport,
-     mỗi ô cuộn nội bộ). Schedule mode phải để document làm scroll container —
-     nếu khóa chiều cao ở đây, timeline 1728px bị clip và trang không scroll được. */
+  /* (rule cơ bản ở block ≥721px: flex column + auto height + overflow visible;
+     block này chỉ còn giữ min-height theo shell desktop 68+24+64px) */
   #view-calendar.active[data-cal-mode="month"] {
-    /* 68px topbar + 24px top + 64px bottom padding của .container */
-    height: calc(100dvh - 156px);
-    overflow: hidden;
+    min-height: calc(100dvh - 156px);
   }
 }
 
 /* 721-767px: shell mobile (topbar 64px, container padding 16px/108px) —
-   grid vẫn hiển thị nên khóa chiều cao theo shell này (month mode only). */
+   grid vẫn hiển thị nên giữ min-height theo shell này (month mode only). */
 @media (min-width: 721px) and (max-width: 767px) {
   #view-calendar.active[data-cal-mode="month"] {
-    height: calc(100dvh - 188px);
-    overflow: hidden;
+    min-height: calc(100dvh - 188px);
   }
 }
 
