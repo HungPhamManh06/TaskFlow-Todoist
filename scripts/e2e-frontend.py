@@ -320,6 +320,228 @@ def year_checks(browser, base, width, height, errors, screenshot):
     page.close()
 
 
+def today_week_consistency_checks(browser, base, width, height, errors, screenshot):
+    """P10/P11: Today ↔ Week current-day chia sẻ CÙNG canonical day.tasks (theo uid).
+
+    - Seed 3 task (A/B/C) vào ô hôm nay qua localStorage (uid cố định).
+    - PATH A: boot Today trước → Week: uid set phải giống hệt.
+    - Toggle A ở Week → Today: A done=true (cùng uid).
+    - Edit B ở Today → Week: text mới (cùng uid).
+    - Add D ở Week current-day → Today: D xuất hiện (uid do app sinh, cùng task).
+    - Delete C ở Today → Week: C biến mất.
+    - renderWeek() chỉ đọc state: mở Week không được thêm task.
+    """
+    page = make_page(browser, width, height)
+    page.on("pageerror", lambda error: errors.append(f"today-week {width}px: {error}"))
+    page.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
+    page.wait_for_selector('[data-testid="overview-view"] .overview-page', state="visible")
+
+    seeded = page.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const start = new Date(year, month, 1 - offset);
+      const delta = Math.floor((new Date(year, month, now.getDate()) - start) / 86400000);
+      const week = Math.floor(delta / 7) + 1;
+      const day = delta % 7;
+      state.weeks[week - 1].days[day].tasks = [
+        { uid: 'twc-A', kind: 'priority', done: false, text: 'Xác định 1 việc quan trọng nhất.', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+        { uid: 'twc-B', kind: 'priority', done: false, text: 'Không TikTok trước 18h', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+        { uid: 'twc-C', kind: 'regular', done: false, text: 'Ngủ đúng giờ.', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+      ];
+      localStorage.setItem(key, JSON.stringify(state));
+      return { week, day };
+    }""")
+    week = seeded["week"]
+
+    def snap_today():
+        return page.evaluate("""() => {
+          const rows = [...document.querySelectorAll('[data-role="today-task-list"] .today-task')];
+          const key = window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth());
+          const st = JSON.parse(localStorage.getItem(key));
+          return rows.map(r => {
+            const c = r.querySelector('[data-action="task"]');
+            const tk = st.weeks[+c.dataset.week - 1].days[+c.dataset.day].tasks[+c.dataset.task];
+            return { uid: tk.uid, text: tk.text, done: tk.done,
+                     domText: r.querySelector('.task-text').innerText.trim() };
+          });
+        }""")
+
+    def snap_week_today():
+        return page.evaluate("""() => {
+          const rows = [...document.querySelectorAll('.week-day-panel.today [data-testid="task-row"]')];
+          const key = window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth());
+          const st = JSON.parse(localStorage.getItem(key));
+          return rows.map(r => {
+            const tk = st.weeks[+r.dataset.week - 1].days[+r.dataset.day].tasks[+r.dataset.task];
+            return { uid: tk.uid, text: tk.text, done: tk.done,
+                     domText: r.querySelector('.task-text').innerText.trim() };
+          });
+        }""")
+
+    def find_uid(uid):
+        return page.evaluate("""(uid) => {
+          const key = window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth());
+          const st = JSON.parse(localStorage.getItem(key));
+          return st.weeks.flatMap(w => w.days.flatMap(d => d.tasks || []))
+                         .find(t => t.uid === uid) || null;
+        }""", uid)
+
+    def goto_today():
+        page.goto(f"{base}/app.html?view=today", wait_until="networkidle")
+        page.wait_for_selector('[data-testid="today-view"] .today-page', state="visible")
+
+    def goto_week():
+        page.goto(f"{base}/app.html?view=week&w={week}", wait_until="networkidle")
+        page.wait_for_selector('[data-testid="week-view"] .week-page', state="visible")
+
+    # ---------- PATH A: Today trước, rồi Week ----------
+    goto_today()
+    t0 = snap_today()
+    assert [x["uid"] for x in t0] == ["twc-A", "twc-B", "twc-C"], f"today rows: {t0}"
+    assert all(x["text"] == x["domText"] for x in t0), f"today DOM text mismatch: {t0}"
+
+    goto_week()
+    panel = page.locator(".week-day-panel.today")
+    assert panel.count() == 1, "phải có đúng 1 panel current-day trong Week"
+    w0 = snap_week_today()
+    assert sorted(x["uid"] for x in w0) == sorted(x["uid"] for x in t0), \
+        f"Week current-day uid set != Today uid set: {w0} vs {t0}"
+    assert all(x["text"] == x["domText"] for x in w0), f"week DOM text mismatch: {w0}"
+    # renderWeek() KHÔNG được append task (render thuần)
+    assert len(snap_week_today()) == 3, "mở Week không được thay đổi mảng task hôm nay"
+
+    # ---------- PATH B: Week trước, rồi Today — state tuần tự phải Y HỆT ----------
+    page2 = make_page(browser, width, height)
+    page2.on("pageerror", lambda error: errors.append(f"today-week-pathB {width}px: {error}"))
+    page2.add_init_script("localStorage.setItem('planner-onboarded','1');")
+    page2.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
+    page2.wait_for_selector('[data-testid="overview-view"] .overview-page', state="visible")
+    seed2 = page2.evaluate("""() => {
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = window.TaskFlowShell.monthKey(year, month);
+      const state = JSON.parse(localStorage.getItem(key));
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const start = new Date(year, month, 1 - offset);
+      const delta = Math.floor((new Date(year, month, now.getDate()) - start) / 86400000);
+      const week = Math.floor(delta / 7) + 1;
+      const day = delta % 7;
+      state.weeks[week - 1].days[day].tasks = [
+        { uid: 'twc-A', kind: 'priority', done: false, text: 'Xác định 1 việc quan trọng nhất.', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+        { uid: 'twc-B', kind: 'priority', done: false, text: 'Không TikTok trước 18h', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+        { uid: 'twc-C', kind: 'regular', done: false, text: 'Ngủ đúng giờ.', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+      ];
+      localStorage.setItem(key, JSON.stringify(state));
+      return { week, day };
+    }""")
+    week2 = seed2["week"]
+    page2.goto(f"{base}/app.html?view=week&w={week2}", wait_until="networkidle")
+    page2.wait_for_selector('[data-testid="week-view"] .week-page', state="visible")
+    assert page2.locator(".week-day-panel.today").count() == 1
+    uids_b_week = page2.evaluate("""() => {
+      const rows = [...document.querySelectorAll('.week-day-panel.today [data-testid="task-row"]')];
+      const key = window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth());
+      const st = JSON.parse(localStorage.getItem(key));
+      return rows.map(r => st.weeks[+r.dataset.week - 1].days[+r.dataset.day].tasks[+r.dataset.task].uid);
+    }""")
+    assert sorted(uids_b_week) == ["twc-A", "twc-B", "twc-C"], f"PATH B week uids: {uids_b_week}"
+    page2.goto(f"{base}/app.html?view=today", wait_until="networkidle")
+    page2.wait_for_selector('[data-testid="today-view"] .today-page', state="visible")
+    uids_b_today = page2.evaluate("""() => {
+      const rows = [...document.querySelectorAll('[data-role="today-task-list"] .today-task')];
+      const key = window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth());
+      const st = JSON.parse(localStorage.getItem(key));
+      return rows.map(r => {
+        const c = r.querySelector('[data-action="task"]');
+        return st.weeks[+c.dataset.week - 1].days[+c.dataset.day].tasks[+c.dataset.task].uid;
+      });
+    }""")
+    assert sorted(uids_b_today) == ["twc-A", "twc-B", "twc-C"], f"PATH B today uids: {uids_b_today}"
+    # P12: DỮ LIỆU planner tuần tự hoá sau khi mở cả hai view phải GIỐNG NHAU giữa hai
+    # thứ tự (state.view/currentWeek là tuỳ chọn điều hướng — hợp lệ khác nhau theo thứ tự)
+    def data_snapshot(pg):
+        return pg.evaluate("""() => {
+          const key = window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth());
+          const st = JSON.parse(localStorage.getItem(key));
+          return JSON.stringify({
+            weeks: st.weeks, habits: st.habits, monthlyGoals: st.monthlyGoals,
+            pillars: st.pillars, reflections: st.reflections,
+          });
+        }""")
+    assert data_snapshot(page) == data_snapshot(page2), \
+        "Thứ tự mở view (Today→Week vs Week→Today) KHÔNG được đổi dữ liệu planner"
+    page2.close()
+
+    # ---------- Toggle A ở Week → Today: A done ----------
+    a_row = panel.locator('[data-testid="task-row"]', has_text="Xác định 1 việc quan trọng nhất.").first
+    a_row.locator('[data-action="task"]').click()
+    a_done = find_uid("twc-A")
+    assert a_done and a_done["done"] is True, f"toggle từ Week: A.done = {a_done}"
+    goto_today()
+    assert next(x for x in snap_today() if x["uid"] == "twc-A")["done"] is True, \
+        "Today phải thấy A done=true (cùng uid)"
+
+    # ---------- Edit B ở Today → Week: text mới ----------
+    # (has_text dùng chuỗi ổn định "Không TikTok" — sau khi fill, text row đổi thành 20h)
+    b_row = page.locator('[data-role="today-task-list"] .today-task', has_text="Không TikTok").first
+    b_text = b_row.locator('[data-role="task-text"]')
+    b_text.fill("Không TikTok trước 20h")
+    b_text.press("Enter")
+    page.evaluate("window.flushPendingSaves && window.flushPendingSaves()")
+    b_after = find_uid("twc-B")
+    assert b_after and b_after["text"] == "Không TikTok trước 20h", f"edit Today: B = {b_after}"
+    goto_week()
+    assert next(x for x in snap_week_today() if x["uid"] == "twc-B")["text"] == "Không TikTok trước 20h", \
+        "Week phải thấy text đã sửa (cùng uid)"
+
+    # ---------- Add D ở Week current-day → Today: D xuất hiện ----------
+    panel = page.locator(".week-day-panel.today")
+    before_add = set(x["uid"] for x in snap_week_today())
+    panel.locator('[data-action="addtask"]').first.click()
+    page.wait_for_function(
+        """() => {
+          const rows = [...document.querySelectorAll('.week-day-panel.today [data-testid="task-row"]')];
+          const key = window.TaskFlowShell.monthKey(new Date().getFullYear(), new Date().getMonth());
+          const st = JSON.parse(localStorage.getItem(key));
+          const uids = rows.map(r => st.weeks[+r.dataset.week - 1].days[+r.dataset.day].tasks[+r.dataset.task].uid);
+          return uids.length >= 4;
+        }"""
+    )
+    # Draft mới được app auto-focus — dùng :focus thay vì .last (nhóm regular
+    # render SAU nhóm priority trong DOM nên .last không trỏ tới row mới)
+    new_row = panel.locator('[data-role="task-text"]:focus').first
+    assert new_row.count() == 1, "row draft mới phải đang được focus sau addtask"
+    new_row.fill("Viết nhật ký cuối ngày")
+    new_row.press("Enter")
+    page.evaluate("window.flushPendingSaves && window.flushPendingSaves()")
+    w_add = snap_week_today()
+    added = [x for x in w_add if x["uid"] not in before_add]
+    assert len(added) == 1, f"phải thêm đúng 1 task: {w_add}"
+    goto_today()
+    t_add = snap_today()
+    assert any(x["uid"] == added[0]["uid"] and x["text"] == "Viết nhật ký cuối ngày" for x in t_add), \
+        f"Today phải chứa task mới (cùng uid {added[0]['uid']}): {t_add}"
+
+    # ---------- Delete C ở Today → Week: C biến mất ----------
+    c_row = page.locator('[data-role="today-task-list"] .today-task', has_text="Ngủ đúng giờ.").first
+    c_row.locator('[data-action="deltask"]').click()
+    assert find_uid("twc-C") is None, "delete Today: C phải hết trong state"
+    goto_week()
+    w_final = snap_week_today()
+    assert all(x["uid"] != "twc-C" for x in w_final), f"Week vẫn còn C: {w_final}"
+    assert len(w_final) == 3, f"3 task còn lại (A, B, D): {w_final}"
+
+    assert_no_page_overflow(page, f"today-week {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+
+
 def calendar_checks(browser, base, width, height, errors, screenshot):
     page = make_page(browser, width, height)
     page.on("pageerror", lambda error: errors.append(f"calendar {width}px: {error}"))
@@ -4038,7 +4260,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "gcal-refresh", "gcal-month-pending", "ai"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "today-week-consistency", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "gcal-refresh", "gcal-month-pending", "ai"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -4080,6 +4302,7 @@ def main():
                     ("landing", landing_checks),
                     ("overview", overview_checks),
                     ("week", week_checks),
+                    ("today-week-consistency", today_week_consistency_checks),
                     ("year", year_checks),
                     ("calendar", calendar_checks),
                     ("segmented-geometry", segmented_geometry_checks),
@@ -4132,6 +4355,9 @@ def main():
             elif args.view == "week":
                 week_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 week_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "today-week-consistency":
+                today_week_consistency_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                today_week_consistency_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "year":
                 year_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 year_checks(browser, base, 390, 844, errors, shots["mobile"])

@@ -486,13 +486,26 @@ function applyRecurrence() {
   // Lỗi cũ: scan "alreadyExists" quét cả ngày quá khứ (gồm chính task đang xét) → luôn
   // true → không bao giờ sinh; giờ chuyển logic thuần sang PlanMath.planRecurrence
   // (chỉ so sánh với task từ hôm nay trở đi) và push bản sao vào ĐÚNG ngày hôm nay.
-  const ti = nowInfo(PLAN_START, NUM_DAYS);
-  if (!ti.inRange || !window.PlanMath || !window.PlanMath.planRecurrence) return; // hôm nay ngoài kỳ kế hoạch → không có chỗ sinh
+  const ti = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
+  if (!ti.inRange || !window.PlanMath || !window.PlanMath.planRecurrence) return 0; // hôm nay ngoài kỳ kế hoạch → không có chỗ sinh
   const todayDay = state.weeks[ti.week - 1] && state.weeks[ti.week - 1].days[ti.dayInWeek];
-  if (!todayDay) return;
+  if (!todayDay) return 0;
   const plan = window.PlanMath.planRecurrence(state.weeks, ti.dayIdx);
   plan.mark.forEach((t) => { t._recurred = true; });
   plan.copies.forEach((c) => { c.uid = newTaskUid(); c.linkedMetricIds = []; todayDay.tasks.push(c); });
+  return plan.copies.length;
+}
+
+// Chuẩn bị DỮ LIỆU ô hôm nay một lần, idempotent, KHÔNG phụ thuộc view đang mở:
+// materialize task lặp đến hạn (recurrence) + dồn task lặp bị lỡ (carry-over).
+// Gọi tại các mốc data lifecycle: boot, đổi ngày (refreshToday), đổi tháng, đổi tài
+// khoản/sync-load. KHÔNG gọi từ render — renderWeek/renderToday chỉ ĐỌC state.
+// Trả về true nếu dữ liệu thay đổi (đã save).
+function prepareTodayState() {
+  let changed = false;
+  if (applyRecurrence() > 0) { changed = true; save(); }
+  if (carryOverRepeatTasks()) changed = true; // tự save nếu có bản dồn
+  return changed;
 }
 
 /* ============================ Xuất / Nhập dữ liệu ============================ */
@@ -728,12 +741,13 @@ function openContextEditModal() {
 /* ---------- V1.3 — Smart Daily Planner (rule-based, NO AI) ---------- */
 
 // Lấy task hôm nay (chưa done) từ state.weeks để đưa vào planner.
+// Dùng resolver canonical — cùng ô với Today/Week (không tự suy lại công thức).
 function todayPlannerTasks() {
-  const ti = nowInfo(PLAN_START, NUM_DAYS);
-  if (!ti.inRange) return [];
-  const day = state.weeks[ti.week - 1] && state.weeks[ti.week - 1].days[ti.dayInWeek];
-  if (!day || !Array.isArray(day.tasks)) return [];
-  return day.tasks.map((tk, i) => ({ ...tk, _week: ti.week, _day: ti.dayInWeek, _idx: i }));
+  const cell = window.TaskFlowClock.resolveTodayCell({
+    planStart: PLAN_START, numDays: NUM_DAYS, year: PLAN_YEAR, month: PLAN_MONTH, weeks: state.weeks,
+  });
+  if (!cell.inPlanMonth || !cell.day || !Array.isArray(cell.day.tasks)) return [];
+  return cell.day.tasks.map((tk, i) => ({ ...tk, _week: cell.weekNumber, _day: cell.dayIndex, _idx: i }));
 }
 
 // Mở dialog planner: thu thập input → buildProposal (thuần) → render preview.
@@ -1181,7 +1195,7 @@ function findPlannerTaskByUid(uid) {
 // Dời task tới ngày mai hoặc cuối tuần này (trong cùng tháng). Dùng moveTaskAcrossDays
 // giữ uid — đúng convention task-move. Không đổi kind.
 function movePlannerTaskToDay(ref, option) {
-  const ti = nowInfo(PLAN_START, NUM_DAYS);
+  const ti = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
   if (!ti.inRange) return;
   const srcDay = state.weeks[ref.week].days[ref.day];
   let targetWeek = ti.week - 1;
@@ -1376,7 +1390,7 @@ const { habitDaysElapsed, dayAggregate, heatLevel } = window.TaskFlowHabits;
 
 
 function defaultState() {
-  const ti = nowInfo(PLAN_START, NUM_DAYS);
+  const ti = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
   return {
     view: 'today',
     currentWeek: ti.inRange ? ti.week : 1,
@@ -1434,7 +1448,7 @@ function loadState() {
     window.TaskFlowPillars.ensurePillars(s);
     if (typeof s.currentWeek !== 'number' || s.currentWeek < 1 || s.currentWeek > NUM_WEEKS) s.currentWeek = 1;
     // Migration: vị trí Xem ngày (tuần + ngày trong tuần) — mặc định về hôm nay nếu hợp lệ
-    const tiMig = nowInfo(PLAN_START, NUM_DAYS);
+    const tiMig = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
     if (typeof s.dayWeek !== 'number' || s.dayWeek < 1 || s.dayWeek > NUM_WEEKS) s.dayWeek = tiMig.inRange ? tiMig.week : 1;
     if (typeof s.dayDay !== 'number' || s.dayDay < 0 || s.dayDay > 6) s.dayDay = tiMig.inRange ? tiMig.dayInWeek : 0;
     if (s.view !== 'overview' && s.view !== 'week' && s.view !== 'year' && s.view !== 'calendar' && s.view !== 'today' && s.view !== 'day' && s.view !== 'upcoming' && s.view !== 'inbox') s.view = 'today';
@@ -1508,7 +1522,7 @@ initPlan(new Date());
 //   · Khách vãng lai (chưa có tài khoản, chưa có dữ liệu) → hiện dữ liệu mẫu (demo)
 //   · Đã đăng nhập + chưa có dữ liệu → hiện state TRỐNG (tài khoản mới = dữ liệu mới, không demo)
 function emptyState() {
-  const ti = nowInfo(PLAN_START, NUM_DAYS);
+  const ti = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
   return {
     view: 'today',
     currentWeek: ti.inRange ? ti.week : 1,
@@ -1560,7 +1574,7 @@ function rebootState(render = true) {
   // Phase 5: đổi tài khoản/sync-pull → xoá undo cũ (snapshot của tài khoản cũ không còn hợp lệ)
   if (typeof undoStack !== 'undefined' && undoStack) { undoStack.clear(); lastSnapshotJson = null; }
   loadXP();
-  carryOverRepeatTasks();
+  prepareTodayState();
   if (render) {
     renderXP();
     setView(state.view, state.currentWeek);
@@ -1871,7 +1885,7 @@ function dateCardHTML() {
 
 function weeklyChartHTML() {
   const levels = [100, 75, 50, 25, 0];
-  const curWeek = nowInfo(PLAN_START, NUM_DAYS).week;
+  const curWeek = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH).week;
   return `<div class="card chart-card">
     <h3 class="card-title">${t('weeklyProg')}</h3>
     <div class="chart-wrap">
@@ -2962,11 +2976,13 @@ function weekTagFilterBar() {
 }
 
 function renderWeek() {
-  applyRecurrence();
+  // PURE render: không materialize dữ liệu ở đây — recurrence/carry-over chạy qua
+  // prepareTodayState() ở data lifecycle (boot/rollover/month/account). Việc mở view
+  // Tuần không được làm thay đổi mảng task của hôm nay.
   const el = document.getElementById('view-week');
   const w = state.weeks[state.currentWeek - 1];
   const st = weekStats(w);
-  const ti = nowInfo(PLAN_START, NUM_DAYS);
+  const ti = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
   const weeklyReviewModel = buildWeeklyReviewModel(state, state.currentWeek - 1, {
     planStart: PLAN_START,
     year: PLAN_YEAR,
@@ -4899,8 +4915,8 @@ function openMonth(m) {
   // Tag filter theo tháng cũ — reset để không còn task bị ẩn mà không có UI gỡ
   tagFilter = null;
   calendarTagFilters = [];
-  // Tháng mới → carry task lặp bị lỡ vào hôm nay ngay khi mở (nếu hôm nay thuộc tháng này)
-  carryOverRepeatTasks();
+  // Tháng mới → chuẩn bị dữ liệu ô hôm nay (recurrence + carry task lặp bị lỡ) ngay khi mở
+  prepareTodayState();
   updateBrand(PLAN_YEAR, PLAN_MONTH);
   buildNav();
   setView('overview', state.currentWeek);
@@ -5020,7 +5036,7 @@ function toggleSearchModal() {
   else runLazyModule('js/search.min.js', () => window.TaskFlowSearch.closeSearchModal());
 }
 function focusTodayTaskAdd() {
-  const ti = nowInfo(PLAN_START, NUM_DAYS);
+  const ti = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
   if (state.view !== 'week' || !ti.inRange) return;
   const col = document.querySelector(`.day-col-${ti.dayInWeek}`);
   const add = col && col.querySelector('[data-action="addtask"]');
@@ -5451,10 +5467,12 @@ document.addEventListener('click', (e) => {
       refreshFocusIfOpen();
     }
   } else if (act === 'today-addtask') {
-    const ti = nowInfo(PLAN_START, NUM_DAYS);
-    if (!ti.inRange) return;
-    const w = state.weeks[ti.week - 1];
-    const d = w.days[ti.dayInWeek];
+    const cell = window.TaskFlowClock.resolveTodayCell({
+      planStart: PLAN_START, numDays: NUM_DAYS, year: PLAN_YEAR, month: PLAN_MONTH, weeks: state.weeks,
+    });
+    if (!cell.inPlanMonth || !cell.day) return;
+    const w = state.weeks[cell.weekIndex];
+    const d = cell.day;
     d.tasks.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } });
     renderToday();
     save();
@@ -6860,7 +6878,7 @@ function refreshToday() {
   }
   const prevKey = monthKey(PLAN_YEAR, PLAN_MONTH);
   initPlan(now);
-  const ti = nowInfo(PLAN_START, NUM_DAYS);
+  const ti = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
   const jump = state.view === 'week' && ti.inRange && ti.week !== state.currentWeek && state.currentWeek === lastRealWeek;
   lastRealWeek = ti.inRange ? ti.week : null;
   if (monthKey(PLAN_YEAR, PLAN_MONTH) !== prevKey) {
@@ -6870,7 +6888,7 @@ function refreshToday() {
     setView(state.view, state.currentWeek);
   } else {
     if (jump) state.currentWeek = ti.week;
-    carryOverRepeatTasks();
+    prepareTodayState();
     if (state.view === 'today') renderToday();
     else if (state.view === 'week') renderWeek();
     else if (state.view === 'day') renderDay();
@@ -7050,6 +7068,8 @@ function handleSyncChange(keys) {
   if (yearHit) { yearState = bootYearState(); invalidateYearCache(); }
   if (monthHit) { state = bootState(); }
   if (monthHit || yearHit) {
+    // Dữ liệu remote vừa nạp có thể chứa task lặp quá hạn → chuẩn bị ô hôm nay trước khi render
+    prepareTodayState();
     setView(state.view, state.currentWeek);
     updateNav();
   }
@@ -7165,7 +7185,7 @@ function maybeStartOnboarding() {
 
 /* ============================ Khởi động ============================ */
 
-const ti0 = nowInfo(PLAN_START, NUM_DAYS);
+const ti0 = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
 if (ti0.inRange) {
   state.currentWeek = ti0.week;
   // Không tự nhảy view — mở app ở view đã chọn (mặc định Overview có landing hero)
@@ -7240,7 +7260,7 @@ updateUndoButtons();
 loadMood();
 loadReflections();
 loadXP();
-carryOverRepeatTasks();
+prepareTodayState();
 renderXP();
 setView(state.view, state.currentWeek);
 setTimeout(() => runLazyModule('js/digest.min.js', () => window.TaskFlowDigest.updateDigestCache()), 2000);

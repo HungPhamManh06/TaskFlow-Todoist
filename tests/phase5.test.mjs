@@ -284,13 +284,15 @@ test('7.1: task lặp lại (recurring)', () => {
   assert.match(readFileSync(path.join(ROOT, 'js/today.js'), 'utf8'), /data-action="repeat-edit"/);
   assert.match(APP_JS, /function applyRecurrence\(\)/);
   assert.match(APP_JS, /repeat\.freq/);
-  assert.match(APP_JS, /applyRecurrence\(\);/);
   assert.match(APP_JS, /beginRepeatEdit/);
   // Nút 🔁 phải được wire vào click handler (từng bị chết: beginRepeatEdit không được gọi)
   assert.match(APP_JS, /act === 'repeat-edit'/);
   assert.ok(APP_JS.includes('repeatOff') && APP_JS.includes('repeatDaily'), 'thiếu repeat i18n usage');
   // applyRecurrence phải đẻ vào ngày HÔM NAY (dayIdx) chứ không phải ngày quá khứ
   assert.match(APP_JS, /planRecurrence\(state\.weeks, ti\.dayIdx\)/);
+  // P10: recurrence chạy qua data lifecycle (prepareTodayState), KHÔNG còn trong renderWeek
+  assert.match(APP_JS, /function prepareTodayState\(\)[\s\S]*?applyRecurrence\(\) > 0/);
+  assert.doesNotMatch(APP_JS, /function renderWeek\(\)[\s\S]*?applyRecurrence\(\)/);
 });
 
 test('7.1b: planRecurrence sinh bản sao task lặp quá khứ vào hôm nay', () => {
@@ -963,15 +965,17 @@ test('P11: planmini.js psStart/shortMonth giữ nguyên behavior sau khi tách',
 });
 
 test('P11: clock.js nowInfo/renderClock giữ nguyên behavior sau khi tách', () => {
-  // nowInfo: tính vị trí trong plan grid từ planStart + numDays
+  // nowInfo: tính vị trí trong plan grid từ planStart + numDays + năm/tháng planner
   const y = 2026, m = 7; // tháng 8/2026
-  const planStart = new Date(y, m, 1);
+  const first = new Date(y, m, 1);
+  const dow = (first.getDay() + 6) % 7;
+  const planStart = new Date(y, m, 1 - dow); // giống initPlan: thứ 2 tuần chứa ngày 1
   const numDays = new Date(y, m + 1, 0).getDate();
   const today = new Date();
   const inRange = today.getFullYear() === y && today.getMonth() === m;
-  const ti = Clock.nowInfo(planStart, numDays);
+  const ti = Clock.nowInfo(planStart, numDays, y, m);
   assert.ok(ti.now instanceof Date);
-  assert.equal(ti.dayIdx, Math.floor((today - planStart) / 86400000));
+  assert.equal(ti.dayIdx, Clock.calendarDayDiff(planStart, today));
   assert.equal(ti.inRange, inRange);
   if (inRange) {
     assert.equal(ti.week, Math.floor(ti.dayIdx / 7) + 1);
@@ -981,11 +985,87 @@ test('P11: clock.js nowInfo/renderClock giữ nguyên behavior sau khi tách', (
     assert.equal(ti.habitCol, -1);
   }
   // ngoài range (quá khứ xa) → inRange false
-  const past = Clock.nowInfo(new Date(2000, 0, 1), 30);
+  const past = Clock.nowInfo(new Date(2000, 0, 1), 30, 2000, 0);
   assert.equal(past.inRange, false);
   assert.equal(past.week, null);
+  // fallback legacy (không truyền year/month) vẫn không throw
+  assert.doesNotThrow(() => Clock.nowInfo(planStart, numDays));
   // renderClock: không có document → return sớm (không throw)
   assert.doesNotThrow(() => Clock.renderClock());
+});
+
+test('P10: nowInfo range theo THÁNG planner — 27–31/8 không bị loại sai', () => {
+  // Tháng 8/2026: planStart = thứ 2 27/7 (tuần chứa 1/8), numDays = 31.
+  // BUG cũ: inRange = dayIdx >= 0 && dayIdx < numDays → cửa sổ "27/7→26/8",
+  // khiến 27–31/8 bị coi là NGOÀI tháng dù vẫn nằm trong lưới tuần tháng 8.
+  const y = 2026, m = 7;
+  const first = new Date(y, m, 1);
+  const dow = (first.getDay() + 6) % 7;
+  const planStart = new Date(y, m, 1 - dow);
+  const numDays = new Date(y, m + 1, 0).getDate();
+  const gridIdx = (day) => Clock.calendarDayDiff(planStart, new Date(y, m, day));
+  const expect = (day, week, dayInWeek, label) => {
+    const ti = Clock.nowInfo(planStart, numDays, y, m, new Date(y, m, day));
+    assert.equal(ti.inRange, true, `${label}: inRange`);
+    assert.equal(ti.week, week, `${label}: week`);
+    assert.equal(ti.dayInWeek, dayInWeek, `${label}: dayInWeek`);
+    assert.equal(ti.dayIdx, gridIdx(day), `${label}: dayIdx`);
+  };
+  expect(1, 1, 5, '1/8');   // thứ 7 tuần 1
+  expect(17, 4, 0, '17/8'); // thứ 2 tuần 4 — ô hôm nay (Today/Week current-day)
+  expect(26, 5, 2, '26/8');
+  expect(27, 5, 3, '27/8'); // BUG cũ: dayIdx 31 >= 31 → out of range
+  expect(31, 6, 0, '31/8'); // BUG cũ: dayIdx 35 >= 31 → out of range
+  // 1/9 KHÔNG thuộc tháng 8
+  const sep = Clock.nowInfo(planStart, numDays, y, m, new Date(y, 8, 1));
+  assert.equal(sep.inRange, false, '1/9 ngoài tháng 8');
+  assert.equal(sep.week, null);
+});
+
+test('P10: resolveTodayCell — resolver canonical cho Today/Week (day === cùng tham chiếu)', () => {
+  const y = 2026, m = 7;
+  const first = new Date(y, m, 1);
+  const dow = (first.getDay() + 6) % 7;
+  const planStart = new Date(y, m, 1 - dow);
+  const numDays = new Date(y, m + 1, 0).getDate();
+  const numWeeks = Math.ceil((dow + numDays) / 7);
+  const weeks = Array.from({ length: numWeeks }, (_, wi) => ({
+    n: wi + 1,
+    days: Array.from({ length: 7 }, (_, di) => ({
+      tasks: [],
+      date: `${planStart.getDate() + wi * 7 + di}/${m + 1}`,
+      yy: planStart.getFullYear() % 100,
+    })),
+  }));
+  const now = new Date(y, m, 17, 8, 0, 0); // 17/8/2026 08:00 local — thứ 2 tuần 4
+  const cell = Clock.resolveTodayCell({ planStart, numDays, year: y, month: m, weeks, now });
+  assert.equal(cell.inPlanMonth, true);
+  assert.equal(cell.weekNumber, 4);
+  assert.equal(cell.weekIndex, 3);
+  assert.equal(cell.dayIndex, 0);
+  assert.equal(cell.day, weeks[3].days[0], 'day phải là THAM CHIẾU tới weeks[3].days[0]');
+  assert.equal(cell.day.tasks, weeks[3].days[0].tasks, 'day.tasks là cùng mảng canonical');
+  // push vào cell.day → thấy qua weeks[3].days[0] (không copy/không mirror)
+  cell.day.tasks.push({ uid: 't-x' });
+  assert.equal(weeks[3].days[0].tasks.length, 1);
+  // ngoài tháng: 1/9 → inPlanMonth false, day null
+  const sep = Clock.resolveTodayCell({ planStart, numDays, year: y, month: m, weeks, now: new Date(y, 8, 1) });
+  assert.equal(sep.inPlanMonth, false);
+  assert.equal(sep.day, null);
+  // không truyền weeks → chỉ có toạ độ, day = null
+  const coords = Clock.resolveTodayCell({ planStart, numDays, year: y, month: m, now });
+  assert.equal(coords.weekIndex, 3);
+  assert.equal(coords.day, null);
+});
+
+test('P10: calendarDayDiff an toàn DST — hiệu ngày lịch, không lệch theo giờ', () => {
+  // Hai thời điểm KHÁC NGÀY nhưng sát nhau (23:59 → 00:01) → diff đúng 1 ngày
+  assert.equal(Clock.calendarDayDiff(new Date(2026, 7, 17, 23, 59), new Date(2026, 7, 18, 0, 1)), 1);
+  assert.equal(Clock.calendarDayDiff(new Date(2026, 7, 18, 0, 1), new Date(2026, 7, 17, 23, 59)), -1);
+  // Cùng ngày lịch, giờ khác nhau → diff 0
+  assert.equal(Clock.calendarDayDiff(new Date(2026, 7, 17, 1, 0), new Date(2026, 7, 17, 23, 0)), 0);
+  // Tháng 8/2026: planStart 27/7 → 17/8 = 21 ngày
+  assert.equal(Clock.calendarDayDiff(new Date(2026, 6, 27), new Date(2026, 7, 17)), 21);
 });
 
 test('P11: shell.js monthKey/updateBrand/buildMonthNav giữ nguyên behavior sau khi tách', () => {

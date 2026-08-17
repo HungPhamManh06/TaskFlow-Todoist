@@ -30,9 +30,11 @@
     return null;
   }
 
-  // Ngày của ô (wi, di) trên lưới tuần bắt đầu từ planStart (thứ 2 của tuần chứa ngày 1)
+  // Ngày của ô (wi, di) trên lưới tuần bắt đầu từ planStart (thứ 2 của tuần chứa ngày 1).
+  // Cộng qua setDate (calendar-safe) thay vì + (n*7+di)*86400000: qua DST ngày chỉ còn
+  // 23/25h nên cộng millisecond lệch giờ → so sánh getTime() với nửa đêm local sai ngày.
   function dayDate(planStart, wi, di) {
-    return new Date(planStart.getTime() + (wi * 7 + di) * 86400000);
+    return new Date(planStart.getFullYear(), planStart.getMonth(), planStart.getDate() + (wi * 7 + di));
   }
 
   // Lên kế hoạch dồn task lặp bị lỡ vào ngày hôm nay.

@@ -42,20 +42,22 @@
   function renderToday() {
     const el = document.getElementById('view-today');
     if (!el) return;
-    const ti = nowInfo(PLAN_START, NUM_DAYS);
+    // Resolver canonical: ô hôm nay === ô current-day trong Week (cùng tham chiếu day.tasks).
+    const cell = window.TaskFlowClock.resolveTodayCell({
+      planStart: PLAN_START, numDays: NUM_DAYS, year: PLAN_YEAR, month: PLAN_MONTH, weeks: state.weeks,
+    });
     // Đang xem tháng khác (viewedMonth !== null) → "hôm nay" không thuộc tháng đang xem:
     // ẩn tasks/habits để không hiển thị nhầm ngày tương ứng trong lịch tháng khác.
-    const inTodayMonth = viewedMonth === null && ti.inRange;
-    const w = inTodayMonth ? state.weeks[ti.week - 1] : null;
-    const d = w && w.days[ti.dayInWeek];
+    const inTodayMonth = viewedMonth === null && cell.inPlanMonth;
+    const d = inTodayMonth ? cell.day : null;
     const tasks = d && Array.isArray(d.tasks) ? d.tasks : [];
     const done = tasks.filter((tk) => tk.done).length;
     const total = tasks.length;
     const pct = total ? Math.round((done / total) * 100) : 0;
     const habits = Array.isArray(state.habits) ? state.habits : [];
     // Habit.days[] được index theo ngày-trong-tháng (0-based) — nhất quán với overview/week/day view.
-    // KHÔNG dùng ti.dayIdx (số ngày từ PLAN_START neo theo thứ của tuần đầu) — sẽ lệch vài ngày.
-    const habitIdx = viewedMonth === null && ti.inRange ? new Date().getDate() - 1 : -1;
+    // KHÔNG dùng cell.dayIdx (số ngày từ PLAN_START neo theo thứ của tuần đầu) — sẽ lệch vài ngày.
+    const habitIdx = viewedMonth === null && cell.inPlanMonth ? new Date().getDate() - 1 : -1;
     const habitTodayDate = habitIdx >= 0 ? new Date() : null;
     // V1.4 — Flexible schedules: chỉ hiển thị habit ĐẾN HẠN hôm nay. daily luôn hiển thị;
     // weekdays chỉ vào ngày được chọn; weekly_count/monthly_count hiển thị khi mục tiêu
@@ -73,8 +75,8 @@
     const habitsDone = habitsToday.filter((h) => Array.isArray(h.days) && h.days[habitIdx] === true).length;
     const alignmentGroups = window.TaskFlowAlignment.collectDailyAlignment(state, {
       inTodayMonth,
-      week: ti.week,
-      day: ti.dayInWeek,
+      week: cell.weekNumber,
+      day: cell.dayIndex,
       dayIndex: habitIdx,
     });
     const alignmentHTML = window.TaskFlowAlignment.alignmentCardHTML(alignmentGroups, {
@@ -91,12 +93,12 @@
       ? tasks.map((tk, i) => {
           const timed = tk.remind && tk.remind.enabled && tk.remind.time;
           return `<div class="today-task ${tk.done ? 'done' : ''}">
-        ${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}"`, window.TaskFlowUI.checkboxLabel('task', tk.text, todayWeekdayLabel()))}
-        <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: i + 1 })}">${esc(tk.text ?? '')}</span>
+        ${checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" data-week="${cell.weekNumber}" data-day="${cell.dayIndex}" data-task="${i}"`, window.TaskFlowUI.checkboxLabel('task', tk.text, todayWeekdayLabel()))}
+        <span class="task-text editable" contenteditable="true" spellcheck="false" data-singleline="1" data-role="task-text" data-week="${cell.weekNumber}" data-day="${cell.dayIndex}" data-task="${i}" data-placeholder="${t('taskPh')}" aria-label="${t('taskAria', { n: i + 1 })}">${esc(tk.text ?? '')}</span>
         ${tk.kind === 'priority' ? `<span class="badge badge-accent today-prio">${t('todayPriority')}</span>` : ''}
         ${timed ? `<span class="today-task-time">${esc(timed)}</span>` : ''}
         ${projectsChip(tk)}
-        ${tk.done ? '' : `<button type="button" class="btn-del" data-action="deltask" data-week="${ti.week}" data-day="${ti.dayInWeek}" data-task="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">${window.TaskFlowUI.icon('trash')}</button>`}
+        ${tk.done ? '' : `<button type="button" class="btn-del" data-action="deltask" data-week="${cell.weekNumber}" data-day="${cell.dayIndex}" data-task="${i}" aria-label="${t('delTaskAria', { n: i + 1 })}" title="${t('delTaskAria', { n: i + 1 })}">${window.TaskFlowUI.icon('trash')}</button>`}
       </div>`;
         }).join('')
       : emptyStateHTML('🎯', 'todayEmpty', 'todayEmptySub', [
