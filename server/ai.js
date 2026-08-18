@@ -1,4 +1,4 @@
-/* TaskFlow — AI Planning Copilot (V3.1).
+/* TaskFlow — AI Planning Copilot (V3.3).
    ------------------------------------------------------------
    Vai trò: proxy gọi LLM bên thứ ba — mặc định Google Gemini qua
    OpenAI-compatible endpoint (generativelanguage.googleapis.com/v1beta/openai).
@@ -18,11 +18,17 @@
    - Latency log chỉ gồm provider/model/status/latencyMs — KHÔNG bao giờ log
      prompt/context/task text/reflection/mood/auth/key.
    - meta (provider/model/latencyMs) chỉ trả về khi request có ?debug=1.
+   - Map HTTP upstream an toàn (chỉ lộ mã trạng thái, không body):
+     400 → ai-provider-bad-request · 401 → ai-provider-auth ·
+     403 → ai-provider-forbidden · 404 → ai-provider-not-found ·
+     429 → ai-rate-limited · 5xx/network → ai-provider-unavailable ·
+     timeout → ai-timeout. details chỉ chứa "upstream-<status>".
    - Env: AI_API_KEY (bắt buộc), AI_API_URL (mặc định Gemini), AI_MODEL, AI_TIMEOUT_MS.
    - AI_API_KEY rỗng → 503 ai-not-configured → client ngầm dùng planner quy tắc.
    - Lỗi chuẩn hoá: ai-not-configured · ai-timeout · ai-rate-limited ·
-     ai-provider-unavailable · ai-invalid-response (+details parse-failed/empty-content)
-     · ai-validation-failed (+details action-i-*).
+     ai-provider-bad-request · ai-provider-auth · ai-provider-forbidden ·
+     ai-provider-not-found · ai-provider-unavailable · ai-invalid-response
+     (+details parse-failed/empty-content) · ai-validation-failed (+details action-i-*).
      KHÔNG bao giờ lộ lỗi upstream thô / key / prompt / context. */
 'use strict';
 const express = require('express');
@@ -312,13 +318,16 @@ router.post('/plan', async (req, res) => {
     clearTimeout(timer);
     const latencyMs = Date.now() - startedAt;
     if (!upstream.ok) {
-      // 429 (rate limit) là tạm thời — client fallback về planner quy tắc, không retry.
-      if (upstream.status === 429) {
-        console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=rate-limited latencyMs=' + latencyMs);
-        return res.status(429).json({ error: 'ai-rate-limited' });
-      }
-      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=http-' + upstream.status + ' latencyMs=' + latencyMs);
-      return res.status(502).json({ error: 'ai-provider-unavailable' });
+      // Map HTTP upstream an toàn — chỉ lộ mã trạng thái, KHÔNG bao giờ body/chi tiết.
+      const code = upstream.status === 400 ? 'ai-provider-bad-request'
+        : upstream.status === 401 ? 'ai-provider-auth'
+        : upstream.status === 403 ? 'ai-provider-forbidden'
+        : upstream.status === 404 ? 'ai-provider-not-found'
+        : upstream.status === 429 ? 'ai-rate-limited'
+        : 'ai-provider-unavailable';
+      console.log('[ai] provider=gemini upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
+      // 429 là tạm thời — client fallback về planner quy tắc, không retry.
+      return res.status(upstream.status === 429 ? 429 : 502).json({ error: code, details: ['upstream-' + upstream.status] });
     }
 
     let json;

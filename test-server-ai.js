@@ -1,8 +1,9 @@
 'use strict';
-/* Test backend AI Planning Copilot (V3.2 — Gemini latency tuning).
+/* Test backend AI Planning Copilot (V3.3 — Gemini diagnostics).
    Chạy backend thật (pg-mem). Không gọi LLM thật: stub global fetch để kiểm tra
    proxy pipeline (auth → sanitize → schema validation → referential → upstream
-   json_schema + reasoning_effort=low → parse hardening → validate → latency).
+   json_schema + reasoning_effort=low → parse hardening → validate → latency
+   → safe upstream-status mapping).
    AI_API_KEY phải set TRƯỚC khi require server/index (ai.js đọc env lúc load).
    AI_TIMEOUT_MS=500 để test timeout nhanh; mặc định production là 60000. */
 process.env.AI_API_KEY = 'test-ai-key';
@@ -365,7 +366,35 @@ async function main() {
     assert.strictEqual(res.status, 429, 'upstream 429 → 429');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-rate-limited');
-    console.log('TEST 10 OK — upstream 429 → 429 ai-rate-limited');
+    assert.ok(Array.isArray(j.details) && j.details.includes('upstream-429'), 'details = upstream-429');
+    assert.ok(!JSON.stringify(j).includes('rate limited'), 'không lộ body upstream');
+    console.log('TEST 10 OK — upstream 429 → 429 ai-rate-limited [upstream-429]');
+  }
+
+  // ---------- TEST 10b: map HTTP 400/401/403/404 → mã chẩn đoán an toàn ----------
+  {
+    const token = await signup(base, 'aiuser6b');
+    const cases = [
+      [400, 'ai-provider-bad-request'],
+      [401, 'ai-provider-auth'],
+      [403, 'ai-provider-forbidden'],
+      [404, 'ai-provider-not-found'],
+    ];
+    for (const [status, code] of cases) {
+      globalThis.fetch = async (url, opts) => {
+        if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
+        return new Response(JSON.stringify({ error: { message: 'secret provider detail ' + status } }), { status });
+      };
+      const res = await plan(token, base);
+      globalThis.fetch = realFetch;
+      assert.strictEqual(res.status, 502, 'upstream ' + status + ' → 502');
+      const j = await res.json();
+      assert.strictEqual(j.error, code, 'upstream ' + status + ' → ' + code);
+      assert.ok(Array.isArray(j.details) && j.details.includes('upstream-' + status), 'details = upstream-' + status);
+      assert.ok(!JSON.stringify(j).includes('secret provider detail'), 'KHÔNG lộ body upstream');
+      assert.ok(!JSON.stringify(j).includes('Bearer') && !JSON.stringify(j).includes('AI_API'), 'KHÔNG lộ key/auth');
+      console.log('TEST 10b OK — upstream ' + status + ' → ' + code + ' [upstream-' + status + '], không lộ body');
+    }
   }
 
   // ---------- TEST 11: upstream 500 → 502 ai-provider-unavailable ----------
@@ -380,8 +409,9 @@ async function main() {
     assert.strictEqual(res.status, 502, 'upstream 500 → 502');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-provider-unavailable');
+    assert.ok(Array.isArray(j.details) && j.details.includes('upstream-500'), 'details = upstream-500');
     assert.ok(!JSON.stringify(j).includes('boom'), 'không lộ lỗi upstream thô');
-    console.log('TEST 11 OK — upstream 500 → 502 ai-provider-unavailable (không lộ chi tiết)');
+    console.log('TEST 11 OK — upstream 500 → 502 ai-provider-unavailable [upstream-500], không lộ chi tiết');
   }
 
   // ---------- TEST 12: upstream network fail → 502 ai-provider-unavailable ----------
