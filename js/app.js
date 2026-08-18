@@ -904,6 +904,9 @@ function renderAiPanel() {
 async function aiRun() {
   const AI = window.TaskFlowAI;
   if (!AI) return;
+  // Debug-only diagnostics (?debug=1): chỉ log mã lỗi + validation code an toàn,
+  // KHÔNG bao giờ log prompt/context/reflection/mood hay nội dung upstream.
+  const debugLog = typeof location !== 'undefined' && /[?&]debug=1/.test(location.search);
   const panel = document.querySelector('#plannerAi [data-role="ai-panel"]');
   if (!panel) return;
   const kindSel = panel.querySelector('[data-role="ai-kind"]');
@@ -926,6 +929,8 @@ async function aiRun() {
   if (!resultHost) return;
   if (!res.ok) {
     const code = res.error || 'ai-provider-unavailable';
+    const details = Array.isArray(res.details) ? res.details : [];
+    if (debugLog) console.warn('[ai] plan rejected:', code, details);
     const msg = code === 'ai-not-configured' ? 'aiNotConfigured'
       : code === 'ai-invalid-response' || code === 'ai-validation-failed' ? 'aiInvalidOutput'
       : code === 'ai-timeout' || code === 'network' ? 'aiError' : 'aiError';
@@ -934,7 +939,10 @@ async function aiRun() {
   }
   const refs = { taskUids: new Set(context.tasks.concat(context.overdue).map((tk) => tk.uid)) };
   const v = AI.validateProposalLocal(res.proposal, refs);
-  if (!v.ok) { resultHost.innerHTML = `<p class="ai-error">${esc(t('aiInvalidOutput'))}</p>`; return; }
+  if (!v.ok) {
+    if (debugLog) console.warn('[ai] client validation failed:', v.errors);
+    resultHost.innerHTML = `<p class="ai-error">${esc(t('aiInvalidOutput'))}</p>`; return;
+  }
   const warnings = AI.conflictCheck(res.proposal, context.timeblocks, context.busy);
   window._lastAiProposal = { proposal: res.proposal, refs };
   resultHost.innerHTML = AI.previewHTML(res.proposal, warnings);

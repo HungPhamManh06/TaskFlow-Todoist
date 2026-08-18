@@ -1,4 +1,4 @@
-/* TaskFlow — AI Planning Copilot (V3.0).
+/* TaskFlow — AI Planning Copilot (V3.1).
    ------------------------------------------------------------
    Vai trò: proxy gọi LLM bên thứ ba — mặc định Google Gemini qua
    OpenAI-compatible endpoint (generativelanguage.googleapis.com/v1beta/openai).
@@ -7,11 +7,16 @@
    - Server là ranh giới bảo mật: chặn mọi key ngoài allowlist, strip field không
      cho phép, bỏ reflection/mood trừ khi context.allowSensitive === true.
    - KHÔNG log nội dung context/reflection/mood ở bất kỳ mức nào.
+   - Structured output: response_format json_schema (PROPOSAL_SCHEMA) — không dùng
+     oneOf/anyOf vì ngoài subset JSON Schema của Gemini; wide-union + server
+     validateProposal là ranh giới cuối cùng.
+   - Gemini 3.x deprecated sampling params (temperature/top_p/top_k) — KHÔNG gửi.
    - Env: AI_API_KEY (bắt buộc), AI_API_URL (mặc định Gemini), AI_MODEL, AI_TIMEOUT_MS.
    - AI_API_KEY rỗng → 503 ai-not-configured → client ngầm dùng planner quy tắc.
    - Lỗi chuẩn hoá: ai-not-configured · ai-timeout · ai-rate-limited ·
-     ai-provider-unavailable · ai-invalid-response · ai-validation-failed.
-     KHÔNG bao giờ lộ lỗi upstream thô. */
+     ai-provider-unavailable · ai-invalid-response (+details parse-failed/empty-content)
+     · ai-validation-failed (+details action-i-*).
+     KHÔNG bao giờ lộ lỗi upstream thô / key / prompt / context. */
 'use strict';
 const express = require('express');
 const { authMiddleware } = require('./auth');
@@ -157,6 +162,54 @@ function validateProposal(proposal, refs) {
   return { ok: errors.length === 0, errors };
 }
 
+// Structured-output schema (json_schema) cho Gemini OpenAI-compat.
+// Chỉ dùng subset JSON Schema Gemini hỗ trợ: object/array/string/integer/null,
+// enum, required, maxItems, additionalProperties. KHÔNG dùng oneOf/anyOf
+// (ngoài subset) — wide-union: mọi action đều khai đủ field, validateProposal
+// phía server vẫn là ranh giới cuối cùng và chỉ đọc field theo từng type.
+const PROPOSAL_SCHEMA = {
+  type: 'object',
+  properties: {
+    summary: { type: 'string', description: 'Tóm tắt kế hoạch, tối đa 400 ký tự' },
+    actions: {
+      type: 'array',
+      maxItems: 10,
+      description: 'Các hành động cụ thể. Chỉ dùng taskUid có trong context, KHÔNG bịa ID/ngày.',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ACTION_TYPES, description: 'Loại hành động' },
+          taskUid: { type: 'string', description: 'taskUid có trong context (bắt buộc với schedule_task/reschedule_task)' },
+          date: { type: 'string', description: 'YYYY-MM-DD (chỉ schedule_task)' },
+          start: { type: ['string', 'null'], description: 'HH:mm hoặc null (chỉ schedule_task)' },
+          duration: { type: ['integer', 'null'], description: 'Phút 5-480 hoặc null (chỉ schedule_task)' },
+          option: { type: 'string', enum: RESCHEDULE_OPTIONS, description: 'tomorrow|this-week|inbox (chỉ reschedule_task)' },
+          text: { type: 'string', description: 'Gợi ý tối đa 160 ký tự (chỉ next_action)' },
+        },
+        required: ['type', 'taskUid', 'date', 'start', 'duration', 'option', 'text'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['summary', 'actions'],
+  additionalProperties: false,
+};
+
+// Parser phòng thủ: JSON.parse đã chịu khoảng trắng; hỗ trợ thêm 1 fence
+// markdown bọc ngoài duy nhất (```json ... ```) nếu model bọc lại.
+function parseProposalContent(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s) return null;
+  const fence = /^```(?:json)?\s*([\s\S]*?)```\s*$/.exec(s);
+  const body = fence ? fence[1].trim() : s;
+  try {
+    return JSON.parse(body);
+  } catch (e) {
+    return null;
+  }
+}
+
 function buildPrompt(ctx) {
   const en = ctx.lang === 'en';
   const sys = en
@@ -221,9 +274,15 @@ router.post('/plan', async (req, res) => {
         },
         body: JSON.stringify({
           model: AI_MODEL,
-          temperature: 0.2,
           max_tokens: 1200,
-          response_format: { type: 'json_object' },
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'taskflow_proposal',
+              strict: true,
+              schema: PROPOSAL_SCHEMA,
+            },
+          },
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: user },
@@ -250,13 +309,14 @@ router.post('/plan', async (req, res) => {
       return res.status(502).json({ error: 'ai-provider-unavailable' });
     }
     const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-    if (typeof content !== 'string' || !content.trim()) return res.status(422).json({ error: 'ai-invalid-response' });
+    if (typeof content !== 'string' || !content.trim()) {
+      return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
+    }
 
-    let proposal;
-    try {
-      proposal = JSON.parse(content);
-    } catch (e) {
-      return res.status(422).json({ error: 'ai-invalid-response' });
+    const proposal = parseProposalContent(content);
+    if (proposal === null) {
+      // Chỉ nêu loại lỗi parse — KHÔNG bao giờ echo nội dung upstream.
+      return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
     }
     const v = validateProposal(proposal, { taskUids, projectIds, milestoneIds });
     if (!v.ok) return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
@@ -266,4 +326,4 @@ router.post('/plan', async (req, res) => {
   }
 });
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt };
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA };

@@ -1,7 +1,8 @@
 'use strict';
-/* Test backend AI Planning Copilot (V3.0 — Gemini) — chạy backend thật (pg-mem).
-   Không gọi LLM thật: stub global fetch để kiểm tra proxy pipeline
-   (auth → sanitize → schema validation → referential → upstream → validate).
+/* Test backend AI Planning Copilot (V3.1 — Gemini structured output).
+   Chạy backend thật (pg-mem). Không gọi LLM thật: stub global fetch để kiểm tra
+   proxy pipeline (auth → sanitize → schema validation → referential → upstream
+   json_schema → parse hardening → validate).
    AI_API_KEY phải set TRƯỚC khi require server/index (ai.js đọc env lúc load). */
 process.env.AI_API_KEY = 'test-ai-key';
 process.env.AI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
@@ -11,7 +12,7 @@ process.env.AUTH_RATE_LIMIT_MAX = '1000'; // tránh rate limiter signup khi ch�
 
 const assert = require('assert');
 const { app, ensureSchema } = require('./server/index');
-const { validateProposal, sanitizeContext, buildPrompt } = require('./server/ai');
+const { validateProposal, sanitizeContext, buildPrompt, parseProposalContent } = require('./server/ai');
 
 const realFetch = globalThis.fetch;
 const AI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
@@ -184,16 +185,42 @@ async function main() {
     assert.strictEqual(upstreamUrl, AI_URL, 'gọi đúng Gemini endpoint');
     assert.strictEqual(upstreamOpts.headers.Authorization, 'Bearer test-ai-key', 'Bearer = AI_API_KEY');
     assert.strictEqual(upstreamBody.model, 'gemini-3.6-flash', 'model = gemini-3.6-flash');
-    assert.strictEqual(upstreamBody.response_format.type, 'json_object', 'yêu cầu JSON output');
+    // Structured output: json_schema (không phải json_object) + schema TaskFlow
+    assert.strictEqual(upstreamBody.response_format.type, 'json_schema', 'response_format là json_schema');
+    const js = upstreamBody.response_format.json_schema;
+    assert.ok(js && js.name === 'taskflow_proposal', 'json_schema.name = taskflow_proposal');
+    assert.strictEqual(js.strict, true, 'json_schema.strict = true');
+    assert.strictEqual(js.schema.type, 'object', 'schema gốc là object');
+    assert.strictEqual(js.schema.required.join(','), 'summary,actions', 'schema required summary+actions');
+    assert.ok(js.schema.properties.actions.maxItems === 10, 'actions maxItems 10');
+    assert.ok(js.schema.properties.actions.items.properties.type.enum.includes('schedule_task'), 'enum đủ action type');
+    assert.ok(!('oneOf' in js.schema.properties.actions.items), 'không dùng oneOf (ngoài subset Gemini)');
+    // Gemini 3.x deprecated sampling params — KHÔNG được gửi
+    assert.ok(!('temperature' in upstreamBody), 'không gửi temperature (deprecated)');
+    assert.ok(!('top_p' in upstreamBody) && !('top_k' in upstreamBody), 'không gửi top_p/top_k');
+    assert.strictEqual(upstreamBody.max_tokens, 1200, 'max_tokens giữ nguyên');
     assert.strictEqual(upstreamBody.messages.length, 2, 'system + user');
     // Context gửi lên upstream đã sanitize (không chứa field lạ / reflection)
     const sent = upstreamBody.messages[1].content;
     assert.ok(sent.includes('"tasks"'), 'upstream nhận context JSON');
     assert.ok(!sent.includes('secret'), 'upstream không nhận field lạ');
-    console.log('TEST 6 OK — Gemini endpoint/model/Bearer đúng + proposal hợp lệ trả về');
+    console.log('TEST 6 OK — Gemini json_schema structured output, không sampling param, proposal hợp lệ');
   }
 
-  // ---------- TEST 7: upstream trả JSON hỏng → 422 ai-invalid-response ----------
+  // ---------- TEST 6b: parseProposalContent — whitespace + fence markdown + reject lạ ----------
+  {
+    const valid = { summary: 'P', actions: [{ type: 'next_action', text: 'X' }] };
+    assert.deepStrictEqual(parseProposalContent('  ' + JSON.stringify(valid) + '  '), valid, 'khoảng trắng thừa OK');
+    assert.deepStrictEqual(parseProposalContent('```json\n' + JSON.stringify(valid) + '\n```'), valid, 'fence json OK');
+    assert.deepStrictEqual(parseProposalContent('```\n' + JSON.stringify(valid) + '\n```'), valid, 'fence trần OK');
+    assert.strictEqual(parseProposalContent('{bad json'), null, 'JSON hỏng → null');
+    assert.strictEqual(parseProposalContent('```json\n' + JSON.stringify(valid) + '\n```\ntrailing'), null, 'fence + text thừa → null');
+    assert.strictEqual(parseProposalContent('   '), null, 'rỗng → null');
+    assert.strictEqual(parseProposalContent(null), null, 'non-string → null');
+    console.log('TEST 6b OK — parser phòng thủ: whitespace + 1 fence markdown, reject mọi thứ khác');
+  }
+
+  // ---------- TEST 7: upstream trả JSON hỏng → 422 ai-invalid-response + details ----------
   {
     const token = await signup(base, 'aiuser3');
     globalThis.fetch = async (url, opts) => {
@@ -208,10 +235,12 @@ async function main() {
     assert.strictEqual(res.status, 422, 'JSON hỏng → 422');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-invalid-response');
-    console.log('TEST 7 OK — output không parse được → 422 ai-invalid-response');
+    assert.ok(Array.isArray(j.details) && j.details.includes('parse-failed'), 'details nêu parse-failed');
+    assert.ok(!JSON.stringify(j).includes('{not'), 'không echo nội dung upstream');
+    console.log('TEST 7 OK — output không parse được → 422 ai-invalid-response [parse-failed]');
   }
 
-  // ---------- TEST 8: upstream trả content rỗng → 422 ai-invalid-response ----------
+  // ---------- TEST 8: upstream trả content rỗng → 422 ai-invalid-response + details ----------
   {
     const token = await signup(base, 'aiuser4');
     globalThis.fetch = async (url, opts) => {
@@ -226,7 +255,30 @@ async function main() {
     assert.strictEqual(res.status, 422, 'content rỗng → 422');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-invalid-response');
-    console.log('TEST 8 OK — content rỗng → 422 ai-invalid-response');
+    assert.ok(Array.isArray(j.details) && j.details.includes('empty-content'), 'details nêu empty-content');
+    console.log('TEST 8 OK — content rỗng → 422 ai-invalid-response [empty-content]');
+  }
+
+  // ---------- TEST 8b: upstream trả JSON bọc fence markdown → vẫn chấp nhận ----------
+  {
+    const token = await signup(base, 'aiuser4b');
+    globalThis.fetch = async (url, opts) => {
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '```json\n' + JSON.stringify({
+          summary: 'Plan có fence.',
+          actions: [{ type: 'schedule_task', taskUid: 't1', date: '2026-08-20', start: '09:00', duration: 60 }],
+        }) + '\n```' } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    };
+    const res = await plan(token, base);
+    globalThis.fetch = realFetch;
+    assert.strictEqual(res.status, 200, 'fence markdown → vẫn 200');
+    const j = await res.json();
+    assert.strictEqual(j.ok, true, 'proposal chấp nhận');
+    assert.strictEqual(j.proposal.actions[0].taskUid, 't1');
+    console.log('TEST 8b OK — JSON bọc ```json fence được strip và áp dụng');
   }
 
   // ---------- TEST 9: upstream JSON hợp lệ nhưng sai schema/ref → 422 ai-validation-failed ----------
