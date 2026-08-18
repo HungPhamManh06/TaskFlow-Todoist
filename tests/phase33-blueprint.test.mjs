@@ -58,10 +58,10 @@ test('render.yaml: DATABASE_URL comes from the Blueprint database, no credential
 test('render.yaml: AI runtime variables are declared with the backend defaults', () => {
   assert.ok(RENDER.includes('- key: AI_API_KEY\n        sync: false'),
     'AI_API_KEY phải được khai báo dạng sync: false (secret)');
-  assert.ok(RENDER.includes('- key: AI_API_URL\n        value: https://api.openai.com/v1/chat/completions'),
-    'AI_API_URL phải khớp default của server/ai.js');
-  assert.ok(RENDER.includes('- key: AI_MODEL\n        value: gpt-4o-mini'),
-    'AI_MODEL phải khớp default của server/ai.js');
+  assert.ok(RENDER.includes('- key: AI_API_URL\n        value: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'),
+    'AI_API_URL phải khớp default của server/ai.js (Gemini OpenAI-compatible)');
+  assert.ok(RENDER.includes('- key: AI_MODEL\n        value: gemini-3.6-flash'),
+    'AI_MODEL phải khớp default của server/ai.js (gemini-3.6-flash)');
   assert.ok(RENDER.includes('- key: AI_TIMEOUT_MS\n        value: "25000"'),
     'AI_TIMEOUT_MS phải khớp default của server/ai.js (25000)');
 });

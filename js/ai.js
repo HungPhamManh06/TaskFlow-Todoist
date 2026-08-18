@@ -263,10 +263,10 @@
       let j = null;
       try { j = await res.json(); } catch (e) { /* fallthrough */ }
       if (!res.ok) {
-        const code = (j && j.error) || 'ai-unavailable';
+        const code = (j && j.error) || 'ai-provider-unavailable';
         return { ok: false, error: code, details: (j && j.details) || [] };
       }
-      if (!j || !j.proposal) return { ok: false, error: 'ai-unavailable' };
+      if (!j || !j.proposal) return { ok: false, error: 'ai-provider-unavailable' };
       return { ok: true, proposal: j.proposal };
     } catch (e) {
       if (e && e.name === 'AbortError') return { ok: false, error: 'ai-timeout' };

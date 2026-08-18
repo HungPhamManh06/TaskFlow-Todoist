@@ -925,9 +925,9 @@ async function aiRun() {
   if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('aiRun'); }
   if (!resultHost) return;
   if (!res.ok) {
-    const code = res.error || 'ai-unavailable';
+    const code = res.error || 'ai-provider-unavailable';
     const msg = code === 'ai-not-configured' ? 'aiNotConfigured'
-      : code === 'ai-invalid-output' ? 'aiInvalidOutput'
+      : code === 'ai-invalid-response' || code === 'ai-validation-failed' ? 'aiInvalidOutput'
       : code === 'ai-timeout' || code === 'network' ? 'aiError' : 'aiError';
     resultHost.innerHTML = `<p class="ai-error">${esc(t(msg))}</p>`;
     return;

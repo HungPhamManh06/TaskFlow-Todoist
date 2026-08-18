@@ -304,12 +304,14 @@ App hỗ trợ **đồng bộ dữ liệu đa thiết bị qua backend riêng** 
 
 ### 🤖 AI Copilot (tuỳ chọn)
 
-AI Copilot proxy gọi **OpenAI-compatible chat completions** từ `server/ai.js`. Không cấu hình → server trả `503 ai-not-configured` và app ngầm dùng planner quy tắc (không lỗi):
+AI Copilot proxy gọi **Google Gemini** qua **OpenAI-compatible** endpoint (`generativelanguage.googleapis.com/v1beta/openai/chat/completions`) từ `server/ai.js`. Không cấu hình → server trả `503 ai-not-configured` và app ngầm dùng planner quy tắc (không lỗi):
 
-- `AI_API_KEY` — **secret**, bắt buộc để bật AI
-- `AI_API_URL` — mặc định `https://api.openai.com/v1/chat/completions` (có thể trỏ tới OpenAI-compatible endpoint khác)
-- `AI_MODEL` — mặc định `gpt-4o-mini`
+- `AI_API_KEY` — **secret** (Gemini API key từ Google AI Studio), bắt buộc để bật AI; key phải được **restrict** trong AI Studio (từ 1/6/2026 Gemini API từ chối key unrestricted)
+- `AI_API_URL` — mặc định `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` (có thể trỏ tới OpenAI-compatible endpoint khác)
+- `AI_MODEL` — mặc định `gemini-3.6-flash` (stable/GA)
 - `AI_TIMEOUT_MS` — mặc định `25000`
+
+Lỗi được chuẩn hoá (không lộ lỗi upstream thô): `ai-not-configured` · `ai-timeout` · `ai-rate-limited` · `ai-provider-unavailable` · `ai-invalid-response` · `ai-validation-failed`. Mọi lỗi đều để client fallback về planner quy tắc.
 
 ### 🔒 Phân biệt PUBLIC / SECRET config
 

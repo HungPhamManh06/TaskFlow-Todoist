@@ -1,13 +1,17 @@
-/* TaskFlow — AI Planning Copilot (V2.0).
+/* TaskFlow — AI Planning Copilot (V3.0).
    ------------------------------------------------------------
-   Vai trò: proxy gọi LLM bên thứ ba (mặc định OpenAI-compatible chat completions).
+   Vai trò: proxy gọi LLM bên thứ ba — mặc định Google Gemini qua
+   OpenAI-compatible endpoint (generativelanguage.googleapis.com/v1beta/openai).
    - AI chỉ ĐỌC context tối thiểu do client gửi lên; AI KHÔNG bao giờ ghi trực tiếp
      vào planner data — mọi thay đổi đi qua validation + Apply trên client (app.js).
    - Server là ranh giới bảo mật: chặn mọi key ngoài allowlist, strip field không
      cho phép, bỏ reflection/mood trừ khi context.allowSensitive === true.
    - KHÔNG log nội dung context/reflection/mood ở bất kỳ mức nào.
-   - Env: AI_API_KEY (bắt buộc), AI_API_URL (mặc định OpenAI), AI_MODEL, AI_TIMEOUT_MS.
-   - AI_API_KEY rỗng → 503 ai-not-configured → client ngầm dùng planner quy tắc. */
+   - Env: AI_API_KEY (bắt buộc), AI_API_URL (mặc định Gemini), AI_MODEL, AI_TIMEOUT_MS.
+   - AI_API_KEY rỗng → 503 ai-not-configured → client ngầm dùng planner quy tắc.
+   - Lỗi chuẩn hoá: ai-not-configured · ai-timeout · ai-rate-limited ·
+     ai-provider-unavailable · ai-invalid-response · ai-validation-failed.
+     KHÔNG bao giờ lộ lỗi upstream thô. */
 'use strict';
 const express = require('express');
 const { authMiddleware } = require('./auth');
@@ -16,8 +20,8 @@ const router = express.Router();
 router.use(authMiddleware);
 
 const AI_API_KEY = process.env.AI_API_KEY || '';
-const AI_API_URL = process.env.AI_API_URL || 'https://api.openai.com/v1/chat/completions';
-const AI_MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
+const AI_API_URL = process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+const AI_MODEL = process.env.AI_MODEL || 'gemini-3.6-flash';
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 25000;
 
 const KINDS = ['plan_day', 'plan_week', 'next_actions', 'breakdown_project', 'breakdown_milestone', 'reschedule'];
@@ -230,28 +234,32 @@ router.post('/plan', async (req, res) => {
     } catch (e) {
       clearTimeout(timer);
       if (e && e.name === 'AbortError') return res.status(504).json({ error: 'ai-timeout' });
-      return res.status(502).json({ error: 'ai-unavailable' });
+      return res.status(502).json({ error: 'ai-provider-unavailable' });
     }
     clearTimeout(timer);
-    if (!upstream.ok) return res.status(502).json({ error: 'ai-unavailable' });
+    if (!upstream.ok) {
+      // 429 (rate limit) là tạm thời — client fallback về planner quy tắc, không retry.
+      if (upstream.status === 429) return res.status(429).json({ error: 'ai-rate-limited' });
+      return res.status(502).json({ error: 'ai-provider-unavailable' });
+    }
 
     let json;
     try {
       json = await upstream.json();
     } catch (e) {
-      return res.status(502).json({ error: 'ai-unavailable' });
+      return res.status(502).json({ error: 'ai-provider-unavailable' });
     }
     const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-    if (typeof content !== 'string' || !content.trim()) return res.status(502).json({ error: 'ai-unavailable' });
+    if (typeof content !== 'string' || !content.trim()) return res.status(422).json({ error: 'ai-invalid-response' });
 
     let proposal;
     try {
       proposal = JSON.parse(content);
     } catch (e) {
-      return res.status(422).json({ error: 'ai-invalid-output' });
+      return res.status(422).json({ error: 'ai-invalid-response' });
     }
     const v = validateProposal(proposal, { taskUids, projectIds, milestoneIds });
-    if (!v.ok) return res.status(422).json({ error: 'ai-invalid-output', details: v.errors.slice(0, 5) });
+    if (!v.ok) return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
     return res.json({ ok: true, proposal });
   } catch (e) {
     return res.status(500).json({ error: 'server-error' });

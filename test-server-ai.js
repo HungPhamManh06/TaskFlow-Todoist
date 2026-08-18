@@ -1,17 +1,20 @@
 'use strict';
-/* Test backend AI Planning Copilot (V2.0) — chạy backend thật (pg-mem).
+/* Test backend AI Planning Copilot (V3.0 — Gemini) — chạy backend thật (pg-mem).
    Không gọi LLM thật: stub global fetch để kiểm tra proxy pipeline
    (auth → sanitize → schema validation → referential → upstream → validate).
    AI_API_KEY phải set TRƯỚC khi require server/index (ai.js đọc env lúc load). */
 process.env.AI_API_KEY = 'test-ai-key';
-process.env.AI_API_URL = 'https://llm.invalid/v1/chat/completions';
-process.env.AI_TIMEOUT_MS = '3000';
+process.env.AI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+process.env.AI_MODEL = 'gemini-3.6-flash';
+process.env.AI_TIMEOUT_MS = '500';
+process.env.AUTH_RATE_LIMIT_MAX = '1000'; // tránh rate limiter signup khi chạy nhiều suite liên tiếp
 
 const assert = require('assert');
 const { app, ensureSchema } = require('./server/index');
 const { validateProposal, sanitizeContext, buildPrompt } = require('./server/ai');
 
 const realFetch = globalThis.fetch;
+const AI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 
 async function signup(base, username) {
   const r = await fetch(base + '/api/auth/signup', {
@@ -42,6 +45,14 @@ const goodContext = {
   allowSensitive: false,
 };
 
+function plan(token, base, ctx) {
+  return fetch(base + '/api/ai/plan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ kind: 'plan_day', context: ctx || goodContext }),
+  });
+}
+
 async function main() {
   await ensureSchema();
   const server = await new Promise((resolve) => {
@@ -52,10 +63,7 @@ async function main() {
 
   // ---------- TEST 1: /api/ai/plan cần Bearer token ----------
   {
-    const res = await fetch(base + '/api/ai/plan', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'plan_day', context: goodContext }),
-    });
+    const res = await plan('', base);
     assert.strictEqual(res.status, 401, 'thiếu token → 401');
     console.log('TEST 1 OK — /api/ai/plan yêu cầu auth');
   }
@@ -148,12 +156,16 @@ async function main() {
     console.log('TEST 5 OK — buildPrompt VI/EN + chỉ context đã sanitize');
   }
 
-  // ---------- TEST 6: upstream OK → trả proposal đã validate ----------
+  // ---------- TEST 6: upstream OK → trả proposal đã validate; request đúng Gemini ----------
   {
     const token = await signup(base, 'aiuser2');
+    let upstreamUrl = null;
+    let upstreamOpts = null;
     let upstreamBody = null;
     globalThis.fetch = async (url, opts) => {
-      if (!String(url).includes('/v1/chat/completions')) return realFetch(url, opts);
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
+      upstreamUrl = String(url);
+      upstreamOpts = opts;
       upstreamBody = JSON.parse(opts.body);
       return new Response(JSON.stringify({
         choices: [{ message: { content: JSON.stringify({
@@ -162,66 +174,157 @@ async function main() {
         }) } }],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     };
-    const res = await fetch(base + '/api/ai/plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ kind: 'plan_day', context: goodContext }),
-    });
+    const res = await plan(token, base);
     globalThis.fetch = realFetch;
     assert.strictEqual(res.status, 200, 'upstream OK → 200');
     const j = await res.json();
     assert.strictEqual(j.ok, true);
     assert.strictEqual(j.proposal.actions[0].taskUid, 't1');
+    // Request upstream phải đúng Gemini OpenAI-compatible endpoint + Bearer key + model
+    assert.strictEqual(upstreamUrl, AI_URL, 'gọi đúng Gemini endpoint');
+    assert.strictEqual(upstreamOpts.headers.Authorization, 'Bearer test-ai-key', 'Bearer = AI_API_KEY');
+    assert.strictEqual(upstreamBody.model, 'gemini-3.6-flash', 'model = gemini-3.6-flash');
+    assert.strictEqual(upstreamBody.response_format.type, 'json_object', 'yêu cầu JSON output');
+    assert.strictEqual(upstreamBody.messages.length, 2, 'system + user');
     // Context gửi lên upstream đã sanitize (không chứa field lạ / reflection)
     const sent = upstreamBody.messages[1].content;
     assert.ok(sent.includes('"tasks"'), 'upstream nhận context JSON');
     assert.ok(!sent.includes('secret'), 'upstream không nhận field lạ');
-    console.log('TEST 6 OK — upstream OK → proposal hợp lệ trả về, context sanitized');
+    console.log('TEST 6 OK — Gemini endpoint/model/Bearer đúng + proposal hợp lệ trả về');
   }
 
-  // ---------- TEST 7: upstream trả output malformed → 422 ----------
+  // ---------- TEST 7: upstream trả JSON hỏng → 422 ai-invalid-response ----------
   {
     const token = await signup(base, 'aiuser3');
     globalThis.fetch = async (url, opts) => {
-      if (!String(url).includes('/v1/chat/completions')) return realFetch(url, opts);
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
       return new Response(
         JSON.stringify({ choices: [{ message: { content: '{not json' } }] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       );
     };
-    const res = await fetch(base + '/api/ai/plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ kind: 'plan_day', context: goodContext }),
-    });
+    const res = await plan(token, base);
     globalThis.fetch = realFetch;
     assert.strictEqual(res.status, 422, 'JSON hỏng → 422');
     const j = await res.json();
-    assert.strictEqual(j.error, 'ai-invalid-output');
-    console.log('TEST 7 OK — output malformed → 422');
+    assert.strictEqual(j.error, 'ai-invalid-response');
+    console.log('TEST 7 OK — output không parse được → 422 ai-invalid-response');
   }
 
-  // ---------- TEST 8: upstream fail (network / 5xx) → 502 ----------
+  // ---------- TEST 8: upstream trả content rỗng → 422 ai-invalid-response ----------
   {
     const token = await signup(base, 'aiuser4');
     globalThis.fetch = async (url, opts) => {
-      if (!String(url).includes('/v1/chat/completions')) return realFetch(url, opts);
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '   ' } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    };
+    const res = await plan(token, base);
+    globalThis.fetch = realFetch;
+    assert.strictEqual(res.status, 422, 'content rỗng → 422');
+    const j = await res.json();
+    assert.strictEqual(j.error, 'ai-invalid-response');
+    console.log('TEST 8 OK — content rỗng → 422 ai-invalid-response');
+  }
+
+  // ---------- TEST 9: upstream JSON hợp lệ nhưng sai schema/ref → 422 ai-validation-failed ----------
+  {
+    const token = await signup(base, 'aiuser5');
+    globalThis.fetch = async (url, opts) => {
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({
+          summary: 'Plan sai',
+          actions: [
+            { type: 'schedule_task', taskUid: 'ghost', date: '2026-08-20', start: '09:00', duration: 60 },
+            { type: 'schedule_task', taskUid: 't1', date: '2026-13-40', start: '25:00', duration: 9999 },
+          ],
+        }) } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+    const res = await plan(token, base);
+    globalThis.fetch = realFetch;
+    assert.strictEqual(res.status, 422, 'proposal vi phạm schema/ref → 422');
+    const j = await res.json();
+    assert.strictEqual(j.error, 'ai-validation-failed', 'mã lỗi ai-validation-failed');
+    assert.ok(Array.isArray(j.details) && j.details.length > 0, 'details chứa lý do');
+    assert.ok(j.details.some((e) => e.includes('unknown-task')), 'details nêu task ảo');
+    assert.ok(j.details.some((e) => e.includes('invalid-date')), 'details nêu ngày sai');
+    console.log('TEST 9 OK — schema/ref sai → 422 ai-validation-failed + details');
+  }
+
+  // ---------- TEST 10: upstream 429 → 429 ai-rate-limited ----------
+  {
+    const token = await signup(base, 'aiuser6');
+    globalThis.fetch = async (url, opts) => {
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
+      return new Response(JSON.stringify({ error: 'rate limited' }), { status: 429 });
+    };
+    const res = await plan(token, base);
+    globalThis.fetch = realFetch;
+    assert.strictEqual(res.status, 429, 'upstream 429 → 429');
+    const j = await res.json();
+    assert.strictEqual(j.error, 'ai-rate-limited');
+    console.log('TEST 10 OK — upstream 429 → 429 ai-rate-limited');
+  }
+
+  // ---------- TEST 11: upstream 500 → 502 ai-provider-unavailable ----------
+  {
+    const token = await signup(base, 'aiuser7');
+    globalThis.fetch = async (url, opts) => {
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
+      return new Response(JSON.stringify({ error: 'boom' }), { status: 500 });
+    };
+    const res = await plan(token, base);
+    globalThis.fetch = realFetch;
+    assert.strictEqual(res.status, 502, 'upstream 500 → 502');
+    const j = await res.json();
+    assert.strictEqual(j.error, 'ai-provider-unavailable');
+    assert.ok(!JSON.stringify(j).includes('boom'), 'không lộ lỗi upstream thô');
+    console.log('TEST 11 OK — upstream 500 → 502 ai-provider-unavailable (không lộ chi tiết)');
+  }
+
+  // ---------- TEST 12: upstream network fail → 502 ai-provider-unavailable ----------
+  {
+    const token = await signup(base, 'aiuser8');
+    globalThis.fetch = async (url, opts) => {
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
       throw new Error('boom');
     };
-    const res = await fetch(base + '/api/ai/plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ kind: 'plan_day', context: goodContext }),
-    });
+    const res = await plan(token, base);
     globalThis.fetch = realFetch;
     assert.strictEqual(res.status, 502, 'network fail → 502');
-    console.log('TEST 8 OK — upstream network fail → 502');
+    const j = await res.json();
+    assert.strictEqual(j.error, 'ai-provider-unavailable');
+    console.log('TEST 12 OK — upstream network fail → 502 ai-provider-unavailable');
+  }
+
+  // ---------- TEST 13: upstream treo quá AI_TIMEOUT_MS → 504 ai-timeout ----------
+  {
+    const token = await signup(base, 'aiuser9');
+    globalThis.fetch = async (url, opts) => {
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
+      return new Promise((_, reject) => {
+        opts.signal.addEventListener('abort', () =>
+          reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+      });
+    };
+    const t0 = Date.now();
+    const res = await plan(token, base);
+    globalThis.fetch = realFetch;
+    assert.strictEqual(res.status, 504, 'timeout → 504');
+    assert.ok(Date.now() - t0 < 5000, 'timeout phải nhanh (AI_TIMEOUT_MS=500)');
+    const j = await res.json();
+    assert.strictEqual(j.error, 'ai-timeout');
+    console.log('TEST 13 OK — upstream treo → 504 ai-timeout (AbortController)');
   }
 
   console.log('\nALL SERVER AI TESTS PASS');
   server.close();
 
-  // ---------- TEST 9: AI_API_KEY rỗng → 503 ai-not-configured ----------
+  // ---------- TEST 14: AI_API_KEY rỗng → 503 ai-not-configured ----------
   // Require lại ai.js trong cùng process với env đã xoá (ai.js đọc key lúc load).
   {
     const savedKey = process.env.AI_API_KEY;
@@ -238,7 +341,7 @@ async function main() {
     const base2 = 'http://127.0.0.1:' + s2.address().port;
     // Mint token trực tiếp bằng dev secret (auth.router không nằm trong app2).
     const jwt = require('./server/node_modules/jsonwebtoken');
-    const token = jwt.sign({ uid: 999, uname: 'aiuser5' }, 'dev-only-secret-pgmem-local');
+    const token = jwt.sign({ uid: 999, uname: 'aiuser10' }, 'dev-only-secret-pgmem-local');
     const res = await fetch(base2 + '/api/ai/plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
@@ -248,7 +351,7 @@ async function main() {
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-not-configured');
     s2.close();
-    console.log('TEST 9 OK — thiếu AI_API_KEY → 503 ai-not-configured (fallback planner quy tắc)');
+    console.log('TEST 14 OK — thiếu AI_API_KEY → 503 ai-not-configured (fallback planner quy tắc)');
   }
 
   console.log('\nALL SERVER AI TESTS PASS (incl. not-configured)');
