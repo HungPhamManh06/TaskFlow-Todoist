@@ -780,6 +780,14 @@ function openPlannerModal() {
 
 // ---- V2.0 — AI Copilot (optional). AI đề xuất; user bấm Apply; mọi ghi state qua API chuẩn. ----
 
+// plan_day (P8 latency): chỉ task hôm nay — tránh gửi cả tháng + inbox lên Gemini.
+function aiTodayTasks() {
+  const seen = new Set();
+  const out = [];
+  todayPlannerTasks().forEach((tk) => { if (tk && tk.uid && !seen.has(tk.uid)) { seen.add(tk.uid); out.push(tk); } });
+  return out;
+}
+
 // Danh sách task duy nhất theo uid: hôm nay + cả tháng + inbox.
 function aiCollectTasks() {
   const seen = new Set();
@@ -876,7 +884,7 @@ function aiBuildContext(kind, extra) {
     weekEnd,
     selectedProjectId: x.selectedProjectId || '',
     selectedMilestoneId: x.selectedMilestoneId || '',
-    tasks: aiCollectTasks(),
+    tasks: kind === 'plan_day' ? aiTodayTasks() : aiCollectTasks(),
     projects: allProjects,
     milestones: allMilestones,
     timeblocks: kind === 'plan_day' ? allBlocks.filter((b) => b.date === today) : allBlocks,

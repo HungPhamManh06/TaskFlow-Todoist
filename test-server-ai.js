@@ -1,9 +1,10 @@
 'use strict';
-/* Test backend AI Planning Copilot (V3.1 — Gemini structured output).
+/* Test backend AI Planning Copilot (V3.2 — Gemini latency tuning).
    Chạy backend thật (pg-mem). Không gọi LLM thật: stub global fetch để kiểm tra
    proxy pipeline (auth → sanitize → schema validation → referential → upstream
-   json_schema → parse hardening → validate).
-   AI_API_KEY phải set TRƯỚC khi require server/index (ai.js đọc env lúc load). */
+   json_schema + reasoning_effort=low → parse hardening → validate → latency).
+   AI_API_KEY phải set TRƯỚC khi require server/index (ai.js đọc env lúc load).
+   AI_TIMEOUT_MS=500 để test timeout nhanh; mặc định production là 60000. */
 process.env.AI_API_KEY = 'test-ai-key';
 process.env.AI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 process.env.AI_MODEL = 'gemini-3.6-flash';
@@ -181,10 +182,13 @@ async function main() {
     const j = await res.json();
     assert.strictEqual(j.ok, true);
     assert.strictEqual(j.proposal.actions[0].taskUid, 't1');
+    assert.ok(!('meta' in j), 'không có meta khi không debug (không mở rộng API surface)');
     // Request upstream phải đúng Gemini OpenAI-compatible endpoint + Bearer key + model
     assert.strictEqual(upstreamUrl, AI_URL, 'gọi đúng Gemini endpoint');
     assert.strictEqual(upstreamOpts.headers.Authorization, 'Bearer test-ai-key', 'Bearer = AI_API_KEY');
     assert.strictEqual(upstreamBody.model, 'gemini-3.6-flash', 'model = gemini-3.6-flash');
+    // Latency tuning: reasoning_effort low (TEST D) — Gemini 3.6 default MEDIUM/8192 quá chậm
+    assert.strictEqual(upstreamBody.reasoning_effort, 'low', 'reasoning_effort = low');
     // Structured output: json_schema (không phải json_object) + schema TaskFlow
     assert.strictEqual(upstreamBody.response_format.type, 'json_schema', 'response_format là json_schema');
     const js = upstreamBody.response_format.json_schema;
@@ -205,6 +209,48 @@ async function main() {
     assert.ok(sent.includes('"tasks"'), 'upstream nhận context JSON');
     assert.ok(!sent.includes('secret'), 'upstream không nhận field lạ');
     console.log('TEST 6 OK — Gemini json_schema structured output, không sampling param, proposal hợp lệ');
+  }
+
+  // ---------- TEST 6c: latency — mock đáp ứng 100ms và 400ms (< timeout 500ms) → success ----------
+  {
+    const delayStub = (ms) => async (url, opts) => {
+      if (!String(url).includes('/chat/completions')) return realFetch(url, opts);
+      await new Promise((r) => setTimeout(r, ms));
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({
+          summary: 'Plan nhanh.',
+          actions: [{ type: 'next_action', text: 'X' }],
+        }) } }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
+    const token = await signup(base, 'aiuser2c');
+    for (const [label, ms] of [['TEST A: 100ms', 100], ['TEST B: 400ms (< timeout)', 400]]) {
+      globalThis.fetch = delayStub(ms);
+      const t0 = Date.now();
+      const res = await plan(token, base);
+      const elapsed = Date.now() - t0;
+      globalThis.fetch = realFetch;
+      assert.strictEqual(res.status, 200, label + ' → success');
+      const j = await res.json();
+      assert.strictEqual(j.ok, true, label + ' → proposal hợp lệ');
+      assert.ok(elapsed >= ms, label + ' thật sự chờ upstream');
+      console.log(label + ' OK — latency=' + elapsed + 'ms (upstream ' + ms + 'ms)');
+    }
+    // Meta debug: chỉ khi ?debug=1
+    globalThis.fetch = delayStub(50);
+    const resDbg = await fetch(base + '/api/ai/plan?debug=1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ kind: 'plan_day', context: goodContext }),
+    });
+    globalThis.fetch = realFetch;
+    assert.strictEqual(resDbg.status, 200, 'debug=1 vẫn success');
+    const jDbg = await resDbg.json();
+    assert.ok(jDbg.meta && jDbg.meta.provider === 'gemini', 'meta.provider = gemini');
+    assert.strictEqual(jDbg.meta.model, 'gemini-3.6-flash', 'meta.model');
+    assert.ok(typeof jDbg.meta.latencyMs === 'number' && jDbg.meta.latencyMs >= 0, 'meta.latencyMs số');
+    assert.ok(!('usage' in jDbg.meta), 'meta không lộ token usage');
+    console.log('TEST 6c OK — meta chỉ khi ?debug=1: provider/model/latencyMs, không token usage');
   }
 
   // ---------- TEST 6b: parseProposalContent — whitespace + fence markdown + reject lạ ----------
@@ -366,11 +412,11 @@ async function main() {
     const t0 = Date.now();
     const res = await plan(token, base);
     globalThis.fetch = realFetch;
-    assert.strictEqual(res.status, 504, 'timeout → 504');
+    assert.strictEqual(res.status, 504, 'quá hạn timeout → 504');
     assert.ok(Date.now() - t0 < 5000, 'timeout phải nhanh (AI_TIMEOUT_MS=500)');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-timeout');
-    console.log('TEST 13 OK — upstream treo → 504 ai-timeout (AbortController)');
+    console.log('TEST 13 OK (TEST C) — upstream vượt timeout → 504 ai-timeout (AbortController)');
   }
 
   console.log('\nALL SERVER AI TESTS PASS');

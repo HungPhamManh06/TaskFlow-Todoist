@@ -62,8 +62,8 @@ test('render.yaml: AI runtime variables are declared with the backend defaults',
     'AI_API_URL phải khớp default của server/ai.js (Gemini OpenAI-compatible)');
   assert.ok(RENDER.includes('- key: AI_MODEL\n        value: gemini-3.6-flash'),
     'AI_MODEL phải khớp default của server/ai.js (gemini-3.6-flash)');
-  assert.ok(RENDER.includes('- key: AI_TIMEOUT_MS\n        value: "25000"'),
-    'AI_TIMEOUT_MS phải khớp default của server/ai.js (25000)');
+  assert.ok(RENDER.includes('- key: AI_TIMEOUT_MS\n        value: "60000"'),
+    'AI_TIMEOUT_MS phải khớp default của server/ai.js (60000)');
 });
 
 test('render.yaml: no committed secret values at all', () => {

@@ -309,11 +309,11 @@ AI Copilot proxy gọi **Google Gemini** qua **OpenAI-compatible** endpoint (`ge
 - `AI_API_KEY` — **secret** (Gemini API key từ Google AI Studio), bắt buộc để bật AI; key phải được **restrict** trong AI Studio (từ 1/6/2026 Gemini API từ chối key unrestricted)
 - `AI_API_URL` — mặc định `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` (có thể trỏ tới OpenAI-compatible endpoint khác)
 - `AI_MODEL` — mặc định `gemini-3.6-flash` (stable/GA)
-- `AI_TIMEOUT_MS` — mặc định `25000`
+- `AI_TIMEOUT_MS` — mặc định `60000` (trần cứng, AbortController; không retry tự động)
 
 Lỗi được chuẩn hoá (không lộ lỗi upstream thô): `ai-not-configured` · `ai-timeout` · `ai-rate-limited` · `ai-provider-unavailable` · `ai-invalid-response` (+ `details: ["parse-failed" | "empty-content"]`) · `ai-validation-failed` (+ `details: ["action-0-unknown-task", …]`). Mọi lỗi đều để client fallback về planner quy tắc.
 
-Gemini 3.x deprecated sampling params (`temperature`/`top_p`/`top_k`) — server không gửi các tham số này; output được ép theo schema `json_schema` (structured output) và vẫn qua `validateProposal` phía server. Debug: mở app với `?debug=1` để xem mã lỗi + validation code trong console (không bao giờ log prompt/context).
+Gemini 3.x deprecated sampling params (`temperature`/`top_p`/`top_k`) — server không gửi các tham số này; output được ép theo schema `json_schema` (structured output) và vẫn qua `validateProposal` phía server. Server gửi `reasoning_effort: "low"` (→ `thinking_level` LOW của Gemini 3.6, 1024 thinking tokens thay vì default MEDIUM/8192) để giảm latency; không dùng chung với `google.thinking_config`. Debug: mở app với `?debug=1` để xem mã lỗi + validation code trong console, và `POST /api/ai/plan?debug=1` trả thêm `meta.provider/model/latencyMs` (không bao gồm token usage). Server log `[ai] provider/model/status/latencyMs` — không bao giờ log prompt/context/reflection/mood/key.
 
 ### 🔒 Phân biệt PUBLIC / SECRET config
 

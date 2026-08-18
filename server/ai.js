@@ -11,6 +11,13 @@
      oneOf/anyOf vì ngoài subset JSON Schema của Gemini; wide-union + server
      validateProposal là ranh giới cuối cùng.
    - Gemini 3.x deprecated sampling params (temperature/top_p/top_k) — KHÔNG gửi.
+   - reasoning_effort="low" (OpenAI-compat) → thinking_level LOW của Gemini 3.6
+     (1024 thinking tokens thay vì default MEDIUM/8192) — đủ cho planning có ràng
+     buộc, giảm latency. KHÔNG dùng chung với google.thinking_config.
+   - AI_TIMEOUT_MS = 60000 là trần cứng (AbortController); không retry tự động.
+   - Latency log chỉ gồm provider/model/status/latencyMs — KHÔNG bao giờ log
+     prompt/context/task text/reflection/mood/auth/key.
+   - meta (provider/model/latencyMs) chỉ trả về khi request có ?debug=1.
    - Env: AI_API_KEY (bắt buộc), AI_API_URL (mặc định Gemini), AI_MODEL, AI_TIMEOUT_MS.
    - AI_API_KEY rỗng → 503 ai-not-configured → client ngầm dùng planner quy tắc.
    - Lỗi chuẩn hoá: ai-not-configured · ai-timeout · ai-rate-limited ·
@@ -27,7 +34,7 @@ router.use(authMiddleware);
 const AI_API_KEY = process.env.AI_API_KEY || '';
 const AI_API_URL = process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 const AI_MODEL = process.env.AI_MODEL || 'gemini-3.6-flash';
-const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 25000;
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 60000;
 
 const KINDS = ['plan_day', 'plan_week', 'next_actions', 'breakdown_project', 'breakdown_milestone', 'reschedule'];
 const ACTION_TYPES = ['schedule_task', 'reschedule_task', 'next_action'];
@@ -262,6 +269,7 @@ router.post('/plan', async (req, res) => {
     const milestoneIds = new Set((ctx.milestones || []).map((m) => m && m.id).filter(Boolean));
 
     const { system, user } = buildPrompt(ctx);
+    const startedAt = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
     let upstream;
@@ -274,6 +282,7 @@ router.post('/plan', async (req, res) => {
         },
         body: JSON.stringify({
           model: AI_MODEL,
+          reasoning_effort: 'low',
           max_tokens: 1200,
           response_format: {
             type: 'json_schema',
@@ -292,13 +301,23 @@ router.post('/plan', async (req, res) => {
       });
     } catch (e) {
       clearTimeout(timer);
-      if (e && e.name === 'AbortError') return res.status(504).json({ error: 'ai-timeout' });
+      const latencyMs = Date.now() - startedAt;
+      if (e && e.name === 'AbortError') {
+        console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=timeout latencyMs=' + latencyMs);
+        return res.status(504).json({ error: 'ai-timeout' });
+      }
+      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=upstream-error latencyMs=' + latencyMs);
       return res.status(502).json({ error: 'ai-provider-unavailable' });
     }
     clearTimeout(timer);
+    const latencyMs = Date.now() - startedAt;
     if (!upstream.ok) {
       // 429 (rate limit) là tạm thời — client fallback về planner quy tắc, không retry.
-      if (upstream.status === 429) return res.status(429).json({ error: 'ai-rate-limited' });
+      if (upstream.status === 429) {
+        console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=rate-limited latencyMs=' + latencyMs);
+        return res.status(429).json({ error: 'ai-rate-limited' });
+      }
+      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=http-' + upstream.status + ' latencyMs=' + latencyMs);
       return res.status(502).json({ error: 'ai-provider-unavailable' });
     }
 
@@ -310,17 +329,28 @@ router.post('/plan', async (req, res) => {
     }
     const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
     if (typeof content !== 'string' || !content.trim()) {
+      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=empty-content latencyMs=' + latencyMs);
       return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
     }
 
     const proposal = parseProposalContent(content);
     if (proposal === null) {
       // Chỉ nêu loại lỗi parse — KHÔNG bao giờ echo nội dung upstream.
+      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=parse-failed latencyMs=' + latencyMs);
       return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
     }
     const v = validateProposal(proposal, { taskUids, projectIds, milestoneIds });
-    if (!v.ok) return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
-    return res.json({ ok: true, proposal });
+    if (!v.ok) {
+      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=validation-failed latencyMs=' + latencyMs);
+      return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
+    }
+    console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=success latencyMs=' + latencyMs);
+    const resp = { ok: true, proposal };
+    if (req.query && req.query.debug === '1') {
+      // Meta chỉ khi debug — không bao giờ lộ token usage / prompt.
+      resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs };
+    }
+    return res.json(resp);
   } catch (e) {
     return res.status(500).json({ error: 'server-error' });
   }
