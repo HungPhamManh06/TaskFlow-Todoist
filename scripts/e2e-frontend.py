@@ -3126,6 +3126,38 @@ def planner_checks(browser, base, width, height, errors, screenshot):
     first_text = page.locator('.planner-top-item').first.locator('.planner-top-text').inner_text()
     assert "overdue" in first_text, f"task quá hạn phải xếp đầu, thấy: {first_text}"
 
+    # P11 (VI): không raw i18n key trong modal
+    modal_text = page.locator('[data-testid="planner-modal"]').inner_text()
+    raw_keys = ["plannerStep", "plannerReason", "plannerPlanned", "plannerAvailable",
+                "plannerHours", "plannerNoDur", "plannerPreview", "plannerApplyNote"]
+    for rk in raw_keys:
+        assert rk not in modal_text, f"VI modal lộ raw key {rk}"
+
+    # P9: score hiển thị có nhãn dịch, không naked number
+    score_texts = page.locator('.planner-top-score').all_inner_texts()
+    assert len(score_texts) == 2, f"phải có 2 score, thấy {score_texts}"
+    assert all("ưu tiên" in s for s in score_texts), f"score phải có nhãn dịch, thấy {score_texts}"
+
+    # P10: duration theo ngôn ngữ (VI: phút/giờ), không 'min' cứng
+    meta_text = page.locator('.planner-top-meta').all_inner_texts()
+    assert any("phút" in m for m in meta_text), f"duration phải tiếng Việt, thấy {meta_text}"
+    assert not any(" min" in m for m in meta_text), f"không được lộ 'min' trong bản VI, thấy {meta_text}"
+
+    # P8: MỘT container scroll duy nhất — planner-body không tự scroll, modal card scroll
+    body_style = page.evaluate("""() => {
+      const b = document.querySelector('#plannerModal .planner-body');
+      const cs = getComputedStyle(b);
+      return { maxHeight: cs.maxHeight, overflowY: cs.overflowY,
+               scrollH: b.scrollHeight, clientH: b.clientHeight };
+    }""")
+    assert body_style["maxHeight"] == "none", f"planner-body phải bỏ max-height, thấy {body_style['maxHeight']}"
+    assert body_style["overflowY"] == "visible", "planner-body không được tự scroll"
+    card_style = page.evaluate("""() => {
+      const c = document.querySelector('#plannerModal .report-modal-card');
+      return getComputedStyle(c).overflowY;
+    }""")
+    assert card_style in ("auto", "scroll"), f"modal card phải là container scroll, thấy {card_style}"
+
     # 2) Cancel → KHÔNG thay đổi data
     page.locator('[data-action="planner-cancel"]').click()
     page.wait_for_selector('[data-testid="planner-modal"]:visible', state="detached")
@@ -4020,12 +4052,13 @@ def gcal_month_pending_checks(browser, base, width, height, errors, screenshot):
     ctx.close()
 
 def ai_checks(browser, base, width, height, errors, screenshot):
-    """V2.0: AI Copilot — proposal → preview → explicit Apply (không tự ghi state).
-    1) seed 2 task hôm nay + 2 TimeBlock → mở planner → AI panel + consent chips
-       (tasks/projects/schedule checked, reflections/mood unchecked)
-    2) ai-run với stub proposal hợp lệ → preview hiện summary + action list
+    """V2.1: AI Copilot — proposal → preview (không UID nội bộ) → mode ai/rule → Apply.
+    1) seed 2 task hôm nay (uid kiểu nội bộ) + 2 TimeBlock → mở planner → AI panel
+       + consent chips (tasks/projects/schedule checked, reflections/mood unchecked)
+    2) ai-run với stub proposal hợp lệ → preview hiện TÊN task, KHÔNG hiện UID;
+       rule planner content + footer ẨN (data-plan-mode=ai) → đúng 1 Apply CTA
     3) request body gửi lên server không chứa reflections/mood (allowSensitive=false)
-    4) ai-cancel → KHÔNG thay đổi data (planner-timeblocks giữ nguyên)
+    4) ai-cancel → preview sạch, rule planner + footer KHÔI PHỤC, data không đổi
     5) ai-run → ai-apply → tạo đúng 1 TimeBlock mới (10:00-11:00), modal đóng.
     """
     import json
@@ -4066,20 +4099,21 @@ def ai_checks(browser, base, width, height, errors, screenshot):
       const yst = new Date(year, month, now.getDate() - 1);
       const ystIso = yst.getFullYear() + '-' + String(yst.getMonth() + 1).padStart(2,'0') + '-' + String(yst.getDate()).padStart(2,'0');
       dayState.tasks = [
-        { uid: 'ai-t1', kind: 'regular', done: false, text: 'AI task one', estimatedMinutes: 60,
+        { uid: 'tmsyccp56u6k5r5', kind: 'regular', done: false, text: 'Học Database 60 phút', estimatedMinutes: 60,
           deadline: ystIso, tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
-        { uid: 'ai-t2', kind: 'regular', done: false, text: 'AI task two', estimatedMinutes: 30,
+        { uid: 'tmsyccp56jl7dsb', kind: 'regular', done: false, text: 'Không TikTok trước 18h', estimatedMinutes: 30,
           tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
       ];
       localStorage.setItem(key, JSON.stringify(state));
       const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
       localStorage.setItem('planner-timeblocks', JSON.stringify({ version: 1, blocks: [
-        { id: 'ai-b1', taskUid: 'ai-t2', date: today, start: '09:00', end: '10:00', status: 'planned', createdAt: '', updatedAt: '' },
-        { id: 'ai-b2', taskUid: 'ai-t1', date: today, start: '11:00', end: '12:00', status: 'planned', createdAt: '', updatedAt: '' },
+        { id: 'ai-b1', taskUid: 'tmsyccp56jl7dsb', date: today, start: '09:00', end: '10:00', status: 'planned', createdAt: '', updatedAt: '' },
+        { id: 'ai-b2', taskUid: 'tmsyccp56u6k5r5', date: today, start: '11:00', end: '12:00', status: 'planned', createdAt: '', updatedAt: '' },
       ] }));
     })()""")
 
     ai_bodies = []
+    ai_fail_mode = [False]
 
     def handle_ai(route):
         url = route.request.url
@@ -4089,14 +4123,18 @@ def ai_checks(browser, base, width, height, errors, screenshot):
                 ai_bodies.append(body)
             except Exception:
                 pass
-            # Proposal hợp lệ: schedule ai-t1 vào khe trống 10:00-11:00 + 1 gợi ý.
+            if ai_fail_mode[0]:
+                route.fulfill(status=503, content_type="application/json",
+                              body=json.dumps({"error": "ai-not-configured"}))
+                return
+            # Proposal hợp lệ: schedule tmsyccp56u6k5r5 vào khe trống 10:00-11:00 + 1 gợi ý.
             today = datetime.date.today().isoformat()
             payload = {
                 "ok": True,
                 "proposal": {
-                    "summary": "Plan for today: focus on AI task one.",
+                    "summary": "Plan for today: focus on Học Database 60 phút.",
                     "actions": [
-                        {"type": "schedule_task", "taskUid": "ai-t1",
+                        {"type": "schedule_task", "taskUid": "tmsyccp56u6k5r5",
                          "date": today, "start": "10:00", "duration": 60},
                         {"type": "next_action", "text": "Review inbox"},
                     ],
@@ -4123,15 +4161,33 @@ def ai_checks(browser, base, width, height, errors, screenshot):
     assert set(checked) == {"tasks", "projects", "schedule"}, f"mặc định chỉ tasks/projects/schedule, thấy: {checked}"
     assert page.locator('[data-ai-consent="reflections"]:checked').count() == 0, "reflections mặc định TẮT"
     assert page.locator('[data-ai-consent="mood"]:checked').count() == 0, "mood mặc định TẮT"
+    # P11 (EN): không raw i18n key trong modal
+    modal_vi_text = page.locator('[data-testid="planner-modal"]').inner_text()
+    raw_keys = ["plannerStep", "plannerReason", "plannerPlanned", "plannerAvailable",
+                "plannerHours", "plannerNoDur", "plannerPreview", "plannerApplyNote"]
+    for rk in raw_keys:
+        assert rk not in modal_vi_text, f"EN modal lộ raw key {rk}"
 
-    # 2) ai-run → preview hiện summary + 2 action
+    # 2) ai-run → preview hiện TÊN task + KHÔNG UID; mode=ai: rule content+footer ẩn
     before_blocks = page.evaluate("JSON.stringify(JSON.parse(localStorage.getItem('planner-timeblocks')).blocks)")
     page.locator('[data-action="ai-run"]').click()
     page.wait_for_selector('[data-role="ai-preview"]', state="visible", timeout=8000)
     summary = page.locator('.ai-summary').inner_text()
-    assert "AI task one" in summary, f"summary phải mention task, thấy: {summary}"
-    assert page.locator('.ai-actions-list li').count() == 2, "preview phải có 2 action"
+    assert "Học Database 60 phút" in summary, f"summary phải mention task, thấy: {summary}"
+    assert page.locator('.ai-plan-list li').count() == 2, "preview phải có 2 action"
     assert page.locator('.ai-warn').count() == 0, "khe 10:00-11:00 trống → không warning chồng giờ"
+    plan_text = page.locator('[data-role="ai-preview"]').inner_text()
+    assert "Học Database 60 phút" in plan_text, "preview phải hiện TÊN task"
+    assert "tmsyccp56u6k5r5" not in plan_text, "preview KHÔNG được hiện UID nội bộ"
+    assert page.locator('[data-task-uid="tmsyccp56u6k5r5"]').count() == 1, "UID giữ trong data-task-uid"
+    # P6/P7: mode=ai → rule content + footer ẩn, đúng 1 Apply CTA
+    assert page.locator('[data-testid="planner-modal"]').get_attribute("data-plan-mode") == "ai", "mode phải là ai"
+    assert page.locator('#plannerContent').is_hidden(), "rule planner content phải ẩn khi AI active"
+    assert page.locator('#plannerModal .planner-actions').is_hidden(), "rule footer phải ẩn khi AI active"
+    apply_visible = page.locator('[data-testid="planner-modal"] .button:visible')
+    visible_texts = apply_visible.all_inner_texts()
+    assert sum(1 for tx in visible_texts if tx.strip() == "Apply") == 1, \
+        f"phải có ĐÚNG 1 Apply CTA (AI), thấy: {visible_texts}"
 
     # 3) PRIVACY: body gửi lên server không chứa reflections/mood
     assert len(ai_bodies) >= 1, "phải có request tới /api/ai/plan"
@@ -4140,11 +4196,26 @@ def ai_checks(browser, base, width, height, errors, screenshot):
     assert "reflections" not in sent_ctx, "reflections KHÔNG được gửi khi chưa opt-in"
     assert "mood" not in sent_ctx, "mood KHÔNG được gửi khi chưa opt-in"
 
-    # 4) ai-cancel → KHÔNG thay đổi data
+    # 4) ai-cancel → rule planner + footer KHÔI PHỤC, data không đổi
     page.locator('[data-action="ai-cancel"]').click()
     page.wait_for_selector('[data-role="ai-preview"]', state="detached")
+    assert page.locator('[data-testid="planner-modal"]').get_attribute("data-plan-mode") == "rule", "mode phải về rule"
+    assert page.locator('#plannerContent').is_visible(), "rule content phải hiện lại"
+    assert page.locator('#plannerModal .planner-actions').is_visible(), "rule footer phải hiện lại"
     after_cancel = page.evaluate("JSON.stringify(JSON.parse(localStorage.getItem('planner-timeblocks')).blocks)")
     assert after_cancel == before_blocks, "Cancel KHÔNG được tạo TimeBlock"
+
+    # 4b) AI FAILURE (TEST D): lỗi thân thiện + fallback note + rule planner vẫn dùng được
+    ai_fail_mode[0] = True
+    page.locator('[data-action="ai-run"]').click()
+    page.wait_for_selector('.ai-error', state="visible", timeout=8000)
+    assert page.locator('[data-testid="planner-modal"]').get_attribute("data-plan-mode") == "rule", \
+        "AI lỗi → mode phải vẫn là rule"
+    assert page.locator('.ai-fallback-note').count() == 1, "phải có fallback note"
+    assert page.locator('#plannerContent').is_visible(), "AI lỗi → rule content vẫn hiện"
+    assert page.locator('#plannerModal .planner-actions').is_visible(), "AI lỗi → rule footer vẫn hiện"
+    assert page.locator('[data-action="planner-apply"]').is_visible(), "AI lỗi → đúng 1 Apply rule"
+    ai_fail_mode[0] = False
 
     # 5) ai-run → ai-apply → tạo TimeBlock mới 10:00-11:00, modal đóng
     page.locator('[data-action="ai-run"]').click()
@@ -4153,8 +4224,8 @@ def ai_checks(browser, base, width, height, errors, screenshot):
     page.wait_for_selector('[data-testid="planner-modal"]:visible', state="detached")
     blocks = page.evaluate("JSON.parse(localStorage.getItem('planner-timeblocks')).blocks")
     assert len(blocks) == 3, f"Apply phải tạo đúng 1 block (2 → 3), thấy {len(blocks)}"
-    assert any(b["taskUid"] == "ai-t1" and b["start"] == "10:00" and b["end"] == "11:00" for b in blocks), \
-        "block mới phải là ai-t1 10:00-11:00"
+    assert any(b["taskUid"] == "tmsyccp56u6k5r5" and b["start"] == "10:00" and b["end"] == "11:00" for b in blocks), \
+        "block mới phải là tmsyccp56u6k5r5 10:00-11:00"
 
     assert_no_page_overflow(page, f"ai {width}px")
     page.screenshot(path=screenshot, full_page=False)

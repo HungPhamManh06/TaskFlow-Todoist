@@ -750,6 +750,19 @@ function todayPlannerTasks() {
   return cell.day.tasks.map((tk, i) => ({ ...tk, _week: cell.weekNumber, _day: cell.dayIndex, _idx: i }));
 }
 
+// Mode của planner modal: 'rule' (mặc định) | 'ai' (AI preview đang chủ động).
+// Khi mode=ai: ẩn rule planner content + footer — ĐÚNG MỘT Apply CTA.
+function setPlannerMode(mode) {
+  const modal = document.getElementById('plannerModal');
+  if (!modal) return;
+  const isAi = mode === 'ai';
+  modal.dataset.planMode = isAi ? 'ai' : 'rule';
+  const content = document.getElementById('plannerContent');
+  const footer = modal.querySelector('.planner-actions');
+  if (content) content.hidden = isAi;
+  if (footer) footer.hidden = isAi;
+}
+
 // Mở dialog planner: thu thập input → buildProposal (thuần) → render preview.
 // KHÔNG sửa data. Apply là hành động riêng (planner-apply).
 function openPlannerModal() {
@@ -774,6 +787,7 @@ function openPlannerModal() {
   const content = document.getElementById('plannerContent');
   if (content) content.innerHTML = PlannerUI.plannerContentHTML(proposal);
   renderAiPanel();
+  setPlannerMode('rule');
   TaskFlowUI.openDialog('plannerModal');
   trackEvent('planner_open');
 }
@@ -942,18 +956,30 @@ async function aiRun() {
     const msg = code === 'ai-not-configured' ? 'aiNotConfigured'
       : code === 'ai-invalid-response' || code === 'ai-validation-failed' ? 'aiInvalidOutput'
       : code === 'ai-timeout' || code === 'network' ? 'aiError' : 'aiError';
-    resultHost.innerHTML = `<p class="ai-error">${esc(t(msg))}</p>`;
+    // P6.1: lỗi AI → thông báo thân thiện + giữ rule planner dùng được bên dưới.
+    resultHost.innerHTML = `<p class="ai-error">${esc(t(msg))}</p><p class="ai-fallback-note">${esc(t('aiFallbackNote'))}</p>`;
     return;
   }
   const refs = { taskUids: new Set(context.tasks.concat(context.overdue).map((tk) => tk.uid)) };
   const v = AI.validateProposalLocal(res.proposal, refs);
   if (!v.ok) {
     if (debugLog) console.warn('[ai] client validation failed:', v.errors);
-    resultHost.innerHTML = `<p class="ai-error">${esc(t('aiInvalidOutput'))}</p>`; return;
+    resultHost.innerHTML = `<p class="ai-error">${esc(t('aiInvalidOutput'))}</p><p class="ai-fallback-note">${esc(t('aiFallbackNote'))}</p>`; return;
   }
   const warnings = AI.conflictCheck(res.proposal, context.timeblocks, context.busy);
   window._lastAiProposal = { proposal: res.proposal, refs };
-  resultHost.innerHTML = AI.previewHTML(res.proposal, warnings);
+  // P3.1: bản đồ uid → task.text để preview HIỆN TÊN task, không bao giờ UID nội bộ.
+  const taskLabels = {};
+  context.tasks.concat(context.overdue).forEach((tk) => {
+    if (tk && tk.uid && !taskLabels[tk.uid] && typeof tk.text === 'string' && tk.text.trim()) taskLabels[tk.uid] = tk.text;
+  });
+  resultHost.innerHTML = AI.previewHTML(res.proposal, warnings, {
+    taskLabels,
+    today: PlannerUI.todayStr(),
+    lang: getLang(),
+  });
+  // P6: AI thành công → AI preview là kế hoạch CHÍNH, rule planner + footer ẩn đi.
+  setPlannerMode('ai');
   trackEvent('ai_preview');
 }
 
@@ -5711,6 +5737,7 @@ document.addEventListener('click', (e) => {
     delete window._lastAiProposal;
     const host = document.querySelector('#plannerAi [data-role="ai-result"]');
     if (host) host.innerHTML = '';
+    setPlannerMode('rule'); // P6.1: Hủy AI → khôi phục rule planner + footer, không reload.
   } else if (act === 'ai-kind') {
     const kind = el.value || 'plan_day';
     const targets = el.closest('[data-role="ai-panel"]') && el.closest('[data-role="ai-panel"]').querySelector('[data-role="ai-targets"]');

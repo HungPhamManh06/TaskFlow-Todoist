@@ -292,14 +292,16 @@
     };
   }
 
-  // Định dạng phút → '1h20' / '45 phút' (thuần; UI chọn ngôn ngữ).
+  // Định dạng phút → '30 phút' / '1 giờ' / '1 giờ 30 phút' (VI) hoặc
+  // '30 min' / '1 h' / '1 h 30 min' (EN). Thuần; UI chọn ngôn ngữ.
   function formatMinutes(min, lang) {
     const m = Math.max(0, Math.round(min));
-    if (m < 60) return m + (lang === 'vi' ? ' phút' : ' min');
+    const vi = lang === 'vi';
+    if (m < 60) return m + (vi ? ' phút' : ' min');
     const h = Math.floor(m / 60);
     const r = m % 60;
-    if (!r) return h + 'h';
-    return h + 'h' + (r < 10 ? '0' + r : '' + r);
+    if (!r) return vi ? h + ' giờ' : h + ' h';
+    return vi ? h + ' giờ ' + r + ' phút' : h + ' h ' + r + ' min';
   }
 
   return {

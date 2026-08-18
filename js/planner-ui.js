@@ -1,4 +1,4 @@
-// TaskFlow — Smart Daily Planner UI (V1.3). Rule-based, NO AI.
+// TaskFlow — Smart Daily Planner UI (V1.4). Rule-based, NO AI.
 // Đóng vai trò render + đọc lựa chọn của user từ dialog; KHÔNG sở hữu state.
 // app.js orchestrate: dispatch action, mở/đóng dialog, lưu sau Apply.
 // CRITICAL RULE: không sửa data trước khi user bấm Apply. Preview chỉ là bản xem trước.
@@ -17,12 +17,22 @@
     return String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
   function t(key, vars) {
-    if (typeof window !== 'undefined' && window.TaskFlowI18n && window.TaskFlowI18n.t) return window.TaskFlowI18n.t(key, vars);
+    if (typeof window !== 'undefined' && window.TaskFlowI18N && window.TaskFlowI18N.t) return window.TaskFlowI18N.t(key, vars);
     return key;
   }
   function icon(name) {
     if (typeof window !== 'undefined' && window.TaskFlowUI && window.TaskFlowUI.icon) return window.TaskFlowUI.icon(name);
     return '';
+  }
+
+  // Tên key i18n từ reason lowercase của planner-rules (priority → plannerReasonPriority).
+  // Unknown reason → null → UI bỏ qua, KHÔNG bao giờ hiện raw key.
+  function reasonKey(r) {
+    const KNOWN = ['Overdue', 'Priority', 'Deadline3', 'Deadline7', 'Project', 'Milestone', 'Duration', 'Energy', 'Scheduled', 'Context'];
+    const s = String(r || '');
+    if (!s) return null;
+    const cap = s.charAt(0).toUpperCase() + s.slice(1);
+    return KNOWN.includes(cap) ? 'plannerReason' + cap : null;
   }
 
   // Ngày 'YYYY-MM-DD' hôm nay (local).
@@ -80,15 +90,20 @@
         + '<ul class="planner-top-list">';
       top.forEach((task, i) => {
         const checked = i < 3 ? ' checked' : '';
-        const dur = task.duration > 0 ? esc(t('plannerDur', { m: task.duration })) : esc(t('plannerNoDur'));
+        const dur = task.duration > 0 ? fmtDur(task.duration) : esc(t('plannerNoDur'));
         const reasons = Array.isArray(task.reasons) && task.reasons.length
-          ? task.reasons.map((r) => esc(t('plannerReason' + r, { fallback: r }))).join(' · ') : '';
+          ? task.reasons.map((r) => {
+            const k = reasonKey(r);
+            if (!k) return null;
+            const v = t(k);
+            return v && v !== k ? v : null;
+          }).filter(Boolean).join(' · ') : '';
         topHTML += '<li class="planner-top-item">'
           + '<label class="planner-top-check"><input type="checkbox" data-planner-top="' + i + '"' + checked + '>'
           + '<span class="planner-top-rank">' + (i + 1) + '</span></label>'
           + '<div class="planner-top-body"><span class="planner-top-text">' + esc(task.text || '') + '</span>'
           + '<span class="planner-top-meta">' + dur + (reasons ? ' · ' + reasons : '') + '</span></div>'
-          + '<span class="planner-top-score">' + task.score + '</span></li>';
+          + '<span class="planner-top-score">' + esc(t('plannerScore', { n: task.score })) + '</span></li>';
       });
       topHTML += '</ul></section>';
     }
@@ -152,13 +167,18 @@
     return hit ? hit.text : uid;
   }
 
+  // Thời lượng theo ngôn ngữ (P10): dùng PlannerRules.formatMinutes — 1 nguồn duy nhất.
   function fmtDur(min) {
+    const R = (typeof window !== 'undefined' && window.TaskFlowPlannerRules) || null;
+    const I18N = (typeof window !== 'undefined' && window.TaskFlowI18N) || null;
+    const lang = I18N && typeof I18N.getLang === 'function' ? I18N.getLang() : 'vi';
+    if (R && typeof R.formatMinutes === 'function') return R.formatMinutes(min, lang);
     const m = Math.max(0, Math.round(min));
-    if (m < 60) return m + ' min';
+    if (m < 60) return m + (lang === 'vi' ? ' phút' : ' min');
     const h = Math.floor(m / 60);
     const r = m % 60;
-    if (!r) return h + 'h';
-    return h + 'h' + (r < 10 ? '0' + r : '' + r);
+    if (!r) return lang === 'vi' ? h + ' giờ' : h + ' h';
+    return lang === 'vi' ? h + ' giờ ' + r + ' phút' : h + ' h ' + r + ' min';
   }
 
   // ---------- Đọc lựa chọn của user từ DOM (chỉ đọc, không sửa state) ----------

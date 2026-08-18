@@ -1,5 +1,5 @@
 /* ============================================================
-   TaskFlow-Todoist — AI Planning Copilot (V2.0, optional)
+   TaskFlow-Todoist — AI Planning Copilot (V2.1, optional)
    ------------------------------------------------------------
    window.TaskFlowAI — lớp frontend của AI planning.
 
@@ -11,7 +11,10 @@
    - Apply pipeline: AI trả proposal → user xem preview → user bấm
      Apply → TaskFlow ghi state qua API chuẩn (TimeBlock/move helpers).
      AI KHÔNG BAO GIỜ ghi trực tiếp planner data.
-   - Fallback: mọi lỗi AI đều để planner quy tắc (V1.3) vẫn dùng được.
+   - Fallback: mọi lỗi AI đều để planner quy tắc (V1.4) vẫn dùng được.
+   - Preview UI: KHÔNG bao giờ hiện task UID nội bộ — luôn hiện task text
+     (taskLabels map từ context), fallback nhãn an toàn nếu thiếu; UID chỉ
+     nằm trong data-task-uid cho action identity/debug.
 
    Không thêm framework; không đổi global sync. Consent KHÔNG persist.
    ============================================================ */
@@ -348,19 +351,59 @@
     </div>`;
   }
 
-  function previewHTML(proposal, warnings) {
+  /* ---- Preview: semantic rows, KHÔNG hiện UID nội bộ ---- */
+  // opts = { taskLabels: {uid → task.text}, today: 'YYYY-MM-DD', lang: 'vi'|'en' }
+  function previewHTML(proposal, warnings, opts) {
+    const o = opts || {};
+    const labels = (o.taskLabels && typeof o.taskLabels === 'object') ? o.taskLabels : {};
+    const lang = o.lang === 'en' ? 'en' : 'vi';
     const warnMap = {};
     (warnings || []).forEach((w) => { warnMap[w.actionIndex] = w; });
+    // UID KHÔNG bao giờ là display text: fallback an toàn nếu thiếu label.
+    const labelFor = (uid) => {
+      const v = labels[uid];
+      return (typeof v === 'string' && v.trim()) ? v : t('aiTaskFallback');
+    };
+    const shortDate = (dateStr) => {
+      if (!validDate(dateStr)) return '';
+      const y = +dateStr.slice(0, 4), mo = +dateStr.slice(5, 7), d = +dateStr.slice(8, 10);
+      if (lang === 'vi') return String(d).padStart(2, '0') + '/' + String(mo).padStart(2, '0');
+      const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return d + ' ' + MONTHS[mo - 1];
+    };
+    const dateLabel = (a) => {
+      if (a.date && o.today && a.date === o.today) return t('aiPlanToday');
+      const s = shortDate(a.date);
+      return s ? s : '';
+    };
+    const durText = (a) => {
+      const min = (a.duration !== null && a.duration !== undefined) ? a.duration : 60;
+      const R = (typeof window !== 'undefined' && window.TaskFlowPlannerRules) || null;
+      if (R && typeof R.formatMinutes === 'function') return R.formatMinutes(min, lang);
+      const m = Math.max(0, Math.round(min));
+      if (m < 60) return m + (lang === 'vi' ? ' phút' : ' min');
+      const h = Math.floor(m / 60), r = m % 60;
+      if (!r) return lang === 'vi' ? h + ' giờ' : h + ' h';
+      return lang === 'vi' ? h + ' giờ ' + r + ' phút' : h + ' h ' + r + ' min';
+    };
     const items = proposal.actions.map((a, i) => {
       const w = warnMap[i];
       const tag = w ? ` <span class="ai-warn">${t('aiConflict')}</span>` : '';
       if (a.type === 'schedule_task') {
-        return `<li>${t('aiActSchedule', { uid: escHtml(a.taskUid), date: escHtml(a.date), start: escHtml(a.start || '--:--'), dur: a.duration || 60 })}${tag}</li>`;
+        const dLabel = dateLabel(a);
+        return `<li class="ai-plan-item">
+          <time class="ai-plan-time">${escHtml(a.start || '--:--')}</time>
+          <div class="ai-plan-main">
+            <strong class="ai-plan-task">${escHtml(labelFor(a.taskUid))}${tag}</strong>
+            <span class="ai-plan-meta">${escHtml(durText(a))}${dLabel ? ' · ' + escHtml(dLabel) : ''}</span>
+          </div>
+          <span class="ai-plan-uid" data-task-uid="${escAttr(a.taskUid)}" hidden></span>
+        </li>`;
       }
       if (a.type === 'reschedule_task') {
-        return `<li>${t('aiActReschedule', { uid: escHtml(a.taskUid), opt: t('aiOpt' + a.option) })}${tag}</li>`;
+        return `<li class="ai-plan-item ai-plan-item-reschedule">${escHtml(t('aiActReschedule', { task: labelFor(a.taskUid), opt: t('aiOpt' + a.option) }))}${tag}</li>`;
       }
-      return `<li>${t('aiActNext')}: ${escHtml(a.text)}${tag}</li>`;
+      return `<li class="ai-plan-item ai-plan-item-next">${escHtml(t('aiActNext'))}: ${escHtml(a.text)}${tag}</li>`;
     }).join('');
     const warnNote = (warnings && warnings.length)
       ? `<p class="ai-warn-note">${t('aiConflictsNote')}</p>`
@@ -368,7 +411,8 @@
     return `<div class="ai-preview" data-role="ai-preview">
       <p class="ai-summary"><strong>${t('aiSummary')}:</strong> ${escHtml(proposal.summary)}</p>
       ${warnNote}
-      <ul class="ai-actions-list">${items}</ul>
+      <h4 class="ai-plan-section">${t('aiPlanSection')}</h4>
+      <ul class="ai-plan-list">${items}</ul>
       <div class="ai-preview-actions">
         <button type="button" class="button button-ghost button-sm" data-action="ai-cancel">${t('aiCancel')}</button>
         <button type="button" class="button button-primary button-sm" data-action="ai-apply">${t('aiApply')}</button>

@@ -189,17 +189,17 @@ test('validDate: từ chối roll-over (2026-13-40)', () => {
 /* ---------- production wiring ---------- */
 test('app.html: plannerAi host + ai.min.js script + app.min bump', () => {
   assert.ok(APP.includes('id="plannerAi"'), 'host #plannerAi');
-  assert.ok(APP.includes('js/ai.min.js?v=2'), 'script ai.min.js');
-  assert.ok(APP.includes('js/app.min.js?v=193'), 'app.min.js v193');
+  assert.ok(APP.includes('js/ai.min.js?v=3'), 'script ai.min.js');
+  assert.ok(APP.includes('js/app.min.js?v=194'), 'app.min.js v193');
 });
 
 test('sw.js: cache v239 + precache ai.min.js', () => {
-  assert.ok(SW.includes("const CACHE = 'taskflow-v239';"), 'cache v239');
+  assert.ok(SW.includes("const CACHE = 'taskflow-v240';"), 'cache v239');
   assert.ok(SW.includes("'./js/ai.min.js',"), 'precache ai.min.js');
 });
 
 test('i18n: đủ key VI + EN', () => {
-  const keys = ['aiTitle', 'aiRun', 'aiApply', 'aiCancel', 'aiConsentTasks', 'aiConsentReflections', 'aiConsentMood', 'aiKindplan_day', 'aiKindbreakdown_project', 'aiKindreschedule', 'aiNotConfigured', 'aiInvalidOutput', 'aiApplied', 'aiConflict', 'aiSelectProject', 'aiSelectMilestone'];
+  const keys = ['aiTitle', 'aiRun', 'aiApply', 'aiCancel', 'aiConsentTasks', 'aiConsentReflections', 'aiConsentMood', 'aiKindplan_day', 'aiKindbreakdown_project', 'aiKindreschedule', 'aiNotConfigured', 'aiInvalidOutput', 'aiApplied', 'aiConflict', 'aiSelectProject', 'aiSelectMilestone', 'aiPlanSection', 'aiPlanToday', 'aiTaskFallback', 'aiFallbackNote', 'aiActReschedule'];
   keys.forEach((k) => {
     assert.ok(I18N.includes(k + ":"), 'thiếu key ' + k);
   });
@@ -211,4 +211,78 @@ test('panelHTML/previewHTML render không throw', () => {
   assert.ok(panel.includes('data-ai-consent="reflections"'));
   const prev = previewHTML({ summary: 'S', actions: [{ type: 'next_action', text: 'hi' }] }, []);
   assert.ok(prev.includes('data-role="ai-preview"'));
+});
+
+// Shim i18n cho test preview: node không có window — preview đọc TaskFlowI18N
+// tại thời điểm GỌI nên gán globalThis.window là đủ.
+function withI18n(fake, fn) {
+  const saved = globalThis.window;
+  globalThis.window = globalThis;
+  globalThis.TaskFlowI18N = fake;
+  try { return fn(); } finally { delete globalThis.TaskFlowI18N; globalThis.window = saved; }
+}
+
+test('previewHTML: KHÔNG hiện UID nội bộ — hiện task text, UID chỉ trong data-task-uid', () => {
+  const proposal = {
+    summary: 'S',
+    actions: [
+      { type: 'schedule_task', taskUid: 'tmsyccp56u6k5r5', date: '2026-08-18', start: '08:00', duration: 60 },
+      { type: 'schedule_task', taskUid: 'missing-uid', date: '2026-08-19', start: '10:00', duration: 90 },
+      { type: 'reschedule_task', taskUid: 'tmsyccp56u6k5r5', option: 'tomorrow' },
+    ],
+  };
+  const labels = { 'tmsyccp56u6k5r5': 'Học Database 60 phút' };
+  const html = withI18n({
+    t: (key, vars) => {
+      const d = {
+        aiTaskFallback: 'Công việc', aiPlanToday: 'Hôm nay', aiPlanSection: 'Kế hoạch đề xuất',
+        aiActReschedule: 'Dời “{task}” sang {opt}', aiOpttomorrow: 'ngày mai', aiActNext: 'Gợi ý',
+        aiSummary: 'Tóm tắt', aiConflict: 'có thể chồng giờ',
+      };
+      let v = d[key];
+      if (v === undefined) return key;
+      if (vars) Object.keys(vars).forEach((k) => { v = v.split('{' + k + '}').join(String(vars[k])); });
+      return v;
+    },
+  }, () => previewHTML(proposal, [], { taskLabels: labels, today: '2026-08-18', lang: 'vi' }));
+  assert.ok(html.includes('Học Database 60 phút'), 'hiện task text từ label map');
+  const visible = html.replace(/data-task-uid="[^"]*"/g, '');
+  assert.ok(!visible.includes('tmsyccp56u6k5r5'), 'KHÔNG hiện UID trong text (chỉ trong data attribute)');
+  assert.ok(html.includes('data-task-uid="tmsyccp56u6k5r5"'), 'UID giữ trong data-task-uid cho identity');
+  assert.ok(html.includes('ai-plan-time'), 'row semantic có giờ');
+  assert.ok(!visible.includes('missing-uid'), 'task thiếu label → fallback, KHÔNG hiện raw uid');
+  assert.ok(html.includes('Công việc'), 'fallback an toàn hiển thị');
+  assert.ok(html.includes('Dời “Học Database 60 phút” sang ngày mai'), 'reschedule dùng task text');
+});
+
+test('previewHTML: date hôm nay → Hôm nay, ngày khác → định dạng ngắn theo ngôn ngữ', () => {
+  const proposal = { summary: 'S', actions: [
+    { type: 'schedule_task', taskUid: 't1', date: '2026-08-18', start: '08:00', duration: 30 },
+    { type: 'schedule_task', taskUid: 't2', date: '2026-08-19', start: '09:00', duration: 30 },
+  ] };
+  const labels = { t1: 'A', t2: 'B' };
+  const vi = withI18n({
+    t: (key) => ({ aiPlanToday: 'Hôm nay', aiTaskFallback: 'Công việc', aiPlanSection: 'S', aiSummary: 'S' }[key] || key),
+  }, () => previewHTML(proposal, [], { taskLabels: labels, today: '2026-08-18', lang: 'vi' }));
+  assert.ok(vi.includes('Hôm nay'), 'plan_day hôm nay → Hôm nay');
+  assert.ok(vi.includes('19/08'), 'ngày khác → dd/MM tiếng Việt');
+  const en = withI18n({
+    t: (key) => ({ aiPlanToday: 'Today', aiTaskFallback: 'Task', aiPlanSection: 'S', aiSummary: 'S' }[key] || key),
+  }, () => previewHTML(proposal, [], { taskLabels: labels, today: '2026-08-18', lang: 'en' }));
+  assert.ok(en.includes('Today'), 'plan_day hôm nay → Today');
+  assert.ok(en.includes('19 Aug'), 'ngày khác → 18 Aug kiểu EN');
+});
+
+test('previewHTML: duration ngôn ngữ-aware qua PlannerRules.formatMinutes', () => {
+  const proposal = { summary: 'S', actions: [
+    { type: 'schedule_task', taskUid: 't1', date: '2026-08-18', start: '08:00', duration: 90 },
+  ] };
+  const vi = withI18n({
+    t: (key) => ({ aiPlanToday: 'Hôm nay', aiTaskFallback: 'Công việc', aiPlanSection: 'S', aiSummary: 'S' }[key] || key),
+  }, () => previewHTML(proposal, [], { taskLabels: { t1: 'A' }, today: '2026-08-18', lang: 'vi' }));
+  assert.ok(vi.includes('1 giờ 30 phút'), 'VI: 90 phút → 1 giờ 30 phút');
+  const en = withI18n({
+    t: (key) => ({ aiPlanToday: 'Today', aiTaskFallback: 'Task', aiPlanSection: 'S', aiSummary: 'S' }[key] || key),
+  }, () => previewHTML(proposal, [], { taskLabels: { t1: 'A' }, today: '2026-08-18', lang: 'en' }));
+  assert.ok(en.includes('1 h 30 min'), 'EN: 90 phút → 1 h 30 min');
 });

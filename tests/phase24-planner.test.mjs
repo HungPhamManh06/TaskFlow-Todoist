@@ -10,6 +10,7 @@ const UI = (await import('../js/planner-ui.js')).default || (await import('../js
 const APP = readFileSync('app.html', 'utf8');
 const SW = readFileSync('sw.js', 'utf8');
 const APPJS = readFileSync('js/app.js', 'utf8');
+const UIJS = readFileSync('js/planner-ui.js', 'utf8');
 
 function baseInput(over = {}) {
   return {
@@ -275,12 +276,82 @@ test('UI: buildApplyPlan không có suggestion → blocks rỗng', () => {
   assert.deepEqual(plan.reschedule, []);
 });
 
+/* ---------------- i18n + duration display (P1/P2/P9/P10) ---------------- */
+
+test('formatMinutes: ngôn ngữ-aware (VI/EN), phút/giờ/giờ+phút', () => {
+  assert.strictEqual(Rules.formatMinutes(0, 'vi'), '0 phút');
+  assert.strictEqual(Rules.formatMinutes(30, 'vi'), '30 phút');
+  assert.strictEqual(Rules.formatMinutes(60, 'vi'), '1 giờ');
+  assert.strictEqual(Rules.formatMinutes(90, 'vi'), '1 giờ 30 phút');
+  assert.strictEqual(Rules.formatMinutes(0, 'en'), '0 min');
+  assert.strictEqual(Rules.formatMinutes(30, 'en'), '30 min');
+  assert.strictEqual(Rules.formatMinutes(60, 'en'), '1 h');
+  assert.strictEqual(Rules.formatMinutes(90, 'en'), '1 h 30 min');
+  assert.strictEqual(Rules.formatMinutes(-5, 'vi'), '0 phút');
+});
+
+test('UI: plannerContentHTML dùng TaskFlowI18N + reason casing đúng, không raw key', () => {
+  const savedWin = globalThis.window;
+  globalThis.window = globalThis;
+  globalThis.TaskFlowPlannerRules = Rules;
+  globalThis.TaskFlowI18N = {
+    t: (key, vars) => {
+      const dict = {
+        plannerStep1Title: 'S1', plannerStep2Title: 'S2', plannerStep3Title: 'S3',
+        plannerStep4Title: 'S4', plannerStep5Title: 'S5', plannerOverdue: 'QH',
+        plannerReschedule: 'D', plannerOptToday: 'T', plannerOptTomorrow: 'N',
+        plannerOptThisWeek: 'W', plannerOptInbox: 'I', plannerNoDur: 'ND',
+        plannerReasonPriority: 'uu-tien', plannerReasonDeadline3: 'han-3',
+        plannerReasonProject: 'du-an', plannerScore: 'Diem: {n}',
+        plannerPlanned: 'DKH', plannerAvailable: 'CS', plannerHours: 'gio',
+        plannerPreviewBlocks: 'Tao {n} block', plannerPreviewOverdue: 'Doi {n}',
+        plannerPreviewOrder: 'Sap {n}', plannerApplyNote: 'Note', plannerBlocksHint: 'H',
+        plannerOrderOnly: 'O', plannerNoFit: 'NF',
+      };
+      let v = dict[key];
+      if (v === undefined) return key;
+      if (vars) Object.keys(vars).forEach((k) => { v = v.split('{' + k + '}').join(String(vars[k])); });
+      return v;
+    },
+    getLang: () => 'vi',
+  };
+  try {
+    const html = UI.plannerContentHTML({
+      availableMinutes: 300, plannedMinutes: 120,
+      overdue: [], top: [
+        { uid: 'a', text: 'A', duration: 0, score: 500, reasons: ['priority', 'deadline3'] },
+        { uid: 'b', text: 'B', duration: 90, score: 0, reasons: ['weird-unknown'] },
+      ],
+      windows: null, suggestions: null,
+    });
+    assert.ok(!/>plannerReason/.test(html), 'không raw reason key ở text');
+    assert.ok(!/>plannerStep/.test(html), 'không raw step key ở text');
+    assert.ok(html.includes('uu-tien'), 'priority → plannerReasonPriority');
+    assert.ok(html.includes('han-3'), 'deadline3 → plannerReasonDeadline3');
+    assert.ok(html.includes('Diem: 500'), 'score label dịch + giá trị');
+    assert.ok(html.includes('Diem: 0'), 'score 0 vẫn hiển thị nhãn dịch');
+    assert.ok(html.includes('1 giờ 30 phút'), 'duration theo ngôn ngữ vi (90 phút)');
+    assert.ok(html.includes('ND'), 'plannerNoDur dịch');
+    assert.ok(!html.includes('weird-unknown'), 'reason lạ bị bỏ qua, không lộ');
+    assert.ok(!html.includes('min '), 'không lộ đơn vị min trong bản VI');
+  } finally {
+    delete globalThis.TaskFlowI18N;
+    delete globalThis.TaskFlowPlannerRules;
+    globalThis.window = savedWin;
+  }
+});
+
+test('UI: planner-ui đọc global chuẩn TaskFlowI18N (không TaskFlowI18n)', () => {
+  assert.match(APPJS, /window\.TaskFlowI18N/);
+  assert.ok(!UIJS.includes('TaskFlowI18n.'), 'không dùng alias sai casing');
+});
+
 /* ---------------- Wiring ---------------- */
 
 test('wiring: app.html load planner-rules + planner-ui trước app.js + v176', () => {
   assert.match(APP, /src="js\/planner-rules\.min\.js\?v=\d+"/);
   assert.match(APP, /src="js\/planner-ui\.min\.js\?v=\d+"/);
-  assert.match(APP, /js\/app\.min\.js\?v=193/);
+  assert.match(APP, /js\/app\.min\.js\?v=194/);
   const rulesIdx = APP.indexOf('js/planner-rules.min.js?v=');
   const uiIdx = APP.indexOf('js/planner-ui.min.js?v=');
   const appIdx = APP.indexOf('js/app.min.js?v=');
@@ -290,7 +361,7 @@ test('wiring: app.html load planner-rules + planner-ui trước app.js + v176', 
 test('wiring: sw.js precache planner modules + cache bump v215', () => {
   assert.ok(SW.includes("'./js/planner-rules.min.js'"), 'SW precache planner-rules.min.js');
   assert.ok(SW.includes("'./js/planner-ui.min.js'"), 'SW precache planner-ui.min.js');
-  assert.match(SW, /const CACHE = 'taskflow-v239'/);
+  assert.match(SW, /const CACHE = 'taskflow-v240'/);
 });
 
 test('wiring: app.js dispatcher có planner-open / planner-apply / planner-cancel', () => {
