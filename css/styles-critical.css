@@ -1759,10 +1759,37 @@ textarea:focus-visible,
 .pomo-tomato-wrap { display: flex; justify-content: center; margin: 8px 0 0; }
 
 /* ---------- Chatbot trợ lý học tập ---------- */
+/* Floating assistant FAB — persistent (same philosophy as Pomodoro 🍅), but
+   distinguishable: info-blue vs accent orange. Static HTML/CSS only — the chat
+   modules stay lazy (never load at boot). */
+.chat-fab {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: var(--color-info);
+  color: var(--color-on-accent);
+  box-shadow: 0 8px 22px rgba(60, 48, 38, .28);
+  transition: transform .2s ease, box-shadow .2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chat-fab .ui-icon { width: 24px; height: 24px; }
+.chat-fab:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 12px 28px rgba(60, 48, 38, .36); }
+.chat-fab:active { transform: scale(.95); }
+/* Open state: subtle active feedback — icon stays, background shifts to accent. */
+.chat-fab[aria-expanded="true"] { background: var(--color-accent); }
+@media (prefers-reduced-motion: reduce) {
+  .chat-fab { transition: none; }
+}
 .chat-pop {
   position: absolute;
   top: auto;
-  bottom: 0;
+  bottom: calc(100% + 10px);
   right: 0;
   width: 340px;
   max-height: 480px;
@@ -1970,6 +1997,11 @@ textarea:focus-visible,
   .dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cal-cell { min-height: 72px; }
   .pomo-fab { width: 42px; height: 42px; font-size: 20px; }
+}
+@media (max-width: 767px) {
+  /* Chat panel above FAB + mobile bottom nav; 100dvh so the input/send stay
+     reachable when the on-screen keyboard opens (no 100vh overflow). */
+  .chat-pop { max-height: min(480px, calc(100dvh - 176px)); }
 }
 
 .focus-overlay {

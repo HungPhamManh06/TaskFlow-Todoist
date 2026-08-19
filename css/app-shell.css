@@ -928,7 +928,8 @@ html:has(body.more-sheet-open) {
 
 /* Chỉ ẩn nút floating khi sheet mở — wrap/panel giữ nguyên để Công cụ
    (Trợ lý/Pomodoro) mở được từ More sheet (panel nằm trong wrap). */
-body.more-sheet-open .pomo-fab {
+body.more-sheet-open .pomo-fab,
+body.more-sheet-open .chat-fab {
   visibility: hidden;
   pointer-events: none;
 }
