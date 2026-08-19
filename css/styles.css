@@ -3612,6 +3612,35 @@ sup.remind-dot {
 }
 .chat-input:focus { border-color: var(--accent-btn, #c24e28); }
 .chat-send { font-size: 12px; padding: 6px 14px; border-radius: 20px; }
+.chat-send:disabled { opacity: .5; cursor: not-allowed; }
+.chat-input:disabled { opacity: .6; }
+.chat-header-actions { display: flex; align-items: center; gap: 4px; }
+.chat-clear-btn { border: 0; background: 0 0; font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 8px; transition: background .15s ease; color: var(--ink-soft, #857062); }
+.chat-clear-btn:hover { background: rgba(var(--ink-rgb), .08); }
+/* Typing indicator */
+.chat-typing { font-style: italic; opacity: .7; animation: chatPulse 1.2s ease-in-out infinite; }
+@keyframes chatPulse { 0%, 100% { opacity: .7; } 50% { opacity: .4; } }
+/* Info / error / offline messages */
+.chat-info { background: rgba(var(--ink-rgb), .04); font-size: 12px; color: var(--ink-soft, #857062); align-self: center; text-align: center; border-bottom-left-radius: 12px; }
+/* Guest prompt */
+.chat-guest-prompt { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.chat-guest-prompt p { margin: 0; font-size: 13px; }
+.chat-guest-btn { font: inherit; font-weight: 700; font-size: 13px; padding: 6px 16px; border-radius: 20px; border: 2px solid var(--accent-btn, #c24e28); background: var(--accent-btn, #c24e28); color: #fff; cursor: pointer; transition: background .15s ease; }
+.chat-guest-btn:hover { background: #a83d1e; }
+/* Retry */
+.chat-retry-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.chat-retry-wrap p { margin: 0; font-size: 12px; color: var(--ink-soft, #857062); }
+.chat-retry-btn { font: inherit; font-weight: 700; font-size: 12px; padding: 5px 14px; border-radius: 20px; border: 1.5px solid rgba(var(--ink-rgb), .25); background: var(--surface, #faf7f1); color: var(--ink); cursor: pointer; transition: border-color .15s ease; }
+.chat-retry-btn:hover { border-color: var(--accent-btn, #c24e28); color: var(--accent-btn, #c24e28); }
+/* Dark mode additions */
+:root[data-dark="true"] .chat-clear-btn { color: #C9B7A0; }
+:root[data-dark="true"] .chat-clear-btn:hover { background: rgba(255, 255, 255, .08); }
+:root[data-dark="true"] .chat-typing { color: #F2E8D5; }
+:root[data-dark="true"] .chat-info { background: rgba(255, 255, 255, .04); color: #C9B7A0; }
+:root[data-dark="true"] .chat-guest-prompt p { color: #F2E8D5; }
+:root[data-dark="true"] .chat-guest-btn { background: #C24E28; border-color: #C24E28; }
+:root[data-dark="true"] .chat-retry-wrap p { color: #C9B7A0; }
+:root[data-dark="true"] .chat-retry-btn { background: #1E1812; border-color: rgba(255, 255, 255, .12); color: #F2E8D5; }
 
 /* ---------- Help modal ---------- */
 .help-content {

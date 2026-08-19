@@ -835,7 +835,7 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
   assert.match(APP, /js\/app\.min\.js\?v=195/);
-  assert.match(SW, /const CACHE = 'taskflow-v241';/);
+  assert.match(SW, /const CACHE = 'taskflow-v242';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1089,9 +1089,9 @@ test('P11: chat helpers extracted — CHAT_RESPONSES/doChatSend/doChatSuggest/ch
   assert.match(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,140}window\.TaskFlowChat\.doChatSend\(\)/);
   // module export đủ API + accessor pattern
   const mod = readRequiredAsset('js/chat.js');
-  assert.match(mod, /return \{ CHAT_RESPONSES, doChatSend, doChatSuggest, chatBotReply \}/);
+  assert.match(mod, /return \{ SUGGESTIONS, doChatSend, doChatSuggest, doChatClear/);
   assert.match(mod, /module\.exports/);
-  assert.match(mod, /CHAT_RESPONSES\['study-plan'\]/);
+  assert.match(mod, /SUGGESTIONS\['study-plan'\]/);
 });
 
 test('P11: search extracted — openSearchModal/closeSearchModal/runSearch/renderSearchResults/goSearchResult live in js/search.js', () => {
@@ -1389,7 +1389,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v241';/);
+  assert.match(SW, /const CACHE = 'taskflow-v242';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2051,7 +2051,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v241';/);
+  assert.match(SW, /const CACHE = 'taskflow-v242';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2129,7 +2129,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v241';/);
+  assert.match(SW, /const CACHE = 'taskflow-v242';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2367,7 +2367,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v241', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v242', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);

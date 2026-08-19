@@ -5363,6 +5363,10 @@ document.addEventListener('click', (e) => {
     runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatSend());
     return;
   }
+  else if (act === 'chat-clear') {
+    runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatClear());
+    return;
+  }
   else if (act === 'chat-suggest') {
     runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatSuggest(el.dataset.topic));
     return;

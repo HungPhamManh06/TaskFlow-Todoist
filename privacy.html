@@ -170,7 +170,15 @@
       </section>
 
       <section class="legal-section">
-        <h2 data-t-vi="8. Xóa tài khoản" data-t-en="8. Deleting your account">8. Xóa tài khoản</h2>
+        <h2 data-t-vi="8. Trợ lý AI (Chat)" data-t-en="8. AI Chat Assistant">8. Trợ lý AI (Chat)</h2>
+        <p data-t-vi="Tính năng Trợ lý AI cho phép bạn trò chuyện trực tiếp với mô hình ngôn ngữ AI. <strong>Tin nhắn của bạn và lịch sử trò chuyện ngắn được gửi qua máy chủ TaskFlow tới nhà cung cấp AI bên thứ ba.</strong> Ở giai đoạn hiện tại, trợ lý không có quyền truy cập dữ liệu cá nhân TaskFlow của bạn."
+          data-t-en="The AI Chat Assistant lets you converse directly with a language model. <strong>Your messages and short conversation history are sent through TaskFlow's backend to the third-party AI provider.</strong> In the current phase, the assistant has no access to your personal TaskFlow data.">Tính năng Trợ lý AI cho phép bạn trò chuyện trực tiếp với mô hình ngôn ngữ AI. <strong>Tin nhắn của bạn và lịch sử trò chuyện ngắn được gửi qua máy chủ TaskFlow tới nhà cung cấp AI bên thứ ba.</strong> Ở giai đoạn hiện tại, trợ lý không có quyền truy cập dữ liệu cá nhân TaskFlow của bạn.</p>
+        <p data-t-vi="Yêu cầu trò chuyện yêu cầu bạn phải đăng nhập. Lịch sử trò chuyện được lưu tạm thời trong trình duyệt và không được lưu trữ trên máy chủ."
+          data-t-en="Chat requires you to be signed in. Conversation history is stored temporarily in your browser and is not persisted on the server.">Yêu cầu trò chuyện yêu cầu bạn phải đăng nhập. Lịch sử trò chuyện được lưu tạm thời trong trình duyệt và không được lưu trữ trên máy chủ.</p>
+      </section>
+
+      <section class="legal-section">
+        <h2 data-t-vi="9. Xóa tài khoản" data-t-en="9. Deleting your account">9. Xóa tài khoản</h2>
         <p data-t-vi="Trong Cài đặt → Tài khoản, bạn có thể xóa tài khoản của mình. Thao tác này gọi API <code>POST /api/auth/delete-account</code>: máy chủ xóa tài khoản và <strong>toàn bộ dữ liệu đồng bộ liên quan</strong> (bảng <code>planner_state</code> có khóa ngoại <code>on delete cascade</code>)."
           data-t-en="In Settings → Account, you can delete your account. This calls <code>POST /api/auth/delete-account</code>: the server deletes your account and <strong>all related synced data</strong> (the <code>planner_state</code> table uses <code>on delete cascade</code>).">Trong Cài đặt → Tài khoản, bạn có thể xóa tài khoản của mình. Thao tác này gọi API <code>POST /api/auth/delete-account</code>: máy chủ xóa tài khoản và <strong>toàn bộ dữ liệu đồng bộ liên quan</strong> (bảng <code>planner_state</code> có khóa ngoại <code>on delete cascade</code>).</p>
         <p data-t-vi="Việc xóa tài khoản <strong>không tự động xóa localStorage</strong> trên thiết bị của bạn — nếu muốn sạch hoàn toàn, hãy xóa dữ liệu duyệt web sau khi xóa tài khoản."

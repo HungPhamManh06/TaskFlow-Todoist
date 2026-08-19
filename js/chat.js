@@ -1,10 +1,8 @@
-// TaskFlow — Chatbot trợ lý học tập (tách từ app.js trong P11 refactor, extraction 21).
-// Gồm: CHAT_RESPONSES (dictionary trả lời theo chủ đề), doChatSend (gửi tin nhắn +
-// tự động trả lời), doChatSuggest (chip gợi ý chủ đề), chatBotReply (khớp từ khóa).
-// Module này KHÔNG phụ thuộc state/global khác ngoài `esc()` (chỉ gọi lúc runtime);
-// helper app-level resolve qua global scope tại thời điểm GỌI — browser: app.js load
-// sau chat.js nhưng mọi hàm chỉ chạy sau boot (pattern syncui/clock); Node: textual
-// test only (không execute, không cần mock).
+// TaskFlow — Trợ lý TaskFlow (Gemini Chat, Phase 2).
+// Gửi tin nhắn → POST /api/ai/chat → backend gọi Gemini → trả lời thật.
+// Module KHÔNG gửi TaskFlow personal data — chỉ message + bounded history.
+// Gateway: Browser → TaskFlow backend → Gemini (KHÔNG BAO GIỜ browser → Gemini trực tiếp).
+// Lazy-loaded — giữ nguyên pattern P1.5, không nằm trong boot path.
 (function (root, factory) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -12,61 +10,302 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
 
-  const CHAT_RESPONSES = {
-    'study-plan': '📚 <b>Kế hoạch học tập hiệu quả:</b><br><br>1. <b>Xác định mục tiêu:</b> Bạn muốn đạt được gì? (VD: thi đỗ, học ngoại ngữ, kỹ năng mới)<br><br>2. <b>Chia nhỏ mục tiêu:</b> Chia thành các mục tiêu theo tháng/tuần trong app.<br><br>3. <b>Phân bổ thời gian:</b> Dùng Pomodoro 25 phút tập trung, 5 phút nghỉ — sau 4 lần nghỉ dài 25 phút.<br><br>4. <b>Theo dõi thói quen:</b> Tạo habit học tập trong app để theo dõi % hoàn thành và streak 🔥<br><br>5. <b>Phản ánh:</b> Cuối tuần viết reflection để xem lại tiến độ.<br><br>💡 Gợi ý: Dùng tính năng Mục tiêu năm để đặt mục tiêu lớn, Mục tiêu tháng để chia nhỏ, và Task tuần để hành động cụ thể!',
-    'goal-tips': '🎯 <b>Mẹo đạt mục tiêu:</b><br><br>1. <b>SMART goals:</b> Cụ thể, đo lường được, khả thi, liên quan, có thời hạn.<br><br>2. <b>Chia nhỏ:</b> Mục tiêu năm → tháng → tuần. App có sẵn cấu trúc này!<br><br>3. <b>Theo dõi:</b> Tick ✓ mỗi mục tiêu khi hoàn thành. App tự tính % tiến độ.<br><br>4. <b>Streak 🔥:</b> Duy trì mỗi ngày — streak càng dài càng có động lực!<br><br>5. <b>Phản ánh:</b> Viết reflection mỗi tuần/tháng để rút kinh nghiệm.<br><br>💡 Bạn có thể dùng Pull Goals từ Dashboard để tổng hợp mục tiêu từ 12 tháng!',
-    'habit-tips': '🔥 <b>Mẹo xây thói quen mới:</b><br><br>1. <b>Bắt đầu nhỏ:</b> Chỉ 1 thói quen, cực kỳ dễ (VD: đọc 1 trang sách).<br><br>2. <b>Gắn với thói quen cũ:</b> "Sau khi uống cà phê sáng, tôi sẽ đọc 1 trang sách."<br><br>3. <b>Theo dõi liên tục:</b> Tick ✓ mỗi ngày trong app, duy trì streak 🔥<br><br>4. <b>Đặt mục tiêu %:</b> Mỗi habit có target %, app tự tính. Đạt 100% là cíuu!<br><br>5. <b>Heatmap:</b> Xem heatmap tháng và năm để thấy sự tiến bộ.<br><br>💡 App có sẵn 10 thói quen mẫu — bạn có thể xoá/sửa và thêm thói quen của riêng mình!',
-    'pomodoro-tips': '🍅 <b>Cách dùng Pomodoro hiệu quả:</b><br><br>1. <b>Chọn task:</b> Chọn 1 task cụ thể để tập trung.<br><br>2. <b>Bắt đầu timer:</b> Ấn nút 🍅, tập trung 25 phút.<br><br>3. <b>Nghỉ ngắn:</b> Hết 25 phút → nghỉ 5 phút. Đứng dậy, vươn vai.<br><br>4. <b>Lặp lại:</b> Sau 4 lần tập trung → nghỉ dài 25 phút 🧘<br><br>5. <b>Theo dõi:</b> App ghi lại số lần tập trung hôm nay và tuần này.<br><br>💡 Mẹo: Dùng Pomodoro widget ngay trong view tuần để tiện theo dõi!',
+  /* ---- Config ---- */
+  var MAX_HISTORY = 10;
+  var MAX_MSG_LEN = 4000;
+
+  /* ---- State ---- */
+  var _history = [];        // [{role:'user'|'assistant', content:string}]
+  var _inFlight = false;    // double-send guard
+
+  /* ---- i18n helpers ---- */
+  function _t(key) {
+    try { return (window.TaskFlowI18N && window.TaskFlowI18N.t) ? window.TaskFlowI18N.t(key) : key; }
+    catch (e) { return key; }
+  }
+  function _esc(s) {
+    try { return (window.TaskFlowUtil && window.TaskFlowUtil.esc) ? window.TaskFlowUtil.esc(s) : String(s); }
+    catch (e) { return String(s); }
+  }
+
+  /* ---- Guest detection ---- */
+  function _hasToken() {
+    try { return !!localStorage.getItem('planner-token'); }
+    catch (e) { return false; }
+  }
+
+  /* ---- Offline detection ---- */
+  function _isOnline() {
+    return typeof navigator !== 'undefined' ? navigator.onLine : true;
+  }
+
+  /* ---- DOM helpers ---- */
+  function _el(id) { return document.getElementById(id); }
+
+  /* ---- Suggestion chips mapping: topic → natural-language Gemini question ---- */
+  var SUGGESTIONS = {
+    'study-plan': { text: '📚 Lên kế hoạch học tập', prompt: 'Giúp tôi tạo một phương pháp lập kế hoạch học tập hiệu quả.' },
+    'goal-tips':  { text: '🎯 Mẹo đạt mục tiêu', prompt: 'Cho tôi những mẹo thiết thực để đạt được mục tiêu học tập và làm việc.' },
+    'habit-tips': { text: '🔥 Xây thói quen mới', prompt: 'Làm thế nào để xây dựng một thói quen mới và duy trì nó lâu dài?' },
+    'pomodoro-tips': { text: '🍅 Cách dùng Pomodoro', prompt: 'Giải thích kỹ thuật Pomodoro và cách áp dụng hiệu quả trong học tập.' },
   };
 
+  /* ---- Safe text rendering ---- */
+  function _appendText(container, text, className) {
+    var div = document.createElement('div');
+    div.className = className;
+    // Render as text — no innerHTML for untrusted model output
+    div.textContent = text;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  /* ---- Show/hide typing indicator ---- */
+  function _showTyping(container) {
+    var el = document.createElement('div');
+    el.className = 'chat-msg bot chat-typing';
+    el.setAttribute('aria-live', 'polite');
+    el.textContent = _t('chatThinking');
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
+    return el;
+  }
+  function _removeTyping(el) {
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  /* ---- Show localized message (error / offline / guest) ---- */
+  function _showInfo(container, text) {
+    var el = document.createElement('div');
+    el.className = 'chat-msg bot chat-info';
+    el.textContent = text;
+    container.appendChild(el);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  /* ---- Show guest prompt with login button ---- */
+  function _showGuestPrompt(container) {
+    var wrap = document.createElement('div');
+    wrap.className = 'chat-msg bot chat-guest-prompt';
+    var p = document.createElement('p');
+    p.textContent = _t('chatGuestMsg');
+    wrap.appendChild(p);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-guest-btn';
+    btn.textContent = _t('chatGuestBtn');
+    btn.addEventListener('click', function () {
+      if (window.TaskFlowUI && window.TaskFlowUI.openDialog) {
+        window.TaskFlowUI.openDialog('syncModal');
+      }
+    });
+    wrap.appendChild(btn);
+    container.appendChild(wrap);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  /* ---- Show retry button ---- */
+  function _showRetry(container, failedMsg) {
+    var wrap = document.createElement('div');
+    wrap.className = 'chat-msg bot chat-retry-wrap';
+    var p = document.createElement('p');
+    p.textContent = _t('chatErrorMsg');
+    wrap.appendChild(p);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-retry-btn';
+    btn.textContent = _t('chatRetry');
+    btn.addEventListener('click', function () {
+      if (failedMsg) _doSend(failedMsg);
+    });
+    wrap.appendChild(btn);
+    container.appendChild(wrap);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  /* ---- Update input enabled/disabled state ---- */
+  function _setInputEnabled(enabled) {
+    var input = _el('chatInput');
+    var sendBtn = document.querySelector('[data-action="chat-send"]');
+    if (input) input.disabled = !enabled;
+    if (sendBtn) sendBtn.disabled = !enabled;
+  }
+
+  /* ---- Hide suggestion chips during active chat ---- */
+  function _setChipsVisible(visible) {
+    var chips = document.querySelectorAll('.chat-chip');
+    for (var i = 0; i < chips.length; i++) {
+      chips[i].style.display = visible ? '' : 'none';
+    }
+  }
+
+  /* ---- API call ---- */
+  async function _callChatAPI(message, history) {
+    // Build API URL from existing config
+    var apiUrl = '';
+    try { apiUrl = (window.API_CONFIG && API_CONFIG.url) || ''; } catch (e) { /* */ }
+    var url = apiUrl + '/api/ai/chat';
+
+    // Get token — Sync module or direct localStorage
+    var token = null;
+    try { token = localStorage.getItem('planner-token'); } catch (e) { /* */ }
+
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ message: message, history: history }),
+    });
+
+    var json;
+    try { json = await res.json(); } catch (e) { json = null; }
+
+    if (!res.ok || !json || !json.ok) {
+      var errCode = (json && json.error) || 'network';
+      throw { code: errCode, status: res.status };
+    }
+
+    return json.answer;
+  }
+
+  /* ---- Error message mapping ---- */
+  function _mapError(err) {
+    var code = err && err.code ? err.code : 'network';
+    switch (code) {
+      case 'ai-not-configured': return _t('chatErrorNotConfigured');
+      case 'ai-timeout': return _t('chatErrorTimeout');
+      case 'ai-rate-limited': return _t('chatErrorRateLimited');
+      case 'ai-provider-auth': return _t('chatErrorProviderAuth');
+      case 'ai-provider-forbidden': return _t('chatErrorProviderForbidden');
+      case 'ai-provider-bad-request': return _t('chatErrorBadRequest');
+      case 'ai-provider-unavailable': case 'ai-provider-not-found':
+        return _t('chatErrorUnavailable');
+      case 'invalid-message': return _t('chatErrorInvalidMessage');
+      default: return _t('chatErrorMsg');
+    }
+  }
+
+  /* ---- Core send flow ---- */
+  async function _doSend(text) {
+    if (_inFlight) return;
+    text = (text || '').trim();
+    if (!text) return;
+
+    var msgs = _el('chatMessages');
+    if (!msgs) return;
+
+    // 1. Pre-flight checks
+    if (!_isOnline()) {
+      _showInfo(msgs, _t('chatOffline'));
+      return;
+    }
+    if (!_hasToken()) {
+      _showGuestPrompt(msgs);
+      return;
+    }
+
+    // 2. Validate input length
+    if (text.length > MAX_MSG_LEN) {
+      _showInfo(msgs, _t('chatErrorTooLong'));
+      return;
+    }
+
+    _inFlight = true;
+    _setInputEnabled(false);
+    _setChipsVisible(false);
+
+    // 3. Append user bubble
+    _appendText(msgs, text, 'chat-msg user');
+
+    // 4. Show typing indicator
+    var typingEl = _showTyping(msgs);
+
+    try {
+      // 5. Call API
+      var answer = await _callChatAPI(text, _history);
+
+      // 6. Remove typing
+      _removeTyping(typingEl);
+
+      // 7. Append assistant bubble (safe text)
+      _appendText(msgs, answer, 'chat-msg bot');
+
+      // 8. Update bounded history
+      _history.push({ role: 'user', content: text });
+      _history.push({ role: 'assistant', content: answer });
+      if (_history.length > MAX_HISTORY) {
+        _history = _history.slice(-MAX_HISTORY);
+      }
+
+    } catch (err) {
+      _removeTyping(typingEl);
+      var errMsg = _mapError(err);
+      _showRetry(msgs, text);
+      // Also show error info in chat
+      _showInfo(msgs, errMsg);
+    } finally {
+      _inFlight = false;
+      _setInputEnabled(true);
+      // Re-focus input
+      var input = _el('chatInput');
+      if (input) input.focus();
+    }
+  }
+
+  /* ---- Public API ---- */
+
+  /** Send from chat input */
   function doChatSend() {
-    const input = document.getElementById('chatInput');
+    var input = _el('chatInput');
     if (!input) return;
-    const text = input.value.trim();
+    var text = input.value.trim();
     if (!text) return;
     input.value = '';
-    const msgs = document.getElementById('chatMessages');
-    if (!msgs) return;
-    // Thêm tin nhắn user
-    const userDiv = document.createElement('div');
-    userDiv.className = 'chat-msg user';
-    userDiv.innerHTML = esc(text);
-    msgs.appendChild(userDiv);
-    // Tự động trả lời
-    setTimeout(() => {
-      const botDiv = document.createElement('div');
-      botDiv.className = 'chat-msg bot';
-      botDiv.innerHTML = chatBotReply(text);
-      msgs.appendChild(botDiv);
-      msgs.scrollTop = msgs.scrollHeight;
-    }, 500);
-    msgs.scrollTop = msgs.scrollHeight;
+    _doSend(text);
   }
 
+  /** Handle suggestion chip click — sends real natural-language prompt */
   function doChatSuggest(topic) {
-    const msgs = document.getElementById('chatMessages');
+    var sug = SUGGESTIONS[topic];
+    if (sug && sug.prompt) {
+      var input = _el('chatInput');
+      if (input) input.value = '';
+      _doSend(sug.prompt);
+    }
+  }
+
+  /** Clear conversation — reset to welcome state */
+  function doChatClear() {
+    _history = [];
+    _inFlight = false;
+    _setInputEnabled(true);
+    var msgs = _el('chatMessages');
     if (!msgs) return;
-    const botDiv = document.createElement('div');
-    botDiv.className = 'chat-msg bot';
-    botDiv.innerHTML = CHAT_RESPONSES[topic] || 'Cảm ơn bạn! Tôi sẽ giúp bạn học tập tốt hơn.';
-    msgs.appendChild(botDiv);
-    msgs.scrollTop = msgs.scrollHeight;
+    // Remove all messages
+    msgs.innerHTML = '';
+    // Re-add welcome
+    var welcomeDiv = document.createElement('div');
+    welcomeDiv.className = 'chat-msg bot';
+    var welcomeSpan = document.createElement('span');
+    welcomeSpan.setAttribute('data-i18n', 'chatWelcome');
+    welcomeSpan.textContent = _t('chatWelcome');
+    welcomeDiv.appendChild(welcomeSpan);
+    msgs.appendChild(welcomeDiv);
+    // Restore suggestion chips
+    _setChipsVisible(true);
   }
 
-  function chatBotReply(text) {
-    const lower = text.toLowerCase();
-    // Kiểm tra từ khóa
-    if (lower.includes('kế hoạch') || lower.includes('học tập') || lower.includes('study') || lower.includes('plan'))
-      return CHAT_RESPONSES['study-plan'];
-    if (lower.includes('mục tiêu') || lower.includes('goal') || lower.includes('target'))
-      return CHAT_RESPONSES['goal-tips'];
-    if (lower.includes('thói quen') || lower.includes('habit') || lower.includes('streak') || lower.includes('xây'))
-      return CHAT_RESPONSES['habit-tips'];
-    if (lower.includes('pomodoro') || lower.includes('tập trung') || lower.includes('focus') || lower.includes('timer') || lower.includes('cà chua'))
-      return CHAT_RESPONSES['pomodoro-tips'];
-    // Trả lời mặc định
-    return 'Cảm ơn câu hỏi của bạn! 🐥<br><br>Bạn có thể tham khảo các chủ đề:<br>• 📚 <b>Lên kế hoạch học tập</b> — bấm nút gợi ý bên trên<br>• 🎯 <b>Mẹo đạt mục tiêu</b><br>• 🔥 <b>Xây thói quen mới</b><br>• 🍅 <b>Cách dùng Pomodoro</b><br><br>Hoặc gõ trực tiếp câu hỏi của bạn!';
-  }
-
-  return { CHAT_RESPONSES, doChatSend, doChatSuggest, chatBotReply };
+  return {
+    SUGGESTIONS: SUGGESTIONS,
+    doChatSend: doChatSend,
+    doChatSuggest: doChatSuggest,
+    doChatClear: doChatClear,
+    // Expose for testing
+    _doSend: _doSend,
+    _hasToken: _hasToken,
+    _isOnline: _isOnline,
+    _history: function () { return _history; },
+  };
 });

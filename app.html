@@ -472,15 +472,18 @@
 
   <!-- ===== Trợ lý học tập (mở từ Công cụ / More sheet) ===== -->
   <div class="fb-fab-wrap" id="chatFabWrap">
-    <div class="chat-pop" id="chatPop" hidden data-testid="chat-pop">
+    <div class="chat-pop" id="chatPop" hidden data-testid="chat-pop" role="dialog" aria-modal="false" aria-label="Trợ lý TaskFlow">
       <div class="chat-header">
-        <strong data-i18n="chatTitle">🤖 Trợ lý học tập</strong>
-        <button type="button" class="sync-close" data-action="chat-close" aria-label="Đóng"
-          data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+        <strong data-i18n="chatTitle">🤖 Trợ lý TaskFlow</strong>
+        <div class="chat-header-actions">
+          <button type="button" class="chat-clear-btn" data-action="chat-clear" aria-label="Xóa cuộc trò chuyện" data-i18n-aria="chatClearAria" title="Xóa cuộc trò chuyện">🗑️</button>
+          <button type="button" class="sync-close" data-action="chat-close" aria-label="Đóng"
+            data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+        </div>
       </div>
-      <div class="chat-messages" id="chatMessages">
+      <div class="chat-messages" id="chatMessages" role="log" aria-live="polite">
         <div class="chat-msg bot">
-          <span data-i18n="chatWelcome">👋 Chào bạn! Tôi là trợ lý học tập. Bạn cần hỗ trợ gì?</span>
+          <span data-i18n="chatWelcome">👋 Chào bạn! Tôi là Trợ lý TaskFlow. Bạn có thể hỏi tôi về học tập, tập trung, mục tiêu và cách sử dụng TaskFlow.</span>
         </div>
       </div>
       <div class="chat-actions" id="chatActions">
@@ -491,7 +494,7 @@
       </div>
       <div class="chat-input-wrap">
         <input type="text" class="chat-input" id="chatInput" placeholder="" data-i18n-placeholder="chatPh"
-          autocomplete="off" />
+          autocomplete="off" aria-label="Nhập tin nhắn" />
         <button type="button" class="pop-btn primary chat-send" data-action="chat-send" data-i18n="chatSend">Gửi</button>
       </div>
     </div>
