@@ -3,7 +3,7 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v242';
+const CACHE = 'taskflow-v243';
 const APP_SHELL = [
   './',
   './index.html',
@@ -72,6 +72,9 @@ const APP_SHELL = [
   './js/popups.min.js',
   './js/inbox.min.js',
   './js/chat.min.js',
+  './js/ai-context.min.js',
+  './js/ai-chat-context.min.js',
+  './js/chat-provider.min.js',
   './js/search.min.js',
   './js/quick-add.min.js',
   './js/mood.min.js',

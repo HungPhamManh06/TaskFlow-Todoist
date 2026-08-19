@@ -121,6 +121,92 @@ test('_stripForbidden removes forbidden fields', () => {
   assert.equal(cleaned.nested.good, 'y');
 });
 
+/* ---------- P1.1 (Phase 3B runtime): arrays of objects ---------- */
+
+test('forbidden fields detected inside arrays of objects', () => {
+  const found = mod._containsForbidden({
+    data: { tasks: [{ uid: 't1', authorization: 'secret' }] },
+  }, '');
+  assert.ok(found.some((f) => f.includes('authorization')));
+});
+
+test('forbidden fields detected in nested arrays of objects', () => {
+  const found = mod._containsForbidden({
+    projects: [{ milestones: [{ jwt: 'forged' }] }],
+  }, '');
+  assert.ok(found.some((f) => f.includes('jwt')));
+});
+
+test('forbidden fields detected in arrays of primitives-safe objects', () => {
+  const found = mod._containsForbidden({
+    list: [{ name: 'ok' }, { name: 'ok2' }],
+  }, '');
+  assert.equal(found.length, 0);
+});
+
+test('_stripForbidden removes forbidden fields inside arrays', () => {
+  const cleaned = mod._stripForbidden({
+    tasks: [{ uid: 't1', token: 'abc', text: 'ok' }],
+    nested: { list: [{ password: 'x' }] },
+  });
+  assert.equal(cleaned.tasks[0].token, undefined);
+  assert.equal(cleaned.tasks[0].text, 'ok');
+  assert.equal(cleaned.nested.list[0].password, undefined);
+});
+
+test('_stripForbidden leaves clean arrays untouched', () => {
+  const cleaned = mod._stripForbidden({
+    tasks: [{ uid: 't1', text: 'ok' }],
+    values: [1, 2, 3],
+    flat: ['a', 'b'],
+  });
+  assert.equal(cleaned.tasks[0].text, 'ok');
+  assert.deepEqual(cleaned.values, [1, 2, 3]);
+  assert.deepEqual(cleaned.flat, ['a', 'b']);
+});
+
+test('validateEnvelope rejects forbidden field inside tasks array', () => {
+  const result = mod.validateEnvelope({
+    scope: 'today',
+    data: { tasks: [{ uid: 't1', authorization: 'leaked' }] },
+  });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((e) => e.includes('forbidden')));
+});
+
+/* ---------- P1 (Phase 3B runtime): browser-safe byte length ---------- */
+
+test('byteLengthUtf8: ASCII and Vietnamese lengths', () => {
+  assert.equal(mod.byteLengthUtf8('abc'), 3);
+  assert.equal(mod.byteLengthUtf8('đ'), 2);
+  assert.equal(mod.byteLengthUtf8('ế'), 3);
+  assert.equal(mod.byteLengthUtf8('🎯'), 4);
+  assert.equal(mod.byteLengthUtf8('x'.repeat(1000)), 1000);
+  assert.equal(mod.byteLengthUtf8(''), 0);
+});
+
+test('byteLengthUtf8 matches Buffer.byteLength', () => {
+  const samples = ['', 'hello', 'Hôm nay tôi còn task nào?', 'ế đ 🎯', JSON.stringify({ a: 1, b: 'x'.repeat(500) })];
+  samples.forEach((s) => {
+    assert.equal(mod.byteLengthUtf8(s), Buffer.byteLength(s, 'utf8'));
+  });
+});
+
+test('validateEnvelope size check works without Buffer (browser-safe)', () => {
+  const realBuffer = globalThis.Buffer;
+  try {
+    globalThis.Buffer = undefined;
+    const bigData = { tasks: Array.from({ length: 10000 }, (_, i) => ({ uid: 'u' + i, text: 'x'.repeat(100) })) };
+    const result = mod.validateEnvelope({ scope: 'today', data: bigData });
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some((e) => e.includes('too-large')));
+    const okEnv = mod.validateEnvelope({ scope: 'today', data: { tasks: [] } });
+    assert.equal(okEnv.ok, true);
+  } finally {
+    globalThis.Buffer = realBuffer;
+  }
+});
+
 test('validateEnvelope rejects forbidden fields', () => {
   const result = mod.validateEnvelope({
     scope: 'today',
