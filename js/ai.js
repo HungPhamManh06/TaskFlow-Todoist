@@ -1,5 +1,5 @@
 /* ============================================================
-   TaskFlow-Todoist — AI Planning Copilot (V2.1, optional)
+   TaskFlow-Todoist — AI Planning Copilot (V2.2, optional)
    ------------------------------------------------------------
    window.TaskFlowAI — lớp frontend của AI planning.
 
@@ -388,11 +388,16 @@
     };
     const items = proposal.actions.map((a, i) => {
       const w = warnMap[i];
-      const tag = w ? ` <span class="ai-warn">${t('aiConflict')}</span>` : '';
+      // P6: badge nhỏ gọn + text accessible theo kind (conflictCheck đã lộ kind an toàn).
+      const kindKey = w && w.kind ? { existing: 'aiConflictExisting', busy: 'aiConflictBusy', proposed: 'aiConflictProposed' }[w.kind] : null;
+      const tag = w
+        ? ` <span class="ai-warn" role="note"${kindKey ? ` title="${escAttr(t(kindKey))}" aria-label="${escAttr(t(kindKey))}"` : ''}>${escHtml(t('aiConflict'))}</span>`
+        : '';
       if (a.type === 'schedule_task') {
         const dLabel = dateLabel(a);
+        const dateTime = (validDate(a.date) && validTime(a.start)) ? escAttr(a.date + 'T' + a.start) : '';
         return `<li class="ai-plan-item">
-          <time class="ai-plan-time">${escHtml(a.start || '--:--')}</time>
+          <time class="ai-plan-time"${dateTime ? ` datetime="${dateTime}"` : ''}>${escHtml(a.start || '--:--')}</time>
           <div class="ai-plan-main">
             <strong class="ai-plan-task">${escHtml(labelFor(a.taskUid))}${tag}</strong>
             <span class="ai-plan-meta">${escHtml(durText(a))}${dLabel ? ' · ' + escHtml(dLabel) : ''}</span>

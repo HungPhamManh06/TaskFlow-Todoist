@@ -9410,24 +9410,22 @@ body.focus-mode .container { padding: 0; }
   color: var(--color-text);
   line-height: 1.5;
   margin: 0 0 0.5rem;
-}
-
-.ai-actions-list {
-  list-style: none;
-  margin: 0 0 0.6rem;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  font-size: 12.5px;
-  color: var(--color-text-secondary);
-  overflow-wrap: anywhere;
+  overflow-wrap: anywhere; /* P5: summary dài wrap tự nhiên, không tràn ngang */
 }
 
 .ai-warn {
-  color: var(--color-accent);
+  /* P6: badge nhỏ gọn — text + border, không dựa màu đơn lẻ (P15). */
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0.04rem 0.45rem;
+  border: 1px solid var(--color-accent, #c98a1b);
+  border-radius: 999px;
+  color: var(--color-accent, #c98a1b);
+  background: var(--color-surface, #fff);
   font-weight: 700;
-  font-size: 11px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  vertical-align: baseline;
 }
 
 .ai-warn-note {

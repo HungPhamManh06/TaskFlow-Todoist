@@ -984,29 +984,36 @@ async function aiRun() {
 }
 
 // Apply: CHỈ chạy khi user bấm Apply. Ghi state qua API chuẩn (TimeBlock store + move helpers).
+// P7: guard đồng bộ chống double-click — một cú click = tối đa một lần Apply.
+let aiApplying = false;
 function aiApply() {
   const AI = window.TaskFlowAI;
   const last = window._lastAiProposal;
-  if (!AI || !last) return;
-  const result = AI.applyProposal(last.proposal, {
-    findTask: (uid) => !!findPlannerTaskByUid(uid),
-    createBlock: (payload) => {
-      const store = loadTimeBlocksStore();
-      window.TaskFlowTimeBlocks.createTimeBlock(store, {
-        taskUid: payload.taskUid, date: payload.date, start: payload.start, end: payload.end, status: 'planned',
-      });
-      saveTimeBlocksStore(store);
-    },
-    moveToDay: (uid, option) => { const ref = findPlannerTaskByUid(uid); if (ref) movePlannerTaskToDay(ref, option); },
-    moveToInbox: (uid) => { const ref = findPlannerTaskByUid(uid); if (ref) movePlannerTaskToInbox(ref); },
-  });
-  save();
-  renderCurrentView();
-  TaskFlowUI.closeDialog('plannerModal');
-  delete window._lastAiProposal;
-  const skip = result.skipped && result.skipped.length ? ' ' + t('aiSkipNote', { n: result.skipped.length }) : '';
-  TaskFlowUI.toast(t('aiApplied') + skip, 'success');
-  trackEvent('ai_apply');
+  if (!AI || !last || aiApplying) return;
+  aiApplying = true;
+  try {
+    const result = AI.applyProposal(last.proposal, {
+      findTask: (uid) => !!findPlannerTaskByUid(uid),
+      createBlock: (payload) => {
+        const store = loadTimeBlocksStore();
+        window.TaskFlowTimeBlocks.createTimeBlock(store, {
+          taskUid: payload.taskUid, date: payload.date, start: payload.start, end: payload.end, status: 'planned',
+        });
+        saveTimeBlocksStore(store);
+      },
+      moveToDay: (uid, option) => { const ref = findPlannerTaskByUid(uid); if (ref) movePlannerTaskToDay(ref, option); },
+      moveToInbox: (uid) => { const ref = findPlannerTaskByUid(uid); if (ref) movePlannerTaskToInbox(ref); },
+    });
+    save();
+    renderCurrentView();
+    TaskFlowUI.closeDialog('plannerModal');
+    delete window._lastAiProposal;
+    const skip = result.skipped && result.skipped.length ? ' ' + t('aiSkipNote', { n: result.skipped.length }) : '';
+    TaskFlowUI.toast(t('aiApplied') + skip, 'success');
+    trackEvent('ai_apply');
+  } finally {
+    aiApplying = false;
+  }
 }
 
 // Áp dụng kế hoạch: tạo TimeBlock cho task đã chọn + dời việc quá hạn theo lựa chọn.

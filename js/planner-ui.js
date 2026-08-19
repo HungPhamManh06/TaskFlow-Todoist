@@ -1,4 +1,4 @@
-// TaskFlow — Smart Daily Planner UI (V1.4). Rule-based, NO AI.
+// TaskFlow — Smart Daily Planner UI (V1.5). Rule-based, NO AI.
 // Đóng vai trò render + đọc lựa chọn của user từ dialog; KHÔNG sở hữu state.
 // app.js orchestrate: dispatch action, mở/đóng dialog, lưu sau Apply.
 // CRITICAL RULE: không sửa data trước khi user bấm Apply. Preview chỉ là bản xem trước.
@@ -160,11 +160,12 @@
     return overdueHTML + topHTML + workloadHTML + scheduleHTML + previewHTML;
   }
 
-  // Tên task từ uid (để hiện trong gợi ý block).
+  // Tên task từ uid (để hiện trong gợi ý block). P1.1: KHÔNG bao giờ
+  // fallback về uid — dùng nhãn dịch an toàn nếu không tìm thấy.
   function taskTextFor(uid, top) {
     if (!uid || !Array.isArray(top)) return '';
     const hit = top.find((x) => x.uid === uid);
-    return hit ? hit.text : uid;
+    return hit && hit.text ? hit.text : t('plannerTaskFallback');
   }
 
   // Thời lượng theo ngôn ngữ (P10): dùng PlannerRules.formatMinutes — 1 nguồn duy nhất.

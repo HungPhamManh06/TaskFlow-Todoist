@@ -3126,12 +3126,16 @@ def planner_checks(browser, base, width, height, errors, screenshot):
     first_text = page.locator('.planner-top-item').first.locator('.planner-top-text').inner_text()
     assert "overdue" in first_text, f"task quá hạn phải xếp đầu, thấy: {first_text}"
 
-    # P11 (VI): không raw i18n key trong modal
+    # P11 (VI): không raw i18n key trong modal — prefix đầy đủ (P3)
     modal_text = page.locator('[data-testid="planner-modal"]').inner_text()
-    raw_keys = ["plannerStep", "plannerReason", "plannerPlanned", "plannerAvailable",
-                "plannerHours", "plannerNoDur", "plannerPreview", "plannerApplyNote"]
+    raw_keys = ["plannerStep", "plannerReason", "plannerPreview", "plannerAvailable",
+                "plannerPlanned", "plannerHours", "plannerApply", "aiPlan", "aiTaskFallback", "aiFallbackNote"]
     for rk in raw_keys:
         assert rk not in modal_text, f"VI modal lộ raw key {rk}"
+
+    # P2: rule planner KHÔNG bao giờ hiện UID nội bộ (pl-t1/pl-t2)
+    assert "pl-t1" not in modal_text and "pl-t2" not in modal_text, \
+        f"rule modal KHÔNG được hiện UID, thấy: {modal_text[:200]}"
 
     # P9: score hiển thị có nhãn dịch, không naked number
     score_texts = page.locator('.planner-top-score').all_inner_texts()
@@ -4059,7 +4063,8 @@ def ai_checks(browser, base, width, height, errors, screenshot):
        rule planner content + footer ẨN (data-plan-mode=ai) → đúng 1 Apply CTA
     3) request body gửi lên server không chứa reflections/mood (allowSensitive=false)
     4) ai-cancel → preview sạch, rule planner + footer KHÔI PHỤC, data không đổi
-    5) ai-run → ai-apply → tạo đúng 1 TimeBlock mới (10:00-11:00), modal đóng.
+    5) double-click ai-run → 1 request; double-click ai-apply → 1 block + 1 toast
+    6) conflict proposal → badge kind-existing + accessible text; task bị xoá → skip trung lập.
     """
     import json
     import datetime
@@ -4114,6 +4119,7 @@ def ai_checks(browser, base, width, height, errors, screenshot):
 
     ai_bodies = []
     ai_fail_mode = [False]
+    ai_conflict_mode = [False]
 
     def handle_ai(route):
         url = route.request.url
@@ -4127,8 +4133,23 @@ def ai_checks(browser, base, width, height, errors, screenshot):
                 route.fulfill(status=503, content_type="application/json",
                               body=json.dumps({"error": "ai-not-configured"}))
                 return
-            # Proposal hợp lệ: schedule tmsyccp56u6k5r5 vào khe trống 10:00-11:00 + 1 gợi ý.
             today = datetime.date.today().isoformat()
+            if ai_conflict_mode[0]:
+                # SCENARIO F: khe 09:30-10:30 chồng block có sẵn 09:00-10:00 (kind existing).
+                payload = {
+                    "ok": True,
+                    "proposal": {
+                        "summary": "Plan for today: fit Học Database into a busy morning.",
+                        "actions": [
+                            {"type": "schedule_task", "taskUid": "tmsyccp56u6k5r5",
+                             "date": today, "start": "09:30", "duration": 60},
+                            {"type": "next_action", "text": "Review inbox"},
+                        ],
+                    },
+                }
+                route.fulfill(status=200, content_type="application/json", body=json.dumps(payload))
+                return
+            # Proposal hợp lệ: schedule tmsyccp56u6k5r5 vào khe trống 10:00-11:00 + 1 gợi ý.
             payload = {
                 "ok": True,
                 "proposal": {
@@ -4161,10 +4182,10 @@ def ai_checks(browser, base, width, height, errors, screenshot):
     assert set(checked) == {"tasks", "projects", "schedule"}, f"mặc định chỉ tasks/projects/schedule, thấy: {checked}"
     assert page.locator('[data-ai-consent="reflections"]:checked').count() == 0, "reflections mặc định TẮT"
     assert page.locator('[data-ai-consent="mood"]:checked').count() == 0, "mood mặc định TẮT"
-    # P11 (EN): không raw i18n key trong modal
+    # P3 (EN): không raw i18n key trong modal — prefix đầy đủ
     modal_vi_text = page.locator('[data-testid="planner-modal"]').inner_text()
-    raw_keys = ["plannerStep", "plannerReason", "plannerPlanned", "plannerAvailable",
-                "plannerHours", "plannerNoDur", "plannerPreview", "plannerApplyNote"]
+    raw_keys = ["plannerStep", "plannerReason", "plannerPreview", "plannerAvailable",
+                "plannerPlanned", "plannerHours", "plannerApply", "aiPlan", "aiTaskFallback", "aiFallbackNote"]
     for rk in raw_keys:
         assert rk not in modal_vi_text, f"EN modal lộ raw key {rk}"
 
@@ -4217,17 +4238,233 @@ def ai_checks(browser, base, width, height, errors, screenshot):
     assert page.locator('[data-action="planner-apply"]').is_visible(), "AI lỗi → đúng 1 Apply rule"
     ai_fail_mode[0] = False
 
-    # 5) ai-run → ai-apply → tạo TimeBlock mới 10:00-11:00, modal đóng
-    page.locator('[data-action="ai-run"]').click()
+    # SCENARIO G: double-click AI Run → ĐÚNG 1 request /api/ai/plan
+    ai_run_before = len(ai_bodies)
+    page.locator('[data-action="ai-run"]').dblclick()
     page.wait_for_selector('[data-role="ai-preview"]', state="visible", timeout=8000)
+    assert len(ai_bodies) == ai_run_before + 1, \
+        f"double-click ai-run phải chỉ gửi 1 request, thấy {len(ai_bodies) - ai_run_before}"
+
+    # SCENARIO H: click nhanh 2 lần Apply → ĐÚNG 1 lần apply, không block trùng
     page.locator('[data-action="ai-apply"]').click()
+    # Adversarial click thứ 2 ngay sau đó (modal vừa đóng, button ẩn): guard chặn,
+    # không tạo block trùng.
+    page.evaluate("""() => {
+      const b = document.querySelector('[data-action="ai-apply"]');
+      if (b) b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }""")
     page.wait_for_selector('[data-testid="planner-modal"]:visible', state="detached")
     blocks = page.evaluate("JSON.parse(localStorage.getItem('planner-timeblocks')).blocks")
     assert len(blocks) == 3, f"Apply phải tạo đúng 1 block (2 → 3), thấy {len(blocks)}"
     assert any(b["taskUid"] == "tmsyccp56u6k5r5" and b["start"] == "10:00" and b["end"] == "11:00" for b in blocks), \
         "block mới phải là tmsyccp56u6k5r5 10:00-11:00"
+    assert page.locator('[data-testid="toast-region"] .toast-success', has_text="AI plan applied").count() == 1, \
+        "đúng 1 toast thành công, không trùng"
+
+    # SCENARIO F + P11: conflict badge (kind existing) + task bị xoá → skip trung lập
+    page.locator('[data-action="planner-open"]').click()
+    page.wait_for_selector('[data-testid="planner-modal"]:visible', state="visible")
+    ai_conflict_mode[0] = True
+    page.locator('[data-action="ai-run"]').click()
+    page.wait_for_selector('[data-role="ai-preview"]', state="visible", timeout=8000)
+    assert page.locator('.ai-warn').count() == 1, "khe 09:30 chồng block 09:00-10:00 → 1 badge"
+    badge = page.locator('.ai-warn').first
+    assert badge.inner_text() == "Conflict", f"badge compact EN, thấy: {badge.inner_text()}"
+    assert badge.get_attribute("aria-label") == "Overlaps existing schedule", \
+        "text accessible theo kind (không dựa màu đơn lẻ)"
+    assert page.locator('[data-testid="planner-modal"]').get_attribute("data-plan-mode") == "ai", \
+        "conflict → vẫn mode ai, Apply rõ ràng"
+    # P11: xoá task qua UI (deltask thật, trong lúc preview đang mở) → apply
+    # không tìm thấy task → bỏ qua an toàn, toast trung lập không lộ UID.
+    page.evaluate("""() => {
+      const rows = Array.from(document.querySelectorAll('.task-row'));
+      const row = rows.find((r) => r.textContent.includes('Học Database 60 phút'));
+      const btn = row && row.querySelector('[data-action="deltask"]');
+      if (btn) btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }""")
+    del_res = page.evaluate("""() => {
+      const textEls = Array.from(document.querySelectorAll('[data-role="task-text"]'));
+      const target = textEls.find((el) => el.textContent.includes('Học Database 60 phút'));
+      const row = target && target.closest('.today-task');
+      let fired = false;
+      if (row) {
+        const delBtn = row.querySelector('[data-action="deltask"]');
+        if (delBtn) { delBtn.dispatchEvent(new MouseEvent('click', { bubbles: true })); fired = true; }
+      }
+      const now = new Date();
+      const key = 'planner-' + now.getFullYear() + '-' + (now.getMonth() + 1);
+      const s = JSON.parse(localStorage.getItem(key));
+      let has = false, n = 0;
+      s.weeks.forEach(w => w.days.forEach(d => (d.tasks || []).forEach(t => { n++; if (t.uid === 'tmsyccp56u6k5r5') has = true; })));
+      return {
+        textEls: textEls.length, target: !!target, row: !!row, fired,
+        todayActive: document.querySelector('#view-today.active') !== null,
+        n, has,
+      };
+    }""")
+    page.locator('[data-action="ai-apply"]').click()
+    page.wait_for_selector('[data-testid="planner-modal"]:visible', state="detached")
+    blocks6 = page.evaluate("JSON.parse(localStorage.getItem('planner-timeblocks')).blocks")
+    dbg = page.evaluate("""() => {
+      const now = new Date();
+      const key = 'planner-' + now.getFullYear() + '-' + (now.getMonth() + 1);
+      const s = JSON.parse(localStorage.getItem(key));
+      let n = 0, has = false;
+      s.weeks.forEach(w => w.days.forEach(d => {
+        (d.tasks || []).forEach(t => { n++; if (t.uid === 'tmsyccp56u6k5r5') has = true; });
+      }));
+      return { n, has };
+    }""")
+    assert len(blocks6) == 3, \
+        f"skip → KHÔNG tạo block mới; blocks={len(blocks6)} tasks={dbg['n']} stillHasTask={dbg['has']} del={del_res}"
+    toast_text = page.locator('[data-testid="toast-region"] .toast-success').last.inner_text()
+    assert "Skipped 1" in toast_text, f"toast phải thông báo skip trung lập, thấy: {toast_text}"
+    assert "tmsyccp56u6k5r5" not in toast_text, "toast KHÔNG được lộ UID nội bộ"
 
     assert_no_page_overflow(page, f"ai {width}px")
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+    ctx.close()
+
+
+def ai_planner_viewport_checks(browser, base, width, height, errors, screenshot):
+    """P12/P13/P14: Planner modal UX theo viewport — 360x800, 390x844, 412x915,
+    1366x768, 1440x900. Rule mode + AI success mode:
+    - không tràn ngang (card + document)
+    - MỘT scroll container duy nhất (planner-body không scroll, card scroll)
+    - nền không scroll khi modal mở (body overflow hidden)
+    - close / ai-run / apply reachable
+    - desktop: modal không cao hơn viewport, Apply không cần cuộn nhiều"""
+    import json
+    import datetime
+    sizes = [(360, 800), (390, 844), (412, 915), (1366, 768), (1440, 900)]
+    if (width, height) not in sizes:
+        return  # chỉ chạy trên tập kích thước mục tiêu
+    ctx = browser.new_context(
+        viewport={"width": width, "height": height}, service_workers="block"
+    )
+    page = ctx.new_page()
+    page.emulate_media(reduced_motion="reduce")
+    page.on("pageerror", lambda error: errors.append(f"ai-viewport {width}x{height}: {error}"))
+    page.add_init_script("""(() => {
+      localStorage.setItem('planner-onboarded','1');
+      const now = new Date();
+      const year = now.getFullYear(), month = now.getMonth();
+      const key = 'planner-' + year + '-' + (month + 1);
+      let state;
+      try { state = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { state = null; }
+      if (!state) state = { version: 1, weeks: [], pillars: [], habits: [] };
+      state.monthKey = key;
+      state.schemaVersion = 2;
+      if (!Array.isArray(state.monthlyGoals)) state.monthlyGoals = [];
+      if (!Array.isArray(state.habits)) state.habits = [];
+      const first = new Date(year, month, 1);
+      const offset = (first.getDay() + 6) % 7;
+      const start = new Date(year, month, 1 - offset);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const numWeeks = Math.ceil((offset + daysInMonth) / 7);
+      while (state.weeks.length < numWeeks) state.weeks.push({ days: [] });
+      state.weeks.length = numWeeks;
+      state.weeks.forEach(w => { while (w.days.length < 7) w.days.push({ tasks: [] }); });
+      const delta = Math.floor((now - start) / 86400000);
+      const week = Math.floor(delta / 7), day = delta % 7;
+      const dayState = state.weeks[week].days[day];
+      dayState.tasks = [
+        { uid: 'tmsyccp56u6k5r5', kind: 'regular', done: false, text: 'Học Database 60 phút', estimatedMinutes: 60,
+          tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+        { uid: 'tmsyccp56jl7dsb', kind: 'regular', done: false, text: 'Không TikTok trước 18h', estimatedMinutes: 30,
+          tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } },
+      ];
+      localStorage.setItem(key, JSON.stringify(state));
+      const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+      localStorage.setItem('planner-timeblocks', JSON.stringify({ version: 1, blocks: [
+        { id: 'vp-b1', taskUid: 'tmsyccp56jl7dsb', date: today, start: '09:00', end: '10:00', status: 'planned', createdAt: '', updatedAt: '' },
+        { id: 'vp-b2', taskUid: 'tmsyccp56u6k5r5', date: today, start: '11:00', end: '12:00', status: 'planned', createdAt: '', updatedAt: '' },
+      ] }));
+    })()""")
+
+    def handle_ai(route):
+        if route.request.url.endswith("/api/ai/plan"):
+            today = datetime.date.today().isoformat()
+            payload = {
+                "ok": True,
+                "proposal": {
+                    "summary": "Kế hoạch hôm nay: tập trung Học Database 60 phút, sắp xếp 1 việc, nghỉ ngơi hợp lý.",
+                    "actions": [
+                        {"type": "schedule_task", "taskUid": "tmsyccp56u6k5r5",
+                         "date": today, "start": "10:00", "duration": 60},
+                        {"type": "next_action", "text": "Xem lại inbox"},
+                    ],
+                },
+            }
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(payload))
+            return
+        route.continue_()
+
+    page.route("**/api/ai/plan", handle_ai)
+    page.goto(f"{base}/app.html?view=today", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="today-view"]', state="visible")
+
+    page.locator('[data-action="planner-open"]').click()
+    page.wait_for_selector('[data-testid="planner-modal"]:visible', state="visible")
+
+    # Rule mode: scroll structure + nền khóa scroll
+    m = page.evaluate("""() => {
+      const card = document.querySelector('#plannerModal .report-modal-card');
+      const body = document.querySelector('#plannerModal .planner-body');
+      const csCard = getComputedStyle(card), csBody = getComputedStyle(body);
+      const cr = card.getBoundingClientRect();
+      return {
+        hOverflow: card.scrollWidth > card.clientWidth + 1,
+        cardScrollable: card.scrollHeight > card.clientHeight,
+        bodyScrollable: body.scrollHeight > body.clientHeight,
+        bodyMaxH: csBody.maxHeight, bodyOY: csBody.overflowY, cardOY: csCard.overflowY,
+        bodyLocked: getComputedStyle(document.body).overflowY,
+        cardH: cr.height, vh: innerHeight,
+      };
+    }""")
+    assert not m["hOverflow"], f"{width}x{height}: rule card tràn ngang"
+    assert m["bodyMaxH"] == "none" and m["bodyOY"] == "visible", "planner-body không tự scroll"
+    assert m["bodyScrollable"] is False, "planner-body không được là scroll container"
+    assert m["cardOY"] in ("auto", "scroll"), "card là scroll container duy nhất"
+    assert m["bodyLocked"] == "hidden", "modal mở → nền không scroll"
+    assert m["cardH"] <= m["vh"] + 1, f"rule modal không cao hơn viewport ({m['cardH']} > {m['vh']})"
+    close_btn = page.locator('[data-action="planner-close"]')
+    assert close_btn.is_visible(), "nút đóng luôn reachable (rule)"
+    cb = close_btn.bounding_box()
+    assert cb and 0 <= cb["y"] and cb["y"] + cb["height"] <= height + 1, "nút đóng trong viewport"
+
+    # AI success mode: preview readable + Apply reachable, không tràn ngang
+    page.locator('[data-action="ai-run"]').click()
+    page.wait_for_selector('[data-role="ai-preview"]', state="visible", timeout=8000)
+    assert page.locator('[data-testid="planner-modal"]').get_attribute("data-plan-mode") == "ai"
+    am = page.evaluate("""() => {
+      const card = document.querySelector('#plannerModal .report-modal-card');
+      const body = document.querySelector('#plannerModal .planner-body');
+      const cr = card.getBoundingClientRect();
+      return {
+        hOverflow: card.scrollWidth > card.clientWidth + 1,
+        bodyScrollable: body.scrollHeight > body.clientHeight,
+        cardScrollable: card.scrollHeight > card.clientHeight,
+        cardH: cr.height, vh: innerHeight,
+      };
+    }""")
+    assert not am["hOverflow"], f"{width}x{height}: AI preview tràn ngang"
+    assert am["bodyScrollable"] is False, "AI mode: planner-body vẫn không scroll (1 container duy nhất)"
+    assert page.locator('.ai-plan-list li').count() == 2, "preview readable: 2 action"
+    apply_btn = page.locator('[data-action="ai-apply"]')
+    assert apply_btn.is_visible(), f"{width}x{height}: Apply reachable (trong card scroll)"
+    apply_btn.scroll_into_view_if_needed()
+    ab = apply_btn.bounding_box()
+    assert ab is not None, "Apply có bounding box"
+    if width >= 1366:  # P13 desktop: CTA không cần cuộn nhiều
+        assert ab["y"] + ab["height"] <= height + 8, \
+            f"desktop {width}x{height}: Apply phải trong tầm nhìn, thấy y={ab['y']:.0f} vh={height}"
+        assert am["cardH"] <= am["vh"] + 1, "desktop: modal không cao hơn viewport"
+    assert page.locator('[data-action="planner-close"]').is_visible(), "nút đóng vẫn reachable khi AI active"
+
     page.screenshot(path=screenshot, full_page=False)
     page.close()
     ctx.close()
@@ -4331,7 +4568,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "today-week-consistency", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "gcal-refresh", "gcal-month-pending", "ai"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "today-week-consistency", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "gcal-refresh", "gcal-month-pending", "ai", "planner-viewports"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -4414,6 +4651,12 @@ def main():
                             tempfile.gettempdir(), f"taskflow-{scenario}-{width}.png"
                         )
                         check(browser, base, width, height, errors, screenshot)
+                # P12/P13/P14: matrix viewport chuyên dụng cho planner modal
+                for w, h in ((360, 800), (390, 844), (412, 915), (1366, 768), (1440, 900)):
+                    ai_planner_viewport_checks(
+                        browser, base, w, h, errors,
+                        os.path.join(tempfile.gettempdir(), f"taskflow-ai-viewport-{w}.png"),
+                    )
             elif args.landing:
                 landing_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 landing_checks(browser, base, 390, 844, errors, shots["mobile"])
@@ -4520,6 +4763,12 @@ def main():
             elif args.view == "ai":
                 ai_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 ai_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "planner-viewports":
+                for w, h in ((360, 800), (390, 844), (412, 915), (1366, 768), (1440, 900)):
+                    ai_planner_viewport_checks(
+                        browser, base, w, h, errors,
+                        os.path.join(tempfile.gettempdir(), f"taskflow-ai-viewport-{w}.png"),
+                    )
 
             # Firefox session-restore race (Playwright known bug): closing the
             # browser while a context still exists can throw "can't access

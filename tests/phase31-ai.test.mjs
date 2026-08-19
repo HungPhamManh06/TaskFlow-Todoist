@@ -189,20 +189,21 @@ test('validDate: từ chối roll-over (2026-13-40)', () => {
 /* ---------- production wiring ---------- */
 test('app.html: plannerAi host + ai.min.js script + app.min bump', () => {
   assert.ok(APP.includes('id="plannerAi"'), 'host #plannerAi');
-  assert.ok(APP.includes('js/ai.min.js?v=3'), 'script ai.min.js');
-  assert.ok(APP.includes('js/app.min.js?v=194'), 'app.min.js v193');
+  assert.ok(APP.includes('js/ai.min.js?v=4'), 'script ai.min.js');
+  assert.ok(APP.includes('js/app.min.js?v=195'), 'app.min.js v195');
 });
 
-test('sw.js: cache v239 + precache ai.min.js', () => {
-  assert.ok(SW.includes("const CACHE = 'taskflow-v240';"), 'cache v239');
+test('sw.js: cache v241 + precache ai.min.js', () => {
+  assert.ok(SW.includes("const CACHE = 'taskflow-v241';"), 'cache v241');
   assert.ok(SW.includes("'./js/ai.min.js',"), 'precache ai.min.js');
 });
 
-test('i18n: đủ key VI + EN', () => {
-  const keys = ['aiTitle', 'aiRun', 'aiApply', 'aiCancel', 'aiConsentTasks', 'aiConsentReflections', 'aiConsentMood', 'aiKindplan_day', 'aiKindbreakdown_project', 'aiKindreschedule', 'aiNotConfigured', 'aiInvalidOutput', 'aiApplied', 'aiConflict', 'aiSelectProject', 'aiSelectMilestone', 'aiPlanSection', 'aiPlanToday', 'aiTaskFallback', 'aiFallbackNote', 'aiActReschedule'];
+test('i18n: đủ key VI + EN + KHÔNG còn aiActSchedule legacy {uid}', () => {
+  const keys = ['aiTitle', 'aiRun', 'aiApply', 'aiCancel', 'aiConsentTasks', 'aiConsentReflections', 'aiConsentMood', 'aiKindplan_day', 'aiKindbreakdown_project', 'aiKindreschedule', 'aiNotConfigured', 'aiInvalidOutput', 'aiApplied', 'aiConflict', 'aiConflictExisting', 'aiConflictBusy', 'aiConflictProposed', 'aiSelectProject', 'aiSelectMilestone', 'aiPlanSection', 'aiPlanToday', 'aiTaskFallback', 'aiFallbackNote', 'aiActReschedule'];
   keys.forEach((k) => {
     assert.ok(I18N.includes(k + ":"), 'thiếu key ' + k);
   });
+  assert.ok(!I18N.includes('aiActSchedule'), 'không còn legacy aiActSchedule chứa {uid}');
 });
 
 test('panelHTML/previewHTML render không throw', () => {
@@ -237,7 +238,7 @@ test('previewHTML: KHÔNG hiện UID nội bộ — hiện task text, UID chỉ 
       const d = {
         aiTaskFallback: 'Công việc', aiPlanToday: 'Hôm nay', aiPlanSection: 'Kế hoạch đề xuất',
         aiActReschedule: 'Dời “{task}” sang {opt}', aiOpttomorrow: 'ngày mai', aiActNext: 'Gợi ý',
-        aiSummary: 'Tóm tắt', aiConflict: 'có thể chồng giờ',
+        aiSummary: 'Tóm tắt', aiConflict: 'Trùng lịch',
       };
       let v = d[key];
       if (v === undefined) return key;
@@ -253,6 +254,37 @@ test('previewHTML: KHÔNG hiện UID nội bộ — hiện task text, UID chỉ 
   assert.ok(!visible.includes('missing-uid'), 'task thiếu label → fallback, KHÔNG hiện raw uid');
   assert.ok(html.includes('Công việc'), 'fallback an toàn hiển thị');
   assert.ok(html.includes('Dời “Học Database 60 phút” sang ngày mai'), 'reschedule dùng task text');
+});
+
+test('previewHTML: conflict badge nhỏ gọn + accessible text theo kind (P6/P15)', () => {
+  const proposal = {
+    summary: 'S',
+    actions: [
+      { type: 'schedule_task', taskUid: 't1', date: '2026-08-18', start: '08:00', duration: 60 },
+      { type: 'schedule_task', taskUid: 't2', date: '2026-08-18', start: '08:30', duration: 60 },
+      { type: 'schedule_task', taskUid: 't3', date: '2026-08-18', start: '09:00', duration: 60 },
+    ],
+  };
+  const warnings = [
+    { actionIndex: 0, taskUid: 't1', kind: 'existing' },
+    { actionIndex: 1, taskUid: 't2', kind: 'busy' },
+    { actionIndex: 2, taskUid: 't3', kind: 'proposed' },
+  ];
+  const html = withI18n({
+    t: (key) => ({
+      aiConflict: 'Trùng lịch',
+      aiConflictExisting: 'Trùng với lịch hiện có',
+      aiConflictBusy: 'Trùng với lịch Google',
+      aiConflictProposed: 'Trùng với đề xuất khác',
+      aiTaskFallback: 'Công việc', aiPlanToday: 'Hôm nay', aiPlanSection: 'S', aiSummary: 'S',
+    }[key] || key),
+  }, () => previewHTML(proposal, warnings, { taskLabels: { t1: 'A', t2: 'B', t3: 'C' }, today: '2026-08-18', lang: 'vi' }));
+  assert.equal(html.match(/class="ai-warn"/g).length, 3, '3 badge conflict');
+  assert.ok(html.includes('aria-label="Trùng với lịch hiện có"'), 'kind existing → text accessible');
+  assert.ok(html.includes('aria-label="Trùng với lịch Google"'), 'kind busy → text accessible');
+  assert.ok(html.includes('aria-label="Trùng với đề xuất khác"'), 'kind proposed → text accessible');
+  assert.ok(html.includes('>Trùng lịch</span>'), 'badge text compact + không màu đơn lẻ');
+  assert.ok(html.includes('datetime="2026-08-18T08:00"'), 'time có datetime máy đọc được');
 });
 
 test('previewHTML: date hôm nay → Hôm nay, ngày khác → định dạng ngắn theo ngôn ngữ', () => {
