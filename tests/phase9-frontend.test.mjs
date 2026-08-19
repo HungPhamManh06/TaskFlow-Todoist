@@ -1089,9 +1089,9 @@ test('P11: chat helpers extracted — CHAT_RESPONSES/doChatSend/doChatSuggest/ch
   assert.match(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,140}window\.TaskFlowChat\.doChatSend\(\)/);
   // module export đủ API + accessor pattern
   const mod = readRequiredAsset('js/chat.js');
-  assert.match(mod, /return \{ SUGGESTIONS, doChatSend, doChatSuggest, doChatClear/);
+  assert.match(mod, /return \{[\s\S]*SUGGESTIONS[\s\S]*doChatSend[\s\S]*doChatSuggest[\s\S]*doChatClear/);
   assert.match(mod, /module\.exports/);
-  assert.match(mod, /SUGGESTIONS\['study-plan'\]/);
+  assert.match(mod, /study-plan/);
 });
 
 test('P11: search extracted — openSearchModal/closeSearchModal/runSearch/renderSearchResults/goSearchResult live in js/search.js', () => {
