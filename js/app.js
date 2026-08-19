@@ -4300,6 +4300,32 @@ function preloadLazyChat() {
     .catch(() => { /* im lặng — send path sẽ tự fallback */ });
 }
 
+/* ---- Chat panel: shared close (P11/P15) ----
+   Đóng popover, cập nhật aria-expanded, trả focus về FAB nếu chat mở từ FAB.
+   KHÔNG xoá hội thoại/lịch sử. */
+let _chatOpenedFromFab = false;
+function closeChatPanel() {
+  const p = document.getElementById('chatPop');
+  if (!p || p.hidden) return false;
+  p.hidden = true;
+  const fab = document.getElementById('chatFab');
+  if (fab) fab.setAttribute('aria-expanded', 'false');
+  if (_chatOpenedFromFab && fab && typeof fab.focus === 'function') fab.focus();
+  _chatOpenedFromFab = false;
+  return true;
+}
+
+// Click ngoài Chat → đóng (không đóng khi click trong panel hoặc vào nút mở).
+// Đăng ký SAU dispatcher data-action (line 5350) — dispatcher mở/đóng trước,
+// listener này chỉ đóng khi click thật sự ra ngoài panel.
+document.addEventListener('click', (e) => {
+  const p = document.getElementById('chatPop');
+  if (!p || p.hidden) return;
+  const t = e.target;
+  if (t && t.closest && (t.closest('#chatFabWrap') || t.closest('[data-action="chat-toggle"]'))) return;
+  closeChatPanel();
+});
+
 /* ---- Phase 3B: Trusted Chat Context Provider (P4/P4.1) ---- */
 // chat.js KHÔNG bao giờ đọc localStorage/state trực tiếp — chỉ hỏi
 // TaskFlowChatContextProvider.prepare(message). App đăng ký gather fn đọc
@@ -5417,21 +5443,34 @@ document.addEventListener('click', (e) => {
   else if (act === 'chat-toggle') {
     const p = document.getElementById('chatPop');
     if (p) {
-      p.hidden = !p.hidden;
-      if (!p.hidden) {
+      const opening = p.hidden;
+      p.hidden = !opening;
+      const fab = document.getElementById('chatFab');
+      if (fab) fab.setAttribute('aria-expanded', String(opening));
+      if (opening) {
+        // Chat mở từ FAB → trả focus về FAB khi đóng (P15).
+        _chatOpenedFromFab = !!(el === fab || (el && el.closest && el.closest('#chatFabWrap')));
         preloadLazyChat();
         const pomoPanel = document.getElementById('pomoPanel');
         if (pomoPanel) pomoPanel.hidden = true;
         // Trợ lý mở từ Công cụ (desktop) → đóng drawer để panel hiển thị rõ.
         // More sheet (mobile) giữ nguyên — E2E-verified flow: toggle chat/pomo trong sheet.
         if (el && el.closest && el.closest('#toolsDrawer')) closeToolsDrawer();
+        // Focus vào input khi mở (P15).
+        const inp = document.getElementById('chatInput');
+        if (inp && typeof inp.focus === 'function') inp.focus();
+      } else {
+        // Đóng từ chính FAB → trả focus về FAB.
+        if (el === fab) {
+          if (fab && typeof fab.focus === 'function') fab.focus();
+          _chatOpenedFromFab = false;
+        }
       }
     }
     return;
   }
   else if (act === 'chat-close') {
-    const p = document.getElementById('chatPop');
-    if (p) p.hidden = true;
+    closeChatPanel();
     return;
   }
   else if (act === 'chat-send') {
@@ -6667,6 +6706,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape') {
+    // Floating Chat: Escape đóng popover (không xoá hội thoại), trả focus về FAB.
+    if (closeChatPanel()) return;
     // P0.2D: Escape trong ô text của draft task trống → xoá draft (không undo/toast)
     const edt = document.activeElement;
     if (edt && edt.dataset && edt.dataset.freshBlank === '1' &&
