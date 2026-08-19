@@ -392,7 +392,7 @@ test('Week view composes Weekly Review and delegated autosave editing', () => {
 
 test('Weekly Review production asset loads before app and is cached offline', () => {
   const reviewIndex = APP_HTML.indexOf('js/weekly-review.min.js?v=1');
-  const appIndex = APP_HTML.indexOf('js/app.min.js?v=195');
+  const appIndex = APP_HTML.indexOf('js/app.min.js?v=196');
   assert.ok(reviewIndex >= 0);
   assert.ok(appIndex > reviewIndex);
   assert.match(APP_HTML, /js\/i18n\.min\.js\?v=25/);
