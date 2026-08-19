@@ -107,19 +107,20 @@
     container.scrollTop = container.scrollHeight;
   }
 
-  /* ---- Show retry button ---- */
-  function _showRetry(container, failedMsg) {
+  /* ---- Show retry button (P8: ONE wrapper = mapped error text + retry) ---- */
+  function _showRetry(container, failedMsg, mappedErrorText) {
     var wrap = document.createElement('div');
     wrap.className = 'chat-msg bot chat-retry-wrap';
     var p = document.createElement('p');
-    p.textContent = _t('chatErrorMsg');
+    p.textContent = mappedErrorText || _t('chatErrorMsg');
     wrap.appendChild(p);
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'chat-retry-btn';
     btn.textContent = _t('chatRetry');
     btn.addEventListener('click', function () {
-      if (failedMsg) _doSend(failedMsg);
+      // P9: reuse same message, one request — user bubble already exists.
+      if (failedMsg) _doSend(failedMsg, { userBubble: false });
     });
     wrap.appendChild(btn);
     container.appendChild(wrap);
@@ -160,12 +161,30 @@
     badge.hidden = false;
   }
 
+  /* ---- API base resolution (canonical pattern shared with sync/gcal/ai) ----
+     api-config.js declares `const API_CONFIG` at top level — a lexical global,
+     NOT attached to the window object; resolve it lexically. */
+  function _getApiBase() {
+    try {
+      if (typeof API_CONFIG !== 'undefined'
+          && API_CONFIG
+          && typeof API_CONFIG.url === 'string') {
+        return API_CONFIG.url.replace(/\/+$/, '');
+      }
+    } catch (e) { /* fall through */ }
+    return '';
+  }
+
   /* ---- API call ---- */
   async function _callChatAPI(message, history) {
-    // Build API URL from existing config
-    var apiUrl = '';
-    try { apiUrl = (window.API_CONFIG && API_CONFIG.url) || ''; } catch (e) { /* */ }
-    var url = apiUrl + '/api/ai/chat';
+    var apiBase = _getApiBase();
+
+    // P3: no silent production fallback — if the backend base cannot be
+    // resolved, fail locally instead of calling the wrong origin (e.g. Vercel).
+    if (!apiBase) {
+      throw { code: 'api-config-missing' };
+    }
+    var url = apiBase + '/api/ai/chat';
 
     // Get token — Sync module or direct localStorage
     var token = null;
@@ -195,6 +214,13 @@
 
     var body = { message: message, history: history };
     if (taskflowContext) body.taskflowContext = taskflowContext;
+
+    // P10: ?debug=1 safe diagnostics — URL resolution only, never token/body/context.
+    var debugLog = typeof location !== 'undefined' && /[?&]debug=1/.test(location.search);
+    if (debugLog && typeof console !== 'undefined' && console.log) {
+      console.log('[chat] api-base=' + apiBase);
+      console.log('[chat] request=/api/ai/chat');
+    }
 
     var res = await fetch(url, {
       method: 'POST',
@@ -227,13 +253,15 @@
         return _t('chatErrorUnavailable');
       case 'invalid-message': return _t('chatErrorInvalidMessage');
       case 'ai-context-invalid': return _t('chatErrorContextInvalid');
+      case 'api-config-missing': return _t('chatErrorApiConfig');
       default: return _t('chatErrorMsg');
     }
   }
 
   /* ---- Core send flow ---- */
-  async function _doSend(text) {
+  async function _doSend(text, opts) {
     if (_inFlight) return;
+    opts = opts || {};
     text = (text || '').trim();
     if (!text) return;
 
@@ -260,8 +288,8 @@
     _setInputEnabled(false);
     _setChipsVisible(false);
 
-    // 3. Append user bubble
-    _appendText(msgs, text, 'chat-msg user');
+    // 3. Append user bubble (skipped on retry — bubble already in thread)
+    if (opts.userBubble !== false) _appendText(msgs, text, 'chat-msg user');
 
     // 4. Show typing indicator
     var typingEl = _showTyping(msgs);
@@ -286,9 +314,8 @@
     } catch (err) {
       _removeTyping(typingEl);
       var errMsg = _mapError(err);
-      _showRetry(msgs, text);
-      // Also show error info in chat
-      _showInfo(msgs, errMsg);
+      // P8: exactly ONE error bubble + ONE retry button — no second info bubble.
+      _showRetry(msgs, text, errMsg);
     } finally {
       _inFlight = false;
       _setInputEnabled(true);
@@ -353,5 +380,8 @@
     _isOnline: _isOnline,
     _history: function () { return _history; },
     _setContextBadge: _setContextBadge,
+    _getApiBase: _getApiBase,
+    _callChatAPI: _callChatAPI,
+    _mapError: _mapError,
   };
 });
