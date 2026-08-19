@@ -4283,7 +4283,7 @@ function runLazyChat(fn) {
     .then(() => ensureLazyModule('js/ai-chat-context.min.js'))
     .then(() => ensureLazyModule('js/chat-provider.min.js'))
     .then(() => ensureLazyModule('js/chat.min.js'))
-    .then(fn)
+    .then(() => { initChatContextProvider(); if (fn) fn(); })
     .catch((err) => {
       console.error(err);
       if (window.TaskFlowUI && TaskFlowUI.toast) TaskFlowUI.toast('Không thể tải module — kiểm tra kết nối', 'error');
@@ -4296,6 +4296,7 @@ function preloadLazyChat() {
     .then(() => ensureLazyModule('js/ai-chat-context.min.js'))
     .then(() => ensureLazyModule('js/chat-provider.min.js'))
     .then(() => ensureLazyModule('js/chat.min.js'))
+    .then(() => initChatContextProvider())
     .catch(() => { /* im lặng — send path sẽ tự fallback */ });
 }
 
