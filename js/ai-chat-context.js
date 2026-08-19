@@ -2,25 +2,28 @@
    TaskFlow — Phase 3B Prep: Context-Aware Chat Integration Layer
    ------------------------------------------------------------
    window.TaskFlowAIChatContext — bridge between TaskFlowAIContext
-   (Phase 3A read-only broker) and future Gemini Chat wiring.
+   (Phase 3A read-only broker) and Gemini Chat (Phase 3B runtime).
 
-   This module is PREPARATION ONLY. It is NOT loaded from app.html
-   yet. It does NOT modify chat.js, /api/ai/chat, or any live path.
+   Loaded lazily via js/chat-provider.min.js (which loads js/ai-context.min.js
+   first). Never part of the app.html boot path.
 
    Guarantees:
    - ZERO NETWORK: no fetch, XMLHttpRequest, Gemini, or Google calls.
    - READ-ONLY: never mutates TaskFlow state, permissions, or history.
    - PRIVACY: sensitive domains (reflections, mood) are OFF by default
      and CANNOT be granted by user message text — only by trusted app
-     configuration state.
+     configuration state. Phase 3B runtime keeps them OFF (no toggle).
    - DETERMINISTIC: same inputs → same snapshot (modulo Date.now fallback).
    - SIZE-BOUNDED: serialized context is capped at MAX_CHAT_CONTEXT_BYTES.
+   - FORBIDDEN-FIELD SAFE: recursive scan covers nested objects AND items
+     inside arrays of objects (e.g. tasks[].authorization).
 
    Public API:
    - prepare({ message, requestedScope, permissions, brokerOptions })
    - resolveScope(message) → scope string
    - normalizePermissions(permissions) → permissions object
    - validateEnvelope(envelope) → { ok, errors }
+   - byteLengthUtf8(value) → byte length (TextEncoder → Buffer → fallback)
    - MAX_CHAT_CONTEXT_BYTES (constant)
    ============================================================ */
 (function (root, factory) {
@@ -152,6 +155,8 @@
 
   /* ---- Forbidden Fields ---- */
 
+  // Recursive scan: object keys AND items inside arrays of objects.
+  // e.g. { tasks: [{ authorization: 'secret' }] } must be detected.
   function _containsForbidden(obj, path) {
     if (!obj || typeof obj !== 'object') return [];
     var found = [];
@@ -167,14 +172,24 @@
           break;
         }
       }
-      // Recurse into nested objects (not arrays of primitives)
-      if (typeof obj[k] === 'object' && obj[k] !== null && !Array.isArray(obj[k])) {
-        found = found.concat(_containsForbidden(obj[k], fullPath));
+      // Recurse into nested objects AND arrays of objects
+      if (typeof obj[k] === 'object' && obj[k] !== null) {
+        if (Array.isArray(obj[k])) {
+          for (var a = 0; a < obj[k].length; a++) {
+            if (obj[k][a] && typeof obj[k][a] === 'object') {
+              found = found.concat(_containsForbidden(obj[k][a], fullPath + '[' + a + ']'));
+            }
+          }
+        } else {
+          found = found.concat(_containsForbidden(obj[k], fullPath));
+        }
       }
     }
     return found;
   }
 
+  // Recursive strip: removes forbidden keys from objects AND from items
+  // inside arrays of objects. Returns a fresh object — inputs never mutated.
   function _stripForbidden(obj) {
     if (!obj || typeof obj !== 'object') return obj;
     var out = {};
@@ -187,13 +202,48 @@
         if (lk === FORBIDDEN_FIELDS[j].toLowerCase()) { forbidden = true; break; }
       }
       if (forbidden) continue;
-      if (typeof obj[k] === 'object' && obj[k] !== null && !Array.isArray(obj[k])) {
+      if (Array.isArray(obj[k])) {
+        out[k] = obj[k].map(function (item) {
+          return (item && typeof item === 'object') ? _stripForbidden(item) : item;
+        });
+      } else if (typeof obj[k] === 'object' && obj[k] !== null) {
         out[k] = _stripForbidden(obj[k]);
       } else {
         out[k] = obj[k];
       }
     }
     return out;
+  }
+
+  /* ---- UTF-8 byte length (browser-safe; P1) ---- */
+
+  // Node's Buffer.byteLength is undefined in browsers. Prefer TextEncoder,
+  // fall back to Buffer, then a conservative UTF-8 count.
+  function byteLengthUtf8(value) {
+    var s = typeof value === 'string' ? value : JSON.stringify(value);
+    if (typeof s !== 'string') s = '';
+    try {
+      if (typeof TextEncoder !== 'undefined') {
+        return new TextEncoder().encode(s).length;
+      }
+    } catch (e) { /* fall through */ }
+    try {
+      if (typeof Buffer !== 'undefined' && typeof Buffer.byteLength === 'function') {
+        return Buffer.byteLength(s, 'utf8');
+      }
+    } catch (e) { /* fall through */ }
+    var bytes = 0;
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c < 0x80) bytes += 1;
+      else if (c < 0x800) bytes += 2;
+      else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
+        var n = s.charCodeAt(i + 1);
+        if (n >= 0xdc00 && n <= 0xdfff) { bytes += 4; i += 1; }
+        else bytes += 3;
+      } else bytes += 3;
+    }
+    return bytes;
   }
 
   /* ---- Envelope Validation ---- */
@@ -216,7 +266,7 @@
       }
       // Check size
       try {
-        var bytes = Buffer.byteLength(JSON.stringify(envelope), 'utf8');
+        var bytes = byteLengthUtf8(JSON.stringify(envelope));
         if (bytes > MAX_CHAT_CONTEXT_BYTES) {
           errors.push('context-too-large: ' + bytes + ' > ' + MAX_CHAT_CONTEXT_BYTES);
         }
@@ -307,6 +357,7 @@
     resolveScope: resolveScope,
     normalizePermissions: normalizePermissions,
     validateEnvelope: validateEnvelope,
+    byteLengthUtf8: byteLengthUtf8,
     // Expose internals for testing
     _containsForbidden: _containsForbidden,
     _stripForbidden: _stripForbidden,

@@ -64,7 +64,7 @@
   <link rel="stylesheet" href="css/app-shell.min.css?v=22" />
   <!-- styles-critical: tập con boot (shell + Today + modals + theme/dark) giữ trên critical path.
        styles-deferred (phần còn lại của styles.css): nạp sau first paint (media=print swap) — vẫn trong SW cache cho offline. -->
-<link rel="stylesheet" href="css/styles-critical.min.css?v=27" />
+<link rel="stylesheet" href="css/styles-critical.min.css?v=28" />
     <link rel="stylesheet" href="css/styles-deferred.min.css?v=30" media="print" onload="this.media='all'" />
     <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=30" /></noscript>
 </head>
@@ -475,12 +475,14 @@
     <div class="chat-pop" id="chatPop" hidden data-testid="chat-pop">
       <div class="chat-header">
         <strong data-i18n="chatTitle">🤖 Trợ lý TaskFlow</strong>
+        <span class="chat-context-badge" id="chatContextBadge" hidden data-testid="chat-context-badge"></span>
         <div class="chat-header-actions">
           <button type="button" class="chat-clear-btn" data-action="chat-clear" aria-label="Xóa cuộc trò chuyện" data-i18n-aria="chatClearAria" title="Xóa cuộc trò chuyện">🗑️</button>
           <button type="button" class="sync-close" data-action="chat-close" aria-label="Đóng"
             data-i18n-aria="closeBtn" data-shell-icon="close"></button>
         </div>
       </div>
+      <p class="chat-privacy-note" data-i18n="chatPrivacyNote">Với câu hỏi về dữ liệu TaskFlow, Trợ lý có thể gửi phần dữ liệu liên quan (Công việc, Dự án, Lịch hoặc Thói quen) đến Gemini để trả lời. Reflection và Mood không được gửi trong giai đoạn này.</p>
       <div class="chat-messages" id="chatMessages" role="log" aria-live="polite">
         <div class="chat-msg bot">
           <span data-i18n="chatWelcome">👋 Chào bạn! Tôi là Trợ lý TaskFlow. Bạn có thể hỏi tôi về học tập, tập trung, mục tiêu và cách sử dụng TaskFlow.</span>
@@ -846,7 +848,7 @@
   <script src="js/sync.min.js?v=5"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=1"></script>
-  <script src="js/i18n.min.js?v=26"></script>
+  <script src="js/i18n.min.js?v=27"></script>
   <script src="js/storage.min.js?v=3"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
@@ -880,7 +882,7 @@
   <script src="js/gcal.min.js?v=3"></script>
   <script src="js/gcal-ui.min.js?v=3"></script>
   <script src="js/ai.min.js?v=4"></script>
-  <script src="js/app.min.js?v=196"></script>
+  <script src="js/app.min.js?v=197"></script>
 </body>
 
 </html>

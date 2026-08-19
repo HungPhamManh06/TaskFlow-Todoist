@@ -4275,12 +4275,85 @@ renderPomoWidgetStats = function() {
 // (window.TaskFlowChat) — P11 extraction 21. Lazy-load (P1.5): module không nằm trong
 // chuỗi script boot, chỉ nạp khi dùng chat lần đầu (runLazyModule). Helper app-level
 // resolve qua global scope tại thời điểm GỌI — pattern syncui/clock.
+// Phase 3B (P6): chat cần chuỗi lazy ai-context → ai-chat-context → chat-provider →
+// chat. runLazyChat orchestrate chuỗi đó; KHÔNG thêm gì vào boot path.
+
+function runLazyChat(fn) {
+  ensureLazyModule('js/ai-context.min.js')
+    .then(() => ensureLazyModule('js/ai-chat-context.min.js'))
+    .then(() => ensureLazyModule('js/chat-provider.min.js'))
+    .then(() => ensureLazyModule('js/chat.min.js'))
+    .then(fn)
+    .catch((err) => {
+      console.error(err);
+      if (window.TaskFlowUI && TaskFlowUI.toast) TaskFlowUI.toast('Không thể tải module — kiểm tra kết nối', 'error');
+    });
+}
+
+// Preload chuỗi chat khi mở panel (vẫn lazy — không nằm trong boot path).
+function preloadLazyChat() {
+  ensureLazyModule('js/ai-context.min.js')
+    .then(() => ensureLazyModule('js/ai-chat-context.min.js'))
+    .then(() => ensureLazyModule('js/chat-provider.min.js'))
+    .then(() => ensureLazyModule('js/chat.min.js'))
+    .catch(() => { /* im lặng — send path sẽ tự fallback */ });
+}
+
+/* ---- Phase 3B: Trusted Chat Context Provider (P4/P4.1) ---- */
+// chat.js KHÔNG bao giờ đọc localStorage/state trực tiếp — chỉ hỏi
+// TaskFlowChatContextProvider.prepare(message). App đăng ký gather fn đọc
+// TỪ NGUỒN CANONICAL: state, projects store, timeblocks store, Google Calendar
+// busy cache. KHÔNG network lúc build context. Reflections/Mood KHÔNG bao giờ
+// được cấp (P5) — provider ép tắt kể cả khi state có.
+function initChatContextProvider() {
+  try {
+    if (!window.TaskFlowChatContextProvider || typeof window.TaskFlowChatContextProvider.register !== 'function') return;
+    window.TaskFlowChatContextProvider.register(function chatContextGatherOptions() {
+      const today = PlannerUI.todayStr();
+      const blocks = loadTimeBlocksStore();
+      const busy = [];
+      if (window.TaskFlowGCal && window.TaskFlowGCal.loadCache && window.TaskFlowGCal.eventsForDate) {
+        try {
+          const cache = window.TaskFlowGCal.loadCache();
+          const events = cache && Array.isArray(cache.events) ? cache.events : [];
+          const days = [today];
+          if (PLAN_START instanceof Date) {
+            for (let d = 0; d < NUM_DAYS && d < 7; d++) {
+              days.push(TimeBlocksUI.iso(new Date(PLAN_START.getFullYear(), PLAN_START.getMonth(), 1 + d)));
+            }
+          }
+          days.forEach((dayStr) => {
+            (window.TaskFlowGCal.eventsForDate(events, dayStr) || []).forEach((e) => {
+              busy.push({ start: e.startMs ? new Date(e.startMs).toISOString() : '', end: e.endMs ? new Date(e.endMs).toISOString() : '' });
+            });
+          });
+        } catch (e) { /* offline → không có busy */ }
+      }
+      return {
+        state: state,
+        now: new Date(),
+        today: today,
+        planStart: PLAN_START instanceof Date ? PLAN_START : null,
+        numDays: NUM_DAYS,
+        year: PLAN_YEAR,
+        month: PLAN_MONTH,
+        resolveTodayCell: (window.TaskFlowClock && typeof TaskFlowClock.resolveTodayCell === 'function')
+          ? TaskFlowClock.resolveTodayCell : null,
+        projects: loadProjectsStore(),
+        timeblocks: blocks,
+        busy: busy,
+        habits: Array.isArray(state.habits) ? state.habits : [],
+      };
+    });
+  } catch (e) { /* provider optional — chat chạy bình thường không context */ }
+}
+initChatContextProvider();
 
 // Enter key trong chat input gửi tin nhắn
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'chatInput') {
     e.preventDefault();
-    runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatSend());
+    runLazyChat(() => window.TaskFlowChat.doChatSend());
   }
   if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'quickAddInput') {
     e.preventDefault();
@@ -5345,6 +5418,7 @@ document.addEventListener('click', (e) => {
     if (p) {
       p.hidden = !p.hidden;
       if (!p.hidden) {
+        preloadLazyChat();
         const pomoPanel = document.getElementById('pomoPanel');
         if (pomoPanel) pomoPanel.hidden = true;
         // Trợ lý mở từ Công cụ (desktop) → đóng drawer để panel hiển thị rõ.
@@ -5360,15 +5434,15 @@ document.addEventListener('click', (e) => {
     return;
   }
   else if (act === 'chat-send') {
-    runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatSend());
+    runLazyChat(() => window.TaskFlowChat.doChatSend());
     return;
   }
   else if (act === 'chat-clear') {
-    runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatClear());
+    runLazyChat(() => window.TaskFlowChat.doChatClear());
     return;
   }
   else if (act === 'chat-suggest') {
-    runLazyModule('js/chat.min.js', () => window.TaskFlowChat.doChatSuggest(el.dataset.topic));
+    runLazyChat(() => window.TaskFlowChat.doChatSuggest(el.dataset.topic));
     return;
   }
   else if (act === 'help-toggle') {

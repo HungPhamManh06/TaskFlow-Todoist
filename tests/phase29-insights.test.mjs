@@ -237,7 +237,7 @@ test('i18n: every insight key exists in both VI and EN', () => {
 test('wiring: script tag, SW precache + cache bump, report modal hook', () => {
   assert.match(APP, /js\/insights\.min\.js\?v=1/);
   assert.match(SW, /'\.\/js\/insights\.min\.js'/);
-  assert.match(SW, /const CACHE = 'taskflow-v242'/);
+  assert.match(SW, /const CACHE = 'taskflow-v243'/);
   assert.match(REPORT, /data-testid="report-insights"/);
   assert.ok(existsSync('js/insights.min.js'), 'insights.min.js must exist');
   assert.ok(existsSync('js/report-ui.min.js'), 'report-ui.min.js must exist');

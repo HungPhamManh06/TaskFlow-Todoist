@@ -1,6 +1,9 @@
-// TaskFlow — Trợ lý TaskFlow (Gemini Chat, Phase 2).
+// TaskFlow — Trợ lý TaskFlow (Gemini Chat, Phase 2 + Phase 3B context).
 // Gửi tin nhắn → POST /api/ai/chat → backend gọi Gemini → trả lời thật.
-// Module KHÔNG gửi TaskFlow personal data — chỉ message + bounded history.
+// Phase 3B: với câu hỏi về dữ liệu TaskFlow, client gửi taskflowContext
+// (envelope an toàn từ TaskFlowChatContextProvider — READ-ONLY, không
+// reflections/mood). Câu hỏi chung KHÔNG gửi context. Mọi lỗi context đều
+// fallback về chat thường — không bao giờ làm hỏng cuộc trò chuyện.
 // Gateway: Browser → TaskFlow backend → Gemini (KHÔNG BAO GIỜ browser → Gemini trực tiếp).
 // Lazy-loaded — giữ nguyên pattern P1.5, không nằm trong boot path.
 (function (root, factory) {
@@ -139,6 +142,24 @@
     }
   }
 
+  /* ---- Context badge (P18): shows which scope is in use, or nothing ---- */
+  function _setContextBadge(scope) {
+    var badge = _el('chatContextBadge');
+    if (!badge) return;
+    if (!scope) { badge.hidden = true; return; }
+    var key = {
+      today: 'chatContextBadgeToday',
+      week: 'chatContextBadgeWeek',
+      project: 'chatContextBadgeProject',
+      schedule: 'chatContextBadgeSchedule',
+      overview: 'chatContextBadgeOverview',
+    }[scope];
+    if (!key) { badge.hidden = true; return; }
+    badge.textContent = _t(key);
+    badge.title = _t('chatContextBadgeTitle');
+    badge.hidden = false;
+  }
+
   /* ---- API call ---- */
   async function _callChatAPI(message, history) {
     // Build API URL from existing config
@@ -153,10 +174,32 @@
     var headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
 
+    // Phase 3B (P7): optional taskflowContext envelope from the trusted
+    // provider. Any failure → proceed WITHOUT context (P8), never break chat.
+    var taskflowContext = null;
+    var ctxScope = null;
+    try {
+      if (window.TaskFlowChatContextProvider && window.TaskFlowChatContextProvider.prepare) {
+        var ctxRes = window.TaskFlowChatContextProvider.prepare(message);
+        if (ctxRes && ctxRes.ok && ctxRes.envelope) {
+          taskflowContext = ctxRes.envelope;
+          ctxScope = ctxRes.scope || taskflowContext.scope || null;
+        }
+      }
+    } catch (e) {
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[chat-context] prepare-failed (' + (e && e.name ? e.name : 'exception') + ')');
+      }
+    }
+    _setContextBadge(ctxScope);
+
+    var body = { message: message, history: history };
+    if (taskflowContext) body.taskflowContext = taskflowContext;
+
     var res = await fetch(url, {
       method: 'POST',
       headers: headers,
-      body: JSON.stringify({ message: message, history: history }),
+      body: JSON.stringify(body),
     });
 
     var json;
@@ -183,6 +226,7 @@
       case 'ai-provider-unavailable': case 'ai-provider-not-found':
         return _t('chatErrorUnavailable');
       case 'invalid-message': return _t('chatErrorInvalidMessage');
+      case 'ai-context-invalid': return _t('chatErrorContextInvalid');
       default: return _t('chatErrorMsg');
     }
   }
@@ -281,6 +325,7 @@
     _history = [];
     _inFlight = false;
     _setInputEnabled(true);
+    _setContextBadge(null);
     var msgs = _el('chatMessages');
     if (!msgs) return;
     // Remove all messages
@@ -307,5 +352,6 @@
     _hasToken: _hasToken,
     _isOnline: _isOnline,
     _history: function () { return _history; },
+    _setContextBadge: _setContextBadge,
   };
 });
