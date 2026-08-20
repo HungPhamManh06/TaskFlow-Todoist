@@ -1,4 +1,4 @@
-// TaskFlow — Safe Action Agent Runtime (Phase 4B/4C).
+// TaskFlow — Safe Action Agent Runtime (Phase 4B/4C/5C).
 // Flow: user request → deterministic action-intent router → POST /api/ai/agent
 // → Gemini proposes → server sanitizes → TaskFlowAIAgent validates → dry-run
 // → preview card in the Chat panel → user CONFIRMS → revalidation → canonical
@@ -11,6 +11,15 @@
 // - Runtime entity resolution (actionId → real UID mapping)
 // - Grouped preview for dependent actions
 // - Transaction safety with rollback on partial failure
+//
+// Phase 5C adds:
+// - Per-action selection with dependency-aware behavior
+// - Safe argument editing before apply (no Gemini call)
+// - Live local validation + conflict refresh
+// - Human-readable update diffs
+// - Selected subgraph revalidation at confirm time
+// - Dynamic confirm button label
+// - Double-click safety guard
 (function (root, factory) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -269,6 +278,250 @@
     }
   }
 
+  /* ================================================================
+     Phase 5C — Review State Management
+     Ephemeral per-proposal. Never persisted, never sent to Gemini.
+     ================================================================ */
+  let _reviewState = null;
+
+  /**
+   * _initReviewState(proposal, dry, grouped)
+   * Creates ephemeral review state for ONE proposal.
+   * Each action entry: { id, selected: true, editedArgs: null, originalArgs }
+   */
+  function _initReviewState(proposal, dry, grouped) {
+    const actions = grouped.map(function (g) {
+      const action = proposal.actions.find(function (a) { return a.id === g.actionId; });
+      const originalArgs = action ? JSON.parse(JSON.stringify(action.args || {})) : {};
+      return {
+        id: g.actionId,
+        selected: true,
+        editedArgs: null,
+        originalArgs: originalArgs,
+        isDependent: g.isDependent,
+      };
+    });
+    _reviewState = {
+      proposalId: proposal.id || 'p-' + Date.now(),
+      actions: actions,
+      dirty: false,
+    };
+  }
+
+  function _clearReviewState() { _reviewState = null; }
+  function _getReviewState() { return _reviewState; }
+
+  /* ---- Dependency graph helpers (Phase 5C) ---- */
+  function _buildDepGraph(proposal) {
+    const childrenOf = new Map();
+    const parentsOf = new Map();
+    if (!proposal || !Array.isArray(proposal.actions)) return { childrenOf, parentsOf };
+    proposal.actions.forEach(function (a) {
+      if (!a.id) return;
+      if (!childrenOf.has(a.id)) childrenOf.set(a.id, new Set());
+      if (!parentsOf.has(a.id)) parentsOf.set(a.id, new Set());
+    });
+    proposal.actions.forEach(function (a) {
+      if (!a.id || !a.args || !a.args.taskRef) return;
+      const ref = a.args.taskRef;
+      if (ref.kind === 'action' && ref.actionId) {
+        if (parentsOf.has(a.id)) parentsOf.get(a.id).add(ref.actionId);
+        if (childrenOf.has(ref.actionId)) childrenOf.get(ref.actionId).add(a.id);
+      }
+    });
+    return { childrenOf, parentsOf };
+  }
+
+  function _transitiveDescendants(ids, childrenOf) {
+    const result = new Set();
+    const stack = Array.from(ids);
+    while (stack.length) {
+      const id = stack.pop();
+      const kids = childrenOf.get(id);
+      if (!kids) continue;
+      kids.forEach(function (kid) {
+        if (!result.has(kid)) { result.add(kid); stack.push(kid); }
+      });
+    }
+    return result;
+  }
+
+  function _transitiveAncestors(ids, parentsOf) {
+    const result = new Set();
+    const stack = Array.from(ids);
+    while (stack.length) {
+      const id = stack.pop();
+      const pars = parentsOf.get(id);
+      if (!pars) continue;
+      pars.forEach(function (p) {
+        if (!result.has(p)) { result.add(p); stack.push(p); }
+      });
+    }
+    return result;
+  }
+
+  function _getSelectedIds() {
+    if (!_reviewState) return new Set();
+    const ids = new Set();
+    _reviewState.actions.forEach(function (a) {
+      if (a.selected) ids.add(a.id);
+    });
+    return ids;
+  }
+
+  /* ---- Selection management ---- */
+  function _toggleAction(actionId, card, proposal) {
+    if (!_reviewState) return;
+    const entry = _reviewState.actions.find(function (a) { return a.id === actionId; });
+    if (!entry) return;
+    const { childrenOf, parentsOf } = _buildDepGraph(proposal);
+    if (entry.selected) {
+      entry.selected = false;
+      const descendants = _transitiveDescendants(new Set([actionId]), childrenOf);
+      descendants.forEach(function (descId) {
+        const desc = _reviewState.actions.find(function (a) { return a.id === descId; });
+        if (desc) desc.selected = false;
+      });
+    } else {
+      entry.selected = true;
+      const ancestors = _transitiveAncestors(new Set([actionId]), parentsOf);
+      ancestors.forEach(function (ancId) {
+        const anc = _reviewState.actions.find(function (a) { return a.id === ancId; });
+        if (anc) anc.selected = true;
+      });
+    }
+    _refreshReviewUI(card, proposal);
+  }
+
+  function _selectAll(card, proposal) {
+    if (!_reviewState) return;
+    _reviewState.actions.forEach(function (a) { a.selected = true; });
+    _refreshReviewUI(card, proposal);
+  }
+
+  function _deselectAll(card, proposal) {
+    if (!_reviewState) return;
+    _reviewState.actions.forEach(function (a) { a.selected = false; });
+    _refreshReviewUI(card, proposal);
+  }
+
+  /* ---- Edit validation ---- */
+  function _validateEditArgs(actionType, args) {
+    const errors = [];
+    switch (actionType) {
+      case 'create_task': {
+        if (!(args.text || '').trim()) errors.push({ field: 'text' });
+        if (args.duration != null) { const d = Number(args.duration); if (!Number.isFinite(d) || d < 1 || d > 480) errors.push({ field: 'duration' }); }
+        if (args.date && !/^\d{4}-\d{2}-\d{2}$/.test(args.date)) errors.push({ field: 'date' });
+        break;
+      }
+      case 'schedule_task':
+      case 'reschedule_task': {
+        if (args.start && !/^\d{2}:\d{2}$/.test(args.start)) errors.push({ field: 'start' });
+        if (args.duration != null) { const d = Number(args.duration); if (!Number.isFinite(d) || d < 1 || d > 480) errors.push({ field: 'duration' }); }
+        if (args.date && !/^\d{4}-\d{2}-\d{2}$/.test(args.date)) errors.push({ field: 'date' });
+        if (args.start && args.duration) {
+          const endMin = parseInt(args.start.split(':')[0]) * 60 + parseInt(args.start.split(':')[1]) + Math.floor(Number(args.duration));
+          if (endMin >= 24 * 60) errors.push({ field: 'duration' });
+        }
+        break;
+      }
+      case 'update_task': {
+        const ch = args.changes || {};
+        if (ch.duration != null) { const d = Number(ch.duration); if (!Number.isFinite(d) || d < 1 || d > 480) errors.push({ field: 'duration' }); }
+        if (ch.text !== undefined && ch.text !== null && !(ch.text || '').trim()) errors.push({ field: 'text' });
+        break;
+      }
+      default: break;
+    }
+    return { valid: errors.length === 0, errors: errors };
+  }
+
+  /** Apply user edit to action entry in review state */
+  function _applyEdit(actionId, field, value, card, proposal) {
+    if (!_reviewState) return;
+    const entry = _reviewState.actions.find(function (a) { return a.id === actionId; });
+    if (!entry) return;
+    const action = proposal.actions.find(function (a) { return a.id === actionId; });
+    if (!action) return;
+    let edited = entry.editedArgs ? JSON.parse(JSON.stringify(entry.editedArgs)) : JSON.parse(JSON.stringify(entry.originalArgs || {}));
+    switch (field) {
+      case 'text':
+        if (action.type === 'create_task') edited.text = value;
+        else if (action.type === 'update_task') { if (!edited.changes) edited.changes = {}; edited.changes.text = value; }
+        break;
+      case 'date': edited.date = value || undefined; break;
+      case 'start': edited.start = value || undefined; break;
+      case 'duration': {
+        const numVal = value ? Number(value) : null;
+        if (action.type === 'update_task') { if (!edited.changes) edited.changes = {}; edited.changes.duration = numVal; }
+        else edited.duration = numVal;
+        break;
+      }
+      case 'priority':
+        if (action.type === 'create_task') edited.priority = (value === 'high');
+        else if (action.type === 'update_task') { if (!edited.changes) edited.changes = {}; edited.changes.priority = (value === 'high'); }
+        break;
+    }
+    entry.editedArgs = edited;
+    _reviewState.dirty = true;
+    entry._editValid = _validateEditArgs(action.type, edited).valid;
+    _refreshReviewUI(card, proposal);
+  }
+
+  /** Reset one action to original args */
+  function _resetEdit(actionId, card, proposal) {
+    if (!_reviewState) return;
+    const entry = _reviewState.actions.find(function (a) { return a.id === actionId; });
+    if (!entry) return;
+    entry.editedArgs = null;
+    entry._editValid = true;
+    _refreshReviewUI(card, proposal);
+  }
+
+  /** Apply edits to proposal clone (returns modified proposal) */
+  function _applyEditsToProposal(proposal) {
+    if (!_reviewState || !_reviewState.dirty) return proposal;
+    const modified = JSON.parse(JSON.stringify(proposal));
+    modified.actions = modified.actions.map(function (a) {
+      const entry = _reviewState.actions.find(function (ra) { return ra.id === a.id; });
+      if (entry && entry.editedArgs) a.args = JSON.parse(JSON.stringify(entry.editedArgs));
+      return a;
+    });
+    return modified;
+  }
+
+  /** Editable fields per action type */
+  function _editableFields(actionType) {
+    switch (actionType) {
+      case 'create_task': return ['text', 'date', 'duration', 'priority'];
+      case 'schedule_task': case 'reschedule_task': return ['date', 'start', 'duration'];
+      case 'update_task': return ['text', 'date', 'duration', 'priority'];
+      case 'complete_task': return [];
+      default: return [];
+    }
+  }
+
+  /** Build update diff display for update_task */
+  function _buildUpdateDiff(args, originalArgs) {
+    const diffs = [];
+    if (!args || !originalArgs) return diffs;
+    const ch = args.changes || {};
+    const orig = originalArgs.changes || {};
+    if (ch.text !== undefined && ch.text !== (orig.text || originalArgs.text)) {
+      diffs.push({ label: _t('reviewFieldName'), old: orig.text || originalArgs.text || '', new: ch.text || '' });
+    }
+    if (ch.duration !== undefined && ch.duration !== orig.duration) {
+      const oldD = orig.duration != null ? orig.duration : originalArgs.duration;
+      diffs.push({ label: _t('reviewFieldDuration'), old: oldD != null ? String(oldD) + ' phút' : '—', new: ch.duration != null ? String(ch.duration) + ' phút' : '—' });
+    }
+    if (ch.priority !== undefined && ch.priority !== orig.priority) {
+      const oldP = orig.priority !== undefined ? orig.priority : originalArgs.priority;
+      diffs.push({ label: _t('reviewFieldPriority'), old: oldP ? _t('reviewPriorityHigh') : _t('reviewPriorityNormal'), new: ch.priority ? _t('reviewPriorityHigh') : _t('reviewPriorityNormal') });
+    }
+    return diffs;
+  }
+
   /* ---- UI building (textContent only — no innerHTML with model data) ---- */
   function _bubble(className) {
     const el = document.createElement('div');
@@ -355,7 +608,22 @@
     });
   }
 
-  function _renderCard(msgs, proposal, dry) {
+  /** Phase 5C: Re-render card for review state changes */
+  function _refreshReviewUI(card, proposal) {
+    if (!card || !_reviewState) return;
+    const parent = card.parentNode;
+    const newCard = _renderCardFull(null, proposal);
+    if (newCard && parent) {
+      parent.replaceChild(newCard, card);
+      newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  /** Phase 5C: Full card renderer with selection/edit/summary */
+  function _renderCardFull(msgs, proposal) {
+    const virtualEntities = new Map();
+    const ctx = buildContext();
+    const grouped = _groupChangesForPreview(proposal.actions, virtualEntities, ctx);
     const card = _bubble('agent-card');
     card.setAttribute('data-testid', 'agent-card');
 
@@ -364,42 +632,177 @@
     head.textContent = _t('agentProposeTitle');
     card.appendChild(head);
 
+    const rs = _reviewState;
+    const depInfo = _buildDepGraph(proposal);
+
+    // Select all/none controls (3+ actions)
+    if (grouped.length >= 3 && rs) {
+      const selCtrl = document.createElement('div');
+      selCtrl.className = 'agent-select-controls';
+      const selAllBtn = document.createElement('button');
+      selAllBtn.type = 'button';
+      selAllBtn.className = 'agent-select-btn';
+      selAllBtn.textContent = _t('reviewSelectAll');
+      selAllBtn.addEventListener('click', function () { _selectAll(card, proposal); });
+      const deselBtn = document.createElement('button');
+      deselBtn.type = 'button';
+      deselBtn.className = 'agent-select-btn';
+      deselBtn.textContent = _t('reviewDeselectAll');
+      deselBtn.addEventListener('click', function () { _deselectAll(card, proposal); });
+      selCtrl.appendChild(selAllBtn);
+      selCtrl.appendChild(deselBtn);
+      card.appendChild(selCtrl);
+    }
+
     const body = document.createElement('div');
     body.className = 'agent-card-body';
 
-    // Phase 4C: grouped preview with dependency indicators
-    const virtualEntities = dry.virtualEntities || new Map();
-    const grouped = _groupChangesForPreview(dry.changes, virtualEntities, dry._ctx);
-
     grouped.forEach((g, idx) => {
-      const row = document.createElement('div');
-      row.className = 'agent-row' + (g.isDependent ? ' agent-row-dependent' : '');
-      row.setAttribute('data-action-id', g.actionId);
+      const entry = rs ? rs.actions.find(a => a.id === g.actionId) : null;
+      const action = proposal.actions.find(a => a.id === g.actionId);
+      const isSelected = entry ? entry.selected : true;
 
-      const t = document.createElement('span');
-      t.className = 'agent-row-title';
-      t.textContent = (idx + 1) + '. ' + g.title;
+      const rowWrap = document.createElement('div');
+      rowWrap.className = 'agent-row' + (g.isDependent ? ' agent-row-dependent' : '') + (isSelected ? '' : ' disabled-row');
+      rowWrap.setAttribute('data-action-id', g.actionId);
+      rowWrap.setAttribute('data-testid', 'review-action-' + g.actionId);
+
+      // Select row (checkbox + info)
+      const selectRow = document.createElement('div');
+      selectRow.className = 'agent-row-select';
+
+      const cb = document.createElement('button');
+      cb.type = 'button';
+      cb.className = 'agent-checkbox';
+      cb.setAttribute('role', 'checkbox');
+      cb.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+      cb.setAttribute('aria-label', g.title + ' ' + (g.description || ''));
+      cb.setAttribute('data-testid', 'review-checkbox-' + g.actionId);
+      if (entry) cb.addEventListener('click', function () { _toggleAction(g.actionId, card, proposal); });
+
+      const info = document.createElement('div');
+      info.className = 'agent-row-info';
+
+      const titleEl = document.createElement('span');
+      titleEl.className = 'agent-row-title';
+      titleEl.textContent = (idx + 1) + '. ' + g.title;
       if (g.isDependent) {
         const depBadge = document.createElement('span');
         depBadge.className = 'agent-dep-badge';
         depBadge.textContent = '→';
-        depBadge.title = 'Depends on previous action';
-        t.appendChild(depBadge);
+        titleEl.appendChild(depBadge);
       }
 
-      const d = document.createElement('span');
-      d.className = 'agent-row-desc';
-      d.textContent = g.description || '';
-      const m = document.createElement('span');
-      m.className = 'agent-row-meta';
-      m.textContent = g.meta || '';
+      const descEl = document.createElement('span');
+      descEl.className = 'agent-row-desc';
+      descEl.textContent = g.description || '';
 
-      row.appendChild(t); row.appendChild(d); row.appendChild(m);
-      body.appendChild(row);
+      const metaEl = document.createElement('span');
+      metaEl.className = 'agent-row-meta';
+      metaEl.textContent = g.meta || '';
+
+      info.appendChild(titleEl);
+      info.appendChild(descEl);
+      info.appendChild(metaEl);
+
+      // Update diff display
+      if (action && action.type === 'update_task' && isSelected) {
+        const diffArgs = (entry && entry.editedArgs) || action.args;
+        const diffs = _buildUpdateDiff(diffArgs, entry ? entry.originalArgs : action.args);
+        if (diffs.length > 0) {
+          const diffEl = document.createElement('div');
+          diffEl.className = 'agent-update-diff';
+          diffs.forEach(function (d) {
+            const row = document.createElement('div');
+            row.className = 'agent-diff-row';
+            row.appendChild(Object.assign(document.createElement('span'), { className: 'agent-diff-label', textContent: d.label + ': ' }));
+            row.appendChild(Object.assign(document.createElement('span'), { className: 'agent-diff-old', textContent: d.old }));
+            row.appendChild(Object.assign(document.createElement('span'), { className: 'agent-diff-arrow', textContent: ' → ' }));
+            row.appendChild(Object.assign(document.createElement('span'), { className: 'agent-diff-new', textContent: d.new }));
+            diffEl.appendChild(row);
+          });
+          info.appendChild(diffEl);
+        }
+      }
+
+      selectRow.appendChild(cb);
+      selectRow.appendChild(info);
+      rowWrap.appendChild(selectRow);
+
+      // Inline edit button (only for selected actions with editable fields)
+      if (isSelected && action && rs) {
+        const editableFields = _editableFields(action.type);
+        if (editableFields.length > 0) {
+          const editBtnRow = document.createElement('div');
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'agent-edit-btn';
+          editBtn.textContent = _t('reviewEdit');
+          editBtn.setAttribute('data-testid', 'review-edit-' + g.actionId);
+          let editPanelVisible = false;
+          let editPanel = null;
+          editBtn.addEventListener('click', function () {
+            if (editPanelVisible && editPanel) { editPanel.style.display = 'none'; editPanelVisible = false; editBtn.textContent = _t('reviewEdit'); return; }
+            if (editPanel) { editPanel.style.display = ''; editPanelVisible = true; editBtn.textContent = _t('reviewEdit') + ' ▲'; return; }
+            editPanel = document.createElement('div');
+            editPanel.className = 'agent-edit-panel';
+            editPanel.setAttribute('data-testid', 'review-edit-panel-' + g.actionId);
+            const currentArgs = (entry && entry.editedArgs) || (action ? action.args : {});
+            function addField(fieldId, label, value, inputType) {
+              const row = document.createElement('div');
+              row.className = 'agent-edit-row';
+              const lbl = document.createElement('label');
+              lbl.className = 'agent-edit-label';
+              lbl.textContent = label;
+              const inp = document.createElement('input');
+              inp.type = inputType || 'text';
+              inp.className = 'agent-edit-input';
+              inp.value = value != null ? String(value) : '';
+              inp.setAttribute('data-testid', 'review-edit-' + fieldId + '-' + g.actionId);
+              inp.addEventListener('change', function () { _applyEdit(g.actionId, fieldId, inp.value, card, proposal); });
+              inp.addEventListener('blur', function () { _applyEdit(g.actionId, fieldId, inp.value, card, proposal); });
+              row.appendChild(lbl);
+              row.appendChild(inp);
+              editPanel.appendChild(row);
+            }
+            if (action.type === 'create_task') {
+              addField('text', _t('reviewFieldName'), currentArgs.text);
+              addField('date', _t('reviewFieldDate'), currentArgs.date, 'date');
+              addField('duration', _t('reviewFieldDuration'), currentArgs.duration, 'number');
+            } else if (action.type === 'schedule_task' || action.type === 'reschedule_task') {
+              addField('date', _t('reviewFieldDate'), currentArgs.date, 'date');
+              addField('start', _t('reviewFieldStart'), currentArgs.start, 'time');
+              addField('duration', _t('reviewFieldDuration'), currentArgs.duration, 'number');
+            } else if (action.type === 'update_task') {
+              const ch = currentArgs.changes || {};
+              addField('text', _t('reviewFieldName'), ch.text);
+              addField('date', _t('reviewFieldDate'), ch.date, 'date');
+              addField('duration', _t('reviewFieldDuration'), ch.duration, 'number');
+            }
+            if (entry && entry.editedArgs) {
+              const resetBtn = document.createElement('button');
+              resetBtn.type = 'button';
+              resetBtn.className = 'agent-edit-reset';
+              resetBtn.textContent = _t('reviewReset');
+              resetBtn.addEventListener('click', function () { _resetEdit(g.actionId, card, proposal); });
+              editPanel.appendChild(resetBtn);
+            }
+            rowWrap.appendChild(editPanel);
+            editPanelVisible = true;
+            editBtn.textContent = _t('reviewEdit') + ' ▲';
+          });
+          editBtnRow.appendChild(editBtn);
+          rowWrap.appendChild(editBtnRow);
+        }
+      }
+
+      body.appendChild(rowWrap);
     });
+
     card.appendChild(body);
 
-    if (Array.isArray(dry.warnings) && dry.warnings.length) {
+    // Warnings
+    if (Array.isArray(dry ? dry.warnings : []) && (dry ? dry.warnings.length : 0)) {
       const warnBox = document.createElement('div');
       warnBox.className = 'agent-warns';
       dry.warnings.forEach((w) => {
@@ -411,31 +814,56 @@
       card.appendChild(warnBox);
     }
 
+    // Summary
+    const selectedCount = rs ? _getSelectedIds().size : grouped.length;
+    const summary = document.createElement('div');
+    summary.className = 'agent-summary';
+    summary.setAttribute('data-testid', 'review-summary');
+    summary.textContent = _t('reviewSummary', { n: selectedCount });
+    card.appendChild(summary);
+
+    // Action buttons
     const actions = document.createElement('div');
     actions.className = 'agent-actions';
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'agent-btn agent-cancel';
     cancelBtn.textContent = _t('agentCancel');
-    cancelBtn.addEventListener('click', () => _cancelCard(card, msgs));
+    cancelBtn.addEventListener('click', function () { _cancelCard(card, msgs); });
     const confirmBtn = document.createElement('button');
     confirmBtn.type = 'button';
     confirmBtn.className = 'agent-btn agent-confirm';
-    confirmBtn.textContent = _t('agentConfirm');
-    confirmBtn.addEventListener('click', () => _confirmCard(card, msgs, proposal));
+    confirmBtn.setAttribute('data-testid', 'review-confirm');
+    confirmBtn.textContent = selectedCount > 0
+      ? (grouped.length === 1 ? _t('reviewApplyOne') : _t('reviewApplyN', { n: selectedCount }))
+      : _t('reviewNoSelected');
+    confirmBtn.disabled = selectedCount === 0;
+    confirmBtn.addEventListener('click', function () { _confirmCard(card, msgs, proposal); });
     actions.appendChild(cancelBtn);
     actions.appendChild(confirmBtn);
     card.appendChild(actions);
 
     card.setAttribute('aria-label', _t('agentProposeTitle'));
-    msgs.appendChild(card);
-    msgs.scrollTop = msgs.scrollHeight;
-    const input = _el('chatInput');
-    if (input && typeof input.focus === 'function') input.focus();
+    return card;
+  }
+
+  function _renderCard(msgs, proposal, dry) {
+    // Phase 5C: initialize review state on first render
+    const virtualEntities = dry.virtualEntities || new Map();
+    const grouped = _groupChangesForPreview(dry.changes, virtualEntities, dry._ctx);
+    _initReviewState(proposal, dry, grouped);
+    const card = _renderCardFull(msgs, proposal);
+    if (card) {
+      msgs.appendChild(card);
+      msgs.scrollTop = msgs.scrollHeight;
+      const input = _el('chatInput');
+      if (input && typeof input.focus === 'function') input.focus();
+    }
     return card;
   }
 
   function _cancelCard(card, msgs) {
+    _clearReviewState();
     if (!card || !card.parentNode) return;
     card.parentNode.removeChild(card);
     const input = _el('chatInput');
@@ -706,7 +1134,7 @@
   let _applying = false;
   let _lastResult = null;
 
-  /* ---- P7/P11/P20/P22: confirm → revalidate against CURRENT state, then apply ---- */
+  /* ---- Phase 5C: confirm → selected subgraph revalidation → apply ---- */
   async function _confirmCard(card, msgs, proposal) {
     if (_applying || !card || !card.parentNode) return;
     _applying = true;
@@ -714,23 +1142,44 @@
     btns.forEach((b) => { b.disabled = true; });
 
     try {
-      // P7: revalidate on confirm — state may have changed since preview.
+      // Phase 5C: determine selected actions
+      const selectedIds = _getSelectedIds();
+      if (selectedIds.size === 0) {
+        const infoBubble = _bubble('agent-info');
+        infoBubble.textContent = _t('reviewNoSelected');
+        msgs.appendChild(infoBubble);
+        msgs.scrollTop = msgs.scrollHeight;
+        return;
+      }
+
+      // Phase 5C: apply user edits to proposal before revalidation
+      const activeProposal = _applyEditsToProposal(proposal);
+
+      // Filter proposal to only selected actions
+      const selectedProposal = JSON.parse(JSON.stringify(activeProposal));
+      selectedProposal.actions = selectedProposal.actions.filter(function (a) {
+        return selectedIds.has(a.id);
+      });
+
+      // P22: revalidate selected subgraph against CURRENT state
       const ctx = buildContext();
-      const v = window.TaskFlowAIAgent.validateProposal(proposal, ctx);
+      const v = window.TaskFlowAIAgent.validateProposal(selectedProposal, ctx);
       if (!v.ok) {
         const errBubble = _bubble('agent-info');
         errBubble.textContent = _t('agentStaleConfirm');
         msgs.appendChild(errBubble);
         msgs.scrollTop = msgs.scrollHeight;
+        _clearReviewState();
         if (card.parentNode) card.parentNode.removeChild(card);
         return;
       }
-      const dry = window.TaskFlowAIAgent.dryRun(proposal, ctx);
+      const dry = window.TaskFlowAIAgent.dryRun(selectedProposal, ctx);
       if (!dry.valid) {
         const errBubble = _bubble('agent-info');
         errBubble.textContent = _mapValidationError(dry.errors);
         msgs.appendChild(errBubble);
         msgs.scrollTop = msgs.scrollHeight;
+        _clearReviewState();
         if (card.parentNode) card.parentNode.removeChild(card);
         return;
       }
@@ -742,10 +1191,8 @@
       const actionIdToRealUid = new Map();
       const virtualEntities = dry.virtualEntities || new Map();
 
-      // Get topological order from dependency graph
       let executionOrder = [];
       if (dry.dependencyGraph) {
-        // Use the same topological sort logic as the contracts module
         const dag = dry.dependencyGraph;
         const inDegree = new Map();
         const nodes = Array.from(dag.keys());
@@ -765,9 +1212,8 @@
         }
       }
 
-      // Map actions by id for quick lookup
       const actionMap = new Map();
-      proposal.actions.forEach((a) => actionMap.set(a.id, a));
+      selectedProposal.actions.forEach((a) => actionMap.set(a.id, a));
 
       const applied = [], skipped = [], failed = [];
       for (const actionId of executionOrder) {
@@ -779,8 +1225,7 @@
         else failed.push(action);
       }
 
-      // If there are actions not in executionOrder (no deps), process them
-      proposal.actions.forEach((a) => {
+      selectedProposal.actions.forEach((a) => {
         if (!executionOrder.includes(a.id)) {
           const r = _applyAction(a, actionIdToRealUid, ctx, virtualEntities);
           if (r.status === 'applied') applied.push(a);
@@ -795,6 +1240,7 @@
         else if (typeof renderToday === 'function') renderToday();
       } catch (e) { /* */ }
 
+      _clearReviewState();
       if (card.parentNode) card.parentNode.removeChild(card);
       const reply = _resultText(applied.length, skipped.length, failed.length, ctx, virtualEntities);
       _lastResult = reply;
@@ -967,11 +1413,14 @@
     showClarification: showClarification,
     getPendingClarification: getPendingClarification,
     clearPendingClarification: clearPendingClarification,
+    getReviewState: _getReviewState,
     _mapError: _mapError,
     _mapValidationError: _mapValidationError,
     _locate: _locate,
     _applyAction: _applyAction,
     _endClock: _endClock,
     _targetDayForDate: _targetDayForDate,
+    _buildDepGraph: _buildDepGraph,
+    _validateEditArgs: _validateEditArgs,
   };
 });

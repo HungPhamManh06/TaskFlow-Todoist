@@ -1946,6 +1946,126 @@ textarea:focus-visible,
   border-radius: 8px;
   line-height: 1;
 }
+/* Phase 5C — Review & Granular Approval */
+.agent-row-select {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+}
+.agent-checkbox {
+  flex-shrink: 0;
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--ink, #3C3026);
+  border-radius: 4px;
+  background: var(--surface, #fff);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background .12s, border-color .12s;
+}
+.agent-checkbox::after {
+  content: '✓'; font-size: 11px; font-weight: 900;
+  color: #fff; opacity: 0; transform: scale(.4); transition: .15s;
+}
+.agent-checkbox[aria-checked='true'] { background: #4a7c54; border-color: #4a7c54; }
+.agent-checkbox[aria-checked='true']::after { opacity: 1; transform: scale(1); }
+.agent-checkbox:disabled { opacity: .45; cursor: default; }
+.agent-checkbox:focus-visible { outline: 2.5px solid var(--accent-deep); outline-offset: 2px; }
+.agent-row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.agent-row.disabled-row { opacity: .5; }
+.agent-row.disabled-row .agent-checkbox { border-color: var(--ink-light, #aaa); }
+.agent-row.dep-blocked {
+  opacity: .55;
+  position: relative;
+}
+.agent-dep-note {
+  font-size: 10.5px;
+  color: #b0562f;
+  font-style: italic;
+  margin-top: 2px;
+}
+:root[data-dark='true'] .agent-dep-note { color: #f0a184; }
+.agent-edit-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; font-weight: 700; color: var(--terracotta, #C88570);
+  padding: 2px 0; text-align: left; font-family: inherit;
+}
+.agent-edit-btn:hover { text-decoration: underline; }
+.agent-edit-btn:focus-visible { outline: 2.5px solid var(--accent-deep); outline-offset: 2px; }
+.agent-edit-panel {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 0 4px;
+  border-top: 1px dashed rgba(var(--ink-rgb), .15);
+  margin-top: 4px;
+}
+.agent-edit-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.agent-edit-label {
+  font-size: 11px; font-weight: 700; color: var(--ink-soft, #857062);
+  min-width: 60px;
+}
+.agent-edit-input {
+  flex: 1; min-width: 0;
+  border: 1.5px solid rgba(var(--ink-rgb), .3);
+  border-radius: 6px; background: #fff;
+  font: inherit; font-size: 12px; font-weight: 700;
+  color: var(--ink, #3C3026);
+  padding: 4px 8px; outline: 0;
+  transition: border-color .15s;
+}
+.agent-edit-input:focus { border-color: var(--terracotta, #C88570); box-shadow: 0 0 0 2px rgba(243,154,130,.2); }
+.agent-edit-input[aria-invalid='true'] { border-color: #c0392b; }
+.agent-edit-error {
+  font-size: 10.5px; color: #c0392b; margin-top: -2px;
+}
+:root[data-dark='true'] .agent-edit-error { color: #f08080; }
+.agent-edit-reset {
+  background: none; border: none; cursor: pointer;
+  font-size: 10.5px; font-weight: 700; color: var(--ink-light, #857062);
+  padding: 0; text-align: left; font-family: inherit;
+}
+.agent-edit-reset:hover { color: var(--ink); text-decoration: underline; }
+.agent-edit-reset:focus-visible { outline: 2.5px solid var(--accent-deep); outline-offset: 2px; }
+.agent-summary {
+  padding: 4px 12px 0;
+  font-size: 11.5px; font-weight: 700; color: var(--ink-soft, #857062);
+}
+.agent-summary .warn-count { color: #b0562f; }
+:root[data-dark='true'] .agent-summary .warn-count { color: #f0a184; }
+.agent-select-controls {
+  display: flex; gap: 8px; padding: 2px 12px 0;
+}
+.agent-select-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; font-weight: 700; color: var(--terracotta, #C88570);
+  padding: 0; font-family: inherit;
+}
+.agent-select-btn:hover { text-decoration: underline; }
+.agent-select-btn:focus-visible { outline: 2.5px solid var(--accent-deep); outline-offset: 2px; }
+.agent-update-diff {
+  padding: 2px 0 0;
+  font-size: 11px;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.agent-diff-row {
+  display: flex; align-items: center; gap: 4px;
+}
+.agent-diff-old {
+  text-decoration: line-through; color: var(--ink-light, #aaa);
+}
+.agent-diff-arrow { color: var(--ink-light, #aaa); }
+.agent-diff-new { font-weight: 700; color: var(--ink, #3C3026); }
+.agent-confirm {
+  background: #4a7c54; color: #fff;
+}
+/* Ensure .agent-confirm comes after .agent-btn */
+.agent-confirm:hover:not(:disabled) { background: #3d6a47; }
 .chat-actions {
   display: flex;
   flex-wrap: wrap;
