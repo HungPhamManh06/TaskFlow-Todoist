@@ -1398,6 +1398,7 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
   let fileMime = '';
   let fileSize = 0;
   let userMessage = '';
+  const fileMode = 'analyze'; // Phase 6C: read-only file analysis
   const userId = String(req.user.id);
 
   try {
