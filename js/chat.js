@@ -295,16 +295,46 @@
     var typingEl = _showTyping(msgs);
 
     try {
-      // Phase 4B (P3/P24): deterministic action-intent router — action requests
-      // go to the Safe Agent (/api/ai/agent); everything else stays on chat.
-      // Only a validated structured proposal can enter Preview — model TEXT alone
-      // never triggers an action.
-      if (window.TaskFlowAIAgentRuntime && window.TaskFlowAIAgentRuntime.isActionIntent(text)) {
+      // Phase 5B: deterministic intent classification with ambiguity handling.
+      // classifyIntent returns { kind, actionType, confidence, reason, taskHint, candidates }
+      var intent = null;
+      if (window.TaskFlowAIIntent && typeof window.TaskFlowAIIntent.classifyIntent === 'function') {
+        try {
+          var taskCtx = window.TaskFlowAIAgentRuntime ? window.TaskFlowAIAgentRuntime.buildContext() : null;
+          var tasks = taskCtx && taskCtx.tasks ? taskCtx.tasks : [];
+          intent = window.TaskFlowAIIntent.classifyIntent(text, tasks);
+        } catch (e) { intent = null; }
+      }
+
+      // Phase 4B/5B: route based on intent classification
+      var useAgent = false;
+      if (intent) {
+        if (intent.kind === 'clarify' && intent.candidates && intent.candidates.length > 0) {
+          // Ambiguous task → show clarification card (P14-P17)
+          _removeTyping(typingEl);
+          if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.showClarification === 'function') {
+            window.TaskFlowAIAgentRuntime.showClarification(msgs, intent, function (selectedUid, selectedTask) {
+              // User selected a task — re-send as agent with resolution hint
+              var _send = (typeof send === 'function') ? send : null;
+              if (_send) _send(text, { userBubble: false, resolutionHint: { taskUid: selectedUid } });
+            });
+          } else {
+            _appendText(msgs, _t('clarifyFallback'), 'chat-msg bot');
+          }
+          _history.push({ role: 'user', content: text });
+          if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+          return;
+        }
+        useAgent = (intent.kind === 'agent');
+      } else {
+        // Fallback: legacy isActionIntent if classifyIntent unavailable
+        useAgent = !!(window.TaskFlowAIAgentRuntime && window.TaskFlowAIAgentRuntime.isActionIntent(text));
+      }
+
+      if (useAgent) {
         var agentRes = await window.TaskFlowAIAgentRuntime.handleAgent(text, _history, msgs);
         _removeTyping(typingEl);
         if (agentRes && agentRes.handled) {
-          // Confirmed applies render their own result bubble inside the runtime;
-          // takeResult() returns that text for history continuity (no double bubble).
           var agentReply = (window.TaskFlowAIAgentRuntime.takeResult ? window.TaskFlowAIAgentRuntime.takeResult() : null) || agentRes.reply || null;
           _history.push({ role: 'user', content: text });
           if (agentReply) _history.push({ role: 'assistant', content: agentReply });

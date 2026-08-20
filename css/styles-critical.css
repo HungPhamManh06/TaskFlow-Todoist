@@ -1911,6 +1911,20 @@ textarea:focus-visible,
 .agent-cancel { background: rgba(var(--ink-rgb), .08); color: var(--ink, #3C3026); }
 .agent-cancel:hover:not(:disabled) { background: rgba(var(--ink-rgb), .14); }
 .agent-info { align-self: flex-start; }
+/* Phase 5B: Clarification card */
+.clarification-card { border-left: 3px solid var(--terracotta, #C88570); }
+.clarification-body { display: flex; flex-direction: column; gap: 6px; }
+.clarification-option {
+  display: block; width: 100%; text-align: left;
+  padding: 10px 14px; border: 1.5px solid rgba(var(--ink-rgb), .2);
+  border-radius: 9px; background: var(--surface, #fff);
+  font: inherit; font-size: 13px; font-weight: 700;
+  color: var(--ink, #3C3026); cursor: pointer;
+  transition: background .12s, border-color .12s;
+  min-height: 44px;
+}
+.clarification-option:hover { background: var(--surface-hover, rgba(var(--ink-rgb), .06)); border-color: var(--terracotta, #C88570); }
+.clarification-option:focus-visible { outline: 2.5px solid var(--accent-deep); outline-offset: 2px; }
 /* Phase 4C: Dependent action rows */
 .agent-row-dependent .agent-row-title::before {
   content: '↳ ';

@@ -1061,6 +1061,16 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
       return res.status(400).json({ error: 'invalid-agent-request-id' });
     }
 
+    // Phase 5B: sanitize resolutionHint — only taskUid allowed
+    const rawHint = body.resolutionHint;
+    let resolutionHint = null;
+    if (rawHint && typeof rawHint === 'object' && !Array.isArray(rawHint)) {
+      if (typeof rawHint.taskUid === 'string' && rawHint.taskUid.length > 0 && rawHint.taskUid.length <= 128) {
+        resolutionHint = { taskUid: rawHint.taskUid };
+      }
+      // Reject unknown fields silently — only taskUid allowed
+    }
+
     // ── 4. Idempotency cache lookup (no slot needed) ──
     if (agentRequestId && userId) {
       const cacheKey = userId + ':' + agentRequestId;
