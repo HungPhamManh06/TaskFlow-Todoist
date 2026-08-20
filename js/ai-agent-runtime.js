@@ -45,22 +45,24 @@
     return '';
   }
 
-  /* ---- P3: deterministic action-intent router (no LLM call) ---- */
-  const CREATE_RE = /(^|\s)(tạo|thêm|add|create|new)\s+(task|công việc|việc|todo|work|nhiệm vụ)/i;
-  const COMPLETE_RE = /hoàn thành|hoàn tất|đánh dấu[\s\S]*xong|mark[\s\S]*(done|complete)|complete|finish/i;
-  const SCHEDULE_RE = /(xếp|sắp lịch|lên lịch|schedule|book|đặt giờ|đặt lịch)|vào lúc\s*\d{1,2}|vào\s*\d{1,2}\s*h/i;
-  const RESCHEDULE_RE = /(chuyển|dời|reschedule|move)\s+(task|công việc|việc|todo|work)|chuyển\s+sang|dời\s+sang/i;
-  const UPDATE_RE = /ưu tiên cao|ưu tiên thấp|priority|đổi[\s\S]*thời lượng|change[\s\S]*duration|đổi[\s\S]*tên|rename|đổi[\s\S]*deadline|đổi[\s\S]*ngày|set[\s\S]*(priority|duration)/i;
-
+  /* ---- P3/P5B: deterministic action-intent router ---- */
+  // Phase 5B: delegates to TaskFlowAIIntent classifier when available,
+  // falls back to legacy boolean patterns for backward compat.
   function isActionIntent(message) {
+    try {
+      if (window.TaskFlowAIIntent && typeof window.TaskFlowAIIntent.isActionIntent === 'function') {
+        return window.TaskFlowAIIntent.isActionIntent(message);
+      }
+    } catch (e) { /* fallback */ }
+    // Legacy fallback (pre-Phase 5B)
+    const CREATE_RE = /(^|\s)(tạo|thêm|add|create|new)\s+(task|công việc|việc|todo|work|nhiệm vụ)/i;
+    const COMPLETE_RE = /hoàn thành|hoàn tất|đánh dấu[\s\S]*xong|mark[\s\S]*(done|complete)|complete|finish/i;
+    const SCHEDULE_RE = /(xếp|sắp lịch|lên lịch|schedule|book|đặt giờ|đặt lịch)|vào lúc\s*\d{1,2}|vào\s*\d{1,2}\s*h/i;
+    const RESCHEDULE_RE = /(chuyển|dời|reschedule|move)\s+(task|công việc|việc|todo|work)|chuyển\s+sang|dời\s+sang/i;
+    const UPDATE_RE = /ưu tiên cao|ưu tiên thấp|priority|đổi[\s\S]*thời lượng|change[\s\S]*duration|đổi[\s\S]*tên|rename|đổi[\s\S]*deadline|đổi[\s\S]*ngày|set[\s\S]*(priority|duration)/i;
     const s = String(message || '').trim();
     if (!s) return false;
-    if (COMPLETE_RE.test(s)) return true;
-    if (CREATE_RE.test(s)) return true;
-    if (RESCHEDULE_RE.test(s)) return true;
-    if (SCHEDULE_RE.test(s)) return true;
-    if (UPDATE_RE.test(s)) return true;
-    return false;
+    return CREATE_RE.test(s) || COMPLETE_RE.test(s) || RESCHEDULE_RE.test(s) || SCHEDULE_RE.test(s) || UPDATE_RE.test(s);
   }
 
   /* ---- P4: read-only context from CURRENT canonical state (no mutation) ---- */
@@ -877,11 +879,94 @@
     }
   }
 
+  /* ---- P14-P17: Clarification UI ---- */
+  let _pendingClarification = null;
+
+  /**
+   * showClarification(msgs, intentResult, onSelect) → renders clarification card
+   * onSelect(taskUid) is called when user selects a candidate.
+   */
+  function showClarification(msgs, intentResult, onSelect) {
+    if (!msgs || !intentResult || !Array.isArray(intentResult.candidates) || !intentResult.candidates.length) return;
+    if (_pendingClarification) return; // one pending at most (P16)
+
+    _pendingClarification = { intentResult, onSelect };
+
+    const card = _bubble('agent-card clarification-card');
+    card.setAttribute('data-testid', 'clarification-card');
+
+    const head = document.createElement('div');
+    head.className = 'agent-card-head';
+    const reason = intentResult.reason || '';
+    if (reason === 'not-found') {
+      head.textContent = _t('clarifyNotFound');
+    } else if (reason === 'ambiguous-task') {
+      head.textContent = _t('clarifySelectTask');
+    } else {
+      head.textContent = _t('clarifyWhatDoYouMean');
+    }
+    card.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'agent-card-body clarification-body';
+
+    intentResult.candidates.slice(0, 5).forEach(function (cand, idx) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'clarification-option';
+      btn.setAttribute('data-testid', 'clarification-option-' + idx);
+      btn.setAttribute('aria-label', cand.label || cand.task?.text || '');
+      btn.textContent = cand.label || cand.task?.text || '';
+      btn.addEventListener('click', function () {
+        _dismissClarification(card);
+        if (typeof onSelect === 'function' && cand.task && cand.task.uid) {
+          onSelect(cand.task.uid, cand.task);
+        }
+      });
+      body.appendChild(btn);
+    });
+
+    card.appendChild(body);
+
+    const actions = document.createElement('div');
+    actions.className = 'agent-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'agent-btn agent-cancel';
+    cancelBtn.textContent = _t('clarifyCancel');
+    cancelBtn.setAttribute('data-testid', 'clarification-cancel');
+    cancelBtn.addEventListener('click', function () {
+      _dismissClarification(card);
+    });
+    actions.appendChild(cancelBtn);
+    card.appendChild(actions);
+
+    card.setAttribute('aria-label', _t('clarifySelectTask'));
+    msgs.appendChild(card);
+    msgs.scrollTop = msgs.scrollHeight;
+
+    var input = _el('chatInput');
+    if (input && typeof input.focus === 'function') input.focus();
+  }
+
+  function _dismissClarification(card) {
+    _pendingClarification = null;
+    if (card && card.parentNode) card.parentNode.removeChild(card);
+    var input = _el('chatInput');
+    if (input && typeof input.focus === 'function') input.focus();
+  }
+
+  function getPendingClarification() { return _pendingClarification; }
+  function clearPendingClarification() { _pendingClarification = null; }
+
   return {
     isActionIntent: isActionIntent,
     handleAgent: handleAgent,
     buildContext: buildContext,
     takeResult: function takeResult() { const r = _lastResult; _lastResult = null; return r; },
+    showClarification: showClarification,
+    getPendingClarification: getPendingClarification,
+    clearPendingClarification: clearPendingClarification,
     _mapError: _mapError,
     _mapValidationError: _mapValidationError,
     _locate: _locate,
