@@ -165,6 +165,19 @@
       }
 
       var envelope = { scope: result.scope, data: data };
+
+      // Phase 6B: Inject user-declared AI preferences when memory is enabled.
+      // Preferences are LOCAL ONLY, user-controlled, and strictly allowlisted.
+      // They are NEVER automatically inferred from conversation.
+      try {
+        var mem = (typeof window !== 'undefined' && window.TaskFlowAIMemory)
+          ? window.TaskFlowAIMemory.buildContextPayload()
+          : null;
+        if (mem && typeof mem === 'object' && mem.preferences) {
+          envelope.preferences = mem.preferences;
+        }
+      } catch (e) { /* memory must never break chat */ }
+
       if (!cc.validateEnvelope || !cc.validateEnvelope(envelope).ok) {
         _log('prepare-failed', 'final-validation');
         return { ok: false, reason: 'final-validation' };
