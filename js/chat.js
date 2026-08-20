@@ -402,6 +402,7 @@
     _inFlight = false;
     _setInputEnabled(true);
     _setContextBadge(null);
+    _clearFileAttachment();
     var msgs = _el('chatMessages');
     if (!msgs) return;
     // Remove all messages
@@ -417,6 +418,285 @@
     // Restore suggestion chips
     _setChipsVisible(true);
   }
+
+  /* ---- Phase 6C: File Attachment ---- */
+  var _attachedFile = null;
+  var _fileObjectURL = null;
+  var _fileAbort = null;
+  var _FILE_MAX_BYTES = 15 * 1024 * 1024; // 15 MB client limit
+  var _ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain', 'text/markdown']);
+  var _ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.txt', '.md']);
+
+  var FILE_CHIPS_IMAGE = [
+    { key: 'fileChipImageDesc', prompt: 'Mô tả ảnh này' },
+    { key: 'fileChipImageExplain', prompt: 'Giải thích nội dung trong ảnh' },
+    { key: 'fileChipImageRead', prompt: 'Đọc nội dung chữ trong ảnh' },
+    { key: 'fileChipImageFindError', prompt: 'Tìm lỗi trong ảnh này' },
+  ];
+  var FILE_CHIPS_DOC = [
+    { key: 'fileChipSummary', prompt: 'Tóm tắt tài liệu này' },
+    { key: 'fileChipExplain', prompt: 'Giải thích nội dung chính' },
+    { key: 'fileChipKeyPoints', prompt: 'Liệt kê các điểm chính' },
+    { key: 'fileChipQuiz', prompt: 'Tạo 10 câu hỏi ôn tập từ tài liệu' },
+  ];
+  var FILE_CHIPS_TEXT = [
+    { key: 'fileChipSummary', prompt: 'Tóm tắt nội dung' },
+    { key: 'fileChipKeyPoints', prompt: 'Tìm các ý chính' },
+    { key: 'fileChipDocExtract', prompt: 'Trích xuất thông tin quan trọng' },
+  ];
+
+  function _formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function _fileIcon(mime) {
+    if (mime && mime.startsWith('image/')) return '🖼';
+    if (mime === 'application/pdf') return '📄';
+    return '📝';
+  }
+
+  function _validateFile(file) {
+    if (!file) return { ok: false, reason: 'fileEmpty' };
+    if (file.size === 0) return { ok: false, reason: 'fileEmpty' };
+    if (file.size > _FILE_MAX_BYTES) return { ok: false, reason: 'fileTooLarge' };
+    var ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!_ALLOWED_TYPES.has(file.type) && !_ALLOWED_EXTS.has(ext)) {
+      return { ok: false, reason: 'fileUnsupported' };
+    }
+    return { ok: true };
+  }
+
+  function _renderFileCard(file) {
+    var card = _el('chatFileCard');
+    if (!card) return;
+    card.innerHTML = '';
+    if (!file) return;
+
+    var cardEl = document.createElement('div');
+    cardEl.className = 'chat-file-card';
+
+    var icon = document.createElement('span');
+    icon.className = 'chat-file-card-icon';
+    icon.textContent = _fileIcon(file.type);
+    cardEl.appendChild(icon);
+
+    // Image preview
+    if (file.type && file.type.startsWith('image/') && _fileObjectURL) {
+      var preview = document.createElement('img');
+      preview.className = 'chat-file-preview';
+      preview.src = _fileObjectURL;
+      preview.alt = file.name;
+      cardEl.appendChild(preview);
+    }
+
+    var info = document.createElement('div');
+    info.className = 'chat-file-card-info';
+    var name = document.createElement('div');
+    name.className = 'chat-file-card-name';
+    name.textContent = file.name;
+    info.appendChild(name);
+    var size = document.createElement('div');
+    size.className = 'chat-file-card-size';
+    size.textContent = _formatFileSize(file.size);
+    info.appendChild(size);
+    cardEl.appendChild(info);
+
+    var removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'chat-file-card-remove';
+    removeBtn.setAttribute('aria-label', _t('fileRemove'));
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', function () { _clearFileAttachment(); });
+    cardEl.appendChild(removeBtn);
+
+    card.appendChild(cardEl);
+
+    // Show chips
+    _renderFileChips(file.type);
+  }
+
+  function _renderFileChips(mimeType) {
+    var chipsEl = _el('chatFileChips');
+    if (!chipsEl) return;
+    chipsEl.innerHTML = '';
+    chipsEl.hidden = false;
+    var chips = mimeType && mimeType.startsWith('image/') ? FILE_CHIPS_IMAGE
+      : mimeType === 'application/pdf' ? FILE_CHIPS_DOC : FILE_CHIPS_TEXT;
+    chips.forEach(function (c) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chat-chip';
+      btn.textContent = _t(c.key);
+      btn.addEventListener('click', function () {
+        var input = _el('chatInput');
+        if (input) input.value = c.prompt;
+        doChatSend();
+      });
+      chipsEl.appendChild(btn);
+    });
+  }
+
+  function _setFileLoading(fileName, loading) {
+    var card = _el('chatFileCard');
+    if (!card) return;
+    var existing = card.querySelector('.chat-file-loading');
+    if (loading) {
+      if (existing) return;
+      var loadEl = document.createElement('div');
+      loadEl.className = 'chat-file-loading';
+      var spinner = document.createElement('div');
+      spinner.className = 'spinner';
+      loadEl.appendChild(spinner);
+      var text = document.createElement('span');
+      text.textContent = _t('fileReading') + ' ' + fileName + '...';
+      loadEl.appendChild(text);
+      card.appendChild(loadEl);
+    } else if (existing) {
+      existing.remove();
+    }
+  }
+
+  function _clearFileAttachment() {
+    _attachedFile = null;
+    if (_fileObjectURL) { URL.revokeObjectURL(_fileObjectURL); _fileObjectURL = null; }
+    if (_fileAbort) { try { _fileAbort.abort(); } catch (e) {} _fileAbort = null; }
+    var card = _el('chatFileCard');
+    if (card) card.innerHTML = '';
+    var chips = _el('chatFileChips');
+    if (chips) { chips.innerHTML = ''; chips.hidden = true; }
+    var fileInput = _el('chatFileInput');
+    if (fileInput) fileInput.value = '';
+  }
+
+  function _handleFileSelect(file) {
+    var validation = _validateFile(file);
+    if (!validation.ok) {
+      var toast = window.TaskFlowUI && TaskFlowUI.toast;
+      if (toast) toast(_t(validation.reason), 'error');
+      return;
+    }
+    _attachedFile = file;
+    if (file.type && file.type.startsWith('image/')) {
+      _fileObjectURL = URL.createObjectURL(file);
+    }
+    _renderFileCard(file);
+  }
+
+  async function _sendWithFile(text, file) {
+    if (_inFlight || !file) return;
+    _inFlight = true;
+    _setInputEnabled(false);
+    _setChipsVisible(false);
+
+    // Show user bubble with file info
+    var userBubble = _bubble('user');
+    var userText = document.createElement('span');
+    userText.textContent = text;
+    userBubble.appendChild(userText);
+    if (file) {
+      var fileInfo = document.createElement('div');
+      fileInfo.style.cssText = 'font-size:11px;color:#857062;margin-top:2px;';
+      fileInfo.textContent = _fileIcon(file.type) + ' ' + file.name + ' (' + _formatFileSize(file.size) + ')';
+      userBubble.appendChild(fileInfo);
+    }
+    _appendBubble(userBubble);
+
+    _setFileLoading(file.name, true);
+
+    try {
+      _fileAbort = new AbortController();
+      var fd = new FormData();
+      fd.append('file', file);
+      fd.append('message', text);
+
+      var token = _getToken();
+      var headers = {};
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      var resp = await fetch('/api/ai/file', {
+        method: 'POST',
+        headers: headers,
+        body: fd,
+        signal: _fileAbort.signal,
+      });
+      _fileAbort = null;
+
+      var json;
+      try { json = await resp.json(); } catch (e) { json = null; }
+
+      _setFileLoading(file.name, false);
+
+      if (!resp.ok || !json || !json.ok) {
+        var errMsg = json && json.error ? json.error : 'ai-file-processing-failed';
+        var botBubble = _bubble('bot');
+        var errSpan = document.createElement('span');
+        errSpan.textContent = _t('fileFailed');
+        botBubble.appendChild(errSpan);
+        _appendBubble(botBubble);
+        return;
+      }
+
+      var botBubble = _bubble('bot');
+      _appendMarkdown(botBubble, json.answer || '');
+      _appendBubble(botBubble);
+
+      // Add to history
+      _history.push({ role: 'user', content: text });
+      _history.push({ role: 'assistant', content: json.answer || '' });
+    } catch (e) {
+      _setFileLoading(file.name, false);
+      if (e && e.name === 'AbortError') return; // cancelled
+      var botBubble = _bubble('bot');
+      var errSpan = document.createElement('span');
+      errSpan.textContent = _t('fileFailed');
+      botBubble.appendChild(errSpan);
+      _appendBubble(botBubble);
+    } finally {
+      _inFlight = false;
+      _setInputEnabled(true);
+      _clearFileAttachment();
+      var input = _el('chatInput');
+      if (input) input.focus();
+    }
+  }
+
+  /** Override doChatSend to check for attached file */
+  var _origDoChatSend = doChatSend;
+  doChatSend = function () {
+    var input = _el('chatInput');
+    if (!input) return;
+    var text = input.value.trim();
+    if (!text && !_attachedFile) return;
+    input.value = '';
+    if (_attachedFile) {
+      _sendWithFile(text || _t('fileChipSummary'), _attachedFile);
+    } else {
+      _doSend(text);
+    }
+  };
+
+  /** Initialize file attachment handlers */
+  function _initFileAttachment() {
+    var attachBtn = _el('chatAttachBtn');
+    var fileInput = _el('chatFileInput');
+    if (attachBtn && fileInput) {
+      attachBtn.addEventListener('click', function () { fileInput.click(); });
+      fileInput.addEventListener('change', function () {
+        if (fileInput.files && fileInput.files[0]) {
+          _handleFileSelect(fileInput.files[0]);
+        }
+      });
+    }
+  }
+  // Init on first chat open
+  var _fileInited = false;
+  var origOpen = doChatClear;
+  doChatClear = function () {
+    if (!_fileInited) { _initFileAttachment(); _fileInited = true; }
+    origOpen();
+  };
 
   return {
     SUGGESTIONS: SUGGESTIONS,

@@ -64,7 +64,7 @@
   <link rel="stylesheet" href="css/app-shell.min.css?v=23" />
   <!-- styles-critical: tập con boot (shell + Today + modals + theme/dark) giữ trên critical path.
        styles-deferred (phần còn lại của styles.css): nạp sau first paint (media=print swap) — vẫn trong SW cache cho offline. -->
-<link rel="stylesheet" href="css/styles-critical.min.css?v=35" />
+<link rel="stylesheet" href="css/styles-critical.min.css?v=36" />
     <link rel="stylesheet" href="css/styles-deferred.min.css?v=30" media="print" onload="this.media='all'" />
     <noscript><link rel="stylesheet" href="css/styles-deferred.min.css?v=30" /></noscript>
 </head>
@@ -498,11 +498,15 @@
         <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="habit-tips">🔥 Xây thói quen mới</button>
         <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="pomodoro-tips">🍅 Cách dùng Pomodoro</button>
       </div>
+      <div id="chatFileCard"></div>
+      <div id="chatFileChips" class="chat-chips" hidden></div>
       <div class="chat-input-wrap">
+        <button type="button" class="chat-attach-btn" id="chatAttachBtn" aria-label="" data-i18n-aria="fileAttach">📎</button>
         <input type="text" class="chat-input" id="chatInput" placeholder="" data-i18n-placeholder="chatPh"
           autocomplete="off" aria-label="Nhập tin nhắn" />
         <button type="button" class="pop-btn primary chat-send" data-action="chat-send" data-i18n="chatSend">Gửi</button>
       </div>
+      <input type="file" id="chatFileInput" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,.md" hidden />
     </div>
   </div>
 
@@ -852,7 +856,7 @@
   <script src="js/sync.min.js?v=5"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=1"></script>
-  <script src="js/i18n.min.js?v=35"></script>
+  <script src="js/i18n.min.js?v=36"></script>
   <script src="js/storage.min.js?v=3"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
@@ -886,7 +890,7 @@
   <script src="js/gcal.min.js?v=3"></script>
   <script src="js/gcal-ui.min.js?v=3"></script>
   <script src="js/ai.min.js?v=4"></script>
-  <script src="js/app.min.js?v=205"></script>
+  <script src="js/app.min.js?v=206"></script>
 </body>
 
 </html>

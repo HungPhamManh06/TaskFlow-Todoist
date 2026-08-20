@@ -272,7 +272,10 @@ test('P26: chat system prompts still forbid performing actions (read-only bounda
 /* ---------- P30: audit-log hygiene on the agent route ---------- */
 
 test('P30: agent latency log contains no task text / context / credentials', () => {
-  const seg = src.slice(src.indexOf("router.post('/agent'"), src.indexOf('module.exports'));
+  const agentIdx = src.indexOf("router.post('/agent'");
+  const fileIdx = src.indexOf("router.post('/file'");
+  const agentEnd = fileIdx > agentIdx ? fileIdx : src.indexOf('module.exports');
+  const seg = src.slice(agentIdx, agentEnd);
   const logs = seg.match(/console\.log\([^)]*\)/g) || [];
   assert.ok(logs.length >= 3, 'route must log');
   for (const l of logs) {
@@ -289,7 +292,10 @@ test('P30: agent latency log contains no task text / context / credentials', () 
 });
 
 test('P30: no logger writes request bodies anywhere in agent route', () => {
-  const seg = src.slice(src.indexOf("router.post('/agent'"), src.indexOf('module.exports'));
+  const agentIdx = src.indexOf("router.post('/agent'");
+  const fileIdx = src.indexOf("router.post('/file'");
+  const agentEnd = fileIdx > agentIdx ? fileIdx : src.indexOf('module.exports');
+  const seg = src.slice(agentIdx, agentEnd);
   const logs = seg.match(/console\.log\([^)]*\)/g) || [];
   for (const l of logs) {
     assert.doesNotMatch(l, /body|req\.body/, 'console.log must not log request body');
