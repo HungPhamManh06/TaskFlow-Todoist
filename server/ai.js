@@ -32,7 +32,14 @@
      KHÔNG bao giờ lộ lỗi upstream thô / key / prompt / context. */
 'use strict';
 const express = require('express');
+const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 const { authMiddleware } = require('./auth');
+
+// Generate a short request correlation ID
+function generateRequestId() {
+  return crypto.randomBytes(8).toString('hex');
+}
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -41,6 +48,66 @@ const AI_API_KEY = process.env.AI_API_KEY || '';
 const AI_API_URL = process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 const AI_MODEL = process.env.AI_MODEL || 'gemini-3.6-flash';
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 60000;
+const AI_AGENT_ENABLED = process.env.AI_AGENT_ENABLED === 'true';
+
+// Rate limiters for AI endpoints
+const AI_CHAT_RATE_LIMIT = Number(process.env.AI_CHAT_RATE_LIMIT_PER_MIN) || 15;
+const AI_AGENT_RATE_LIMIT = Number(process.env.AI_AGENT_RATE_LIMIT_PER_MIN) || 6;
+const AI_PLAN_RATE_LIMIT = Number(process.env.AI_PLAN_RATE_LIMIT_PER_MIN) || 6;
+const AI_AGENT_HOURLY_LIMIT = Number(process.env.AI_AGENT_RATE_LIMIT_PER_HOUR) || 30;
+
+const aiChatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: AI_CHAT_RATE_LIMIT,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
+});
+
+const aiAgentLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: AI_AGENT_RATE_LIMIT,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
+});
+
+const aiPlanLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: AI_PLAN_RATE_LIMIT,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
+});
+
+const aiAgentHourlyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: AI_AGENT_HOURLY_LIMIT,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  message: { error: 'ai-rate-limited', retryAfterSeconds: 3600 },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 3600 }),
+});
+
+// Concurrency guard: track in-flight agent requests per user (max 2 concurrent)
+const MAX_AGENT_CONCURRENT = 2;
+const agentInFlight = new Map(); // userId -> count
+
+// Idempotency cache for agent requests (userId + agentRequestId -> proposal)
+const agentIdempotencyCache = new Map(); // key: userId:agentRequestId -> { proposal, timestamp }
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Generate a short request correlation ID
+function generateRequestId() {
+  return crypto.randomBytes(8).toString('hex');
+}
 
 const KINDS = ['plan_day', 'plan_week', 'next_actions', 'breakdown_project', 'breakdown_milestone', 'reschedule'];
 const ACTION_TYPES = ['schedule_task', 'reschedule_task', 'next_action'];
@@ -257,7 +324,7 @@ function buildPrompt(ctx) {
 }
 
 // ---- POST /api/ai/plan (Bearer) {kind, context, userText?} → {ok, proposal} ----
-router.post('/plan', async (req, res) => {
+router.post('/plan', aiPlanLimiter, async (req, res) => {
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -540,7 +607,7 @@ function sanitizeChatHistory(raw) {
 }
 
 // POST /api/ai/chat (Bearer) { message, history? } → { ok, answer }
-router.post('/chat', async (req, res) => {
+router.post('/chat', aiChatLimiter, async (req, res) => {
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -555,6 +622,7 @@ router.post('/chat', async (req, res) => {
     // generic details only — never raw validation info or private data.
     const ctxSan = sanitizeChatContextEnvelope(body.taskflowContext);
     if (!ctxSan.ok) {
+      releaseSlot();
       return res.status(400).json({ error: 'ai-context-invalid', details: [ctxSan.reason] });
     }
 
@@ -962,23 +1030,53 @@ const AGENT_SYSTEM_INSTRUCTION_EN = 'You are TaskFlow\'s safe action agent. The 
   '- Dependencies MUST point to PREVIOUS actions only (a1 → a2, not a2 → a1). NO cycles.\n' +
   '- Max 10 actions, max dependency depth 4. Respond with JSON ONLY matching the schema.';
 
-// POST /api/ai/agent (Bearer) { message, history?, taskflowContext? } → { ok, proposal }
+// POST /api/ai/agent (Bearer) { message, history?, taskflowContext?, agentRequestId?, proposalId? } → { ok, proposal }
 // Server returns a SANITIZED proposal ONLY — it never executes actions.
-router.post('/agent', async (req, res) => {
+router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => {
   try {
+    // Generate request correlation ID
+    const requestId = generateRequestId();
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
+    if (!AI_AGENT_ENABLED) return res.status(503).json({ error: 'ai-agent-disabled' });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     if (!message || message.length > MAX_MESSAGE_LEN) {
+      releaseSlot();
       return res.status(400).json({ error: 'invalid-message' });
     }
     const rawLen = Buffer.byteLength(JSON.stringify(body), 'utf8');
-    if (rawLen > 128 * 1024) return res.status(413).json({ error: 'payload-too-large' });
+    if (rawLen > 128 * 1024) {
+      releaseSlot();
+      return res.status(413).json({ error: 'payload-too-large' });
+    }
 
-    const history = sanitizeChatHistory(body.history);
-    const ctxSan = sanitizeChatContextEnvelope(body.taskflowContext);
-    if (!ctxSan.ok) {
-      return res.status(400).json({ error: 'ai-context-invalid', details: [ctxSan.reason] });
+    // Concurrency guard: limit concurrent agent requests per user
+    const userId = req.user?.id;
+    if (userId) {
+      const current = agentInFlight.get(userId) || 0;
+      if (current >= MAX_AGENT_CONCURRENT) {
+        return res.status(429).json({ error: 'ai-agent-busy' });
+      }
+      agentInFlight.set(userId, current + 1);
+    }
+
+    // Helper to release concurrency slot
+    const releaseSlot = () => {
+      if (userId) {
+        const current = agentInFlight.get(userId) || 0;
+        if (current > 0) agentInFlight.set(userId, current - 1);
+      }
+    };
+
+    // Idempotency check: if agentRequestId provided, check cache
+    const agentRequestId = body.agentRequestId;
+    if (agentRequestId && userId) {
+      const cacheKey = userId + ':' + agentRequestId;
+      const cached = agentIdempotencyCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < IDEMPOTENCY_TTL_MS) {
+        // Return cached proposal
+        return res.json({ ok: true, proposal: cached.proposal, idempotent: true });
+      }
     }
 
     // Refs built ONLY from the sanitized envelope — never arbitrary state.
@@ -1036,10 +1134,12 @@ router.post('/agent', async (req, res) => {
       clearTimeout(timer);
       const latencyMs = Date.now() - startedAt;
       if (e && e.name === 'AbortError') {
-        console.log('[ai] route=/api/ai/agent provider=gemini model=' + AI_MODEL + ' status=timeout latencyMs=' + latencyMs);
+        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=timeout latencyMs=' + latencyMs);
+        releaseSlot();
         return res.status(504).json({ error: 'ai-timeout' });
       }
-      console.log('[ai] route=/api/ai/agent provider=gemini model=' + AI_MODEL + ' status=upstream-error latencyMs=' + latencyMs);
+      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=upstream-error latencyMs=' + latencyMs);
+      releaseSlot();
       return res.status(502).json({ error: 'ai-provider-unavailable' });
     }
     clearTimeout(timer);
@@ -1052,7 +1152,8 @@ router.post('/agent', async (req, res) => {
         : upstream.status === 404 ? 'ai-provider-not-found'
         : upstream.status === 429 ? 'ai-rate-limited'
         : 'ai-provider-unavailable';
-      console.log('[ai] route=/api/ai/agent provider=gemini upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
+      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
+      releaseSlot();
       return res.status(upstream.status === 429 ? 429 : 502).json({ error: code, details: ['upstream-' + upstream.status] });
     }
 
@@ -1060,31 +1161,56 @@ router.post('/agent', async (req, res) => {
     try {
       json = await upstream.json();
     } catch (e) {
+      releaseSlot();
       return res.status(502).json({ error: 'ai-provider-unavailable' });
     }
     const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
     if (typeof content !== 'string' || !content.trim()) {
-      console.log('[ai] route=/api/ai/agent provider=gemini model=' + AI_MODEL + ' status=empty-content latencyMs=' + latencyMs);
+      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=empty-content latencyMs=' + latencyMs);
+      releaseSlot();
       return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
     }
 
     const proposal = parseProposalContent(content);
     if (proposal === null) {
-      console.log('[ai] route=/api/ai/agent provider=gemini model=' + AI_MODEL + ' status=parse-failed latencyMs=' + latencyMs);
+      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=parse-failed latencyMs=' + latencyMs);
+      releaseSlot();
       return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
     }
     const v = validateAgentProposal(proposal, { taskUids, projectIds, milestoneIds });
     if (!v.ok) {
-      console.log('[ai] route=/api/ai/agent provider=gemini model=' + AI_MODEL + ' status=validation-failed latencyMs=' + latencyMs);
+      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=validation-failed latencyMs=' + latencyMs);
+      releaseSlot();
       return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
     }
-    console.log('[ai] route=/api/ai/agent provider=gemini model=' + AI_MODEL + ' status=success latencyMs=' + latencyMs);
+    console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=success latencyMs=' + latencyMs);
     const resp = { ok: true, proposal };
     if (req.query && req.query.debug === '1') {
       resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs };
     }
+    // Store in idempotency cache if agentRequestId provided
+    if (agentRequestId && userId) {
+      const cacheKey = userId + ':' + agentRequestId;
+      agentIdempotencyCache.set(cacheKey, { proposal, timestamp: Date.now() });
+      // Cleanup old entries (simple cleanup, not perfect but prevents unbounded growth)
+      if (agentIdempotencyCache.size > 1000) {
+        const now = Date.now();
+        for (const [key, value] of agentIdempotencyCache.entries()) {
+          if (now - value.timestamp > IDEMPOTENCY_TTL_MS) agentIdempotencyCache.delete(key);
+        }
+      }
+    }
+    // Output size guard: reject oversized responses
+    const respBody = JSON.stringify(resp);
+    if (Buffer.byteLength(respBody, 'utf8') > 1024 * 1024) { // 1MB limit
+      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' response-too-large bytes=' + Buffer.byteLength(respBody, 'utf8'));
+      releaseSlot();
+      return res.status(413).json({ error: 'ai-response-too-large' });
+    }
+    releaseSlot();
     return res.json(resp);
   } catch (e) {
+    releaseSlot();
     return res.status(500).json({ error: 'server-error' });
   }
 });
