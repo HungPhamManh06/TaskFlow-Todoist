@@ -4281,6 +4281,7 @@ renderPomoWidgetStats = function() {
 function runLazyChat(fn) {
   ensureLazyModule('js/ai-context.min.js')
     .then(() => ensureLazyModule('js/ai-chat-context.min.js'))
+    .then(() => ensureLazyModule('js/ai-context-consent.min.js'))
     .then(() => ensureLazyModule('js/chat-provider.min.js'))
     .then(() => ensureLazyModule('js/ai-agent.min.js'))
     .then(() => ensureLazyModule('js/ai-intent.min.js'))
@@ -4297,6 +4298,7 @@ function runLazyChat(fn) {
 function preloadLazyChat() {
   ensureLazyModule('js/ai-context.min.js')
     .then(() => ensureLazyModule('js/ai-chat-context.min.js'))
+    .then(() => ensureLazyModule('js/ai-context-consent.min.js'))
     .then(() => ensureLazyModule('js/chat-provider.min.js'))
     .then(() => ensureLazyModule('js/ai-agent.min.js'))
     .then(() => ensureLazyModule('js/ai-intent.min.js'))
