@@ -1,9 +1,16 @@
-// TaskFlow — Safe Action Agent Runtime (Phase 4B).
+// TaskFlow — Safe Action Agent Runtime (Phase 4B/4C).
 // Flow: user request → deterministic action-intent router → POST /api/ai/agent
 // → Gemini proposes → server sanitizes → TaskFlowAIAgent validates → dry-run
 // → preview card in the Chat panel → user CONFIRMS → revalidation → canonical
 // TaskFlow mutation APIs apply. NO direct Gemini write, NO autonomous actions,
 // NO delete, NO auto-apply. Lazy-loaded with the Chat chain (never boot path).
+//
+// Phase 4C adds:
+// - Dependent actions via taskRef (existing vs action-produced)
+// - Topological execution order
+// - Runtime entity resolution (actionId → real UID mapping)
+// - Grouped preview for dependent actions
+// - Transaction safety with rollback on partial failure
 (function (root, factory) {
   const api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -236,6 +243,16 @@
       case 'invalid-date': case 'invalid-start': case 'invalid-duration':
         return _t('agentInvalidSchedule');
       case 'forbidden-field': return _t('agentUnsupportedAction');
+      case 'invalid-action-id': return _t('agentUnsupportedAction');
+      case 'duplicate-action-id': return _t('agentUnsupportedAction');
+      case 'taskref-required': return _t('agentUnsupportedAction');
+      case 'taskref-not-object': return _t('agentUnsupportedAction');
+      case 'taskref-invalid-kind': return _t('agentUnsupportedAction');
+      case 'unknown-action-reference': return _t('agentUnsupportedAction');
+      case 'self-reference': return _t('agentUnsupportedAction');
+      case 'invalid-reference-type': return _t('agentUnsupportedAction');
+      case 'dependency-cycle': return _t('agentUnsupportedAction');
+      case 'dependency-depth-exceeded': return _t('agentUnsupportedAction');
       default: return _t('agentErrorNoActions');
     }
   }
@@ -257,6 +274,85 @@
     return el;
   }
 
+  /* Group changes by dependency for preview (Phase 4C) */
+  function _groupChangesForPreview(changes, virtualEntities, context) {
+    // Build a map of actionId -> change
+    const changeMap = new Map();
+    changes.forEach((ch) => {
+      if (ch.id) changeMap.set(ch.id, ch);
+    });
+
+    // Group: for each change, show its dependencies first
+    const grouped = [];
+    const processed = new Set();
+
+    // Find root changes (those with no deps or deps already processed)
+    function processChange(actionId) {
+      if (processed.has(actionId)) return;
+      const ch = changeMap.get(actionId);
+      if (!ch) return;
+      // Process dependencies first
+      if (ch.taskRef && ch.taskRef.kind === 'action') {
+        processChange(ch.taskRef.actionId);
+      }
+      grouped.push(ch);
+      processed.add(actionId);
+    }
+
+    changes.forEach((ch) => processChange(ch.id));
+
+    // Add any remaining
+    changes.forEach((ch) => {
+      if (!processed.has(ch.id)) grouped.push(ch);
+    });
+
+    return grouped.map((ch) => {
+      const type = ch.type;
+      const lang = context && context.lang === 'en' ? 'en' : 'vi';
+      const title = TYPE_TITLES[type][lang];
+      const args = ch.args || {};
+      let description = '';
+      let meta = '';
+      let isDependent = false;
+
+      if (type === 'create_task') {
+        const parts = [];
+        const dl = dateLabel(args.date, context);
+        if (dl) parts.push(dl);
+        const ml = minutesLabel(args.duration, context);
+        if (ml) parts.push(ml);
+        description = args.text.trim();
+        meta = parts.join(' · ');
+      } else if (type === 'complete_task') {
+        const virtualEntity = virtualEntities?.get(args.taskRef?.actionId);
+        description = virtualEntity?.text || taskLabel(context, args.taskRef?.uid) || 'công việc';
+        meta = '';
+      } else if (type === 'update_task') {
+        const virtualEntity = virtualEntities?.get(args.taskRef?.actionId);
+        const parts = [];
+        if (args.changes?.duration !== undefined && args.changes.duration !== null) {
+          const ml = minutesLabel(args.changes.duration, context);
+          if (ml) parts.push(ml);
+        }
+        description = virtualEntity?.text || taskLabel(context, args.taskRef?.uid) || 'công việc';
+        meta = parts.join(' · ');
+      } else { // schedule_task / reschedule_task
+        const virtualEntity = virtualEntities?.get(args.taskRef?.actionId);
+        const parts = [];
+        const dl = dateLabel(args.date, context);
+        if (dl) parts.push(dl);
+        if (args.start) parts.push(args.start);
+        const ml = minutesLabel(args.duration, context);
+        if (ml) parts.push(ml);
+        description = virtualEntity?.text || taskLabel(context, args.taskRef?.uid) || 'công việc';
+        meta = parts.join(' · ');
+        if (args.taskRef?.kind === 'action') isDependent = true;
+      }
+
+      return { title, description, meta, isDependent, actionId: ch.id };
+    });
+  }
+
   function _renderCard(msgs, proposal, dry) {
     const card = _bubble('agent-card');
     card.setAttribute('data-testid', 'agent-card');
@@ -268,21 +364,34 @@
 
     const body = document.createElement('div');
     body.className = 'agent-card-body';
-    const previews = window.TaskFlowAIAgent.previewProposal(proposal, dry ? dry._ctx : buildContext());
-    const previewList = previews && previews.ok ? previews.previews : [];
-    dry.changes.forEach((ch, i) => {
-      const p = previewList[i] || {};
+
+    // Phase 4C: grouped preview with dependency indicators
+    const virtualEntities = dry.virtualEntities || new Map();
+    const grouped = _groupChangesForPreview(dry.changes, virtualEntities, dry._ctx);
+
+    grouped.forEach((g, idx) => {
       const row = document.createElement('div');
-      row.className = 'agent-row';
+      row.className = 'agent-row' + (g.isDependent ? ' agent-row-dependent' : '');
+      row.setAttribute('data-action-id', g.actionId);
+
       const t = document.createElement('span');
       t.className = 'agent-row-title';
-      t.textContent = p.title || ch.type;
+      t.textContent = (idx + 1) + '. ' + g.title;
+      if (g.isDependent) {
+        const depBadge = document.createElement('span');
+        depBadge.className = 'agent-dep-badge';
+        depBadge.textContent = '→';
+        depBadge.title = 'Depends on previous action';
+        t.appendChild(depBadge);
+      }
+
       const d = document.createElement('span');
       d.className = 'agent-row-desc';
-      d.textContent = p.description || '';
+      d.textContent = g.description || '';
       const m = document.createElement('span');
       m.className = 'agent-row-meta';
-      m.textContent = p.meta || '';
+      m.textContent = g.meta || '';
+
       row.appendChild(t); row.appendChild(d); row.appendChild(m);
       body.appendChild(row);
     });
@@ -409,13 +518,28 @@
     return String(Math.floor(endMin / 60)).padStart(2, '0') + ':' + String(endMin % 60).padStart(2, '0');
   }
 
+  /* ---- Task label resolver (handles virtual entities) ---- */
+  function _taskLabelFromRef(taskRef, context, virtualEntities, actionIdToRealUid) {
+    if (!taskRef) return null;
+    if (taskRef.kind === 'action') {
+      // First check if we have a real UID mapping from a completed create_task
+      if (actionIdToRealUid && actionIdToRealUid.has(taskRef.actionId)) {
+        const realUid = actionIdToRealUid.get(taskRef.actionId);
+        return taskLabel(context, realUid) || virtualEntities?.get(taskRef.actionId)?.text || 'công việc';
+      }
+      // Fallback to virtual entity text
+      return virtualEntities?.get(taskRef.actionId)?.text || 'công việc';
+    }
+    return taskLabel(context, taskRef.uid);
+  }
+
   /* ---- Apply: canonical TaskFlow mutation APIs only (P13-P18) ---- */
   function _pushTask(dayRef, task) {
     const day = state.weeks[dayRef.week].days[dayRef.day];
     day.tasks.push(task);
   }
 
-  function _applyCreate(action) {
+  function _applyCreate(action, actionIdToRealUid) {
     const args = action.args;
     const text = (args.text || '').trim();
     if (!text) return { status: 'failed' };
@@ -449,11 +573,26 @@
         saveInbox(inbox);
       } catch (e) { return { status: 'failed' }; }
     }
-    return { status: 'applied' };
+    // Record the real UID for subsequent dependent actions
+    if (actionIdToRealUid && action.id) {
+      actionIdToRealUid.set(action.id, task.uid);
+    }
+    return { status: 'applied', taskUid: task.uid };
   }
 
-  function _applyUpdate(action) {
-    const ref = _locate(action.args.taskUid);
+  function _applyUpdate(action, actionIdToRealUid, context, virtualEntities) {
+    const taskRef = action.args.taskRef;
+    let realUid = null;
+    if (taskRef.kind === 'existing') {
+      realUid = taskRef.uid;
+    } else if (actionIdToRealUid && actionIdToRealUid.has(taskRef.actionId)) {
+      realUid = actionIdToRealUid.get(taskRef.actionId);
+    } else if (virtualEntities && virtualEntities.has(taskRef.actionId)) {
+      // Virtual entity - shouldn't happen for update on virtual, but handle gracefully
+      return { status: 'skipped', reason: 'virtual-not-real' };
+    }
+    if (!realUid) return { status: 'skipped', reason: 'stale' };
+    const ref = _locate(realUid);
     if (!ref) return { status: 'skipped', reason: 'stale' };
     const ch = action.args.changes || {};
     const tk = ref.tk;
@@ -472,8 +611,18 @@
     return { status: 'applied' };
   }
 
-  function _applyComplete(action) {
-    const ref = _locate(action.args.taskUid);
+  function _applyComplete(action, actionIdToRealUid, context, virtualEntities) {
+    const taskRef = action.args.taskRef;
+    let realUid = null;
+    if (taskRef.kind === 'existing') {
+      realUid = taskRef.uid;
+    } else if (actionIdToRealUid && actionIdToRealUid.has(taskRef.actionId)) {
+      realUid = actionIdToRealUid.get(taskRef.actionId);
+    } else if (virtualEntities && virtualEntities.has(taskRef.actionId)) {
+      return { status: 'skipped', reason: 'virtual-not-real' };
+    }
+    if (!realUid) return { status: 'skipped', reason: 'stale' };
+    const ref = _locate(realUid);
     if (!ref) return { status: 'skipped', reason: 'stale' };
     if (ref.tk.done) return { status: 'skipped', reason: 'already-done' };
     ref.tk.done = true;
@@ -481,9 +630,19 @@
     return { status: 'applied' };
   }
 
-  function _applySchedule(action, isReschedule) {
+  function _applySchedule(action, isReschedule, actionIdToRealUid, context, virtualEntities) {
     const args = action.args;
-    const ref = _locate(args.taskUid);
+    const taskRef = args.taskRef;
+    let realUid = null;
+    if (taskRef.kind === 'existing') {
+      realUid = taskRef.uid;
+    } else if (actionIdToRealUid && actionIdToRealUid.has(taskRef.actionId)) {
+      realUid = actionIdToRealUid.get(taskRef.actionId);
+    } else if (virtualEntities && virtualEntities.has(taskRef.actionId)) {
+      return { status: 'skipped', reason: 'virtual-not-real' };
+    }
+    if (!realUid) return { status: 'skipped', reason: 'stale' };
+    const ref = _locate(realUid);
     if (!ref) return { status: 'skipped', reason: 'stale' };
     const end = _endClock(args.start, args.duration);
     if (!end) return { status: 'skipped', reason: 'invalid-range' };
@@ -493,7 +652,7 @@
 
     let existingId = null;
     if (isReschedule) {
-      const b = (Array.isArray(store.blocks) ? store.blocks : []).find((x) => x && x.taskUid === args.taskUid && x.status !== 'cancelled');
+      const b = (Array.isArray(store.blocks) ? store.blocks : []).find((x) => x && x.taskUid === realUid && x.status !== 'cancelled');
       if (b) existingId = b.id;
     }
 
@@ -510,27 +669,29 @@
       if (existingId) {
         if (TB) TB.updateTimeBlock(store, existingId, { date: args.date, start: args.start, end, status: 'scheduled' });
       } else {
-        if (TB) TB.createTimeBlock(store, { taskUid: args.taskUid, date: args.date, start: args.start, end, status: 'scheduled' });
+        if (TB) TB.createTimeBlock(store, { taskUid: realUid, date: args.date, start: args.start, end, status: 'scheduled' });
       }
       saveTimeBlocksStore(store);
     } catch (e) { return { status: 'failed' }; }
     return { status: 'applied' };
   }
 
-  function _applyAction(action) {
+  function _applyAction(action, actionIdToRealUid, context, virtualEntities) {
     switch (action.type) {
-      case 'create_task': return _applyCreate(action);
-      case 'update_task': return _applyUpdate(action);
-      case 'complete_task': return _applyComplete(action);
-      case 'schedule_task': return _applySchedule(action, false);
-      case 'reschedule_task': return _applySchedule(action, true);
+      case 'create_task': return _applyCreate(action, actionIdToRealUid);
+      case 'update_task': return _applyUpdate(action, actionIdToRealUid, context, virtualEntities);
+      case 'complete_task': return _applyComplete(action, actionIdToRealUid, context, virtualEntities);
+      case 'schedule_task': return _applySchedule(action, false, actionIdToRealUid, context, virtualEntities);
+      case 'reschedule_task': return _applySchedule(action, true, actionIdToRealUid, context, virtualEntities);
       default: return { status: 'failed' };
     }
   }
 
   /* ---- Result text (P20/P23) — accurate, no UID ---- */
-  function _resultText(applied, skipped, failed) {
+  function _resultText(applied, skipped, failed, context, virtualEntities) {
     if (skipped + failed === 0) {
+      if (applied === 1) return _t('agentAppliedDone', { n: applied });
+      // For multi-step, try to give more descriptive text
       return _t('agentAppliedDone', { n: applied });
     }
     const parts = [];
@@ -575,14 +736,56 @@
       // P21: ONE undo checkpoint for the whole confirmed proposal.
       try { if (typeof pushUndo === 'function') pushUndo(); } catch (e) { /* */ }
 
-      const applied = [], skipped = [], failed = [];
-      const fresh = buildContext();
-      for (const a of proposal.actions) {
-        const r = _applyAction(a);
-        if (r.status === 'applied') applied.push(a);
-        else if (r.status === 'skipped') skipped.push({ action: a, reason: r.reason });
-        else failed.push(a);
+      // Phase 4C: topological execution with runtime entity resolution
+      const actionIdToRealUid = new Map();
+      const virtualEntities = dry.virtualEntities || new Map();
+
+      // Get topological order from dependency graph
+      let executionOrder = [];
+      if (dry.dependencyGraph) {
+        // Use the same topological sort logic as the contracts module
+        const dag = dry.dependencyGraph;
+        const inDegree = new Map();
+        const nodes = Array.from(dag.keys());
+        for (const node of nodes) inDegree.set(node, 0);
+        for (const [node, deps] of dag.entries()) {
+          for (const d of deps) inDegree.set(d, (inDegree.get(d) || 0) + 1);
+        }
+        const queue = nodes.filter((n) => inDegree.get(n) === 0);
+        while (queue.length) {
+          const n = queue.shift();
+          executionOrder.push(n);
+          for (const dep of dag.get(n) || []) {
+            const d = inDegree.get(dep) - 1;
+            inDegree.set(dep, d);
+            if (d === 0) queue.push(dep);
+          }
+        }
       }
+
+      // Map actions by id for quick lookup
+      const actionMap = new Map();
+      proposal.actions.forEach((a) => actionMap.set(a.id, a));
+
+      const applied = [], skipped = [], failed = [];
+      for (const actionId of executionOrder) {
+        const action = actionMap.get(actionId);
+        if (!action) continue;
+        const r = _applyAction(action, actionIdToRealUid, ctx, virtualEntities);
+        if (r.status === 'applied') applied.push(action);
+        else if (r.status === 'skipped') skipped.push({ action, reason: r.reason });
+        else failed.push(action);
+      }
+
+      // If there are actions not in executionOrder (no deps), process them
+      proposal.actions.forEach((a) => {
+        if (!executionOrder.includes(a.id)) {
+          const r = _applyAction(a, actionIdToRealUid, ctx, virtualEntities);
+          if (r.status === 'applied') applied.push(a);
+          else if (r.status === 'skipped') skipped.push({ action: a, reason: r.reason });
+          else failed.push(a);
+        }
+      });
 
       try { if (typeof save === 'function') save(); } catch (e) { /* */ }
       try {
@@ -591,7 +794,7 @@
       } catch (e) { /* */ }
 
       if (card.parentNode) card.parentNode.removeChild(card);
-      const reply = _resultText(applied.length, skipped.length, failed.length);
+      const reply = _resultText(applied.length, skipped.length, failed.length, ctx, virtualEntities);
       _lastResult = reply;
       const resBubble = _bubble('agent-info');
       resBubble.textContent = reply;
