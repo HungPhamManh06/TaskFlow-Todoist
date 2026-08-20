@@ -586,39 +586,49 @@
 
   async function _sendWithFile(text, file) {
     if (_inFlight || !file) return;
+
+    // ── Pre-flight checks BEFORE locking UI ──
+    var msgs = _el('chatMessages');
+    if (!msgs) return;
+    if (!_isOnline()) {
+      _showInfo(msgs, _t('chatOffline'));
+      return;
+    }
+    if (!_hasToken()) {
+      _showGuestPrompt(msgs);
+      return;
+    }
+    var apiBase = _getApiBase();
+    if (!apiBase) {
+      _showInfo(msgs, _t('chatErrorApiConfig'));
+      return;
+    }
+
+    // ── Now safe to lock UI ──
     _inFlight = true;
     _setInputEnabled(false);
     _setChipsVisible(false);
 
-    // Show user bubble with file info
-    var userBubble = _bubble('user');
-    var userText = document.createElement('span');
-    userText.textContent = text;
-    userBubble.appendChild(userText);
-    if (file) {
-      var fileInfo = document.createElement('div');
-      fileInfo.style.cssText = 'font-size:11px;color:#857062;margin-top:2px;';
-      fileInfo.textContent = _fileIcon(file.type) + ' ' + file.name + ' (' + _formatFileSize(file.size) + ')';
-      userBubble.appendChild(fileInfo);
-    }
-    _appendBubble(userBubble);
-
-    _setFileLoading(file.name, true);
-
     try {
+      // User bubble using canonical _appendText
+      var fileLabel = _fileIcon(file.type) + ' ' + file.name + ' (' + _formatFileSize(file.size) + ')';
+      _appendText(msgs, text + '\n' + fileLabel, 'chat-msg user');
+
+      // Loading indicator
+      _setFileLoading(file.name, true);
+
+      // Build FormData
       _fileAbort = new AbortController();
       var fd = new FormData();
       fd.append('file', file);
       fd.append('message', text);
 
-      var token = _getToken();
+      // Token from localStorage (same pattern as _callChatAPI)
+      var token = null;
+      try { token = localStorage.getItem('planner-token'); } catch (e) { /* */ }
       var headers = {};
       if (token) headers['Authorization'] = 'Bearer ' + token;
 
-      var apiBase = _getApiBase();
-      if (!apiBase) {
-        throw { code: 'api-config-missing' };
-      }
       var resp = await fetch(apiBase + '/api/ai/file', {
         method: 'POST',
         headers: headers,
@@ -633,30 +643,24 @@
       _setFileLoading(file.name, false);
 
       if (!resp.ok || !json || !json.ok) {
-        var errMsg = json && json.error ? json.error : 'ai-file-processing-failed';
-        var botBubble = _bubble('bot');
-        var errSpan = document.createElement('span');
-        errSpan.textContent = _t('fileFailed');
-        botBubble.appendChild(errSpan);
-        _appendBubble(botBubble);
+        _appendText(msgs, _t('fileFailed'), 'chat-msg bot');
+        _history.push({ role: 'user', content: text });
+        _history.push({ role: 'assistant', content: _t('fileFailed') });
+        if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
         return;
       }
 
-      var botBubble = _bubble('bot');
-      _appendMarkdown(botBubble, json.answer || '');
-      _appendBubble(botBubble);
+      // Success — safe text rendering
+      _appendText(msgs, json.answer || '', 'chat-msg bot');
 
-      // Add to history
       _history.push({ role: 'user', content: text });
       _history.push({ role: 'assistant', content: json.answer || '' });
+      if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
     } catch (e) {
       _setFileLoading(file.name, false);
       if (e && e.name === 'AbortError') return; // cancelled
-      var botBubble = _bubble('bot');
-      var errSpan = document.createElement('span');
-      errSpan.textContent = (e && e.code === 'api-config-missing') ? _t('chatErrorApiConfig') : _t('fileFailed');
-      botBubble.appendChild(errSpan);
-      _appendBubble(botBubble);
+      var errMsg = (e && e.code === 'api-config-missing') ? _t('chatErrorApiConfig') : _t('fileFailed');
+      _appendText(msgs, errMsg, 'chat-msg bot');
     } finally {
       _inFlight = false;
       _setInputEnabled(true);
