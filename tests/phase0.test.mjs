@@ -99,7 +99,7 @@ test('sw.js: APP_SHELL đủ js bắt buộc (P1.2 opt#1: bản min)', () => {
 
 test('app.html: không có tên file SW cũ', () => {
   const HTML = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
-  assert.ok(!/js\/app\.js\?v=29/.test(HTML), 'app.html vẫn trỏ js/app.js?v=29');
+  assert.ok(!/js\/app\.js\?v=200/.test(HTML), 'app.html vẫn trỏ js/app.js?v=200');
 });
 
 test('không còn copy Supabase trong app.js', () => {
