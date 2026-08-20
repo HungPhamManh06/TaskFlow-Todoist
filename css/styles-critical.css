@@ -1911,6 +1911,27 @@ textarea:focus-visible,
 .agent-cancel { background: rgba(var(--ink-rgb), .08); color: var(--ink, #3C3026); }
 .agent-cancel:hover:not(:disabled) { background: rgba(var(--ink-rgb), .14); }
 .agent-info { align-self: flex-start; }
+/* Phase 4C: Dependent action rows */
+.agent-row-dependent .agent-row-title::before {
+  content: '↳ ';
+  color: var(--ink-soft, #857062);
+  font-weight: 400;
+}
+.agent-dep-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent-btn, #c24e28);
+  border-radius: 8px;
+  line-height: 1;
+}
 .chat-actions {
   display: flex;
   flex-wrap: wrap;
