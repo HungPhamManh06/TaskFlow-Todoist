@@ -615,7 +615,11 @@
       var headers = {};
       if (token) headers['Authorization'] = 'Bearer ' + token;
 
-      var resp = await fetch('/api/ai/file', {
+      var apiBase = _getApiBase();
+      if (!apiBase) {
+        throw { code: 'api-config-missing' };
+      }
+      var resp = await fetch(apiBase + '/api/ai/file', {
         method: 'POST',
         headers: headers,
         body: fd,
@@ -650,7 +654,7 @@
       if (e && e.name === 'AbortError') return; // cancelled
       var botBubble = _bubble('bot');
       var errSpan = document.createElement('span');
-      errSpan.textContent = _t('fileFailed');
+      errSpan.textContent = (e && e.code === 'api-config-missing') ? _t('chatErrorApiConfig') : _t('fileFailed');
       botBubble.appendChild(errSpan);
       _appendBubble(botBubble);
     } finally {
@@ -677,26 +681,23 @@
     }
   };
 
-  /** Initialize file attachment handlers */
+  /** Initialize file attachment handlers (idempotent, safe to call multiple times) */
+  var _fileInited = false;
   function _initFileAttachment() {
+    if (_fileInited) return;
     var attachBtn = _el('chatAttachBtn');
     var fileInput = _el('chatFileInput');
-    if (attachBtn && fileInput) {
-      attachBtn.addEventListener('click', function () { fileInput.click(); });
-      fileInput.addEventListener('change', function () {
-        if (fileInput.files && fileInput.files[0]) {
-          _handleFileSelect(fileInput.files[0]);
-        }
-      });
-    }
+    if (!attachBtn || !fileInput) return;
+    attachBtn.addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function () {
+      if (fileInput.files && fileInput.files[0]) {
+        _handleFileSelect(fileInput.files[0]);
+      }
+    });
+    _fileInited = true;
   }
-  // Init on first chat open
-  var _fileInited = false;
-  var origOpen = doChatClear;
-  doChatClear = function () {
-    if (!_fileInited) { _initFileAttachment(); _fileInited = true; }
-    origOpen();
-  };
+  // Initialize immediately — DOM elements are in app.html before lazy chat.js loads
+  _initFileAttachment();
 
   return {
     SUGGESTIONS: SUGGESTIONS,
