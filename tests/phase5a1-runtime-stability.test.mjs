@@ -171,11 +171,12 @@ test('P8: releaseSlot decrements or deletes (never negative)', () => {
    ================================================================ */
 test('P5+P2: slot released in exactly one finally block', () => {
   const agentIdx = src.indexOf("router.post('/agent'");
-  const agentSeg = src.slice(agentIdx, src.indexOf('module.exports'));
+  const fileIdx = src.indexOf("router.post('/file'");
+  // Agent segment ends at next route or module.exports
+  const agentEnd = fileIdx > agentIdx ? fileIdx : src.indexOf('module.exports');
+  const agentSeg = src.slice(agentIdx, agentEnd);
 
-  // Count all releaseSlot() calls — should be exactly 2:
-  // 1. The declaration: const releaseSlot = () => { ... }
-  // 2. The finally block: releaseSlot();
+  // Count all releaseSlot() calls in agent segment — should be exactly 1
   const callMatches = [...agentSeg.matchAll(/\breleaseSlot\(\);/g)];
   assert.equal(callMatches.length, 1,
     'releaseSlot() must be called exactly once (in finally block), got ' + callMatches.length);
@@ -278,7 +279,9 @@ test('P12: AI_AGENT_ENABLED=false returns 503 ai-agent-disabled', () => {
    ================================================================ */
 test('P26: agent route returns proposal only — no persistence', () => {
   const agentIdx = src.indexOf("router.post('/agent'");
-  const agentSeg = src.slice(agentIdx, src.indexOf('module.exports'));
+  const fileIdx = src.indexOf("router.post('/file'");
+  const agentEnd = fileIdx > agentIdx ? fileIdx : src.indexOf('module.exports');
+  const agentSeg = src.slice(agentIdx, agentEnd);
   assert.match(agentSeg, /resp = \{ ok: true, proposal \}/, 'returns proposal');
   // Exclude Map.delete (agentInFlight, agentIdempotencyCache) and JSON.stringify from the check
   const lines = agentSeg.split('\n');
@@ -296,7 +299,9 @@ test('P26: agent route returns proposal only — no persistence', () => {
    ================================================================ */
 test('P31: agent logs contain no task text / context / credentials', () => {
   const agentIdx = src.indexOf("router.post('/agent'");
-  const agentSeg = src.slice(agentIdx, src.indexOf('module.exports'));
+  const fileIdx = src.indexOf("router.post('/file'");
+  const agentEnd = fileIdx > agentIdx ? fileIdx : src.indexOf('module.exports');
+  const agentSeg = src.slice(agentIdx, agentEnd);
   const logs = agentSeg.match(/console\.log\([^)]*\)/g) || [];
   assert.ok(logs.length >= 5, 'agent must have structured logs');
   for (const l of logs) {
