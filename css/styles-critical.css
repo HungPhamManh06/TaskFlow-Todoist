@@ -1834,6 +1834,86 @@ textarea:focus-visible,
   max-width: 120px;
 }
 :root[data-dark="true"] .chat-context-badge { background: rgba(137, 174, 145, .2); color: #b9d6bd; }
+/* Phase 6A: Consent transparency banner */
+.chat-consent-banner {
+  margin: 0;
+  padding: 4px 14px 4px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--ink-light, #857062);
+  background: rgba(var(--ink-rgb), .03);
+  border-bottom: 1px solid rgba(var(--ink-rgb), .08);
+}
+.chat-consent-banner .consent-enabled {
+  color: #4a7c54;
+  font-weight: 700;
+}
+:root[data-dark='true'] .chat-consent-banner .consent-enabled { color: #8fd4a0; }
+.chat-consent-settings {
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid rgba(var(--ink-rgb), .08);
+}
+.chat-consent-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink, #3C3026);
+}
+.chat-consent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-consent-toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  border: 2px solid rgba(var(--ink-rgb), .3);
+  background: rgba(var(--ink-rgb), .1);
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+  padding: 0;
+  flex-shrink: 0;
+}
+.chat-consent-toggle[aria-checked='true'] {
+  background: #4a7c54;
+  border-color: #4a7c54;
+}
+.chat-consent-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform .2s;
+}
+.chat-consent-toggle[aria-checked='true']::after {
+  transform: translateX(16px);
+}
+.chat-consent-toggle:focus-visible {
+  outline: 2.5px solid var(--accent-deep);
+  outline-offset: 2px;
+}
+.chat-consent-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink, #3C3026);
+}
+.chat-consent-desc {
+  font-size: 10px;
+  color: var(--ink-light, #857062);
+}
+.chat-consent-note {
+  font-size: 9.5px;
+  color: var(--ink-light, #aaa);
+  margin-top: 2px;
+}
 .chat-privacy-note {
   margin: 0;
   padding: 6px 14px 2px;

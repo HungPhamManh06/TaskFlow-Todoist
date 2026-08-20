@@ -16,9 +16,9 @@
      reads ONLY canonical TaskFlow sources (state, projects, timeblocks,
      Google Calendar busy cache — no network during construction).
    - READ-ONLY: never mutates TaskFlow state, permissions, or history.
-   - PRIVACY: reflections/mood are permanently OFF in Phase 3B — the
-     provider never asks for them and strips them even if a gather fn
-     leaks them (defense-in-depth).
+   - PRIVACY: reflections/mood default to OFF; user must explicitly opt-in
+     via TaskFlowAIContextConsent. Defense-in-depth: data is stripped if
+     consent is not granted, even if a gather fn leaks them.
    - DETERMINISTIC GATE: shouldAttachContext(message) decides whether a
      question needs personal data at all (general questions → no context).
    - SAFE FALLBACK: any failure returns { ok:false } — Chat proceeds
@@ -127,16 +127,24 @@
         return { ok: false, reason: 'empty-options' };
       }
 
-      // Permissions: Phase 3B hard rule — reflections/mood stay OFF (P5),
-      // regardless of anything (no toggle exists; defense-in-depth here).
-      var perms = {
-        tasks: true,
-        projects: true,
-        schedule: true,
-        habits: true,
-        reflections: false,
-        mood: false,
-      };
+      // Phase 6A: Read permissions from the consent store.
+      // Sensitive categories (reflections, mood) default to OFF;
+      // user must explicitly opt-in via settings.
+      var perms;
+      try {
+        var consent = (typeof window !== 'undefined' && window.TaskFlowAIContextConsent)
+          ? window.TaskFlowAIContextConsent.buildPermissions()
+          : null;
+        perms = consent || {
+          tasks: true, projects: true, schedule: true, habits: true,
+          reflections: false, mood: false,
+        };
+      } catch (e) {
+        perms = {
+          tasks: true, projects: true, schedule: true, habits: true,
+          reflections: false, mood: false,
+        };
+      }
 
       var result = cc.prepare({ message: message, permissions: perms, brokerOptions: brokerOptions });
       if (!result || !result.context) {
@@ -148,12 +156,12 @@
         return { ok: false, reason: 'envelope-validation' };
       }
 
-      // Strip anything sensitive that could have leaked via brokerOptions
-      // (defense-in-depth — provider itself never requests them).
+      // Strip sensitive data NOT granted by user consent.
+      // Phase 6A: only strip reflections/mood if user has NOT opted in.
       var data = cc._stripForbidden ? cc._stripForbidden(result.context) : result.context;
       if (data && typeof data === 'object') {
-        delete data.reflections;
-        delete data.mood;
+        if (!perms.reflections) delete data.reflections;
+        if (!perms.mood) delete data.mood;
       }
 
       var envelope = { scope: result.scope, data: data };
