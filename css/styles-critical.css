@@ -1914,6 +1914,73 @@ textarea:focus-visible,
   color: var(--ink-light, #aaa);
   margin-top: 2px;
 }
+/* Phase 6B: AI Memory / Preferences settings */
+.chat-memory-section {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line, rgba(0,0,0,.08));
+}
+.chat-memory-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink, #3e2723);
+  margin: 0 0 4px;
+}
+.chat-memory-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 11.5px;
+  color: var(--ink, #3e2723);
+}
+.chat-memory-row label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--ink-soft, #6d5c51);
+}
+.chat-memory-input {
+  width: 60px;
+  padding: 3px 5px;
+  border: 1px solid var(--line, rgba(0,0,0,.12));
+  border-radius: 4px;
+  font-size: 11.5px;
+  text-align: center;
+}
+.chat-memory-input:focus-visible {
+  outline: 2px solid var(--accent, #b07040);
+  outline-offset: 1px;
+}
+.chat-memory-select {
+  padding: 3px 5px;
+  border: 1px solid var(--line, rgba(0,0,0,.12));
+  border-radius: 4px;
+  font-size: 11.5px;
+  background: var(--card, #fff);
+}
+.chat-memory-select:focus-visible {
+  outline: 2px solid var(--accent, #b07040);
+  outline-offset: 1px;
+}
+.chat-memory-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-soft, #6d5c51);
+}
+.chat-memory-reset {
+  display: block;
+  margin-top: 8px;
+  padding: 5px 10px;
+  font-size: 10.5px;
+  color: #c0392b;
+  background: none;
+  border: 1px solid #c0392b40;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.chat-memory-reset:hover { background: #c0392b10; }
+.chat-memory-reset:focus-visible { outline: 2px solid #c0392b; outline-offset: 1px; }
 .chat-privacy-note {
   margin: 0;
   padding: 6px 14px 2px;

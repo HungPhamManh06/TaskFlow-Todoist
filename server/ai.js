@@ -186,6 +186,35 @@ function sanitizeContext(raw) {
         } : null)).filter(Boolean);
     }
   }
+  // Phase 6B: Sanitize user-declared AI preferences (strict allowlist).
+  if (raw.preferences && typeof raw.preferences === 'object') {
+    const ALLOWED_PREFS = {
+      defaultTaskDuration: (v) => typeof v === 'number' && Number.isFinite(v) && v >= 5 && v <= 480 ? Math.round(v) : null,
+      preferredFocusDuration: (v) => typeof v === 'number' && Number.isFinite(v) && v >= 5 && v <= 480 ? Math.round(v) : null,
+      preferredWorkWindow: (v) => {
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+        const s = typeof v.start === 'string' && /^[01]\d|2[0-3]:[0-5]\d$/.test(v.start) ? v.start : null;
+        const e = typeof v.end === 'string' && /^[01]\d|2[0-3]:[0-5]\d$/.test(v.end) ? v.end : null;
+        if (s && e) return { start: s, end: e };
+        return null;
+      },
+      planningStyle: (v) => ['balanced', 'deep-work', 'light', 'deadline-first'].includes(v) ? v : null,
+      responseStyle: (v) => ['concise', 'balanced', 'detailed'].includes(v) ? v : null,
+      language: (v) => ['vi', 'en'].includes(v) ? v : null,
+      preferredPlanningDays: (v) => {
+        if (!Array.isArray(v) || v.length > 7) return null;
+        const valid = v.filter((d) => typeof d === 'number' && d >= 0 && d <= 6);
+        return valid.length > 0 ? valid : null;
+      },
+    };
+    const sanitized = {};
+    for (const k of Object.keys(ALLOWED_PREFS)) {
+      if (raw.preferences[k] === undefined) continue;
+      const val = ALLOWED_PREFS[k](raw.preferences[k]);
+      if (val !== null) sanitized[k] = val;
+    }
+    if (Object.keys(sanitized).length > 0) ctx.preferences = sanitized;
+  }
   return { ctx, trimmed };
 }
 
@@ -548,7 +577,43 @@ function sanitizeChatContextEnvelope(raw) {
   // kiểm tra lại để chắc chắn không sót.
   delete data.reflections;
   delete data.mood;
-  return { ok: true, envelope: { scope, data } };
+
+  // Phase 6B: Sanitize user-declared AI preferences (strict allowlist).
+  // Only include if present and valid. Preferences are user-declared data,
+  // NOT instructions — defense-in-depth via server sanitization.
+  const envelope = { scope, data };
+  if (raw.preferences && typeof raw.preferences === 'object' && !Array.isArray(raw.preferences)) {
+    const ALLOWED_PREF_KEYS = ['defaultTaskDuration', 'preferredFocusDuration', 'preferredWorkWindow',
+      'planningStyle', 'responseStyle', 'language', 'preferredPlanningDays'];
+    const sanitizedPrefs = {};
+    for (const pk of ALLOWED_PREF_KEYS) {
+      if (raw.preferences[pk] === undefined) continue;
+      const pv = raw.preferences[pk];
+      if (pv === null) { sanitizedPrefs[pk] = null; continue; }
+      if (pk === 'defaultTaskDuration' || pk === 'preferredFocusDuration') {
+        if (typeof pv === 'number' && Number.isFinite(pv) && pv >= 5 && pv <= 480) sanitizedPrefs[pk] = Math.round(pv);
+      } else if (pk === 'preferredWorkWindow') {
+        if (pv && typeof pv === 'object' && !Array.isArray(pv)) {
+          const s = typeof pv.start === 'string' && /^[01]\d|2[0-3]:[0-5]\d$/.test(pv.start) ? pv.start : null;
+          const e = typeof pv.end === 'string' && /^[01]\d|2[0-3]:[0-5]\d$/.test(pv.end) ? pv.end : null;
+          if (s && e) sanitizedPrefs[pk] = { start: s, end: e };
+        }
+      } else if (pk === 'planningStyle') {
+        if (['balanced', 'deep-work', 'light', 'deadline-first'].includes(pv)) sanitizedPrefs[pk] = pv;
+      } else if (pk === 'responseStyle') {
+        if (['concise', 'balanced', 'detailed'].includes(pv)) sanitizedPrefs[pk] = pv;
+      } else if (pk === 'language') {
+        if (['vi', 'en'].includes(pv)) sanitizedPrefs[pk] = pv;
+      } else if (pk === 'preferredPlanningDays') {
+        if (Array.isArray(pv) && pv.length <= 7) {
+          const valid = pv.filter((d) => typeof d === 'number' && d >= 0 && d <= 6);
+          if (valid.length > 0) sanitizedPrefs[pk] = valid;
+        }
+      }
+    }
+    if (Object.keys(sanitizedPrefs).length > 0) envelope.preferences = sanitizedPrefs;
+  }
+  return { ok: true, envelope: envelope };
 }
 
 // System instruction — server-owned, not replaceable by client.
