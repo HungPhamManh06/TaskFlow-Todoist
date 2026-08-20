@@ -295,6 +295,25 @@
     var typingEl = _showTyping(msgs);
 
     try {
+      // Phase 4B (P3/P24): deterministic action-intent router — action requests
+      // go to the Safe Agent (/api/ai/agent); everything else stays on chat.
+      // Only a validated structured proposal can enter Preview — model TEXT alone
+      // never triggers an action.
+      if (window.TaskFlowAIAgentRuntime && window.TaskFlowAIAgentRuntime.isActionIntent(text)) {
+        var agentRes = await window.TaskFlowAIAgentRuntime.handleAgent(text, _history, msgs);
+        _removeTyping(typingEl);
+        if (agentRes && agentRes.handled) {
+          // Confirmed applies render their own result bubble inside the runtime;
+          // takeResult() returns that text for history continuity (no double bubble).
+          var agentReply = (window.TaskFlowAIAgentRuntime.takeResult ? window.TaskFlowAIAgentRuntime.takeResult() : null) || agentRes.reply || null;
+          _history.push({ role: 'user', content: text });
+          if (agentReply) _history.push({ role: 'assistant', content: agentReply });
+          if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+          return;
+        }
+        throw { code: 'agent-unhandled' };
+      }
+
       // 5. Call API
       var answer = await _callChatAPI(text, _history);
 
