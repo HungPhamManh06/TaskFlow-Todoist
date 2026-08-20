@@ -61,7 +61,7 @@ const aiChatLimiter = rateLimit({
   max: AI_CHAT_RATE_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req) => String(req.user.id),
   message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
   handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
 });
@@ -71,7 +71,7 @@ const aiAgentLimiter = rateLimit({
   max: AI_AGENT_RATE_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req) => String(req.user.id),
   message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
   handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
 });
@@ -81,7 +81,7 @@ const aiPlanLimiter = rateLimit({
   max: AI_PLAN_RATE_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req) => String(req.user.id),
   message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
   handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
 });
@@ -91,7 +91,7 @@ const aiAgentHourlyLimiter = rateLimit({
   max: AI_AGENT_HOURLY_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.user?.id || req.ip,
+  keyGenerator: (req) => String(req.user.id),
   message: { error: 'ai-rate-limited', retryAfterSeconds: 3600 },
   handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 3600 }),
 });
@@ -1376,7 +1376,7 @@ const aiFileLimiter = rateLimit({
   max: AI_FILE_RATE_LIMIT_PER_MIN,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req.user && req.user.id) ? String(req.user.id) : req.ip,
+  keyGenerator: (req) => String(req.user.id),
   message: { error: 'ai-rate-limited' },
 });
 
@@ -1385,7 +1385,7 @@ const aiFileHourlyLimiter = rateLimit({
   max: AI_FILE_RATE_LIMIT_PER_HOUR,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req.user && req.user.id) ? String(req.user.id) : req.ip,
+  keyGenerator: (req) => String(req.user.id),
   message: { error: 'ai-rate-limited' },
 });
 
@@ -1398,7 +1398,7 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
   let fileMime = '';
   let fileSize = 0;
   let userMessage = '';
-  const userId = req.user && req.user.id ? String(req.user.id) : req.ip;
+  const userId = String(req.user.id);
 
   try {
     // Check concurrency
@@ -1419,7 +1419,7 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
       }
 
       await new Promise((resolve, reject) => {
-        const bb = Busboy({ headers: req, limits: { files: 1, fileSize: AI_FILE_MAX_BYTES, fields: 10 } });
+        const bb = Busboy({ headers: req.headers, limits: { files: 1, fileSize: AI_FILE_MAX_BYTES, fields: 10 } });
         bb.on('file', (fieldname, stream, info) => {
           if (fieldname !== 'file') { stream.resume(); return; }
           fileName = sanitizeFilename(info.filename);
@@ -1555,8 +1555,13 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
       const latencyMs = Date.now() - startedAt;
 
       if (!upstream.ok) {
-        const code = upstream.status === 429 ? 'ai-rate-limited' : 'ai-file-processing-failed';
-        console.log('[ai] route=/api/ai/file status=upstream-error upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
+        const code = upstream.status === 400 ? 'ai-provider-bad-request'
+          : upstream.status === 401 ? 'ai-provider-auth'
+          : upstream.status === 403 ? 'ai-provider-forbidden'
+          : upstream.status === 404 ? 'ai-provider-not-found'
+          : upstream.status === 429 ? 'ai-rate-limited'
+          : 'ai-provider-unavailable';
+        console.log('[ai] route=/api/ai/file mode=' + fileMode + ' status=upstream-error upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
         return res.status(upstream.status === 429 ? 429 : 502).json({ error: code });
       }
 
@@ -1580,6 +1585,8 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
       releaseSlot();
     }
   } catch (e) {
+    const safeType = e && e.constructor ? e.constructor.name : 'Error';
+    console.error('[ai] route=/api/ai/file status=internal-error errorType=' + safeType);
     return res.status(500).json({ error: 'ai-file-processing-failed' });
   }
 });
