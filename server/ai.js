@@ -104,11 +104,7 @@ const agentInFlight = new Map(); // userId -> count
 const agentIdempotencyCache = new Map(); // key: userId:agentRequestId -> { proposal, timestamp }
 const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-// Generate a short request correlation ID
-function generateRequestId() {
-  return crypto.randomBytes(8).toString('hex');
-}
-
+// Idempotency cache
 const KINDS = ['plan_day', 'plan_week', 'next_actions', 'breakdown_project', 'breakdown_milestone', 'reschedule'];
 const ACTION_TYPES = ['schedule_task', 'reschedule_task', 'next_action'];
 const RESCHEDULE_OPTIONS = ['tomorrow', 'this-week', 'inbox'];
@@ -622,7 +618,6 @@ router.post('/chat', aiChatLimiter, async (req, res) => {
     // generic details only — never raw validation info or private data.
     const ctxSan = sanitizeChatContextEnvelope(body.taskflowContext);
     if (!ctxSan.ok) {
-      releaseSlot();
       return res.status(400).json({ error: 'ai-context-invalid', details: [ctxSan.reason] });
     }
 
@@ -1032,185 +1027,205 @@ const AGENT_SYSTEM_INSTRUCTION_EN = 'You are TaskFlow\'s safe action agent. The 
 
 // POST /api/ai/agent (Bearer) { message, history?, taskflowContext?, agentRequestId?, proposalId? } → { ok, proposal }
 // Server returns a SANITIZED proposal ONLY — it never executes actions.
+// Lifecycle: validate cheap → sanitize → idempotency → acquire slot → Gemini → release slot.
 router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => {
+  const requestId = generateRequestId();
+
   try {
-    // Generate request correlation ID
-    const requestId = generateRequestId();
+    // ── 1. Feature flag / config (no slot needed) ──
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
     if (!AI_AGENT_ENABLED) return res.status(503).json({ error: 'ai-agent-disabled' });
+
+    // ── 2. Validate cheap fields (no slot needed) ──
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     if (!message || message.length > MAX_MESSAGE_LEN) {
-      releaseSlot();
       return res.status(400).json({ error: 'invalid-message' });
     }
     const rawLen = Buffer.byteLength(JSON.stringify(body), 'utf8');
     if (rawLen > 128 * 1024) {
-      releaseSlot();
       return res.status(413).json({ error: 'payload-too-large' });
     }
-
-    // Concurrency guard: limit concurrent agent requests per user
     const userId = req.user?.id;
+
+    // ── 3. Sanitize history + context (no slot needed) ──
+    const history = sanitizeChatHistory(body.history);
+    const ctxSan = sanitizeChatContextEnvelope(body.taskflowContext);
+    if (!ctxSan.ok) {
+      return res.status(400).json({ error: 'ai-context-invalid', details: [ctxSan.reason] });
+    }
+
+    // Validate agentRequestId: must be string, 8-128 chars if provided
+    const agentRequestId = typeof body.agentRequestId === 'string' ? body.agentRequestId : '';
+    if (agentRequestId && (agentRequestId.length < 8 || agentRequestId.length > 128)) {
+      return res.status(400).json({ error: 'invalid-agent-request-id' });
+    }
+
+    // ── 4. Idempotency cache lookup (no slot needed) ──
+    if (agentRequestId && userId) {
+      const cacheKey = userId + ':' + agentRequestId;
+      const cached = agentIdempotencyCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < IDEMPOTENCY_TTL_MS) {
+        // Return cached proposal — zero Gemini calls, zero slot acquisition.
+        return res.json({ ok: true, proposal: cached.proposal, idempotent: true });
+      }
+    }
+
+    // ── 5. Acquire concurrency slot (only after validation + cache miss) ──
+    let slotAcquired = false;
     if (userId) {
       const current = agentInFlight.get(userId) || 0;
       if (current >= MAX_AGENT_CONCURRENT) {
         return res.status(429).json({ error: 'ai-agent-busy' });
       }
       agentInFlight.set(userId, current + 1);
+      slotAcquired = true;
     }
 
     // Helper to release concurrency slot
     const releaseSlot = () => {
-      if (userId) {
+      if (slotAcquired && userId) {
         const current = agentInFlight.get(userId) || 0;
-        if (current > 0) agentInFlight.set(userId, current - 1);
+        if (current > 1) {
+          agentInFlight.set(userId, current - 1);
+        } else if (current > 0) {
+          agentInFlight.delete(userId);
+        }
       }
     };
 
-    // Idempotency check: if agentRequestId provided, check cache
-    const agentRequestId = body.agentRequestId;
-    if (agentRequestId && userId) {
-      const cacheKey = userId + ':' + agentRequestId;
-      const cached = agentIdempotencyCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < IDEMPOTENCY_TTL_MS) {
-        // Return cached proposal
-        return res.json({ ok: true, proposal: cached.proposal, idempotent: true });
-      }
-    }
-
-    // Refs built ONLY from the sanitized envelope — never arbitrary state.
-    const taskUids = new Set();
-    const projectIds = new Set();
-    const milestoneIds = new Set();
-    const env = ctxSan.envelope;
-    if (env && env.data && typeof env.data === 'object') {
-      (env.data.tasks || []).forEach((t) => { if (t && t.uid) taskUids.add(t.uid); });
-      (env.data.projects || []).forEach((p) => { if (p && p.id) projectIds.add(p.id); });
-      (env.data.milestones || []).forEach((m) => { if (m && m.id) milestoneIds.add(m.id); });
-    }
-
-    const lang = /[a-zA-Z]/.test(message) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(message)
-      ? 'en' : 'vi';
-    const sysInstruction = lang === 'en' ? AGENT_SYSTEM_INSTRUCTION_EN : AGENT_SYSTEM_INSTRUCTION_VI;
-    const userContent = env
-      ? '<TASKFLOW_CONTEXT_DATA>' + JSON.stringify(env) + '</TASKFLOW_CONTEXT_DATA>\n<USER_REQUEST>' + message + '</USER_REQUEST>'
-      : message;
-
-    const messages = [
-      { role: 'system', content: sysInstruction },
-      ...history.map((m) => ({ role: m.role, content: m.content })),
-      { role: 'user', content: userContent },
-    ];
-
-    const startedAt = Date.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-    let upstream;
     try {
-      upstream = await fetch(AI_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + AI_API_KEY,
-        },
-        body: JSON.stringify({
-          model: AI_MODEL,
-          reasoning_effort: 'low',
-          max_tokens: 1200,
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'taskflow_agent_proposal',
-              strict: true,
-              schema: AGENT_PROPOSAL_SCHEMA,
-            },
+      // ── 6. Refs built ONLY from the sanitized envelope — never arbitrary state ──
+      const taskUids = new Set();
+      const projectIds = new Set();
+      const milestoneIds = new Set();
+      const env = ctxSan.envelope;
+      if (env && env.data && typeof env.data === 'object') {
+        (env.data.tasks || []).forEach((t) => { if (t && t.uid) taskUids.add(t.uid); });
+        (env.data.projects || []).forEach((p) => { if (p && p.id) projectIds.add(p.id); });
+        (env.data.milestones || []).forEach((m) => { if (m && m.id) milestoneIds.add(m.id); });
+      }
+
+      const lang = /[a-zA-Z]/.test(message) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(message)
+        ? 'en' : 'vi';
+      const sysInstruction = lang === 'en' ? AGENT_SYSTEM_INSTRUCTION_EN : AGENT_SYSTEM_INSTRUCTION_VI;
+      const userContent = env
+        ? '<TASKFLOW_CONTEXT_DATA>' + JSON.stringify(env) + '</TASKFLOW_CONTEXT_DATA>\n<USER_REQUEST>' + message + '</USER_REQUEST>'
+        : message;
+
+      const messages = [
+        { role: 'system', content: sysInstruction },
+        ...history.map((m) => ({ role: m.role, content: m.content })),
+        { role: 'user', content: userContent },
+      ];
+
+      // ── 7. Call Gemini ──
+      const startedAt = Date.now();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+      let upstream;
+      try {
+        upstream = await fetch(AI_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + AI_API_KEY,
           },
-          messages,
-        }),
-        signal: controller.signal,
-      });
-    } catch (e) {
+          body: JSON.stringify({
+            model: AI_MODEL,
+            reasoning_effort: 'low',
+            max_tokens: 1200,
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'taskflow_agent_proposal',
+                strict: true,
+                schema: AGENT_PROPOSAL_SCHEMA,
+              },
+            },
+            messages,
+          }),
+          signal: controller.signal,
+        });
+      } catch (e) {
+        clearTimeout(timer);
+        const latencyMs = Date.now() - startedAt;
+        if (e && e.name === 'AbortError') {
+          console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=timeout latencyMs=' + latencyMs);
+          return res.status(504).json({ error: 'ai-timeout' });
+        }
+        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=upstream-error latencyMs=' + latencyMs);
+        return res.status(502).json({ error: 'ai-provider-unavailable' });
+      }
       clearTimeout(timer);
       const latencyMs = Date.now() - startedAt;
-      if (e && e.name === 'AbortError') {
-        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=timeout latencyMs=' + latencyMs);
-        releaseSlot();
-        return res.status(504).json({ error: 'ai-timeout' });
+
+      // ── 8. Handle upstream errors ──
+      if (!upstream.ok) {
+        const code = upstream.status === 400 ? 'ai-provider-bad-request'
+          : upstream.status === 401 ? 'ai-provider-auth'
+          : upstream.status === 403 ? 'ai-provider-forbidden'
+          : upstream.status === 404 ? 'ai-provider-not-found'
+          : upstream.status === 429 ? 'ai-rate-limited'
+          : 'ai-provider-unavailable';
+        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
+        return res.status(upstream.status === 429 ? 429 : 502).json({ error: code, details: ['upstream-' + upstream.status] });
       }
-      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=upstream-error latencyMs=' + latencyMs);
-      releaseSlot();
-      return res.status(502).json({ error: 'ai-provider-unavailable' });
-    }
-    clearTimeout(timer);
-    const latencyMs = Date.now() - startedAt;
 
-    if (!upstream.ok) {
-      const code = upstream.status === 400 ? 'ai-provider-bad-request'
-        : upstream.status === 401 ? 'ai-provider-auth'
-        : upstream.status === 403 ? 'ai-provider-forbidden'
-        : upstream.status === 404 ? 'ai-provider-not-found'
-        : upstream.status === 429 ? 'ai-rate-limited'
-        : 'ai-provider-unavailable';
-      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
-      releaseSlot();
-      return res.status(upstream.status === 429 ? 429 : 502).json({ error: code, details: ['upstream-' + upstream.status] });
-    }
+      // ── 9. Parse + validate response ──
+      let json;
+      try {
+        json = await upstream.json();
+      } catch (e) {
+        return res.status(502).json({ error: 'ai-provider-unavailable' });
+      }
+      const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+      if (typeof content !== 'string' || !content.trim()) {
+        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=empty-content latencyMs=' + latencyMs);
+        return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
+      }
 
-    let json;
-    try {
-      json = await upstream.json();
-    } catch (e) {
-      releaseSlot();
-      return res.status(502).json({ error: 'ai-provider-unavailable' });
-    }
-    const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-    if (typeof content !== 'string' || !content.trim()) {
-      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=empty-content latencyMs=' + latencyMs);
-      releaseSlot();
-      return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
-    }
+      const proposal = parseProposalContent(content);
+      if (proposal === null) {
+        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=parse-failed latencyMs=' + latencyMs);
+        return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
+      }
+      const v = validateAgentProposal(proposal, { taskUids, projectIds, milestoneIds });
+      if (!v.ok) {
+        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=validation-failed latencyMs=' + latencyMs);
+        return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
+      }
+      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=success latencyMs=' + latencyMs);
 
-    const proposal = parseProposalContent(content);
-    if (proposal === null) {
-      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=parse-failed latencyMs=' + latencyMs);
-      releaseSlot();
-      return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
-    }
-    const v = validateAgentProposal(proposal, { taskUids, projectIds, milestoneIds });
-    if (!v.ok) {
-      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=validation-failed latencyMs=' + latencyMs);
-      releaseSlot();
-      return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
-    }
-    console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=success latencyMs=' + latencyMs);
-    const resp = { ok: true, proposal };
-    if (req.query && req.query.debug === '1') {
-      resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs };
-    }
-    // Store in idempotency cache if agentRequestId provided
-    if (agentRequestId && userId) {
-      const cacheKey = userId + ':' + agentRequestId;
-      agentIdempotencyCache.set(cacheKey, { proposal, timestamp: Date.now() });
-      // Cleanup old entries (simple cleanup, not perfect but prevents unbounded growth)
-      if (agentIdempotencyCache.size > 1000) {
-        const now = Date.now();
-        for (const [key, value] of agentIdempotencyCache.entries()) {
-          if (now - value.timestamp > IDEMPOTENCY_TTL_MS) agentIdempotencyCache.delete(key);
+      // ── 10. Build response ──
+      const resp = { ok: true, proposal };
+      if (req.query && req.query.debug === '1') {
+        resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs };
+      }
+      // Store in idempotency cache if agentRequestId provided
+      if (agentRequestId && userId) {
+        const cacheKey = userId + ':' + agentRequestId;
+        agentIdempotencyCache.set(cacheKey, { proposal, timestamp: Date.now() });
+        // Bounded cleanup: evict expired entries when cache exceeds 1000
+        if (agentIdempotencyCache.size > 1000) {
+          const now = Date.now();
+          for (const [key, value] of agentIdempotencyCache.entries()) {
+            if (now - value.timestamp > IDEMPOTENCY_TTL_MS) agentIdempotencyCache.delete(key);
+          }
         }
       }
-    }
-    // Output size guard: reject oversized responses
-    const respBody = JSON.stringify(resp);
-    if (Buffer.byteLength(respBody, 'utf8') > 1024 * 1024) { // 1MB limit
-      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' response-too-large bytes=' + Buffer.byteLength(respBody, 'utf8'));
+      // Output size guard: reject oversized responses
+      const respBody = JSON.stringify(resp);
+      if (Buffer.byteLength(respBody, 'utf8') > 1024 * 1024) {
+        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' status=response-too-large latencyMs=' + latencyMs + ' bytes=' + Buffer.byteLength(respBody, 'utf8'));
+        return res.status(413).json({ error: 'ai-response-too-large' });
+      }
+      return res.json(resp);
+    } finally {
+      // ── 11. Always release slot exactly once ──
       releaseSlot();
-      return res.status(413).json({ error: 'ai-response-too-large' });
     }
-    releaseSlot();
-    return res.json(resp);
   } catch (e) {
-    releaseSlot();
     return res.status(500).json({ error: 'server-error' });
   }
 });
