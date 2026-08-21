@@ -310,6 +310,31 @@
     if (hasPendingProposal && /(?:đưa|chuyển|convert).*(?:đề\s+xuất|proposal)/i.test(s))
       return { kind: 'convert-plan', confidence: 'high', reason: 'convert-plan' };
 
+    // P4: Recovery intent — explicit user recovery request
+    if (/(?:bỏ\s+lỡ|missed|không\s+được|chưa\s+làm|xếp\s+lại|xếp\s+phần|replan|recovery|phục\s+hồi|sắp\s+xếp\s+lại)/i.test(s))
+      return { kind: 'recover', confidence: 'high', reason: 'recovery-request' };
+    if (/(?:bận|busy|không\s+rảnh|đổi\s+lịch|hủy\s+phiên)/i.test(s) &&
+        /(?:xếp|lịch|plan|học|session)/i.test(s))
+      return { kind: 'recover', confidence: 'high', reason: 'recovery-availability' };
+    if (/(?:còn\s+lại|remaining|phần\s+còn|tiếp\s+tục|continue)/i.test(s) &&
+        /(?:xếp|lịch|plan|học)/i.test(s))
+      return { kind: 'recover', confidence: 'high', reason: 'recovery-remaining' };
+    if (/(?:deadline|trễ|late|risk|nguy\s+cơ)/i.test(s) &&
+        /(?:xếp|lịch|plan|học|task)/i.test(s))
+      return { kind: 'recover', confidence: 'medium', reason: 'recovery-deadline-risk' };
+
+    // P48: what-if recovery
+    if (/(?:nếu|what\s*if).*(?:nghỉ|miss|bỏ|skip|rest)/i.test(s))
+      return { kind: 'recover-what-if', confidence: 'high', reason: 'what-if-recovery' };
+    if (/(?:nếu|what\s*if).*(?:thì\s+sao|what|happen)/i.test(s) &&
+        /(?:bận|busy|nghỉ|miss|bỏ|skip)/i.test(s))
+      return { kind: 'recover-what-if', confidence: 'high', reason: 'what-if-recovery' };
+
+    // P5: read-only analysis questions
+    if (/(?:đang\s+chậm|how\s+far|bao\s+nhiêu|how\s+much|còn\s+lại)/i.test(s) &&
+        /(?:task|việc|kế\s*hoạch|plan|chậm|behind|trễ)/i.test(s))
+      return { kind: 'question', confidence: 'medium', reason: 'recovery-analysis' };
+
     // P27: negation → read-only what-if
     if (/(?:đừng|không\s+cần|chỉ\s+cho|don't|just\s+show).*(?:lịch|kế\s*hoạch|plan)/i.test(s))
       return { kind: 'what-if', confidence: 'high', reason: 'negation-plan' };

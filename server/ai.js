@@ -554,20 +554,60 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
       taskMap[key] = { text: (t.text || '').substring(0, 300), duration: t.duration || null, deadline: t.deadline || null, priority: t.priority || false };
     });
 
+    // P33: Recovery mode support
+    const mode = body.mode || 'plan';
+    const isRecovery = mode === 'recovery';
+    const preservedSessions = Array.isArray(body.preservedSessions) ? body.preservedSessions : [];
+    const movableSessions = Array.isArray(body.movableSessions) ? body.movableSessions : [];
+    const lockedSessionIds = Array.isArray(body.lockedSessionIds) ? body.lockedSessionIds : [];
+    const delta = body.delta || {};
+
+    if (isRecovery && lockedSessionIds.length > 0) {
+      // P12: Locked sessions cannot be moved
+    }
+
     // P79: System prompt
     const lang = /[a-zA-Z]/.test(message) && !/[àáảãạ]/.test(message) ? 'en' : 'vi';
     const sys = lang === 'en'
-      ? 'You create a SCHEDULE PREVIEW only. You cannot apply changes.\n'
-        + 'Use only supplied task keys (' + taskKeys.join(',') + '). Respect available windows and hard constraints.\n'
-        + 'Never invent unavailable time. Return only structured plan JSON.\n'
-        + 'Max session: ' + (constraints.maxSession || 50) + ' min. Min session: 25 min.\n'
-        + (constraints.windowStart ? 'Window start: ' + constraints.windowStart + '\n' : '')
-        + (constraints.windowEnd ? 'Window end: ' + constraints.windowEnd + '\n' : '')
-        + (constraints.dailyMaxMinutes ? 'Daily max: ' + constraints.dailyMaxMinutes + ' min\n' : '')
-        + (constraints.breakMinutes ? 'Min break: ' + constraints.breakMinutes + ' min\n' : '')
-        + 'Available windows per day: ' + JSON.stringify(body.availableWindows || []) + '\n'
-        + 'Tasks: ' + JSON.stringify(taskMap)
-      : 'Bạn chỉ tạo LỊCH TRÌNH ĐỀ XUẤT. KHÔNG ÁP DỤNG thay đổi.\n'
+      ? (isRecovery
+        ? 'You create a RECOVERY PLAN PREVIEW only. You cannot apply changes.\n'
+          + 'The user has missed sessions or needs schedule changes.\n'
+          + 'Use only supplied task keys (' + taskKeys.join(',') + '). Respect available windows and hard constraints.\n'
+          + 'NEVER move locked sessions (' + JSON.stringify(lockedSessionIds) + ').\n'
+          + 'Preserve as many unaffected sessions as possible (MINIMIZE DISRUPTION).\n'
+          + 'Calculate remaining duration based on completed work.\n'
+          + 'Max session: ' + (constraints.maxSession || 50) + ' min. Min session: 25 min.\n'
+          + 'Do not schedule in the past. Current time: ' + (body.now || 'unknown') + '\n'
+          + 'Available windows: ' + JSON.stringify(body.availableWindows || []) + '\n'
+          + 'Locked sessions: ' + JSON.stringify(preservedSessions) + '\n'
+          + 'Movable sessions: ' + JSON.stringify(movableSessions) + '\n'
+          + 'Tasks: ' + JSON.stringify(taskMap) + '\n'
+          + 'Delta: ' + JSON.stringify(delta)
+        : 'You create a SCHEDULE PREVIEW only. You cannot apply changes.\n'
+          + 'Use only supplied task keys (' + taskKeys.join(',') + '). Respect available windows and hard constraints.\n'
+          + 'Never invent unavailable time. Return only structured plan JSON.\n'
+          + 'Max session: ' + (constraints.maxSession || 50) + ' min. Min session: 25 min.\n'
+          + (constraints.windowStart ? 'Window start: ' + constraints.windowStart + '\n' : '')
+          + (constraints.windowEnd ? 'Window end: ' + constraints.windowEnd + '\n' : '')
+          + (constraints.dailyMaxMinutes ? 'Daily max: ' + constraints.dailyMaxMinutes + ' min\n' : '')
+          + (constraints.breakMinutes ? 'Min break: ' + constraints.breakMinutes + ' min\n' : '')
+          + 'Available windows per day: ' + JSON.stringify(body.availableWindows || []) + '\n'
+          + 'Tasks: ' + JSON.stringify(taskMap))
+      : (isRecovery
+        ? 'Bạn chỉ tạo KẾ HOẠCH PHỤC HỒI. KHÔNG ÁP DỤNG thay đổi.\n'
+          + 'Người dùng bỏ lỡ phiên hoặc cần thay đổi lịch.\n'
+          + 'Chỉ dùng task keys đã cho (' + taskKeys.join(',') + '). Tuân thủ khung giờ và ràng buộc.\n'
+          + 'KHÔNG được di chuyển phiên đã khóa (' + JSON.stringify(lockedSessionIds) + ').\n'
+          + 'Giữ nguyên các phiên không bị ảnh hưởng (TỐI THIỂU GIÁN ĐOẠN).\n'
+          + 'Tính thời lượng còn lại dựa trên công việc đã hoàn thành.\n'
+          + 'Phiên tối đa: ' + (constraints.maxSession || 50) + ' phút. Phiên tối thiểu: 25 phút.\n'
+          + 'KHÔNG xếp lịch trong quá khứ. Thời gian hiện tại: ' + (body.now || 'unknown') + '\n'
+          + 'Khung giờ trống: ' + JSON.stringify(body.availableWindows || []) + '\n'
+          + 'Phiên đã khóa: ' + JSON.stringify(preservedSessions) + '\n'
+          + 'Phiên có thể di chuyển: ' + JSON.stringify(movableSessions) + '\n'
+          + 'Công việc: ' + JSON.stringify(taskMap) + '\n'
+          + 'Thay đổi: ' + JSON.stringify(delta)
+        : 'Bạn chỉ tạo LỊCH TRÌNH ĐỀ XUẤT. KHÔNG ÁP DỤNG thay đổi.\n'
         + 'Chỉ dùng task keys đã cho (' + taskKeys.join(',') + '). Tuân thủ khung giờ và ràng buộc.\n'
         + 'KHÔNG tạo thời gian không khả dụng. Trả về JSON structured.\n'
         + 'Phiên tối đa: ' + (constraints.maxSession || 50) + ' phút. Phiên tối thiểu: 25 phút.\n'
@@ -576,7 +616,7 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
         + (constraints.dailyMaxMinutes ? 'Giới hạn/ngày: ' + constraints.dailyMaxMinutes + ' phút\n' : '')
         + (constraints.breakMinutes ? 'Nghỉ tối thiểu: ' + constraints.breakMinutes + ' phút\n' : '')
         + 'Khung giờ trống: ' + JSON.stringify(body.availableWindows || []) + '\n'
-        + 'Công việc: ' + JSON.stringify(taskMap);
+        + 'Công việc: ' + JSON.stringify(taskMap));
 
     const messages = [
       { role: 'system', content: sys },
@@ -651,8 +691,8 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
       return res.status(422).json({ error: 'ai-plan-validation-failed', details: planErrors.slice(0, 5) });
     }
 
-    console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' sessionCount=' + plan.sessions.length + ' status=success latencyMs=' + latencyMs);
-    return res.json({ ok: true, plan });
+    console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' mode=' + mode + ' sessionCount=' + plan.sessions.length + ' status=success latencyMs=' + latencyMs);
+    return res.json({ ok: true, mode: mode, plan });
   } catch (e) {
     const safeType = e && e.constructor ? e.constructor.name : 'Error';
     console.error('[ai] route=/api/ai/plan-synthesis status=internal-error errorType=' + safeType);
