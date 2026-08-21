@@ -390,6 +390,184 @@
     return dates;
   }
 
+  /* ─── P6: Recovery Delta Model ─── */
+  function createDelta(opts) {
+    opts = opts || {};
+    return {
+      completedSessions: opts.completedSessions || [],
+      missedSessions: opts.missedSessions || [],
+      remainingSessions: opts.remainingSessions || [],
+      changedTasks: opts.changedTasks || [],
+      newConflicts: opts.newConflicts || [],
+      changedAvailability: opts.changedAvailability || [],
+      deadlineRisks: opts.deadlineRisks || []
+    };
+  }
+
+  /* P14: Partial progress calculation */
+  function calculateRemaining(totalMinutes, completedMinutes) {
+    var remaining = totalMinutes - completedMinutes;
+    return remaining > 0 ? remaining : 0;
+  }
+
+  /* P13: Determine if a session is missed (user declaration) */
+  function isSessionMissed(session, opts) {
+    opts = opts || {};
+    if (session.completed) return false;
+    if (opts.missedSessionIds && opts.missedSessionIds.indexOf(session.id) !== -1) return true;
+    // P22: Past sessions based on current time boundary
+    if (opts.now && session.date) {
+      var sessionEnd = _toMin(session.start) + (session.duration || 0);
+      var nowDate = opts.now.split('T')[0];
+      if (session.date < nowDate) return true;
+      if (session.date === nowDate && sessionEnd <= _toMin(opts.now.split('T')[1] || '23:59')) {
+        // Session should have been completed by now
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /* P12: Check if session is locked */
+  function isSessionLocked(sessionId, lockedIds) {
+    if (!lockedIds || !Array.isArray(lockedIds)) return false;
+    return lockedIds.indexOf(sessionId) !== -1;
+  }
+
+  /* P19: Detect new conflicts for a session */
+  function detectSessionConflicts(session, opts) {
+    opts = opts || {};
+    var conflicts = [];
+    if (!session || !session.date || !session.start) return conflicts;
+    var sStart = _toMin(session.start);
+    var sEnd = sStart + (session.duration || 0);
+
+    // Check TimeBlocks
+    var tb = opts.timeblocks;
+    if (tb && Array.isArray(tb.blocks)) {
+      for (var i = 0; i < tb.blocks.length; i++) {
+        var b = tb.blocks[i];
+        if (b && b.date === session.date && b.status !== 'cancelled') {
+          var bStart = _toMin(b.start);
+          var bEnd = _toMin(b.end);
+          if (bStart !== null && bEnd !== null && sStart < bEnd && bStart < sEnd) {
+            conflicts.push({ type: 'timeblock', blockId: b.id });
+          }
+        }
+      }
+    }
+
+    // Check Google busy
+    var busy = opts.busy;
+    if (Array.isArray(busy)) {
+      var dayMs = new Date(session.date + 'T00:00:00').getTime();
+      for (var j = 0; j < busy.length; j++) {
+        var ev = busy[j];
+        if (!ev) continue;
+        var evStart, evEnd;
+        if (typeof ev.start === 'string' && typeof ev.end === 'string') {
+          evStart = _toMin(ev.start);
+          evEnd = _toMin(ev.end);
+        } else if (typeof ev.startMs === 'number' && typeof ev.endMs === 'number') {
+          evStart = Math.round((ev.startMs - dayMs) / 60000);
+          evEnd = Math.round((ev.endMs - dayMs) / 60000);
+        }
+        if (evStart !== null && evEnd !== null && sStart < evEnd && evStart < sEnd) {
+          conflicts.push({ type: 'google-busy' });
+        }
+      }
+    }
+
+    return conflicts;
+  }
+
+  /* P22: Check if a session time is in the past */
+  function isSessionInPast(session, now) {
+    if (!session || !now) return false;
+    var nowParts = String(now).split('T');
+    var nowDate = nowParts[0];
+    var nowTime = nowParts[1] || '23:59';
+    if (session.date < nowDate) return true;
+    if (session.date === nowDate) {
+      var sessionEnd = _toMin(session.start) + (session.duration || 0);
+      if (sessionEnd <= _toMin(nowTime)) return true;
+    }
+    return false;
+  }
+
+  /* P42: Duration conservation for recovery */
+  function validateRecoveryDuration(remainingMinutes, plannedMinutes) {
+    if (typeof remainingMinutes !== 'number' || typeof plannedMinutes !== 'number') return { ok: false, reason: 'invalid' };
+    if (plannedMinutes > remainingMinutes * 1.5) return { ok: false, reason: 'over-planned', remaining: remainingMinutes, planned: plannedMinutes };
+    if (plannedMinutes < remainingMinutes * 0.5) return { ok: false, reason: 'under-planned', remaining: remainingMinutes, planned: plannedMinutes };
+    return { ok: true };
+  }
+
+  /* P59: Convert recovery delta to proposal actions (delta-only) */
+  function convertRecoveryToProposal(recovery, taskMap, lockedIds) {
+    if (!recovery) return { ok: false, errors: ['no-recovery'] };
+    taskMap = taskMap || {};
+    lockedIds = lockedIds || [];
+    var actions = [];
+    var errors = [];
+    var actionIdCounter = 0;
+
+    // P58: Only changed/moved sessions become actions
+    var movedSessions = recovery.movedSessions || recovery.moves || [];
+    for (var i = 0; i < movedSessions.length; i++) {
+      var move = movedSessions[i];
+      var taskKey = move.taskKey;
+      var task = taskMap[taskKey];
+
+      if (!task) {
+        errors.push({ index: i, code: 'unknown-task', taskKey: taskKey });
+        continue;
+      }
+
+      // P39: Cannot move locked sessions
+      if (isSessionLocked(move.sessionId || move.id, lockedIds)) {
+        errors.push({ index: i, code: 'locked-session', sessionId: move.sessionId || move.id });
+        continue;
+      }
+
+      actionIdCounter++;
+      var actionId = 'pr' + actionIdCounter;
+
+      // P60: Use reschedule_task for existing scheduled tasks
+      if (task.uid) {
+        actions.push({
+          id: actionId,
+          type: 'reschedule_task',
+          args: {
+            taskRef: { kind: 'existing', uid: task.uid },
+            date: move.date,
+            start: move.start,
+            duration: move.duration
+          }
+        });
+      }
+    }
+
+    return { ok: errors.length === 0, actions: actions, errors: errors };
+  }
+
+  /* P49: Structured metrics for recovery comparison */
+  function recoveryMetrics(original, recovery) {
+    var origSessions = (original && original.sessions) || [];
+    var recoverySessions = (recovery && (recovery.movedSessions || recovery.moves || [])) || [];
+    var newSessions = (recovery && recovery.newSessions) || [];
+    var unscheduled = (recovery && recovery.unscheduled) || [];
+
+    var preserved = origSessions.length - recoverySessions.length;
+    return {
+      sessionsPreserved: Math.max(0, preserved),
+      sessionsMoved: recoverySessions.length,
+      sessionsNew: newSessions.length,
+      unscheduledCount: unscheduled.length,
+      hasDeficit: unscheduled.length > 0
+    };
+  }
+
   /* ─── Exports ─── */
   var api = {
     PLAN_MIN_SESSION: PLAN_MIN_SESSION,
@@ -408,6 +586,15 @@
     splitDuration: splitDuration,
     validatePlan: validatePlan,
     convertPlanToProposal: convertPlanToProposal,
+    createDelta: createDelta,
+    calculateRemaining: calculateRemaining,
+    isSessionMissed: isSessionMissed,
+    isSessionLocked: isSessionLocked,
+    detectSessionConflicts: detectSessionConflicts,
+    isSessionInPast: isSessionInPast,
+    validateRecoveryDuration: validateRecoveryDuration,
+    convertRecoveryToProposal: convertRecoveryToProposal,
+    recoveryMetrics: recoveryMetrics,
     _toMin: _toMin,
     _minToTime: _minToTime,
     _dateRange: _dateRange
