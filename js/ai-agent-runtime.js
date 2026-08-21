@@ -632,6 +632,25 @@
     head.textContent = _t('agentProposeTitle');
     card.appendChild(head);
 
+    // Phase 6E: Data-used summary (P14-P16)
+    if (window.TaskFlowAIExplainability) {
+      try {
+        const ctx = buildContext();
+        const used = window.TaskFlowAIExplainability.buildContextUsageSummary(ctx, {
+          fileSource: _reviewState && _reviewState._source === 'file' ? { name: _reviewState._fileName || '' } : null,
+          preferenceData: null,
+          hasReflection: false,
+          hasMood: false,
+        });
+        const summaryText = window.TaskFlowAIExplainability.formatContextUsageSummary(used, 'vi');
+        const usageEl = document.createElement('div');
+        usageEl.className = 'agent-data-used';
+        usageEl.setAttribute('data-testid', 'review-data-used');
+        usageEl.textContent = summaryText;
+        card.appendChild(usageEl);
+      } catch (e) { /* explainability must never break review */ }
+    }
+
     const rs = _reviewState;
     const depInfo = _buildDepGraph(proposal);
 
@@ -794,6 +813,63 @@
           editBtnRow.appendChild(editBtn);
           rowWrap.appendChild(editBtnRow);
         }
+      }
+
+      // Phase 6E: 'Why?' button for action-level explanation (P5)
+      if (isSelected && rs) {
+        const whyBtnRow = document.createElement('div');
+        whyBtnRow.className = 'agent-why-btn-row';
+        const whyBtn = document.createElement('button');
+        whyBtn.type = 'button';
+        whyBtn.className = 'agent-why-btn';
+        whyBtn.textContent = _t('reviewWhy');
+        whyBtn.setAttribute('data-testid', 'review-why-' + g.actionId);
+        whyBtn.setAttribute('aria-expanded', 'false');
+        let whyPanelVisible = false;
+        let whyPanel = null;
+        whyBtn.addEventListener('click', function () {
+          if (whyPanelVisible && whyPanel) { whyPanel.style.display = 'none'; whyPanelVisible = false; whyBtn.setAttribute('aria-expanded', 'false'); return; }
+          if (whyPanel) { whyPanel.style.display = ''; whyPanelVisible = true; whyBtn.setAttribute('aria-expanded', 'true'); return; }
+          // Build explanation from provenance
+          whyPanel = document.createElement('div');
+          whyPanel.className = 'agent-why-panel';
+          whyPanel.setAttribute('data-testid', 'review-why-panel-' + g.actionId);
+          whyPanel.setAttribute('role', 'region');
+          whyPanel.setAttribute('aria-label', _t('reviewWhyTitle'));
+          const titleEl = document.createElement('div');
+          titleEl.className = 'agent-why-title';
+          titleEl.textContent = _t('reviewWhyTitle');
+          whyPanel.appendChild(titleEl);
+          // Build factors
+          if (window.TaskFlowAIExplainability && action) {
+            const isEdited = entry && entry.editedArgs;
+            const prov = window.TaskFlowAIExplainability.buildActionFactors(action, {
+              proposal: proposal,
+              ctx: dry ? dry._ctx : null,
+              editState: isEdited,
+              warnings: dry ? dry.warnings : null,
+              fileSource: dry && dry._source === 'file' ? { kind: 'document', evidence: g.description || '', name: dry._fileName || '' } : null,
+            });
+            const explanation = window.TaskFlowAIExplainability.formatActionExplanation(prov, 'vi');
+            const lines = explanation.split('\n');
+            for (let li = 0; li < lines.length; li++) {
+              const lineEl = document.createElement('div');
+              lineEl.className = 'agent-why-line';
+              lineEl.textContent = lines[li];
+              whyPanel.appendChild(lineEl);
+            }
+          } else {
+            const fallbackEl = document.createElement('div');
+            fallbackEl.className = 'agent-why-line';
+            fallbackEl.textContent = g.description || '';
+            whyPanel.appendChild(fallbackEl);
+          }
+          rowWrap.appendChild(whyPanel);
+          whyPanelVisible = true;
+          whyBtn.setAttribute('aria-expanded', 'true');
+        });
+        whyBtnRow.appendChild(whyBtn);
+        rowWrap.appendChild(whyBtnRow);
       }
 
       body.appendChild(rowWrap);
