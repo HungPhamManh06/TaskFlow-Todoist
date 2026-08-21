@@ -14,6 +14,50 @@ const MAX_DEPENDENCY_DEPTH = 4;
 const MAX_REUSE_LEN = 20;
 const VALID_SOURCE_KINDS = ['document', 'ai-suggested'];
 
+// Allowed field sets for canonicalization
+const MILESTONE_FIELDS = new Set(['tempId', 'title', 'order']);
+const TASK_FIELDS = new Set(['tempId', 'milestoneId', 'title', 'duration', 'deadline', 'dependsOn', 'existingTaskKey', 'source']);
+const SOURCE_FIELDS = new Set(['kind']);
+const REUSE_FIELDS = new Set(['existingTaskKey', 'roadmapTitle']);
+const REUSE_ALLOWED_KINDS = new Set(['document', 'ai-suggested']);
+
+/**
+ * Strip unknown fields from a validated roadmap.
+ * Only explicitly allowed fields survive.
+ */
+function canonicalizeRoadmapModelOutput(roadmap) {
+  if (!roadmap || typeof roadmap !== 'object' || Array.isArray(roadmap)) return null;
+  return {
+    milestones: Array.isArray(roadmap.milestones) ? roadmap.milestones.map(function(m) {
+      var out = {};
+      for (var k of MILESTONE_FIELDS) { if (m[k] !== undefined) out[k] = m[k]; }
+      return out;
+    }) : [],
+    tasks: Array.isArray(roadmap.tasks) ? roadmap.tasks.map(function(t) {
+      var out = {};
+      for (var k of TASK_FIELDS) {
+        if (k === 'source') {
+          if (t.source && typeof t.source === 'object' && !Array.isArray(t.source)) {
+            var s = {};
+            for (var sk of SOURCE_FIELDS) { if (t.source[sk] !== undefined) s[sk] = t.source[sk]; }
+            out.source = s;
+          }
+        } else if (k === 'dependsOn') {
+          out.dependsOn = Array.isArray(t.dependsOn) ? t.dependsOn.filter(function(d) { return typeof d === 'string'; }) : [];
+        } else {
+          if (t[k] !== undefined) out[k] = t[k];
+        }
+      }
+      return out;
+    }) : [],
+    reuse: Array.isArray(roadmap.reuse) ? roadmap.reuse.map(function(r) {
+      var out = {};
+      for (var k of REUSE_FIELDS) { if (r[k] !== undefined) out[k] = r[k]; }
+      return out;
+    }) : undefined
+  };
+}
+
 function validateRoadmapModelOutput(roadmap, existingWorkKeys, opts) {
   const maxMilestones = (opts && opts.maxMilestones) || 8;
   const maxTasks = (opts && opts.maxTasks) || 20;
@@ -64,9 +108,9 @@ function validateRoadmapModelOutput(roadmap, existingWorkKeys, opts) {
     if (typeof m.title !== 'string' || !m.title.trim() || m.title.length > MAX_TITLE_LEN) {
       errors.push('milestone-' + i + '-invalid-title');
     }
-    // order: optional, integer, positive
+    // order: optional, strict positive integer
     if (m.order !== undefined && m.order !== null) {
-      if (typeof m.order !== 'number' || !Number.isFinite(m.order) || m.order < 1 || m.order > 1000) {
+      if (typeof m.order !== 'number' || !Number.isInteger(m.order) || m.order < 1 || m.order > 1000) {
         errors.push('milestone-' + i + '-invalid-order');
       }
     }
@@ -258,4 +302,4 @@ function isValidCalendarDate(s) {
   return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
 }
 
-module.exports = { validateRoadmapModelOutput, isValidCalendarDate };
+module.exports = { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput, isValidCalendarDate };
