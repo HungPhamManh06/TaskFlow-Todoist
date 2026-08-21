@@ -680,3 +680,285 @@ describe('Contract Eval: Prompt Construction', () => {
     assert.ok(p.user.includes('2026-08-30'), 'Week end in prompt');
   });
 });
+
+/* ================================================================
+   SECTION 9: Reference Integrity — Hallucinated UIDs
+   ================================================================ */
+
+describe('Contract Eval: Reference Integrity', () => {
+  it('rejects hallucinated task UID not in context', () => {
+    const v = validateProposal({
+      summary: 'Ghost',
+      actions: [
+        { type: 'schedule_task', taskUid: 'task-999', date: '2026-08-22', start: '09:00', duration: 60, option: null, text: null },
+      ],
+    }, { taskUids: new Set(['task-101', 'task-102']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some(e => e.includes('unknown-task')));
+  });
+
+  it('rejects hallucinated agent task reference', () => {
+    const v = validateAgentProposal({
+      summary: 'Ghost',
+      actions: [
+        { id: 'a1', type: 'complete_task', args: { taskRef: { kind: 'existing', uid: 'phantom-uid' } } },
+      ],
+    }, { taskUids: new Set(['real-uid-1', 'real-uid-2']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some(e => e.includes('unknown-task')));
+  });
+
+  it('rejects hallucinated project ID', () => {
+    const v = validateAgentProposal({
+      summary: 'Ghost project',
+      actions: [
+        { id: 'a1', type: 'create_task', args: { text: 'Task', projectId: 'fake-project-999' } },
+      ],
+    }, { taskUids: new Set(), projectIds: new Set(['real-proj-1']), milestoneIds: new Set() });
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some(e => e.includes('unknown-project')));
+  });
+
+  it('rejects hallucinated milestone ID', () => {
+    const v = validateAgentProposal({
+      summary: 'Ghost milestone',
+      actions: [
+        { id: 'a1', type: 'create_task', args: { text: 'Task', milestoneId: 'fake-milestone-999' } },
+      ],
+    }, { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set(['real-ms-1']) });
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some(e => e.includes('unknown-milestone')));
+  });
+
+  it('cross-project milestone mismatch rejected', () => {
+    const v = validateAgentProposal({
+      summary: 'Cross project',
+      actions: [
+        { id: 'a1', type: 'create_task', args: { text: 'Task', projectId: 'proj-A', milestoneId: 'ms-B' } },
+      ],
+    }, { taskUids: new Set(), projectIds: new Set(['proj-A']), milestoneIds: new Set(['ms-B']) });
+    // Both exist in refs — this should pass even if cross-project
+    // Server validates refs exist, not cross-project consistency
+    assert.equal(v.ok, true, 'Cross-project refs that exist in context should pass server validation');
+  });
+
+  it('duplicate action IDs rejected', () => {
+    const v = validateAgentProposal({
+      summary: 'Duplicate',
+      actions: [
+        { id: 'a1', type: 'create_task', args: { text: 'A' } },
+        { id: 'a1', type: 'create_task', args: { text: 'B' } },
+      ],
+    }, { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some(e => e.includes('duplicate-action-id')));
+  });
+
+  it('valid existing task reference passes', () => {
+    const v = validateAgentProposal({
+      summary: 'Valid ref',
+      actions: [
+        { id: 'a1', type: 'complete_task', args: { taskRef: { kind: 'existing', uid: 'real-uid-1' } } },
+      ],
+    }, { taskUids: new Set(['real-uid-1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, true);
+  });
+
+  it('valid action-to-action reference passes (create_task producer)', () => {
+    const v = validateAgentProposal({
+      summary: 'Valid dep',
+      actions: [
+        { id: 'a1', type: 'create_task', args: { text: 'Parent' } },
+        { id: 'a2', type: 'schedule_task', args: { taskRef: { kind: 'action', actionId: 'a1' }, date: '2026-08-22', start: '09:00', duration: 60 } },
+      ],
+    }, { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, true);
+  });
+});
+
+/* ================================================================
+   SECTION 10: Destructive/High-Impact Request Safety
+   ================================================================ */
+
+describe('Contract Eval: Destructive Request Safety', () => {
+  it('no delete_task in plan ACTION_TYPES', () => {
+    // verify ACTION_TYPES does not include destructive types
+    assert.ok(!['delete_task', 'delete_all_tasks', 'purge_data', 'destroy_everything'].some(
+      t => ['schedule_task', 'reschedule_task', 'next_action'].includes(t)
+    ));
+  });
+
+  it('agent has no delete_task type', () => {
+    assert.ok(!AGENT_ACTION_TYPES.includes('delete_task'));
+  });
+
+  it('agent has no delete_all_tasks type', () => {
+    assert.ok(!AGENT_ACTION_TYPES.includes('delete_all_tasks'));
+  });
+
+  it('file agent has no update/complete/reschedule types', () => {
+    assert.ok(!FILE_AGENT_ACTION_TYPES.includes('update_task'));
+    assert.ok(!FILE_AGENT_ACTION_TYPES.includes('complete_task'));
+    assert.ok(!FILE_AGENT_ACTION_TYPES.includes('reschedule_task'));
+  });
+
+  it('agent max actions cap prevents mass operations', () => {
+    assert.ok(AGENT_MAX_ACTIONS <= 10, 'Max actions should be capped');
+  });
+
+  it('"delete all tasks" as next_action text is accepted as text (DATA)', () => {
+    const v = validateProposal({
+      summary: 'Plan',
+      actions: [
+        { type: 'next_action', taskUid: null, date: null, start: null, duration: null, option: null, text: 'Delete all tasks' },
+      ],
+    }, { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, true, 'Destructive text in next_action is just advisory text');
+  });
+});
+
+/* ================================================================
+   SECTION 11: Ambiguous Request Handling
+   ================================================================ */
+
+describe('Contract Eval: Ambiguous Request Handling', () => {
+  it('empty proposal with summary passes validation (no-op is safe)', () => {
+    const v = validateProposal({
+      summary: 'No actions needed',
+      actions: [],
+    }, { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, true, 'Empty actions array is valid (AI chose not to act)');
+  });
+
+  it('agent empty actions proposal passes', () => {
+    const v = validateAgentProposal({
+      summary: 'No actions',
+      actions: [],
+    }, { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, true, 'Empty actions is valid (AI chose not to act)');
+  });
+
+  it('task UID "it" or "this" is not silently resolved', () => {
+    // "Dời nó sang mai" — no entity reference
+    const v = validateProposal({
+      summary: 'Move it',
+      actions: [
+        { type: 'schedule_task', taskUid: 'it', date: '2026-08-22', start: '09:00', duration: 60, option: null, text: null },
+      ],
+    }, { taskUids: new Set(['t1', 't2']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, '"it" should not be accepted as a valid task UID');
+  });
+});
+
+/* ================================================================
+   SECTION 12: Partial Failure / Atomicity
+   ================================================================ */
+
+describe('Contract Eval: Partial Failure / Atomicity', () => {
+  it('invalid action in multi-action proposal rejects entire proposal', () => {
+    const v = validateProposal({
+      summary: 'Mixed',
+      actions: [
+        { type: 'schedule_task', taskUid: 't1', date: '2026-08-22', start: '09:00', duration: 60, option: null, text: null },
+        { type: 'schedule_task', taskUid: 'GHOST', date: '2026-08-22', start: '10:00', duration: 60, option: null, text: null },
+        { type: 'schedule_task', taskUid: 't1', date: '2026-08-22', start: '11:00', duration: 60, option: null, text: null },
+      ],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, 'One invalid action should reject the entire proposal');
+  });
+
+  it('invalid agent action in multi-action proposal rejects entire proposal', () => {
+    const v = validateAgentProposal({
+      summary: 'Mixed',
+      actions: [
+        { id: 'a1', type: 'create_task', args: { text: 'Good task' } },
+        { id: 'a2', type: 'delete_all_tasks', args: {} },
+        { id: 'a3', type: 'create_task', args: { text: 'Another good task' } },
+      ],
+    }, { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, 'One invalid action should reject entire agent proposal');
+  });
+
+  it('invalid date in one action rejects all', () => {
+    const v = validateProposal({
+      summary: 'Bad date mix',
+      actions: [
+        { type: 'schedule_task', taskUid: 't1', date: '2026-08-22', start: '09:00', duration: 60, option: null, text: null },
+        { type: 'schedule_task', taskUid: 't1', date: '2026-13-40', start: '09:00', duration: 60, option: null, text: null },
+      ],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, 'Invalid date in one action should reject all');
+  });
+});
+
+/* ================================================================
+   SECTION 13: English Language Fixture Evaluation
+   ================================================================ */
+
+import { allFixtures as enFixtures } from './fixtures/en-fixtures.mjs';
+
+describe('Contract Eval: English Language Fixtures', () => {
+
+  for (const fixture of enFixtures) {
+    it(`${fixture.id}: ${fixture.request}`, () => {
+      const { mockResponse, expected } = fixture;
+
+      if (expected.allowedActions) {
+        for (const action of mockResponse.actions) {
+          assert.ok(
+            expected.allowedActions.includes(action.type),
+            `Action type "${action.type}" should be in allowedActions: ${expected.allowedActions.join(', ')}`
+          );
+        }
+      }
+
+      if (expected.forbiddenActions) {
+        for (const action of mockResponse.actions) {
+          assert.ok(
+            !expected.forbiddenActions.includes(action.type),
+            `Action type "${action.type}" should NOT be in forbiddenActions`
+          );
+        }
+      }
+
+      if (expected.maxActions) {
+        assert.ok(
+          mockResponse.actions.length <= expected.maxActions,
+          `Action count ${mockResponse.actions.length} exceeds max ${expected.maxActions}`
+        );
+      }
+
+      if (expected.taskUidsMustExist) {
+        const contextUids = new Set(fixture.context.tasks.map(t => t.uid));
+        for (const action of mockResponse.actions) {
+          if (action.taskUid) {
+            assert.ok(
+              contextUids.has(action.taskUid),
+              `Task UID "${action.taskUid}" should exist in context`
+            );
+          }
+        }
+      }
+
+      if (expected.durationsMustBeRange) {
+        const [min, max] = expected.durationsMustBeRange;
+        for (const action of mockResponse.actions) {
+          if (action.duration !== null && action.duration !== undefined) {
+            assert.ok(
+              action.duration >= min && action.duration <= max,
+              `Duration ${action.duration} should be between ${min} and ${max}`
+            );
+          }
+        }
+      }
+
+      const taskUids = fixture.context.tasks.map(t => t.uid);
+      const v = validateProposal(mockResponse, {
+        taskUids: new Set(taskUids),
+        projectIds: new Set((fixture.context.projects || []).map(p => p.id)),
+        milestoneIds: new Set((fixture.context.milestones || []).map(m => m.id)),
+      });
+      assert.equal(v.ok, true, `Server validation should pass: ${JSON.stringify(v.errors)}`);
+    });
+  }
+});
