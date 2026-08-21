@@ -358,6 +358,11 @@
     userId = null;
     username = null;
     try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ẩn */ }
+    // Phase 6S: Clear adaptation on account deletion (account isolation)
+    try {
+      if (window.TaskFlowAIAdaptation) window.TaskFlowAIAdaptation.clearAll();
+      else localStorage.removeItem('taskflow-ai-adaptation-v1');
+    } catch (e) { /* adaptation clear must never break sync */ }
     setStatus('signedout');
     return { ok: true };
   }

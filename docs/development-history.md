@@ -451,3 +451,13 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - ai-adaptation.min.js loaded in boot chain (early availability for Focus + Settings).
 - sw.js precache includes ai-adaptation.min.js.
 - All existing tests pass. Phase 6S is now COMPLETE.
+
+## Phase 6S.3 — Final Adaptive Product Closure (Aug 21, 2026)
+
+- Fixed duplicate module loading — removed ai-adaptation from lazy chat chains.
+- Wired adaptiveHints into Smart Planner context (js/ai.js buildContext).
+- Added server prompt authority wording (advisory hints, explicit prefs override).
+- Fixed focus signal quality — no-progress/creditedMinutes=0 not counted as productive.
+- logout() and deleteAccount() both clear adaptation data.
+- sync.min.js bumped to v7 (app.html + tests).
+- All existing tests pass. Phase 6S is genuinely CLOSED.
