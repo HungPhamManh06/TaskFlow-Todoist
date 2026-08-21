@@ -441,3 +441,13 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - Server-side adaptiveHints sanitization with strict allowlist already in place.
 - sw.js CACHE bumped to v269, app.min.js to v217, sync.min.js to v6.
 - All version pins in tests updated. 2613 tests all green.
+
+## Phase 6S.2 — Adaptive Integration Completion (Aug 21, 2026)
+
+- Extracted sanitizeAdaptiveHints() helper — used by both sanitizeContext() and sanitizeChatContextEnvelope().
+- Fixed chat server sanitizer — adaptiveHints now survive server sanitization.
+- Night focusWindow no longer emitted as unsafe 22:00-01:00 (start > end).
+- logout() now clears adaptation data (account isolation).
+- ai-adaptation.min.js loaded in boot chain (early availability for Focus + Settings).
+- sw.js precache includes ai-adaptation.min.js.
+- All existing tests pass. Phase 6S is now COMPLETE.

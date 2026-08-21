@@ -162,6 +162,69 @@ function capText(v, max) {
   return s.length > max ? s.slice(0, max) : s;
 }
 
+/**
+ * Phase 6S: Pure helper to sanitize adaptive productivity hints.
+ * Used by both sanitizeContext() and sanitizeChatContextEnvelope().
+ * Returns sanitized hints object or null if none valid.
+ */
+function sanitizeAdaptiveHints(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const AH = {};
+  // durationCalibration
+  if (raw.durationCalibration && typeof raw.durationCalibration === 'object') {
+    const d = raw.durationCalibration;
+    const m = Number(d.suggestedMinutes);
+    if (isFinite(m) && m >= 5 && m <= 480) {
+      AH.durationCalibration = {
+        suggestedMinutes: Math.round(m),
+        confidence: ['low', 'medium', 'high'].includes(d.confidence) ? d.confidence : 'low',
+        samples: Math.min(Math.max(Number(d.samples) || 0, 0), 999),
+      };
+    }
+  }
+  // focusDuration
+  if (raw.focusDuration && typeof raw.focusDuration === 'object') {
+    const f = raw.focusDuration;
+    const m = Number(f.suggestedMinutes);
+    if (isFinite(m) && m >= 5 && m <= 480) {
+      AH.focusDuration = {
+        suggestedMinutes: Math.round(m),
+        confidence: ['low', 'medium', 'high'].includes(f.confidence) ? f.confidence : 'low',
+        samples: Math.min(Math.max(Number(f.samples) || 0, 0), 999),
+      };
+    }
+  }
+  // focusWindow — must be same-day (start <= end)
+  if (raw.focusWindow && typeof raw.focusWindow === 'object') {
+    const w = raw.focusWindow;
+    const s = typeof w.start === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(w.start) ? w.start : null;
+    const e = typeof w.end === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(w.end) ? w.end : null;
+    if (s && e && s <= e) {
+      AH.focusWindow = {
+        start: s,
+        end: e,
+        confidence: ['low', 'medium', 'high'].includes(w.confidence) ? w.confidence : 'low',
+        samples: Math.min(Math.max(Number(w.samples) || 0, 0), 999),
+      };
+    }
+  }
+  // weekdayPatterns
+  if (raw.weekdayPatterns && typeof raw.weekdayPatterns === 'object') {
+    const wp = raw.weekdayPatterns;
+    if (Array.isArray(wp.productiveDays)) {
+      const validDays = wp.productiveDays.filter(d => typeof d === 'string' && ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].includes(d));
+      if (validDays.length > 0 && validDays.length < 7) {
+        AH.weekdayPatterns = {
+          productiveDays: validDays.slice(0, 7),
+          confidence: ['low', 'medium', 'high'].includes(wp.confidence) ? wp.confidence : 'low',
+          samples: Math.min(Math.max(Number(wp.samples) || 0, 0), 999),
+        };
+      }
+    }
+  }
+  return Object.keys(AH).length > 0 ? AH : null;
+}
+
 function sanitizeContext(raw) {
   const ctx = {};
   if (!raw || typeof raw !== 'object') return { ctx, trimmed: false };
@@ -245,63 +308,8 @@ function sanitizeContext(raw) {
     if (Object.keys(sanitized).length > 0) ctx.preferences = sanitized;
   }
   // Phase 6S: Sanitize adaptive productivity hints (advisory only, strict allowlist).
-  if (raw.adaptiveHints && typeof raw.adaptiveHints === 'object') {
-    const AH = {};
-    const ah = raw.adaptiveHints;
-    // durationCalibration
-    if (ah.durationCalibration && typeof ah.durationCalibration === 'object') {
-      const d = ah.durationCalibration;
-      const m = Number(d.suggestedMinutes);
-      if (isFinite(m) && m >= 5 && m <= 480) {
-        AH.durationCalibration = {
-          suggestedMinutes: Math.round(m),
-          confidence: ['low', 'medium', 'high'].includes(d.confidence) ? d.confidence : 'low',
-          samples: Math.min(Math.max(Number(d.samples) || 0, 0), 999),
-        };
-      }
-    }
-    // focusDuration
-    if (ah.focusDuration && typeof ah.focusDuration === 'object') {
-      const f = ah.focusDuration;
-      const m = Number(f.suggestedMinutes);
-      if (isFinite(m) && m >= 5 && m <= 480) {
-        AH.focusDuration = {
-          suggestedMinutes: Math.round(m),
-          confidence: ['low', 'medium', 'high'].includes(f.confidence) ? f.confidence : 'low',
-          samples: Math.min(Math.max(Number(f.samples) || 0, 0), 999),
-        };
-      }
-    }
-    // focusWindow
-    if (ah.focusWindow && typeof ah.focusWindow === 'object') {
-      const w = ah.focusWindow;
-      const s = typeof w.start === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(w.start) ? w.start : null;
-      const e = typeof w.end === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(w.end) ? w.end : null;
-      if (s && e) {
-        AH.focusWindow = {
-          start: s,
-          end: e,
-          confidence: ['low', 'medium', 'high'].includes(w.confidence) ? w.confidence : 'low',
-          samples: Math.min(Math.max(Number(w.samples) || 0, 0), 999),
-        };
-      }
-    }
-    // weekdayPatterns
-    if (ah.weekdayPatterns && typeof ah.weekdayPatterns === 'object') {
-      const wp = ah.weekdayPatterns;
-      if (Array.isArray(wp.productiveDays)) {
-        const validDays = wp.productiveDays.filter(d => typeof d === 'string' && ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].includes(d));
-        if (validDays.length > 0 && validDays.length < 7) {
-          AH.weekdayPatterns = {
-            productiveDays: validDays.slice(0, 7),
-            confidence: ['low', 'medium', 'high'].includes(wp.confidence) ? wp.confidence : 'low',
-            samples: Math.min(Math.max(Number(wp.samples) || 0, 0), 999),
-          };
-        }
-      }
-    }
-    if (Object.keys(AH).length > 0) ctx.adaptiveHints = AH;
-  }
+  const sanitizedHints = sanitizeAdaptiveHints(raw.adaptiveHints);
+  if (sanitizedHints) ctx.adaptiveHints = sanitizedHints;
   return { ctx, trimmed };
 }
 
@@ -908,6 +916,9 @@ function sanitizeChatContextEnvelope(raw) {
     }
     if (Object.keys(sanitizedPrefs).length > 0) envelope.preferences = sanitizedPrefs;
   }
+  // Phase 6S: Sanitize adaptive productivity hints (advisory only, strict allowlist).
+  const sanitizedHints = sanitizeAdaptiveHints(raw.adaptiveHints);
+  if (sanitizedHints) envelope.adaptiveHints = sanitizedHints;
   return { ok: true, envelope: envelope };
 }
 

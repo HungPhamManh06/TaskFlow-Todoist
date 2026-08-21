@@ -310,16 +310,20 @@
       var bestDaypart = _mode(dayparts);
       if (bestDaypart) {
         // Map daypart to rough hour ranges
-        var ranges = { morning: '08:00-11:00', afternoon: '13:00-17:00', evening: '19:00-22:00', night: '22:00-01:00' };
-        var range = ranges[bestDaypart] || '08:00-11:00';
-        var parts = range.split('-');
-        profile.focusWindow = {
-          start: parts[0],
-          end: parts[1],
-          confidence: _confidence(dayparts.length),
-          samples: dayparts.length,
-          daypart: bestDaypart,
-        };
+        // Do NOT emit overnight focusWindow (22:00-01:00) — unsafe for same-day planner.
+        // Night pattern still contributes to profile/daypart display, but not focusWindow.
+        var ranges = { morning: '08:00-11:00', afternoon: '13:00-17:00', evening: '19:00-22:00' };
+        var range = ranges[bestDaypart];
+        if (range) {
+          var parts = range.split('-');
+          profile.focusWindow = {
+            start: parts[0],
+            end: parts[1],
+            confidence: _confidence(dayparts.length),
+            samples: dayparts.length,
+            daypart: bestDaypart,
+          };
+        }
       }
     }
 
