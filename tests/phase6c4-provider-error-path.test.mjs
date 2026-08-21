@@ -30,9 +30,11 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
   });
 
   it('upstream-error log must reference fileMode (not undefined)', () => {
-    const logIdx = src.indexOf('status=upstream-error upstreamStatus=');
-    assert.ok(logIdx > 0, 'upstream-error log not found');
-    const logLine = src.substring(logIdx - 100, logIdx + 200);
+    // Find the file route's upstream-error log, not the first one in the file
+    const fileRouteStart = src.indexOf("router.post('/file'");
+    const afterFileRoute = src.indexOf('status=upstream-error upstreamStatus=', fileRouteStart);
+    assert.ok(afterFileRoute > 0, 'upstream-error log not found in file route');
+    const logLine = src.substring(afterFileRoute - 100, afterFileRoute + 200);
     assert.ok(
       logLine.includes('mode=' + "'analyze'") || logLine.includes('fileMode'),
       'upstream-error log must reference fileMode variable'

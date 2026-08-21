@@ -84,9 +84,7 @@ const aiPlanLimiter = rateLimit({
   keyGenerator: (req) => String(req.user.id),
   message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
   handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
-});
-
-const aiAgentHourlyLimiter = rateLimit({
+});const aiAgentHourlyLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: AI_AGENT_HOURLY_LIMIT,
   standardHeaders: true,
@@ -95,6 +93,28 @@ const aiAgentHourlyLimiter = rateLimit({
   message: { error: 'ai-rate-limited', retryAfterSeconds: 3600 },
   handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 3600 }),
 });
+
+// P81: Plan synthesis rate limiter — shares Agent budget
+const aiPlanSynthLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.user.id),
+  message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
+});
+const aiPlanSynthHourlyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.user.id),
+  message: { error: 'ai-rate-limited', retryAfterSeconds: 3600 },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 3600 }),
+});
+
+
 
 // Concurrency guard: track in-flight agent requests per user (max 2 concurrent)
 const MAX_AGENT_CONCURRENT = 2;
@@ -453,6 +473,189 @@ router.post('/plan', aiPlanLimiter, async (req, res) => {
     }
     return res.json(resp);
   } catch (e) {
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
+/* ============ POST /api/ai/plan-synthesis — Phase 6H constraint-aware plan ============ */
+// P30: Dedicated endpoint for strict plan schema.
+// P79: System prompt explicitly states schedule preview only, no writes.
+const PLAN_SYNTHESIS_SCHEMA = {
+  name: 'taskflow_plan',
+  strict: true,
+  schema: {
+    type: 'object',
+    required: ['summary', 'sessions'],
+    additionalProperties: false,
+    properties: {
+      summary: { type: 'string' },
+      sessions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['taskKey', 'date', 'start', 'duration'],
+          additionalProperties: false,
+          properties: {
+            taskKey: { type: 'string' },
+            date: { type: 'string' },
+            start: { type: 'string' },
+            duration: { type: 'number' },
+            reason: { type: 'string' }
+          }
+        }
+      },
+      unscheduled: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['taskKey', 'reason'],
+          additionalProperties: false,
+          properties: {
+            taskKey: { type: 'string' },
+            reason: { type: 'string' }
+          }
+        }
+      },
+      assumptions: { type: 'array', items: { type: 'string' } }
+    }
+  }
+};
+
+router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, async (req, res) => {
+  const requestId = generateRequestId();
+  try {
+    if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+    if (!message) return res.status(400).json({ error: 'invalid-request', details: ['message-required'] });
+    if (message.length > MAX_MESSAGE_LEN) return res.status(400).json({ error: 'invalid-request', details: ['message-too-long'] });
+
+    const today = body.today;
+    const range = body.range || {};
+    const tasks = Array.isArray(body.tasks) ? body.tasks : [];
+    const constraints = body.constraints || {};
+    const preferences = body.preferences || {};
+
+    // P32: Input caps
+    if (tasks.length > 20) return res.status(400).json({ error: 'ai-plan-too-many-tasks' });
+    if (range.start && range.end) {
+      const startMs = new Date(range.start + 'T12:00:00').getTime();
+      const endMs = new Date(range.end + 'T12:00:00').getTime();
+      if (endMs - startMs > 14 * 86400000) return res.status(400).json({ error: 'ai-plan-too-long-range' });
+    }
+    if (tasks.length === 0) return res.status(400).json({ error: 'ai-plan-no-tasks' });
+
+    // P36: Build task key map
+    const taskMap = {};
+    const taskKeys = [];
+    tasks.forEach((t, i) => {
+      const key = 't' + (i + 1);
+      taskKeys.push(key);
+      taskMap[key] = { text: (t.text || '').substring(0, 300), duration: t.duration || null, deadline: t.deadline || null, priority: t.priority || false };
+    });
+
+    // P79: System prompt
+    const lang = /[a-zA-Z]/.test(message) && !/[àáảãạ]/.test(message) ? 'en' : 'vi';
+    const sys = lang === 'en'
+      ? 'You create a SCHEDULE PREVIEW only. You cannot apply changes.\n'
+        + 'Use only supplied task keys (' + taskKeys.join(',') + '). Respect available windows and hard constraints.\n'
+        + 'Never invent unavailable time. Return only structured plan JSON.\n'
+        + 'Max session: ' + (constraints.maxSession || 50) + ' min. Min session: 25 min.\n'
+        + (constraints.windowStart ? 'Window start: ' + constraints.windowStart + '\n' : '')
+        + (constraints.windowEnd ? 'Window end: ' + constraints.windowEnd + '\n' : '')
+        + (constraints.dailyMaxMinutes ? 'Daily max: ' + constraints.dailyMaxMinutes + ' min\n' : '')
+        + (constraints.breakMinutes ? 'Min break: ' + constraints.breakMinutes + ' min\n' : '')
+        + 'Available windows per day: ' + JSON.stringify(body.availableWindows || []) + '\n'
+        + 'Tasks: ' + JSON.stringify(taskMap)
+      : 'Bạn chỉ tạo LỊCH TRÌNH ĐỀ XUẤT. KHÔNG ÁP DỤNG thay đổi.\n'
+        + 'Chỉ dùng task keys đã cho (' + taskKeys.join(',') + '). Tuân thủ khung giờ và ràng buộc.\n'
+        + 'KHÔNG tạo thời gian không khả dụng. Trả về JSON structured.\n'
+        + 'Phiên tối đa: ' + (constraints.maxSession || 50) + ' phút. Phiên tối thiểu: 25 phút.\n'
+        + (constraints.windowStart ? 'Bắt đầu từ: ' + constraints.windowStart + '\n' : '')
+        + (constraints.windowEnd ? 'Kết thúc lúc: ' + constraints.windowEnd + '\n' : '')
+        + (constraints.dailyMaxMinutes ? 'Giới hạn/ngày: ' + constraints.dailyMaxMinutes + ' phút\n' : '')
+        + (constraints.breakMinutes ? 'Nghỉ tối thiểu: ' + constraints.breakMinutes + ' phút\n' : '')
+        + 'Khung giờ trống: ' + JSON.stringify(body.availableWindows || []) + '\n'
+        + 'Công việc: ' + JSON.stringify(taskMap);
+
+    const messages = [
+      { role: 'system', content: sys },
+      { role: 'user', content: message },
+    ];
+
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+    let upstream;
+    try {
+      upstream = await fetch(AI_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI_API_KEY },
+        body: JSON.stringify({ model: AI_MODEL, max_tokens: 2048, messages,
+          response_format: { type: 'json_schema', json_schema: PLAN_SYNTHESIS_SCHEMA } }),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      const latencyMs = Date.now() - startedAt;
+      if (e && e.name === 'AbortError') {
+        console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=timeout latencyMs=' + latencyMs);
+        return res.status(504).json({ error: 'ai-timeout' });
+      }
+      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=upstream-error latencyMs=' + latencyMs);
+      return res.status(502).json({ error: 'ai-provider-unavailable' });
+    }
+    clearTimeout(timer);
+    const latencyMs = Date.now() - startedAt;
+
+    if (!upstream.ok) {
+      const code = upstream.status === 400 ? 'ai-provider-bad-request'
+        : upstream.status === 429 ? 'ai-rate-limited' : 'ai-provider-unavailable';
+      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=upstream-error upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
+      return res.status(upstream.status === 429 ? 429 : 502).json({ error: code });
+    }
+
+    let json;
+    try { json = await upstream.json(); } catch (e) { return res.status(502).json({ error: 'ai-provider-unavailable' }); }
+    // P80: Discard chain-of-thought if present
+    const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+    if (typeof content !== 'string' || !content.trim()) {
+      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=empty-content latencyMs=' + latencyMs);
+      return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
+    }
+
+    // Parse plan
+    let plan;
+    try {
+      const parsed = JSON.parse(content.replace(/^```json\s*/, '').replace(/```$/, '').trim());
+      plan = { summary: parsed.summary || '', sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
+        unscheduled: Array.isArray(parsed.unscheduled) ? parsed.unscheduled : [],
+        assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions : [] };
+    } catch (e) {
+      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=parse-failed latencyMs=' + latencyMs);
+      return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
+    }
+
+    // P40: Validate sessions
+    const validKeys = new Set(taskKeys);
+    const planErrors = [];
+    if (plan.sessions.length > 60) planErrors.push('too-many-sessions');
+    plan.sessions.forEach((s, i) => {
+      if (!s.taskKey || !validKeys.has(s.taskKey)) planErrors.push('s' + i + '-unknown-key');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s.date || '')) planErrors.push('s' + i + '-invalid-date');
+      if (!/^\d{2}:\d{2}$/.test(s.start || '')) planErrors.push('s' + i + '-invalid-start');
+      if (typeof s.duration !== 'number' || s.duration < 25 || s.duration > 180) planErrors.push('s' + i + '-invalid-duration');
+    });
+    if (planErrors.length) {
+      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=validation-failed errors=' + planErrors.length + ' latencyMs=' + latencyMs);
+      return res.status(422).json({ error: 'ai-plan-validation-failed', details: planErrors.slice(0, 5) });
+    }
+
+    console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' sessionCount=' + plan.sessions.length + ' status=success latencyMs=' + latencyMs);
+    return res.json({ ok: true, plan });
+  } catch (e) {
+    const safeType = e && e.constructor ? e.constructor.name : 'Error';
+    console.error('[ai] route=/api/ai/plan-synthesis status=internal-error errorType=' + safeType);
     return res.status(500).json({ error: 'server-error' });
   }
 });
