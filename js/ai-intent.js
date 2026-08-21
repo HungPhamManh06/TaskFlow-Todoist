@@ -291,9 +291,11 @@
     if (/\?$/.test(s) && /(?:tại\s+sao|why|ai|task\s+nào|có\s+task|bao\s+nhiêu|thứ\s+mấy)/i.test(s))
       return { kind: 'question', confidence: 'medium', reason: 'review-question' };
 
-    // P33: adding new actions → BLOCK
+    // Phase 6G: expansion — adding new actions
+    if (/(?:chia|decompose|break|split)/i.test(s))
+      return { kind: 'expand', operationHint: 'decompose', confidence: 'high', reason: 'decompose' };
     if (/(?:thêm|add|tạo\s+thêm|create|new)\s+(?:task|việc)/i.test(s))
-      return { kind: 'refine', operationHint: 'add-blocked', confidence: 'high', reason: 'add-blocked' };
+      return { kind: 'expand', operationHint: 'add', confidence: 'high', reason: 'add-task' };
 
     // P28: complex → needs AI
     return { kind: 'refine', operationHint: 'complex', confidence: 'low', reason: 'complex-refinement' };

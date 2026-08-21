@@ -1984,7 +1984,7 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
 /* ============ Phase 6F: POST /api/ai/refine — Conversational Proposal Refinement ============ */
 
 // P32: Allowed operation types
-const REFINE_OP_TYPES = ['select', 'deselect', 'select-all', 'deselect-all', 'select-only', 'set', 'bulk-set', 'filter-date', 'reorder'];
+const REFINE_OP_TYPES = ['select', 'deselect', 'select-all', 'deselect-all', 'select-only', 'set', 'bulk-set', 'filter-date', 'reorder', 'add'];
 const REFINE_SET_FIELDS = ['duration', 'date', 'text', 'priority', 'start'];
 const REFINE_MAX_OPS = 20;
 
@@ -2005,6 +2005,19 @@ function validateRefineOp(op, actions) {
   if (op.op === 'bulk-set') {
     if (['duration', 'date', 'priority'].indexOf(op.field) === -1) return 'bulk-field-not-allowed';
     if (op.field === 'duration' && (typeof op.value !== 'number' || op.value < 1 || op.value > 1440)) return 'bulk-invalid-duration';
+  }
+  // Phase 6G: add operation validation
+  if (op.op === 'add') {
+    if (!op.action || typeof op.action !== 'object') return 'add-no-action';
+    const action = op.action;
+    const allowedTypes = ['create_task', 'schedule_task'];
+    if (allowedTypes.indexOf(action.type) === -1) return 'add-type-not-allowed';
+    if (!action.args || typeof action.args !== 'object') return 'add-no-args';
+    if (action.type === 'create_task') {
+      if (typeof action.args.text !== 'string' || !action.args.text.trim() || action.args.text.length > 300) return 'add-invalid-text';
+      if (action.args.duration !== undefined && action.args.duration !== null && (typeof action.args.duration !== 'number' || action.args.duration < 1 || action.args.duration > 1440)) return 'add-invalid-duration';
+      if (action.args.date !== undefined && action.args.date !== null && !validDate(action.args.date)) return 'add-invalid-date';
+    }
   }
   if (op.op === 'set' || op.op === 'deselect' || op.op === 'select') {
     // P37: reject prototype pollution
