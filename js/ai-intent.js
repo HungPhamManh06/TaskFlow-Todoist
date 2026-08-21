@@ -402,5 +402,39 @@
     return { kind: 'none', confidence: 'low', reason: 'not-health-check' };
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /* ─── P55: Plan Watch Settings Intent (deterministic) ─── */
+  function classifyWatchSettingsIntent(message) {
+    if (typeof message !== 'string') return null;
+    var s = _normalize(message);
+
+    // Enable plan watch
+    if (/(?:bật|enable|turn\s+on|on|kích\s+hoạt).*(?:plan\s*watch|theo\s+dõi|cảnh\s+báo|watch)/i.test(s))
+      return { kind: 'enable-watch', confidence: 'high', reason: 'enable-watch' };
+    if (/(?:plan\s*watch|theo\s+dõi\s+kế\s*hoạch).*(?:bật|enable|on)/i.test(s))
+      return { kind: 'enable-watch', confidence: 'high', reason: 'enable-watch' };
+
+    // Snooze alerts (check before disable — 'tạm ẩn' contains 'ẩn' which also matches disable)
+    if (/(?:tạm\s+ẩn|snooze|ẩn).*(?:cảnh\s+báo|alert)/i.test(s))
+      return { kind: 'snooze-alert', confidence: 'high', reason: 'snooze-alert' };
+
+    // Disable plan watch
+    if (/(?:tắt|disable|turn\s+off|off).*(?:plan\s*watch|theo\s+dõi|cảnh\s+báo|watch)/i.test(s))
+      return { kind: 'disable-watch', confidence: 'high', reason: 'disable-watch' };
+    if (/(?:plan\s*watch|theo\s+dõi\s+kế\s*hoạch).*(?:tắt|disable|off)/i.test(s))
+      return { kind: 'disable-watch', confidence: 'high', reason: 'disable-watch' };
+    if (/(?:đừng\s+báo|hủy\s+báo).*(?:hôm\s+nay|tối\s+nay|đến\s+mai)/i.test(s))
+      return { kind: 'snooze-alert', confidence: 'medium', reason: 'snooze-implicit' };
+
+    // Reset watch data
+    if (/(?:đặt\s+lại|reset|xóa\s+lịch\s+sử).*(?:cảnh\s+báo|alert|watch)/i.test(s))
+      return { kind: 'reset-watch', confidence: 'high', reason: 'reset-watch' };
+
+    // Manual check
+    if (/(?:kiểm\s+tra\s+ngay|check\s+now|xem\s+ngay|xem\s+cảnh\s+báo)/i.test(s))
+      return { kind: 'check-now', confidence: 'high', reason: 'check-now' };
+
+    return null;
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });
