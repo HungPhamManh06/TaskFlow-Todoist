@@ -2219,8 +2219,19 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
     const goalTitle = String(body.goal.title || '').trim().slice(0, TEXT_MAX);
     if (!goalTitle) return res.status(400).json({ ok: false, error: 'ai-roadmap-invalid-goal' });
 
-    const targetDate = body.goal.targetDate || null;
-    const existingWork = Array.isArray(body.existingWork) ? body.existingWork.slice(0, 60) : [];
+    // Validate targetDate — must be strict calendar date if supplied
+    const rawTargetDate = body.goal.targetDate || null;
+    if (rawTargetDate && !validDate(rawTargetDate)) {
+      return res.status(400).json({ ok: false, error: 'ai-roadmap-invalid-target-date' });
+    }
+    const targetDate = rawTargetDate;
+
+    // Sanitize existing work — bounded, safe fields only
+    const existingWork = Array.isArray(body.existingWork) ? body.existingWork.slice(0, 60).map((t) => ({
+      key: typeof t.key === 'string' ? t.key.slice(0, 64) : '',
+      title: typeof t.title === 'string' ? t.title.slice(0, TEXT_MAX) : '',
+      status: typeof t.status === 'string' ? t.status.slice(0, 20) : '',
+    })) : [];
     const limits = body.limits || {};
     const maxMilestones = Math.min(Number(limits.maxMilestones) || 8, 8);
     const maxTasks = Math.min(Number(limits.maxTasks) || 20, 20);
