@@ -360,5 +360,47 @@
     return { kind: 'none', confidence: 'low', reason: 'not-planning' };
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /** P28: Classify plan health intent */
+  function classifyPlanHealthIntent(message, hasPendingPlan) {
+    var s = String(message || '').trim();
+    if (!s) return { kind: 'clarify', confidence: 'low', reason: 'empty' };
+
+    // P29: Health check
+    if (/(?:kiểm\s+tra|check|checkup|xem|review).*(?:kế\s*hoạch|plan|lịch|schedule)/i.test(s))
+      return { kind: 'health-check', confidence: 'high', reason: 'health-check' };
+    if (/(?:kế\s*hoạch|plan|lịch|schedule).*(?:ổn\s+không|thế\s+nào|tình\s+hình|sức\s+khỏe|health)/i.test(s))
+      return { kind: 'health-check', confidence: 'high', reason: 'health-check' };
+    if (/sức\s+khỏe\s+kế\s*hoạch/i.test(s))
+      return { kind: 'health-check', confidence: 'high', reason: 'health-check' };
+
+    // P30: Risk question
+    if (/(?:task|việc)\s+nào\s+(?:có\s+nguy\s+cơ|trễ|rủi\s+ro|risky)/i.test(s))
+      return { kind: 'risk-question', confidence: 'high', reason: 'risk-question' };
+    if (/(?:ngày\s+nào|ngày\s+nào)\s+(?:quá\s+tải|overloaded|bận)/i.test(s))
+      return { kind: 'risk-question', confidence: 'high', reason: 'overload-question' };
+    if (/(?:còn\s+đủ|đủ\s+thời\s+gian|có\s+đủ|còn\s+thời\s+gian)/i.test(s) &&
+        /(?:không|ko|không\s+a|không?)\s*\?/i.test(s))
+      return { kind: 'risk-question', confidence: 'high', reason: 'capacity-question' };
+    if (/(?:nguy\s+cơ\s+trễ|deadline\s+(?:trễ|sắp)|trễ\s+deadline)/i.test(s))
+      return { kind: 'risk-question', confidence: 'high', reason: 'deadline-risk' };
+
+    // P31: What-if risk
+    if (/(?:nếu|what\s*if).*(?:nghỉ|mất|lose|mất\s+phiên)/i.test(s) &&
+        /(?:thì\s+sao|thế\s+nào|sao|what\s*happen|rủi\s+ro|risky)/i.test(s))
+      return { kind: 'what-if-risk', confidence: 'high', reason: 'what-if-risk' };
+    if (/(?:nếu|what\s*if).*(?:thứ\s+Sáu|friday|tối|evening)/i.test(s) &&
+        /(?:bị\s+ảnh\s+hưởng|rủi\s+ro|risky|trễ)/i.test(s))
+      return { kind: 'what-if-risk', confidence: 'high', reason: 'what-if-risk' };
+
+    // P32: Mitigation
+    if (/(?:cách\s+giảm|giảm\s+nguy\s+cơ|cần\s+chỉnh|phải\s+làm|should\s+I)/i.test(s) &&
+        /(?:rủi\s+ro|trễ|risky|deadline)/i.test(s))
+      return { kind: 'mitigation', confidence: 'high', reason: 'mitigation-request' };
+    if (/(?:giảm\s+nguy\s+cơ|cải\s+thiện|improve|fix).*(?:trễ|rủi\s+ro|risky)/i.test(s))
+      return { kind: 'mitigation', confidence: 'medium', reason: 'mitigation-keyword' };
+
+    return { kind: 'none', confidence: 'low', reason: 'not-health-check' };
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });
