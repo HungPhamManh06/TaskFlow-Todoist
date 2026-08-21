@@ -129,15 +129,14 @@ describe('Phase 6C.3 — Backend File Processing Hotfix', () => {
   });
 
   it('provider error mapping should cover 400/401/403/404/429', () => {
-    // Find the file route's upstream error handling
-    const fileUpstreamIdx = src.indexOf("route=/api/ai/file mode=");
-    assert.ok(fileUpstreamIdx > 0, 'file route upstream error handling not found');
-    const section = src.substring(fileUpstreamIdx - 400, fileUpstreamIdx + 800);
-    assert.ok(section.includes('ai-provider-bad-request'), 'should map 400 to ai-provider-bad-request');
-    assert.ok(section.includes('ai-provider-auth'), 'should map 401 to ai-provider-auth');
-    assert.ok(section.includes('ai-provider-forbidden'), 'should map 403 to ai-provider-forbidden');
-    assert.ok(section.includes('ai-provider-not-found'), 'should map 404 to ai-provider-not-found');
-    assert.ok(section.includes('ai-rate-limited'), 'should map 429 to ai-rate-limited');
+    // Phase 6Q: error mapping is centralized in ai-provider.js
+    assert.ok(src.includes('callAiText'), 'file route uses unified provider');
+    const providerSrc = readFileSync(join(__dirname, '..', 'server', 'ai-provider.js'), 'utf8');
+    assert.ok(providerSrc.includes('ai-provider-bad-request'), 'provider must map 400 to ai-provider-bad-request');
+    assert.ok(providerSrc.includes('ai-provider-auth'), 'provider must map 401 to ai-provider-auth');
+    assert.ok(providerSrc.includes('ai-provider-forbidden'), 'provider must map 403 to ai-provider-forbidden');
+    assert.ok(providerSrc.includes('ai-provider-not-found'), 'provider must map 404 to ai-provider-not-found');
+    assert.ok(providerSrc.includes('ai-rate-limited'), 'provider must map 429 to ai-rate-limited');
   });
 
   it('Busboy require statement should exist', () => {
