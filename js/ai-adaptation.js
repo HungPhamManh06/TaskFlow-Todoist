@@ -38,6 +38,7 @@
   var MAX_SERIALIZED_BYTES = 32768; // 32 KB
   var MAX_EVENTS = 500;
   var MAX_RETENTION_DAYS = 90;
+  var MAX_FUTURE_SKEW_MS = 5 * 60 * 1000; // 5 minutes clock skew allowance
 
   /* ---- Confidence thresholds ---- */
   var CONFIDENCE_NONE = 'none';
@@ -59,7 +60,7 @@
   /* ---- Allowed event fields (sanitize on record) ---- */
   var EVENT_FIELDS = new Set([
     'type', 'timestamp', 'plannedMinutes', 'actualMinutes',
-    'completed', 'hour', 'weekday', 'daypart',
+    'completed', 'hour', 'weekday', 'daypart', 'sessionId',
   ]);
 
   /* ---- Allowed profile hint keys ---- */
@@ -100,6 +101,9 @@
       } else if (key === 'timestamp') {
         var ts = Number(evt.timestamp);
         if (!isFinite(ts) || ts <= 0) return null;
+        // Reject unreasonable future timestamps
+        var now = (typeof evt._now === 'number') ? evt._now : Date.now();
+        if (ts > now + MAX_FUTURE_SKEW_MS) return null;
         out.timestamp = ts;
       } else if (key === 'plannedMinutes' || key === 'actualMinutes') {
         var v = evt[key];
@@ -132,6 +136,10 @@
       } else if (key === 'daypart') {
         if (typeof evt.daypart === 'string' && ['morning', 'afternoon', 'evening', 'night'].indexOf(evt.daypart) !== -1) {
           out.daypart = evt.daypart;
+        }
+      } else if (key === 'sessionId') {
+        if (typeof evt.sessionId === 'string' && evt.sessionId.length <= 64) {
+          out.sessionId = evt.sessionId;
         }
       }
     }
@@ -366,6 +374,14 @@
     if (!isEnabled()) return false;
     var sanitized = _sanitizeEvent(event);
     if (!sanitized) return false;
+    // Dedupe: reject if sessionId already recorded
+    if (sanitized.sessionId) {
+      var state = _read() || _defaults();
+      var events = state.events || [];
+      for (var i = 0; i < events.length; i++) {
+        if (events[i].sessionId === sanitized.sessionId) return false;
+      }
+    }
     var state = _read() || _defaults();
     state.events = _pruneEvents(state.events || []);
     state.events.push(sanitized);

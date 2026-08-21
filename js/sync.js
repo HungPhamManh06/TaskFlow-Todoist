@@ -254,6 +254,11 @@
         try { localStorage.removeItem(k); } catch (e) { /* ẩn */ }
       }
     }
+    // Phase 6S: Clear adaptation data on account switch (account isolation)
+    try {
+      if (window.TaskFlowAIAdaptation) window.TaskFlowAIAdaptation.clearAll();
+      else localStorage.removeItem('taskflow-ai-adaptation-v1');
+    } catch (e) { /* adaptation clear must never break sync */ }
     meta = {};
     writeMeta();
   }

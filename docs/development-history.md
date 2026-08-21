@@ -430,3 +430,14 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - Server sanitizes `adaptiveHints` with strict allowlist.
 - Pre-flight: canonicalized roadmap output, strict milestone integer order, source contract tightened.
 - 62 Phase 6S tests, 2613 total repository tests, all green.
+
+## Phase 6S.1 — Adaptive Runtime Integration (Aug 21, 2026)
+
+- ai-adaptation.min.js loaded in production via lazy chains (app.js) and precached in sw.js.
+- Real focus session events recorded in confirmOutcome() with dedupe via sessionId.
+- Future timestamp hardening: rejects timestamps > now + 5 minutes.
+- Account isolation: adaptation data cleared on login/signup/logout.
+- adaptiveHints injected into chat-provider.js envelope for AI planning.
+- Server-side adaptiveHints sanitization with strict allowlist already in place.
+- sw.js CACHE bumped to v269, app.min.js to v217, sync.min.js to v6.
+- All version pins in tests updated. 2613 tests all green.
