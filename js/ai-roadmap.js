@@ -398,6 +398,7 @@
   function convertToProposal(roadmap, selectedMilestoneIds) {
     if (!roadmap || !Array.isArray(roadmap.tasks)) return { ok: false, error: 'invalid-roadmap' };
 
+    // Structural validation only — final-roadmap validation belongs on server boundary
     var validation = validateRoadmap(roadmap);
     if (!validation.valid) return { ok: false, error: 'validation-failed', errors: validation.errors };
 

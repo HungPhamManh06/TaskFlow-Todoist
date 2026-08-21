@@ -408,3 +408,13 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - Created `server/ai-roadmap-validator.js` — server-side model output validation.
 - Added `validateRoadmapForApply()` — final AI roadmaps require ≥1 milestone AND ≥1 task.
 - 335 Phase 6R evaluation tests, 2199+ full repository tests.
+
+## Phase 6R.3 — Final Roadmap Contract Closure (Aug 21, 2026)
+
+- Fixed `existingTaskKey` hallucination bug — model cannot assert reuse when canonical existing work set is empty/null.
+- Enforced dependency depth limit (≤4) in server roadmap validator.
+- `convertToProposal()` uses structural validation; final-roadmap validation remains server-side only.
+- Server validates roadmap request `targetDate` and sanitizes `existingWork` input.
+- Added 17 new server-boundary tests (existingTaskKey empty set, dependency depth, empty roadmap, source/reuse validation).
+- Full validation: 2551 tests pass, sync 13/13, security 5/5, release assets OK.
+- Phase 6R is now CLOSED — all roadmap boundary contracts hardened.

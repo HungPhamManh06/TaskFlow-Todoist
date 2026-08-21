@@ -250,3 +250,201 @@ describe('Server Roadmap Boundary: Structural Validation', () => {
     assert.equal(v.ok, false, 'One invalid task must reject entire roadmap');
   });
 });
+
+/* ================================================================
+   SECTION 7: ExistingTaskKey Hallucination with Empty Set (Phase 6R.3)
+   ================================================================ */
+
+describe('Server Roadmap Boundary: ExistingTaskKey Hallucination', () => {
+  it('rejects existingTaskKey when existingWorkKeys is empty Set', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Reuse', existingTaskKey: 'ghost', dependsOn: [] }],
+    }, new Set());
+    assert.equal(v.ok, false, 'Must reject when canonical set is empty');
+    assert.ok(v.errors.some(e => e.includes('hallucinated-existingTaskKey')));
+  });
+
+  it('rejects existingTaskKey when existingWorkKeys is null', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Reuse', existingTaskKey: 'ghost', dependsOn: [] }],
+    }, null);
+    assert.equal(v.ok, false, 'Must reject when canonical set is null');
+    assert.ok(v.errors.some(e => e.includes('hallucinated-existingTaskKey')));
+  });
+
+  it('rejects existingTaskKey when existingWorkKeys is undefined', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Reuse', existingTaskKey: 'ghost', dependsOn: [] }],
+    }, undefined);
+    assert.equal(v.ok, false, 'Must reject when canonical set is undefined');
+    assert.ok(v.errors.some(e => e.includes('hallucinated-existingTaskKey')));
+  });
+
+  it('accepts existingTaskKey present in canonical set', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Reuse', existingTaskKey: 'real-key', dependsOn: [] }],
+    }, new Set(['real-key']));
+    assert.equal(v.ok, true, 'Legitimate key in canonical set should pass');
+  });
+});
+
+/* ================================================================
+   SECTION 8: Dependency Depth Enforcement (Phase 6R.3)
+   ================================================================ */
+
+describe('Server Roadmap Boundary: Dependency Depth', () => {
+  it('accepts depth 0 (no dependencies)', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'A', dependsOn: [] }],
+    }, new Set());
+    assert.equal(v.ok, true);
+  });
+
+  it('accepts depth 4 (maximum)', () => {
+    const tasks = [];
+    for (let i = 1; i <= 5; i++) {
+      tasks.push({
+        tempId: 'r' + i, milestoneId: 'm1', title: 'T' + i,
+        dependsOn: i === 1 ? [] : ['r' + (i - 1)],
+      });
+    }
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks,
+    }, new Set());
+    assert.equal(v.ok, true, 'Depth 4 should be accepted');
+  });
+
+  it('rejects depth 5 (exceeds maximum)', () => {
+    const tasks = [];
+    for (let i = 1; i <= 6; i++) {
+      tasks.push({
+        tempId: 'r' + i, milestoneId: 'm1', title: 'T' + i,
+        dependsOn: i === 1 ? [] : ['r' + (i - 1)],
+      });
+    }
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks,
+    }, new Set());
+    assert.equal(v.ok, false, 'Depth 5 must be rejected');
+    assert.ok(v.errors.some(e => e.includes('dependency-depth-exceeded')));
+  });
+});
+
+/* ================================================================
+   SECTION 9: Empty Roadmap Rejection (Phase 6R.3)
+   ================================================================ */
+
+describe('Server Roadmap Boundary: Empty Roadmap', () => {
+  it('rejects roadmap with empty milestones', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [],
+      tasks: [{ tempId: 'r1', title: 'Task', dependsOn: [] }],
+    }, new Set());
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.includes('empty-milestones'));
+  });
+
+  it('rejects roadmap with empty tasks', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [],
+    }, new Set());
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.includes('empty-tasks'));
+  });
+
+  it('rejects completely empty roadmap', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [],
+      tasks: [],
+    }, new Set());
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.includes('empty-milestones'));
+    assert.ok(v.errors.includes('empty-tasks'));
+  });
+});
+
+/* ================================================================
+   SECTION 10: Milestone Order & Source Validation (Phase 6R.3)
+   ================================================================ */
+
+describe('Server Roadmap Boundary: Order & Source', () => {
+  it('rejects invalid milestone order', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: -1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Task', dependsOn: [] }],
+    }, new Set());
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some(e => e.includes('invalid-order')));
+  });
+
+  it('rejects invalid source structure', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Task', source: 'bad', dependsOn: [] }],
+    }, new Set());
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some(e => e.includes('invalid-source')));
+  });
+
+  it('rejects unknown source kind', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Task', source: { kind: 'hacker' }, dependsOn: [] }],
+    }, new Set());
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some(e => e.includes('invalid-source-kind')));
+  });
+
+  it('accepts valid source kinds', () => {
+    for (const kind of ['document', 'ai-suggested']) {
+      const v = validateRoadmapModelOutput({
+        milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+        tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Task', source: { kind }, dependsOn: [] }],
+      }, new Set());
+      assert.equal(v.ok, true, 'source.kind=' + kind + ' should be valid');
+    }
+  });
+});
+
+/* ================================================================
+   SECTION 11: Reuse Array Validation (Phase 6R.3)
+   ================================================================ */
+
+describe('Server Roadmap Boundary: Reuse Array', () => {
+  it('rejects non-array reuse', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Task', dependsOn: [] }],
+      reuse: 'invalid',
+    }, new Set());
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.includes('reuse-not-array'));
+  });
+
+  it('rejects hallucinated reuse key', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Task', dependsOn: [] }],
+      reuse: [{ existingTaskKey: 'ghost', roadmapTitle: 'Ghost' }],
+    }, new Set());
+    assert.equal(v.ok, false);
+    assert.ok(v.errors.some(e => e.includes('hallucinated-existingTaskKey')));
+  });
+
+  it('accepts valid reuse with canonical key', () => {
+    const v = validateRoadmapModelOutput({
+      milestones: [{ tempId: 'm1', title: 'Phase 1', order: 1 }],
+      tasks: [{ tempId: 'r1', milestoneId: 'm1', title: 'Task', dependsOn: [] }],
+      reuse: [{ existingTaskKey: 'real-key', roadmapTitle: 'Reused' }],
+    }, new Set(['real-key']));
+    assert.equal(v.ok, true);
+  });
+});
