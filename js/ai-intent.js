@@ -461,5 +461,39 @@
     return null;
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /* ─── P6: Goal Intent Router (deterministic) ─── */
+  function classifyGoalIntent(message) {
+    if (typeof message !== 'string') return null;
+    var s = _normalize(message);
+
+    // Decompose existing (check before goal-roadmap — requires explicit decompose/breakdown/split/chia nhỏ)
+    if (/(?:chia\s+nhỏ|phân\s+rã|breakdown|decompose|split\s+nhỏ|phân\s+tách).*(?:mục\s+tiêu|goal|này|this|project|đồ\s+án)/i.test(s))
+      return { kind: 'goal-decompose', confidence: 'high', reason: 'decompose' };
+
+    // Goal → roadmap
+    if (/(?:roadmap|lộ\s+trình|chia|phân|rã|breakdown|decompose).*(?:mục\s+tiêu|goal|đồ\s+án|project|assignment)/i.test(s))
+      return { kind: 'goal-roadmap', confidence: 'high', reason: 'goal-roadmap' };
+    if (/(?:tôi\s+muốn|học|xong|làm|đạt|hoàn\s+thành).*(?:trong|trước|before|within|tuần|week|tháng|month)/i.test(s) &&
+        /(?:roadmap|lộ\s+trình|chia|breakdown|steps|bước)/i.test(s))
+      return { kind: 'goal-roadmap', confidence: 'high', reason: 'goal-roadmap-implicit' };
+    if (/(?:tôi\s+muốn|học\s+xong|hoàn\s+thành).*(?:trong|trước|tuần|tháng|week|month)/i.test(s) &&
+        !/(?:task|công\s+việc|xếp|lịch|schedule|plan\s+ngày)/i.test(s))
+      return { kind: 'goal-roadmap', confidence: 'medium', reason: 'goal-timeline' };
+
+    // Roadmap question
+    if (/(?:roadmap|lộ\s+trình).*(?:quá|nhiều|ít|thiếu|đủ|insufficient|feasible|tight)/i.test(s))
+      return { kind: 'roadmap-question', confidence: 'high', reason: 'roadmap-question' };
+
+    // What-if roadmap
+    if (/(?:nếu|what\s*if|giả\s+sử).*(?:roadmap|lộ\s+trình|mục\s+tiêu|deadline)/i.test(s))
+      return { kind: 'what-if-roadmap', confidence: 'high', reason: 'what-if-roadmap' };
+
+    // Refine
+    if (/(?:thêm|add|xóa|remove|bỏ|sửa|chia|split).*(?:bước|step|task|milestone|mốc)/i.test(s))
+      return { kind: 'roadmap-refine', confidence: 'high', reason: 'roadmap-refine' };
+
+    return null;
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, classifyGoalIntent: classifyGoalIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });
