@@ -4290,6 +4290,7 @@ function runLazyChat(fn) {
     .then(() => ensureLazyModule('js/ai-plan.min.js'))
     .then(() => ensureLazyModule('js/ai-plan-health.min.js'))
     .then(() => ensureLazyModule('js/ai-plan-watch.min.js'))
+    .then(() => ensureLazyModule('js/ai-brief.min.js'))
     .then(() => ensureLazyModule('js/ai-agent-runtime.min.js'))
     .then(() => ensureLazyModule('js/chat.min.js'))
     .then(() => { initChatContextProvider(); if (fn) fn(); })

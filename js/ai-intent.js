@@ -436,5 +436,30 @@
     return null;
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /* ─── P32: Brief Intent Router (deterministic) ─── */
+  function classifyBriefIntent(message) {
+    if (typeof message !== 'string') return null;
+    var s = _normalize(message);
+
+    // Daily brief
+    if (/(?:hôm\s+nay|today|daily|tổng\s+quan.*hôm|ngày\s+hôm\s+nay)/i.test(s) &&
+        /(?:cần|làm|gì|focus|tập\s+trung|brief|tóm\s+tắt|thế\s+nào)/i.test(s))
+      return { kind: 'daily-brief', confidence: 'high', reason: 'daily-keyword' };
+    if (/(?:tôi\s+cần\s+(?:làm|tập\s+trung)|what\s+should\s+i\s+(?:focus|do)|cho\s+tôi\s+daily)/i.test(s))
+      return { kind: 'daily-brief', confidence: 'high', reason: 'daily-focus' };
+
+    // Weekly review
+    if (/(?:tuần|week|tổng\s+kết|review).*?(?:này|this|vừa\s+rồi|last)/i.test(s))
+      return { kind: 'weekly-review', confidence: 'high', reason: 'weekly-keyword' };
+    if (/(?:tuần\s+này|tuần\s+vừa\s+rồi|this\s+week|last\s+week).*(?:thế\s+nào|như\s+thế\s+nào|how|review|tổng)/i.test(s))
+      return { kind: 'weekly-review', confidence: 'high', reason: 'weekly-phrase' };
+
+    // Lookahead
+    if (/(?:ngày\s+mai|tomorrow|tuần\s+tới|next\s+week).*(?:cần|chú\s+ý|quan\s+trọng|important|gì)/i.test(s))
+      return { kind: 'lookahead', confidence: 'high', reason: 'lookahead-keyword' };
+
+    return null;
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });
