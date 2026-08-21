@@ -700,6 +700,65 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
   }
 });
 
+/* ============ POST /api/ai/plan-health — Phase 6J plan health + risk forecasting ============ */
+// P40: Optional endpoint for AI-assisted health explanation.
+// Input: { healthReport, message, mode? }
+// Output: { ok, explanation, mitigationSummary? }
+router.post('/plan-health', aiAgentLimiter, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const healthReport = body.healthReport;
+    const message = String(body.message || '').trim();
+    const mode = body.mode || 'health-check';
+
+    // Validate input
+    if (!healthReport || typeof healthReport !== 'object') {
+      return res.status(400).json({ error: 'ai-plan-health-invalid', detail: 'healthReport required' });
+    }
+    if (!message || message.length > 500) {
+      return res.status(400).json({ error: 'ai-plan-health-invalid', detail: 'message required (max 500 chars)' });
+    }
+
+    // P41: System prompt — AI must not recompute facts
+    const systemPrompt = 'Bạn là trợ lý phân tích sức khỏe kế hoạch của TaskFlow.\n'
+      + 'Sử dụng các chỉ số đã được tính toán. KHÔNG thay đổi số liệu.\n'
+      + 'KHÔNG phát minh xung đột, deadline, hay xác suất.\n'
+      + 'Trả lời ngắn gọn: giải thích tình trạng và đưa ra các phương án an toàn.\n'
+      + 'KHÔNG áp dụng thay đổi. Chỉ phân tích và gợi ý.\n'
+      + '\nBáo cáo sức khỏe: ' + JSON.stringify(healthReport);
+
+    // Call Gemini
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.AI_API_KEY || '');
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+    const result = await model.generateContent({
+      contents: [
+        { role: 'user', parts: [
+          { text: systemPrompt + '\n\nCâu hỏi: ' + message }
+        ]}
+      ],
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 1024
+      }
+    });
+
+    const answer = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // P80: Discard any chain-of-thought
+    const safeAnswer = answer.replace(/(?:thinking|reasoning|internal|chain[_-]?of[_-]?thought)[^]*?(?:\n\n|$)/gi, '').trim();
+
+    console.log('[ai] route=/api/ai/plan-health mode=' + mode + ' status=success');
+
+    return res.json({ ok: true, explanation: safeAnswer || 'Không có phân tích thêm.' });
+  } catch (e) {
+    const safeType = e && e.constructor ? e.constructor.name : 'Error';
+    console.error('[ai] route=/api/ai/plan-health status=internal-error errorType=' + safeType);
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
 /* ============ POST /api/ai/chat — Real Gemini conversational chat ============ */
 
 /* ---- Phase 3B: chat context envelope — SERVER-SIDE TRUST BOUNDARY (P9/P10) ----
