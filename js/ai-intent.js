@@ -301,5 +301,39 @@
     return { kind: 'refine', operationHint: 'complex', confidence: 'low', reason: 'complex-refinement' };
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /** P26: Classify planning intent */
+  function classifyPlanningIntent(message, hasPendingProposal) {
+    var s = String(message || '').trim();
+    if (!s) return { kind: 'clarify', confidence: 'low', reason: 'empty' };
+
+    // P25: convert-plan → only when pending plan exists
+    if (hasPendingProposal && /(?:đưa|chuyển|convert).*(?:đề\s+xuất|proposal)/i.test(s))
+      return { kind: 'convert-plan', confidence: 'high', reason: 'convert-plan' };
+
+    // P27: negation → read-only what-if
+    if (/(?:đừng|không\s+cần|chỉ\s+cho|don't|just\s+show).*(?:lịch|kế\s*hoạch|plan)/i.test(s))
+      return { kind: 'what-if', confidence: 'high', reason: 'negation-plan' };
+
+    // P28: what-if / hypothetical
+    if (/(?:nếu|nếu\s+như|what\s*if|suppose|giả\s+sử)/i.test(s) &&
+        /(?:xếp|lịch|schedule|plan|học|luyện|ôn|thời\s*gian)/i.test(s))
+      return { kind: 'what-if', confidence: 'high', reason: 'what-if' };
+    if (/(?:nếu|what\s*if).*(?:thì\s+sao|what|happen)/i.test(s) &&
+        /(?:xếp|lịch|plan|học)/i.test(s))
+      return { kind: 'what-if', confidence: 'medium', reason: 'hypothetical-plan' };
+
+    // P52: plan refinement (move/reschedule sessions)
+    if (/(?:dời|đổi|chuyển|move|swap).*(?:phiên|session|ngày|day|thứ)/i.test(s))
+      return { kind: 'refine-plan', confidence: 'high', reason: 'refine-plan' };
+
+    // P26: plan intent
+    if (/(?:lên\s+kế\s*hoạch|xếp\s+lịch|lịch\s+học|schedule|plan|up\s+plan|lên\s+lịch|tạo\s+lịch|học\s+kế|lập\s+kế)/i.test(s))
+      return { kind: 'plan', confidence: 'high', reason: 'plan-request' };
+    if (/(?:kế\s*hoạch|planning|thời\s+gian\s+học|study\s+plan)/i.test(s))
+      return { kind: 'plan', confidence: 'medium', reason: 'plan-keyword' };
+
+    return { kind: 'none', confidence: 'low', reason: 'not-planning' };
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });
