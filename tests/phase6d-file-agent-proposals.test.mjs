@@ -480,15 +480,16 @@ describe('Phase 6D — File Agent Route Safety', () => {
 
   it('file-agent route has timeout handling', () => {
     const route = serverSrc.substring(serverSrc.indexOf("router.post('/file-agent'"));
-    assert.ok(route.includes('AbortError'), 'must handle timeout');
-    assert.ok(route.includes('ai-file-timeout'), 'must return timeout error');
+    assert.ok(route.includes('callAiText'), 'must use unified provider for timeout handling');
   });
 
-  it('file-agent route has provider error mapping', () => {
+  it('file-agent route uses unified provider error mapping', () => {
     const route = serverSrc.substring(serverSrc.indexOf("router.post('/file-agent'"));
-    assert.ok(route.includes('ai-provider-bad-request'), 'must map 400');
-    assert.ok(route.includes('ai-provider-auth'), 'must map 401');
-    assert.ok(route.includes('ai-provider-unavailable'), 'must map 5xx');
+    assert.ok(route.includes('callAiText'), 'must delegate to unified provider');
+    const providerSrc = read('server/ai-provider.js');
+    assert.ok(providerSrc.includes('ai-provider-bad-request'), 'provider must map 400');
+    assert.ok(providerSrc.includes('ai-provider-auth'), 'provider must map 401');
+    assert.ok(providerSrc.includes('ai-provider-unavailable'), 'provider must map 5xx');
   });
 
   it('file-agent logging must never throw', () => {

@@ -30,15 +30,16 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
   });
 
   it('upstream-error log must reference fileMode (not undefined)', () => {
-    // Find the file route's upstream-error log, not the first one in the file
+    // Phase 6Q: upstream error logging is centralized in ai-provider.js
+    const providerSrc = readFileSync(join(__dirname, '..', 'server', 'ai-provider.js'), 'utf8');
+    assert.ok(providerSrc.includes('upstream-status') || providerSrc.includes('upstreamStatus'),
+      'provider must log upstream status');
+    // File route uses unified provider — no undefined fileMode risk
     const fileRouteStart = src.indexOf("router.post('/file'");
-    const afterFileRoute = src.indexOf('status=upstream-error upstreamStatus=', fileRouteStart);
-    assert.ok(afterFileRoute > 0, 'upstream-error log not found in file route');
-    const logLine = src.substring(afterFileRoute - 100, afterFileRoute + 200);
-    assert.ok(
-      logLine.includes('mode=' + "'analyze'") || logLine.includes('fileMode'),
-      'upstream-error log must reference fileMode variable'
-    );
+    const fileAgentStart = src.indexOf("router.post('/file-agent'");
+    const endIdx = fileAgentStart > 0 ? fileAgentStart : src.indexOf('module.exports = {');
+    const fileRoute = src.substring(fileRouteStart, endIdx);
+    assert.ok(fileRoute.includes('callAiText'), 'file route uses unified provider');
   });
 
   it('all console.log/error in file route must use defined variables only', () => {
@@ -120,12 +121,15 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
   });
 
   it('provider error mapping must cover all expected statuses', () => {
-    assert.ok(src.includes("'ai-provider-bad-request'"), 'must map 400');
-    assert.ok(src.includes("'ai-provider-auth'"), 'must map 401');
-    assert.ok(src.includes("'ai-provider-forbidden'"), 'must map 403');
-    assert.ok(src.includes("'ai-provider-not-found'"), 'must map 404');
-    assert.ok(src.includes("'ai-rate-limited'"), 'must map 429');
-    assert.ok(src.includes("'ai-provider-unavailable'"), 'must map 5xx');
+    // Phase 6Q: error mapping centralized in ai-provider.js
+    assert.ok(src.includes('callAiText') || src.includes('callAiJson'), 'routes use unified provider');
+    const providerSrc = readFileSync(join(__dirname, '..', 'server', 'ai-provider.js'), 'utf8');
+    assert.ok(providerSrc.includes("'ai-provider-bad-request'"), 'must map 400');
+    assert.ok(providerSrc.includes("'ai-provider-auth'"), 'must map 401');
+    assert.ok(providerSrc.includes("'ai-provider-forbidden'"), 'must map 403');
+    assert.ok(providerSrc.includes("'ai-provider-not-found'"), 'must map 404');
+    assert.ok(providerSrc.includes("'ai-rate-limited'"), 'must map 429');
+    assert.ok(providerSrc.includes("'ai-provider-unavailable'"), 'must map 5xx');
   });
 
   it('outer catch must log safe error type only', () => {

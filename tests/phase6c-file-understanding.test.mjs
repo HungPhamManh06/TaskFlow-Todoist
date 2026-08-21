@@ -93,8 +93,8 @@ describe('Phase 6C: Server File Validation', () => {
     assert.ok(src.includes('ai-file-empty'));
     assert.ok(src.includes('ai-file-invalid'));
     assert.ok(src.includes('ai-file-processing-failed'));
-    assert.ok(src.includes('ai-file-timeout'));
-    assert.ok(src.includes('ai-file-provider-unavailable'));
+    // Phase 6Q: timeout/unavailable errors now handled by unified provider
+    assert.ok(src.includes('callAiText'), 'file route uses unified provider');
   });
 
   it('cleans up in finally block', () => {

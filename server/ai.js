@@ -35,6 +35,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { authMiddleware } = require('./auth');
+const { callAiText, callAiJson, mapUpstreamStatus } = require('./ai-provider');
 
 // Generate a short request correlation ID
 function generateRequestId() {
@@ -387,89 +388,32 @@ router.post('/plan', aiPlanLimiter, async (req, res) => {
     const milestoneIds = new Set((ctx.milestones || []).map((m) => m && m.id).filter(Boolean));
 
     const { system, user } = buildPrompt(ctx);
-    const startedAt = Date.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-    let upstream;
-    try {
-      upstream = await fetch(AI_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + AI_API_KEY,
-        },
-        body: JSON.stringify({
-          model: AI_MODEL,
-          reasoning_effort: 'low',
-          max_tokens: 1200,
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: 'taskflow_proposal',
-              strict: true,
-              schema: PROPOSAL_SCHEMA,
-            },
-          },
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-        }),
-        signal: controller.signal,
-      });
-    } catch (e) {
-      clearTimeout(timer);
-      const latencyMs = Date.now() - startedAt;
-      if (e && e.name === 'AbortError') {
-        console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=timeout latencyMs=' + latencyMs);
-        return res.status(504).json({ error: 'ai-timeout' });
-      }
-      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=upstream-error latencyMs=' + latencyMs);
-      return res.status(502).json({ error: 'ai-provider-unavailable' });
-    }
-    clearTimeout(timer);
-    const latencyMs = Date.now() - startedAt;
-    if (!upstream.ok) {
-      // Map HTTP upstream an toàn — chỉ lộ mã trạng thái, KHÔNG bao giờ body/chi tiết.
-      const code = upstream.status === 400 ? 'ai-provider-bad-request'
-        : upstream.status === 401 ? 'ai-provider-auth'
-        : upstream.status === 403 ? 'ai-provider-forbidden'
-        : upstream.status === 404 ? 'ai-provider-not-found'
-        : upstream.status === 429 ? 'ai-rate-limited'
-        : 'ai-provider-unavailable';
-      console.log('[ai] provider=gemini upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
-      // 429 là tạm thời — client fallback về planner quy tắc, không retry.
-      return res.status(upstream.status === 429 ? 429 : 502).json({ error: code, details: ['upstream-' + upstream.status] });
+    const aiResult = await callAiJson({
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      schema: PROPOSAL_SCHEMA,
+      maxTokens: 1200,
+      routeName: '/api/ai/plan'
+    });
+
+    if (!aiResult.ok) {
+      const status = aiResult.status === 429 ? 429 : 502;
+      return res.status(status).json({ error: aiResult.error, details: aiResult.details });
     }
 
-    let json;
-    try {
-      json = await upstream.json();
-    } catch (e) {
-      return res.status(502).json({ error: 'ai-provider-unavailable' });
-    }
-    const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-    if (typeof content !== 'string' || !content.trim()) {
-      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=empty-content latencyMs=' + latencyMs);
-      return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
-    }
-
-    const proposal = parseProposalContent(content);
+    const proposal = parseProposalContent(aiResult.content);
     if (proposal === null) {
-      // Chỉ nêu loại lỗi parse — KHÔNG bao giờ echo nội dung upstream.
-      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=parse-failed latencyMs=' + latencyMs);
       return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
     }
     const v = validateProposal(proposal, { taskUids, projectIds, milestoneIds });
     if (!v.ok) {
-      console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=validation-failed latencyMs=' + latencyMs);
       return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
     }
-    console.log('[ai] provider=gemini model=' + AI_MODEL + ' status=success latencyMs=' + latencyMs);
     const resp = { ok: true, proposal };
     if (req.query && req.query.debug === '1') {
-      // Meta chỉ khi debug — không bao giờ lộ token usage / prompt.
-      resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs };
+      resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs: aiResult.latencyMs };
     }
     return res.json(resp);
   } catch (e) {
@@ -623,56 +567,28 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
       { role: 'user', content: message },
     ];
 
-    const startedAt = Date.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-    let upstream;
-    try {
-      upstream = await fetch(AI_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI_API_KEY },
-        body: JSON.stringify({ model: AI_MODEL, max_tokens: 2048, messages,
-          response_format: { type: 'json_schema', json_schema: PLAN_SYNTHESIS_SCHEMA } }),
-        signal: controller.signal,
-      });
-    } catch (e) {
-      clearTimeout(timer);
-      const latencyMs = Date.now() - startedAt;
-      if (e && e.name === 'AbortError') {
-        console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=timeout latencyMs=' + latencyMs);
-        return res.status(504).json({ error: 'ai-timeout' });
-      }
-      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=upstream-error latencyMs=' + latencyMs);
-      return res.status(502).json({ error: 'ai-provider-unavailable' });
-    }
-    clearTimeout(timer);
-    const latencyMs = Date.now() - startedAt;
+    const aiResult = await callAiJson({
+      messages,
+      schema: PLAN_SYNTHESIS_SCHEMA,
+      maxTokens: 2048,
+      requestId,
+      routeName: '/api/ai/plan-synthesis'
+    });
 
-    if (!upstream.ok) {
-      const code = upstream.status === 400 ? 'ai-provider-bad-request'
-        : upstream.status === 429 ? 'ai-rate-limited' : 'ai-provider-unavailable';
-      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=upstream-error upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
-      return res.status(upstream.status === 429 ? 429 : 502).json({ error: code });
+    if (!aiResult.ok) {
+      const status = aiResult.status === 429 ? 429 : 502;
+      return res.status(status).json({ error: aiResult.error });
     }
 
-    let json;
-    try { json = await upstream.json(); } catch (e) { return res.status(502).json({ error: 'ai-provider-unavailable' }); }
     // P80: Discard chain-of-thought if present
-    const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-    if (typeof content !== 'string' || !content.trim()) {
-      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=empty-content latencyMs=' + latencyMs);
-      return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
-    }
-
     // Parse plan
     let plan;
     try {
-      const parsed = JSON.parse(content.replace(/^```json\s*/, '').replace(/```$/, '').trim());
+      const parsed = aiResult.parsed;
       plan = { summary: parsed.summary || '', sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
         unscheduled: Array.isArray(parsed.unscheduled) ? parsed.unscheduled : [],
         assumptions: Array.isArray(parsed.assumptions) ? parsed.assumptions : [] };
     } catch (e) {
-      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=parse-failed latencyMs=' + latencyMs);
       return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
     }
 
@@ -687,11 +603,11 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
       if (typeof s.duration !== 'number' || s.duration < 25 || s.duration > 180) planErrors.push('s' + i + '-invalid-duration');
     });
     if (planErrors.length) {
-      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=validation-failed errors=' + planErrors.length + ' latencyMs=' + latencyMs);
+      console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' status=validation-failed errors=' + planErrors.length + ' latencyMs=' + aiResult.latencyMs);
       return res.status(422).json({ error: 'ai-plan-validation-failed', details: planErrors.slice(0, 5) });
     }
 
-    console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' mode=' + mode + ' sessionCount=' + plan.sessions.length + ' status=success latencyMs=' + latencyMs);
+    console.log('[ai] route=/api/ai/plan-synthesis requestId=' + requestId + ' mode=' + mode + ' sessionCount=' + plan.sessions.length + ' status=success latencyMs=' + aiResult.latencyMs);
     return res.json({ ok: true, mode: mode, plan });
   } catch (e) {
     const safeType = e && e.constructor ? e.constructor.name : 'Error';
@@ -727,27 +643,23 @@ router.post('/plan-health', aiAgentLimiter, async (req, res) => {
       + 'KHÔNG áp dụng thay đổi. Chỉ phân tích và gợi ý.\n'
       + '\nBáo cáo sức khỏe: ' + JSON.stringify(healthReport);
 
-    // Call Gemini
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.AI_API_KEY || '');
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-    const result = await model.generateContent({
-      contents: [
-        { role: 'user', parts: [
-          { text: systemPrompt + '\n\nCâu hỏi: ' + message }
-        ]}
+    // Phase 6Q: Use unified provider gateway instead of legacy SDK
+    const aiResult = await callAiText({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
       ],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: 1024
-      }
+      maxTokens: 1024,
+      routeName: '/api/ai/plan-health'
     });
 
-    const answer = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    if (!aiResult.ok) {
+      console.log('[ai] route=/api/ai/plan-health mode=' + mode + ' status=' + (aiResult.error || 'provider-error'));
+      return res.status(aiResult.status === 429 ? 429 : 502).json({ error: aiResult.error || 'ai-provider-unavailable' });
+    }
 
     // P80: Discard any chain-of-thought
-    const safeAnswer = answer.replace(/(?:thinking|reasoning|internal|chain[_-]?of[_-]?thought)[^]*?(?:\n\n|$)/gi, '').trim();
+    const safeAnswer = aiResult.content.replace(/(?:thinking|reasoning|internal|chain[_-]?of[_-]?thought)[^]*?(?:\n\n|$)/gi, '').trim();
 
     console.log('[ai] route=/api/ai/plan-health mode=' + mode + ' status=success');
 
@@ -1006,65 +918,20 @@ router.post('/chat', aiChatLimiter, async (req, res) => {
       { role: 'user', content: userContent },
     ];
 
-    const startedAt = Date.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-    let upstream;
-    try {
-      upstream = await fetch(AI_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + AI_API_KEY,
-        },
-        body: JSON.stringify({
-          model: AI_MODEL,
-          reasoning_effort: 'low',
-          max_tokens: 1024,
-          messages,
-        }),
-        signal: controller.signal,
-      });
-    } catch (e) {
-      clearTimeout(timer);
-      const latencyMs = Date.now() - startedAt;
-      if (e && e.name === 'AbortError') {
-        console.log('[ai] route=/api/ai/chat provider=gemini model=' + AI_MODEL + ' status=timeout latencyMs=' + latencyMs);
-        return res.status(504).json({ error: 'ai-timeout' });
-      }
-      console.log('[ai] route=/api/ai/chat provider=gemini model=' + AI_MODEL + ' status=upstream-error latencyMs=' + latencyMs);
-      return res.status(502).json({ error: 'ai-provider-unavailable' });
-    }
-    clearTimeout(timer);
-    const latencyMs = Date.now() - startedAt;
+    const aiResult = await callAiText({
+      messages,
+      maxTokens: 1024,
+      routeName: '/api/ai/chat'
+    });
 
-    if (!upstream.ok) {
-      const code = upstream.status === 400 ? 'ai-provider-bad-request'
-        : upstream.status === 401 ? 'ai-provider-auth'
-        : upstream.status === 403 ? 'ai-provider-forbidden'
-        : upstream.status === 404 ? 'ai-provider-not-found'
-        : upstream.status === 429 ? 'ai-rate-limited'
-        : 'ai-provider-unavailable';
-      console.log('[ai] route=/api/ai/chat provider=gemini upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
-      return res.status(upstream.status === 429 ? 429 : 502).json({ error: code, details: ['upstream-' + upstream.status] });
+    if (!aiResult.ok) {
+      const status = aiResult.status === 429 ? 429 : 502;
+      return res.status(status).json({ error: aiResult.error, details: aiResult.details });
     }
 
-    let json;
-    try {
-      json = await upstream.json();
-    } catch (e) {
-      return res.status(502).json({ error: 'ai-provider-unavailable' });
-    }
-    const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-    if (typeof content !== 'string' || !content.trim()) {
-      console.log('[ai] route=/api/ai/chat provider=gemini model=' + AI_MODEL + ' status=empty-content latencyMs=' + latencyMs);
-      return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
-    }
-
-    console.log('[ai] route=/api/ai/chat provider=gemini model=' + AI_MODEL + ' status=success latencyMs=' + latencyMs);
-    const resp = { ok: true, answer: content.trim() };
+    const resp = { ok: true, answer: aiResult.content };
     if (req.query && req.query.debug === '1') {
-      resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs };
+      resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs: aiResult.latencyMs };
     }
     return res.json(resp);
   } catch (e) {
@@ -1496,88 +1363,34 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
         { role: 'user', content: userContent },
       ];
 
-      // ── 7. Call Gemini ──
-      const startedAt = Date.now();
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-      let upstream;
-      try {
-        upstream = await fetch(AI_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + AI_API_KEY,
-          },
-          body: JSON.stringify({
-            model: AI_MODEL,
-            reasoning_effort: 'low',
-            max_tokens: 1200,
-            response_format: {
-              type: 'json_schema',
-              json_schema: {
-                name: 'taskflow_agent_proposal',
-                strict: true,
-                schema: AGENT_PROPOSAL_SCHEMA,
-              },
-            },
-            messages,
-          }),
-          signal: controller.signal,
-        });
-      } catch (e) {
-        clearTimeout(timer);
-        const latencyMs = Date.now() - startedAt;
-        if (e && e.name === 'AbortError') {
-          console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=timeout latencyMs=' + latencyMs);
-          return res.status(504).json({ error: 'ai-timeout' });
-        }
-        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=upstream-error latencyMs=' + latencyMs);
-        return res.status(502).json({ error: 'ai-provider-unavailable' });
-      }
-      clearTimeout(timer);
-      const latencyMs = Date.now() - startedAt;
+      // ── 7. Call provider via unified gateway ──
+      const aiResult = await callAiJson({
+        messages,
+        schema: AGENT_PROPOSAL_SCHEMA,
+        maxTokens: 1200,
+        requestId,
+        routeName: '/api/ai/agent'
+      });
 
-      // ── 8. Handle upstream errors ──
-      if (!upstream.ok) {
-        const code = upstream.status === 400 ? 'ai-provider-bad-request'
-          : upstream.status === 401 ? 'ai-provider-auth'
-          : upstream.status === 403 ? 'ai-provider-forbidden'
-          : upstream.status === 404 ? 'ai-provider-not-found'
-          : upstream.status === 429 ? 'ai-rate-limited'
-          : 'ai-provider-unavailable';
-        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
-        return res.status(upstream.status === 429 ? 429 : 502).json({ error: code, details: ['upstream-' + upstream.status] });
+      if (!aiResult.ok) {
+        const status = aiResult.status === 429 ? 429 : 502;
+        return res.status(status).json({ error: aiResult.error, details: aiResult.details });
       }
 
       // ── 9. Parse + validate response ──
-      let json;
-      try {
-        json = await upstream.json();
-      } catch (e) {
-        return res.status(502).json({ error: 'ai-provider-unavailable' });
-      }
-      const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-      if (typeof content !== 'string' || !content.trim()) {
-        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=empty-content latencyMs=' + latencyMs);
-        return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
-      }
-
-      const proposal = parseProposalContent(content);
+      const proposal = parseProposalContent(aiResult.content);
       if (proposal === null) {
-        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=parse-failed latencyMs=' + latencyMs);
         return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
       }
       const v = validateAgentProposal(proposal, { taskUids, projectIds, milestoneIds });
       if (!v.ok) {
-        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=validation-failed latencyMs=' + latencyMs);
         return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
       }
-      console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' provider=gemini model=' + AI_MODEL + ' status=success latencyMs=' + latencyMs);
 
       // ── 10. Build response ──
       const resp = { ok: true, proposal };
       if (req.query && req.query.debug === '1') {
-        resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs };
+        resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs: aiResult.latencyMs };
       }
       // Store in idempotency cache if agentRequestId provided
       if (agentRequestId && userId) {
@@ -1594,7 +1407,7 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
       // Output size guard: reject oversized responses
       const respBody = JSON.stringify(resp);
       if (Buffer.byteLength(respBody, 'utf8') > 1024 * 1024) {
-        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' status=response-too-large latencyMs=' + latencyMs + ' bytes=' + Buffer.byteLength(respBody, 'utf8'));
+        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' status=response-too-large latencyMs=' + aiResult.latencyMs + ' bytes=' + Buffer.byteLength(respBody, 'utf8'));
         return res.status(413).json({ error: 'ai-response-too-large' });
       }
       return res.json(resp);
@@ -1825,63 +1638,21 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
 
       messages.push({ role: 'user', content: userContent });
 
-      const startedAt = Date.now();
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), AI_FILE_TIMEOUT_MS);
+      const aiResult = await callAiText({
+        messages,
+        maxTokens: 2048,
+        timeoutMs: AI_FILE_TIMEOUT_MS,
+        routeName: '/api/ai/file'
+      });
 
-      let upstream;
-      try {
-        upstream = await fetch(AI_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + AI_API_KEY,
-          },
-          body: JSON.stringify({
-            model: AI_MODEL,
-            max_tokens: 2048,
-            messages,
-          }),
-          signal: controller.signal,
-        });
-      } catch (e) {
-        clearTimeout(timer);
-        const latencyMs = Date.now() - startedAt;
-        if (e && e.name === 'AbortError') {
-          console.log('[ai] route=/api/ai/file status=timeout latencyMs=' + latencyMs);
-          return res.status(504).json({ error: 'ai-file-timeout' });
-        }
-        console.log('[ai] route=/api/ai/file status=upstream-error latencyMs=' + latencyMs);
-        return res.status(502).json({ error: 'ai-file-provider-unavailable' });
-      }
-      clearTimeout(timer);
-      const latencyMs = Date.now() - startedAt;
-
-      if (!upstream.ok) {
-        const code = upstream.status === 400 ? 'ai-provider-bad-request'
-          : upstream.status === 401 ? 'ai-provider-auth'
-          : upstream.status === 403 ? 'ai-provider-forbidden'
-          : upstream.status === 404 ? 'ai-provider-not-found'
-          : upstream.status === 429 ? 'ai-rate-limited'
-          : 'ai-provider-unavailable';
-        console.log('[ai] route=/api/ai/file mode=' + fileMode + ' status=upstream-error upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
-        return res.status(upstream.status === 429 ? 429 : 502).json({ error: code });
+      if (!aiResult.ok) {
+        const status = aiResult.status === 429 ? 429 : 502;
+        return res.status(status).json({ error: aiResult.error });
       }
 
-      let json;
-      try { json = await upstream.json(); } catch (e) {
-        return res.status(502).json({ error: 'ai-file-provider-unavailable' });
-      }
-      const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-      if (typeof content !== 'string' || !content.trim()) {
-        console.log('[ai] route=/api/ai/file status=empty-content latencyMs=' + latencyMs);
-        return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
-      }
-
-      console.log('[ai] route=/api/ai/file status=success mime=' + fileMime + ' sizeBytes=' + fileSize + ' latencyMs=' + latencyMs);
       return res.json({
         ok: true,
-        answer: content.trim(),
+        answer: aiResult.content,
         file: { name: fileName, type: fileMime },
       });
     } finally {
@@ -2189,84 +1960,39 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
 
       messages.push({ role: 'user', content: userContent });
 
-      const startedAt = Date.now();
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), AI_FILE_TIMEOUT_MS);
+      const aiResult = await callAiText({
+        messages,
+        maxTokens: 4096,
+        timeoutMs: AI_FILE_TIMEOUT_MS,
+        routeName: '/api/ai/file-agent'
+      });
 
-      let upstream;
-      try {
-        upstream = await fetch(AI_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + AI_API_KEY,
-          },
-          body: JSON.stringify({
-            model: AI_MODEL,
-            max_tokens: 4096,
-            messages,
-          }),
-          signal: controller.signal,
-        });
-      } catch (e) {
-        clearTimeout(timer);
-        const latencyMs = Date.now() - startedAt;
-        if (e && e.name === 'AbortError') {
-          console.log('[ai] route=/api/ai/file-agent mode=' + fileMode + ' status=timeout latencyMs=' + latencyMs);
-          return res.status(504).json({ error: 'ai-file-timeout' });
-        }
-        console.log('[ai] route=/api/ai/file-agent mode=' + fileMode + ' status=upstream-error latencyMs=' + latencyMs);
-        return res.status(502).json({ error: 'ai-provider-unavailable' });
-      }
-      clearTimeout(timer);
-      const latencyMs = Date.now() - startedAt;
-
-      if (!upstream.ok) {
-        const code = upstream.status === 400 ? 'ai-provider-bad-request'
-          : upstream.status === 401 ? 'ai-provider-auth'
-          : upstream.status === 403 ? 'ai-provider-forbidden'
-          : upstream.status === 404 ? 'ai-provider-not-found'
-          : upstream.status === 429 ? 'ai-rate-limited'
-          : 'ai-provider-unavailable';
-        console.log('[ai] route=/api/ai/file-agent mode=' + fileMode + ' status=upstream-error upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
-        return res.status(upstream.status === 429 ? 429 : 502).json({ error: code });
+      if (!aiResult.ok) {
+        const status = aiResult.status === 429 ? 429 : 502;
+        return res.status(status).json({ error: aiResult.error });
       }
 
-      let json;
-      try { json = await upstream.json(); } catch (e) {
-        return res.status(502).json({ error: 'ai-provider-unavailable' });
-      }
-      const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-      if (typeof content !== 'string' || !content.trim()) {
-        console.log('[ai] route=/api/ai/file-agent mode=' + fileMode + ' status=empty-content latencyMs=' + latencyMs);
-        return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
-      }
-
-      // Parse structured proposal from Gemini response
-      const proposal = parseProposalContent(content);
+      // Parse structured proposal from provider response
+      const proposal = parseProposalContent(aiResult.content);
       if (proposal === null) {
-        console.log('[ai] route=/api/ai/file-agent mode=' + fileMode + ' status=parse-failed latencyMs=' + latencyMs);
         return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
       }
 
       // Server-side validation — Phase 6D narrower allowlist
       const v = validateFileAgentProposal(proposal, { taskUids, projectIds, milestoneIds });
       if (!v.ok) {
-        console.log('[ai] route=/api/ai/file-agent mode=' + fileMode + ' status=validation-failed errorCount=' + v.errors.length + ' latencyMs=' + latencyMs);
         return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
       }
 
       // Phase 6D: no actions found
       if (!proposal.actions || proposal.actions.length === 0) {
-        console.log('[ai] route=/api/ai/file-agent mode=' + fileMode + ' status=no-actions latencyMs=' + latencyMs);
+        // Phase 6D: no-actions — provider returned no actionable items
         return res.json({
           ok: true,
           proposal: { summary: proposal.summary || '', actions: [] },
           source: { type: fileMime, name: fileName },
         });
       }
-
-      console.log('[ai] route=/api/ai/file-agent mode=' + fileMode + ' actionCount=' + proposal.actions.length + ' status=success latencyMs=' + latencyMs);
 
       return res.json({
         ok: true,
@@ -2388,52 +2114,24 @@ router.post('/refine', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) =>
       { role: 'user', content: message },
     ];
 
-    const startedAt = Date.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+    const aiResult = await callAiJson({
+      messages,
+      maxTokens: 2048,
+      requestId,
+      routeName: '/api/ai/refine'
+    });
 
-    let upstream;
-    try {
-      upstream = await fetch(AI_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI_API_KEY },
-        body: JSON.stringify({ model: AI_MODEL, max_tokens: 2048, messages }),
-        signal: controller.signal,
-      });
-    } catch (e) {
-      clearTimeout(timer);
-      const latencyMs = Date.now() - startedAt;
-      if (e && e.name === 'AbortError') {
-        console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=timeout latencyMs=' + latencyMs);
-        return res.status(504).json({ error: 'ai-timeout' });
-      }
-      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=upstream-error latencyMs=' + latencyMs);
-      return res.status(502).json({ error: 'ai-provider-unavailable' });
-    }
-    clearTimeout(timer);
-    const latencyMs = Date.now() - startedAt;
-
-    if (!upstream.ok) {
-      const code = upstream.status === 400 ? 'ai-provider-bad-request' : upstream.status === 429 ? 'ai-rate-limited' : 'ai-provider-unavailable';
-      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=upstream-error upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
-      return res.status(upstream.status === 429 ? 429 : 502).json({ error: code });
-    }
-
-    let json;
-    try { json = await upstream.json(); } catch (e) { return res.status(502).json({ error: 'ai-provider-unavailable' }); }
-    const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
-    if (typeof content !== 'string' || !content.trim()) {
-      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=empty-content latencyMs=' + latencyMs);
-      return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
+    if (!aiResult.ok) {
+      const status = aiResult.status === 429 ? 429 : 502;
+      return res.status(status).json({ error: aiResult.error });
     }
 
     // Parse structured operations from response
     let ops = [];
     try {
-      const parsed = JSON.parse(content.replace(/^```json\s*/, '').replace(/```$/, '').trim());
+      const parsed = aiResult.parsed;
       ops = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.operations) ? parsed.operations : []);
     } catch (e) {
-      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=parse-failed latencyMs=' + latencyMs);
       return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
     }
 
@@ -2489,7 +2187,7 @@ const ROADMAP_HOURLY = rateLimit({ windowMs: 3600000, max: 10, standardHeaders: 
 router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
   const startMs = Date.now();
   try {
-    if (!AI_CONFIGURED) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
+    if (!AI_API_KEY) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
     const body = req.body || {};
     if (!body.goal || typeof body.goal !== 'object' || !body.goal.title) {
       return res.status(400).json({ ok: false, error: 'ai-roadmap-invalid-goal' });
@@ -2523,44 +2221,34 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
 
     const userPrompt = `${goalLine}${constraintLine}${limitLine}${existingLine}`;
 
-    const result = await callAI({
+    const aiResult = await callAiJson({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      responseMimeType: 'application/json',
-      maxOutputTokens: 4096
+      maxTokens: 4096,
+      routeName: '/api/ai/roadmap'
     });
 
-    if (!result || !result.text) {
-      logSafe('route=/api/ai/roadmap status=provider-empty ms=' + (Date.now() - startMs));
-      return res.status(502).json({ ok: false, error: 'ai-roadmap-provider-empty' });
+    if (!aiResult.ok) {
+      const status = aiResult.status === 429 ? 429 : 502;
+      return res.status(status).json({ ok: false, error: aiResult.error });
     }
 
-    let roadmap;
-    try { roadmap = JSON.parse(result.text); } catch (_jsonErr) {
-      logSafe('route=/api/ai/roadmap status=invalid-json ms=' + (Date.now() - startMs));
-      return res.status(422).json({ ok: false, error: 'ai-roadmap-provider-invalid' });
-    }
+    const roadmap = aiResult.parsed;
 
     if (!roadmap || !Array.isArray(roadmap.milestones) || !Array.isArray(roadmap.tasks)) {
-      logSafe('route=/api/ai/roadmap status=invalid-structure ms=' + (Date.now() - startMs));
       return res.status(422).json({ ok: false, error: 'ai-roadmap-invalid-structure' });
     }
 
     // Enforce caps
     if (roadmap.milestones.length > maxMilestones || roadmap.tasks.length > maxTasks) {
-      logSafe('route=/api/ai/roadmap status=too-large ms=' + (Date.now() - startMs));
       return res.status(422).json({ ok: false, error: 'ai-roadmap-too-large' });
     }
 
-    logSafe(`route=/api/ai/roadmap milestoneCount=${roadmap.milestones.length} taskCount=${roadmap.tasks.length} status=success ms=${Date.now() - startMs}`);
-
     res.json({ ok: true, roadmap });
   } catch (err) {
-    const ms = Date.now() - startMs;
-    const mapped = mapProviderError(err, 'route=/api/ai/roadmap ms=' + ms);
-    res.status(mapped.status).json({ ok: false, error: mapped.error });
+    return res.status(500).json({ ok: false, error: 'ai-provider-unavailable' });
   }
 });
 

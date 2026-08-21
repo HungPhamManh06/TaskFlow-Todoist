@@ -298,18 +298,23 @@ test('P26: agent route returns proposal only — no persistence', () => {
    P31: Safe logging — no sensitive data in logs
    ================================================================ */
 test('P31: agent logs contain no task text / context / credentials', () => {
+  // Phase 6Q: agent route delegates to unified provider — verify no credentials in provider logs
   const agentIdx = src.indexOf("router.post('/agent'");
   const fileIdx = src.indexOf("router.post('/file'");
   const agentEnd = fileIdx > agentIdx ? fileIdx : src.indexOf('module.exports');
   const agentSeg = src.slice(agentIdx, agentEnd);
-  const logs = agentSeg.match(/console\.log\([^)]*\)/g) || [];
-  assert.ok(logs.length >= 5, 'agent must have structured logs');
-  for (const l of logs) {
-    assert.doesNotMatch(l, /AI_API_KEY|Authorization|Bearer|password|secret/i,
-      'log must not embed credentials');
-    assert.ok(/status=|upstreamStatus=/.test(l), 'log must contain status: ' + l);
-    assert.match(l, /latencyMs=/, 'log must contain latencyMs');
-  }
+  assert.ok(agentSeg.includes('callAiJson'), 'agent must use unified provider');
+  const providerSrc = readFileSync(join(ROOT, 'server', 'ai-provider.js'), 'utf8');
+  // Phase 6Q: provider centralizes logging through logSafe — verify no credentials in log calls
+  assert.ok(providerSrc.includes('logSafe'), 'provider has centralized log function');
+  // Extract only logSafe calls and the logSafe function body to check for credential leaks
+  const logSafeBody = providerSrc.substring(providerSrc.indexOf('function logSafe'), providerSrc.indexOf('function callAiCore'));
+  const logSafeCalls = providerSrc.match(/logSafe\([^)]+\)/g) || [];
+  const allLogCode = logSafeBody + logSafeCalls.join(' ');
+  assert.doesNotMatch(allLogCode, /AI_API_KEY|Authorization|Bearer|password|secret/i,
+    'provider logs must not embed credentials');
+  assert.ok(providerSrc.includes('latencyMs='), 'provider logs latencyMs');
+  assert.ok(providerSrc.includes('status='), 'provider logs status');
 });
 
 /* ================================================================
