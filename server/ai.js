@@ -35,7 +35,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { authMiddleware } = require('./auth');
-const { callAiText, callAiJson, mapUpstreamStatus } = require('./ai-provider');
+const { callAiText, callAiJson, getConfig } = require('./ai-provider');
 
 // Generate a short request correlation ID
 function generateRequestId() {
@@ -46,9 +46,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 const AI_API_KEY = process.env.AI_API_KEY || '';
-const AI_API_URL = process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 const AI_MODEL = process.env.AI_MODEL || 'gemini-3.6-flash';
-const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 60000;
 const AI_AGENT_ENABLED = process.env.AI_AGENT_ENABLED === 'true';
 
 // Rate limiters for AI endpoints
@@ -1427,7 +1425,7 @@ const Busboy = require('busboy');
 const AI_FILE_MAX_BYTES = parseInt(process.env.AI_FILE_MAX_BYTES || '15728640', 10); // 15 MB default
 const AI_FILE_RATE_LIMIT_PER_MIN = parseInt(process.env.AI_FILE_RATE_LIMIT_PER_MIN || '3', 10);
 const AI_FILE_RATE_LIMIT_PER_HOUR = parseInt(process.env.AI_FILE_RATE_LIMIT_PER_HOUR || '15', 10);
-const AI_FILE_TIMEOUT_MS = parseInt(process.env.AI_TIMEOUT_MS || '60000', 10);
+const AI_FILE_TIMEOUT_MS = getConfig().timeoutMs;
 const AI_FILE_MAX_TEXT_CHARS = 500000;
 
 const FILE_ALLOWED_MIMES = new Set([

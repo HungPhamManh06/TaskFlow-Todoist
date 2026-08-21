@@ -19,13 +19,40 @@
 --------------------------------------------------------------- */
 'use strict';
 
+const DEFAULT_TIMEOUT_MS = 60000;
+
+/**
+ * Read provider configuration from environment.
+ * Called dynamically so values reflect runtime env changes (testability).
+ */
 function getConfig() {
   return {
     apiKey: process.env.AI_API_KEY || '',
     apiUrl: process.env.AI_API_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     model: process.env.AI_MODEL || 'gemini-3.6-flash',
-    timeoutMs: Number(process.env.AI_TIMEOUT_MS) || 60000,
+    timeoutMs: validateTimeout(process.env.AI_TIMEOUT_MS),
   };
+}
+
+/**
+ * Validate and normalize a timeout value.
+ * Returns a safe positive integer, falling back to DEFAULT_TIMEOUT_MS.
+ */
+function validateTimeout(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_TIMEOUT_MS;
+  return Math.floor(n);
+}
+
+/**
+ * Derive a safe provider label from the configured API URL.
+ * Never exposes the full URL (may contain sensitive paths).
+ * Returns 'gemini' for Google endpoints, 'openai-compat' otherwise.
+ */
+function deriveProviderLabel(apiUrl) {
+  if (!apiUrl) return 'unknown';
+  if (apiUrl.includes('generativelanguage.googleapis.com')) return 'gemini';
+  return 'openai-compat';
 }
 
 /**
@@ -56,7 +83,7 @@ function logSafe(parts) {
  * @param {Array}   options.messages     - [{role, content}] message array
  * @param {Object}  [options.schema]     - JSON Schema for structured output (json mode)
  * @param {number}  [options.maxTokens]  - max output tokens (default 2048)
- * @param {number}  [options.timeoutMs]  - per-call timeout override
+ * @param {number}  [options.timeoutMs]  - per-call timeout override (optional; default from config)
  * @param {string}  [options.requestId]  - correlation ID for logging
  * @param {string}  [options.routeName]  - route name for logging
  * @param {string}  [options.model]      - model override
@@ -67,7 +94,7 @@ async function callAiCore(options) {
     messages,
     schema = null,
     maxTokens = 2048,
-    timeoutMs = AI_TIMEOUT_MS,
+    timeoutMs: explicitTimeout,
     requestId = '',
     routeName = '',
     model: modelOverride,
@@ -79,9 +106,13 @@ async function callAiCore(options) {
   }
 
   const model = modelOverride || cfg.model;
+  const effectiveTimeout = (Number.isFinite(explicitTimeout) && explicitTimeout > 0)
+    ? Math.floor(explicitTimeout)
+    : cfg.timeoutMs;
+  const provider = deriveProviderLabel(cfg.apiUrl);
   const startedAt = Date.now();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), effectiveTimeout);
 
   const logPrefix = (routeName ? 'route=' + routeName : 'route=unknown')
     + (requestId ? ' requestId=' + requestId : '');
@@ -120,10 +151,10 @@ async function callAiCore(options) {
     clearTimeout(timer);
     const latencyMs = Date.now() - startedAt;
     if (e && e.name === 'AbortError') {
-      logSafe(logPrefix + ' provider=gemini model=' + model + ' status=timeout latencyMs=' + latencyMs);
+      logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=timeout latencyMs=' + latencyMs);
       return { ok: false, content: null, latencyMs, status: 504, error: 'ai-timeout', details: null };
     }
-    logSafe(logPrefix + ' provider=gemini model=' + model + ' status=upstream-error latencyMs=' + latencyMs);
+    logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=upstream-error latencyMs=' + latencyMs);
     return { ok: false, content: null, latencyMs, status: 502, error: 'ai-provider-unavailable', details: null };
   }
 
@@ -133,7 +164,7 @@ async function callAiCore(options) {
   // Map upstream errors — NEVER expose provider body
   if (!upstream.ok) {
     const code = mapUpstreamStatus(upstream.status);
-    logSafe(logPrefix + ' provider=gemini upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
+    logSafe(logPrefix + ' provider=' + provider + ' upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
     return {
       ok: false,
       content: null,
@@ -149,18 +180,18 @@ async function callAiCore(options) {
   try {
     json = await upstream.json();
   } catch (_e) {
-    logSafe(logPrefix + ' provider=gemini model=' + model + ' status=json-parse-error latencyMs=' + latencyMs);
+    logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=json-parse-error latencyMs=' + latencyMs);
     return { ok: false, content: null, latencyMs, status: 502, error: 'ai-provider-unavailable', details: null };
   }
 
   // Extract content from OpenAI-compatible response
   const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
   if (typeof content !== 'string' || !content.trim()) {
-    logSafe(logPrefix + ' provider=gemini model=' + model + ' status=empty-content latencyMs=' + latencyMs);
+    logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=empty-content latencyMs=' + latencyMs);
     return { ok: false, content: null, latencyMs, status: 422, error: 'ai-invalid-response', details: ['empty-content'] };
   }
 
-  logSafe(logPrefix + ' provider=gemini model=' + model + ' status=success latencyMs=' + latencyMs);
+  logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=success latencyMs=' + latencyMs);
   return { ok: true, content: content.trim(), latencyMs, status: 200, error: null, details: null };
 }
 
@@ -203,7 +234,7 @@ module.exports = {
   mapUpstreamStatus,
   logSafe,
   getConfig,
-  // Expose config for tests / route assertions (NOT secrets)
-  get AI_MODEL() { return getConfig().model; },
-  get AI_TIMEOUT_MS() { return getConfig().timeoutMs; },
+  deriveProviderLabel,
+  validateTimeout,
+  DEFAULT_TIMEOUT_MS,
 };
