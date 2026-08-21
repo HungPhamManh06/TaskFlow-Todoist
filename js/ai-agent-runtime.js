@@ -305,6 +305,13 @@
       proposalId: proposal.id || 'p-' + Date.now(),
       actions: actions,
       dirty: false,
+      revision: 0,
+      originalProposal: JSON.parse(JSON.stringify(proposal)),
+      workingProposal: proposal,
+      _history: [],
+      _source: dry && dry._source ? dry._source : null,
+      _fileName: dry && dry._fileName ? dry._fileName : null,
+      _fileMime: dry && dry._fileMime ? dry._fileMime : null,
     };
   }
 
@@ -489,6 +496,285 @@
       return a;
     });
     return modified;
+  }
+
+  /* ================================================================
+   Phase 6F: Conversational Proposal Refinement
+   ================================================================ */
+
+  /** Snapshot current state for undo history */
+  function _snapshotReviewState() {
+    if (!_reviewState) return null;
+    return JSON.parse(JSON.stringify(_reviewState.actions.map(function (a) {
+      return { id: a.id, selected: a.selected, editedArgs: a.editedArgs };
+    })));
+  }
+
+  /** Push undo checkpoint */
+  function _pushUndo() {
+    if (!_reviewState) return;
+    const snap = _snapshotReviewState();
+    if (snap) {
+      if (!_reviewState._history) _reviewState._history = [];
+      _reviewState._history.push(snap);
+      if (_reviewState._history.length > 5) _reviewState._history.shift();
+      _reviewState.revision = (_reviewState.revision || 0) + 1;
+    }
+  }
+
+  /** Parse human index to action index (0-based) */
+  function _parseHumanIndex(s, actionsLen) {
+    if (!s) return -1;
+    const m = String(s).trim().toLowerCase();
+    if (m === 'đầu' || m === 'first' || m === '1st' || m === '1') return 0;
+    if (m === 'cuối' || m === 'last') return actionsLen - 1;
+    const n = parseInt(m, 10);
+    if (!isNaN(n) && n >= 1 && n <= actionsLen) return n - 1;
+    return -1;
+  }
+
+  /** Apply a single operation to review state */
+  function _applyOperation(op, card, proposal) {
+    if (!_reviewState || !op) return { ok: false, reason: 'no-review' };
+    const actions = _reviewState.actions;
+    if (!actions || !actions.length) return { ok: false, reason: 'no-actions' };
+
+    if (op.op === 'select') {
+      const idx = _parseHumanIndex(op.index, actions.length);
+      if (idx < 0) return { ok: false, reason: 'invalid-index' };
+      actions[idx].selected = true;
+      return { ok: true, summary: 'Đã chọn việc ' + (idx + 1) };
+    }
+    if (op.op === 'deselect') {
+      const idx = _parseHumanIndex(op.index, actions.length);
+      if (idx < 0) return { ok: false, reason: 'invalid-index' };
+      actions[idx].selected = false;
+      _propagateDeselect(actions, proposal);
+      return { ok: true, summary: 'Đã bỏ việc ' + (idx + 1) };
+    }
+    if (op.op === 'select-all') {
+      actions.forEach(function (a) { a.selected = true; });
+      return { ok: true, summary: 'Đã chọn tất cả' };
+    }
+    if (op.op === 'deselect-all') {
+      actions.forEach(function (a) { a.selected = false; });
+      return { ok: true, summary: 'Đã bỏ tất cả' };
+    }
+    if (op.op === 'select-only') {
+      const indexes = (op.indexes || '').split(',').map(function (s) { return _parseHumanIndex(s, actions.length); }).filter(function (i) { return i >= 0; });
+      if (!indexes.length) return { ok: false, reason: 'invalid-indexes' };
+      actions.forEach(function (a, i) { a.selected = indexes.indexOf(i) !== -1; });
+      return { ok: true, summary: 'Đã giữ ' + indexes.length + ' việc' };
+    }
+    if (op.op === 'set') {
+      const entry = actions.find(function (a) { return a.id === op.actionId; });
+      if (!entry) return { ok: false, reason: 'unknown-action' };
+      if (['duration', 'date', 'text', 'priority', 'start'].indexOf(op.field) === -1) return { ok: false, reason: 'invalid-field' };
+      if (!entry.editedArgs) entry.editedArgs = JSON.parse(JSON.stringify(entry.originalArgs || {}));
+      entry.editedArgs[op.field] = op.value;
+      _reviewState.dirty = true;
+      return { ok: true, summary: 'Đã đổi ' + op.field + ' của ' + op.actionId };
+    }
+    if (op.op === 'bulk-set') {
+      const field = op.field;
+      const value = op.value;
+      if (['duration', 'date', 'priority'].indexOf(field) === -1) return { ok: false, reason: 'invalid-field' };
+      let count = 0;
+      actions.forEach(function (a) {
+        if (!a.selected) return;
+        if (!a.editedArgs) a.editedArgs = JSON.parse(JSON.stringify(a.originalArgs || {}));
+        a.editedArgs[field] = value;
+        count++;
+      });
+      _reviewState.dirty = count > 0;
+      return { ok: true, summary: 'Đã đổi ' + field + ' cho ' + count + ' việc' };
+    }
+    if (op.op === 'filter-date') {
+      actions.forEach(function (a) {
+        const args = a.editedArgs || a.originalArgs || {};
+        a.selected = !!args.date;
+      });
+      _propagateDeselect(actions, proposal);
+      return { ok: true, summary: 'Đã giữ việc có deadline' };
+    }
+    return { ok: false, reason: 'unknown-op' };
+  }
+
+  /** Propagate deselection to dependents (P13) */
+  function _propagateDeselect(actions, proposal) {
+    if (!proposal || !Array.isArray(proposal.actions)) return;
+    const depGraph = {};
+    proposal.actions.forEach(function (a) {
+      if (a.args && a.args.taskRef && a.args.taskRef.kind === 'action' && a.args.taskRef.actionId) {
+        if (!depGraph[a.args.taskRef.actionId]) depGraph[a.args.taskRef.actionId] = [];
+        depGraph[a.args.taskRef.actionId].push(a.id);
+      }
+    });
+    let changed = true;
+    while (changed) {
+      changed = false;
+      actions.forEach(function (a) {
+        if (a.selected) return;
+        (depGraph[a.id] || []).forEach(function (childId) {
+          const child = actions.find(function (c) { return c.id === childId; });
+          if (child && child.selected) { child.selected = false; changed = true; }
+        });
+      });
+    }
+  }
+
+  /** Apply multiple operations from complex refinement */
+  function _applyOperations(ops, card, proposal) {
+    if (!Array.isArray(ops)) return { ok: false, summary: 'No operations' };
+    const results = [];
+    for (let i = 0; i < ops.length && i < 20; i++) {
+      results.push(_applyOperation(ops[i], card, proposal));
+    }
+    const ok = results.filter(function (r) { return r.ok; });
+    return { ok: ok.length > 0, summary: ok.map(function (r) { return r.summary; }).join('; ') };
+  }
+
+  /** Undo last refinement (P45) */
+  function _undoRefinement(card, proposal) {
+    if (!_reviewState || !_reviewState._history || !_reviewState._history.length) return false;
+    const snap = _reviewState._history.pop();
+    if (!snap) return false;
+    snap.forEach(function (s) {
+      const entry = _reviewState.actions.find(function (a) { return a.id === s.id; });
+      if (entry) { entry.selected = s.selected; entry.editedArgs = s.editedArgs; }
+    });
+    _reviewState.revision = (_reviewState.revision || 0) + 1;
+    if (card) _refreshReviewUI(card, proposal);
+    return true;
+  }
+
+  /** Reset to original proposal (P46) */
+  function _resetToOriginal(card) {
+    if (!_reviewState || !_reviewState.originalProposal) return false;
+    const orig = _reviewState.originalProposal;
+    _reviewState.actions = orig.actions.map(function (a) {
+      return { id: a.id, selected: true, editedArgs: null, originalArgs: JSON.parse(JSON.stringify(a.args || {})), isDependent: false };
+    });
+    _reviewState.dirty = false;
+    _reviewState._history = [];
+    _reviewState.revision = (_reviewState.revision || 0) + 1;
+    if (card) _refreshReviewUI(card, _reviewState.originalProposal);
+    return true;
+  }
+
+  /** Check if a message is a confirm-bypass attempt (P22-P23) */
+  function _isConfirmAttempt(message) {
+    if (typeof window !== 'undefined' && window.TaskFlowAIIntent && typeof window.TaskFlowAIIntent.classifyProposalMessage === 'function') {
+      return window.TaskFlowAIIntent.classifyProposalMessage(message).kind === 'confirm-attempt';
+    }
+    return /(?:áp\s+dụng|tạo\s+làm|confirm|execute|apply|ship\s+it)/i.test(message);
+  }
+
+  /** Handle refinement message (called from chat.js) */
+  function handleRefinement(message, msgs, card, proposal) {
+    if (!message || !_reviewState) return null;
+    const msgsEl = msgs || (typeof document !== 'undefined' ? document.getElementById('chatMessages') : null);
+
+    // P22: confirm bypass protection
+    if (_isConfirmAttempt(message)) {
+      const b = _bubble('agent-info');
+      b.textContent = _t('reviewConfirmBypass');
+      if (msgsEl) { msgsEl.appendChild(b); msgsEl.scrollTop = msgsEl.scrollHeight; }
+      return { handled: true, reply: _t('reviewConfirmBypass') };
+    }
+
+    // Classify the message
+    if (typeof window === 'undefined' || !window.TaskFlowAIIntent) return null;
+    const intent = window.TaskFlowAIIntent.classifyProposalMessage(message);
+    if (intent.kind !== 'refine' && intent.kind !== 'cancel' && intent.kind !== 'question') return null;
+
+    // P24: cancel
+    if (intent.kind === 'cancel') {
+      if (card) _cancelCard(card, msgsEl);
+      return { handled: true, reply: _t('reviewCancelled') };
+    }
+
+    // P25: question → answer from explainability
+    if (intent.kind === 'question') {
+      const b = _bubble('agent-info');
+      b.textContent = message;
+      if (msgsEl) { msgsEl.appendChild(b); msgsEl.scrollTop = msgsEl.scrollHeight; }
+      return { handled: true, reply: message };
+    }
+
+    // P33: add-blocked
+    if (intent.operationHint === 'add-blocked') {
+      const b = _bubble('agent-info');
+      b.textContent = _t('reviewAddBlocked');
+      if (msgsEl) { msgsEl.appendChild(b); msgsEl.scrollTop = msgsEl.scrollHeight; }
+      return { handled: true, reply: _t('reviewAddBlocked') };
+    }
+
+    // Push undo before applying
+    _pushUndo();
+
+    // Build operations from local intent
+    const ops = _buildOpsFromIntent(intent, message);
+    const result = _applyOperations(ops, card, proposal);
+
+    // Show change summary
+    const b = _bubble('agent-info');
+    b.textContent = result.ok ? (_t('reviewUpdated') + ' ' + result.summary) : _t('reviewRefineFailed');
+    if (msgsEl) { msgsEl.appendChild(b); msgsEl.scrollTop = msgsEl.scrollHeight; }
+
+    // Refresh card
+    if (card) _refreshReviewUI(card, proposal);
+
+    return { handled: true, reply: result.summary };
+  }
+
+  /** Build operations from local intent classification */
+  function _buildOpsFromIntent(intent, message) {
+    const hint = intent.operationHint;
+    if (!hint) return [];
+    if (hint === 'select-all') return [{ op: 'select-all' }];
+    if (hint === 'deselect-all') return [{ op: 'deselect-all' }];
+    if (hint === 'filter-date') return [{ op: 'filter-date' }];
+
+    // Parse index from message
+    const indexMatch = message.match(/(\d+|đầu|cuối|first|last)/i);
+    const idx = indexMatch ? indexMatch[1] : null;
+
+    if (hint === 'select') return [{ op: 'select', index: idx }];
+    if (hint === 'deselect') return [{ op: 'deselect', index: idx }];
+    if (hint === 'select-only') {
+      const indexes = message.match(/\d+/g) || [];
+      return [{ op: 'select-only', indexes: indexes.join(',') }];
+    }
+    if (hint === 'single-edit') {
+      const match = message.match(/(?:đổi|thay\s+đổi|set|change)\s+(?:task|việc)?\s*(?:thứ\s+)?(\d+|đầu|cuối)\s+(?:thành|to)\s*(.+)/i);
+      if (match) {
+        const actIdx = _parseHumanIndex(match[1], _reviewState ? _reviewState.actions.length : 3);
+        if (actIdx >= 0 && _reviewState) {
+          const entry = _reviewState.actions[actIdx];
+          const val = match[2].trim().replace(/phút$/, '').trim();
+          const numVal = parseInt(val, 10);
+          if (!isNaN(numVal) && numVal > 0) {
+            return [{ op: 'set', actionId: entry.id, field: 'duration', value: numVal }];
+          }
+          return [{ op: 'set', actionId: entry.id, field: 'text', value: val }];
+        }
+      }
+      return [];
+    }
+    if (hint === 'bulk-set') {
+      const match = message.match(/(?:đổi|set|change|đặt)\s+(?:tất\s+cả|all|các|những)\s+(?:task|việc|action)?\s*(?:thành|to|into)\s*(.+)/i);
+      if (match) {
+        const val = match[1].trim();
+        const numVal = parseInt(val.replace(/phút$/, '').trim(), 10);
+        if (!isNaN(numVal) && numVal > 0) return [{ op: 'bulk-set', field: 'duration', value: numVal }];
+        const dateMatch = val.match(/(\d{1,2}[\/.]\d{1,2}(?:[\/.]\d{2,4})?)/);
+        if (dateMatch) return [{ op: 'bulk-set', field: 'date', value: dateMatch[1] }];
+      }
+      return [];
+    }
+    if (hint === 'reorder') return [];
+    return [];
   }
 
   /** Editable fields per action type */
@@ -1544,6 +1830,10 @@
     _mapError: _mapError,
     _mapValidationError: _mapValidationError,
     handleExternalProposal: handleExternalProposal,
+    handleRefinement: handleRefinement,
+    _undoRefinement: _undoRefinement,
+    _resetToOriginal: _resetToOriginal,
+    _isConfirmAttempt: _isConfirmAttempt,
     _locate: _locate,
     _applyAction: _applyAction,
     _endClock: _endClock,

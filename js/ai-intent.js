@@ -234,5 +234,70 @@
     return { kind: 'read', confidence: 'high', reason: 'file-read-default' };
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /* ===================================================================
+   Phase 6F: Proposal Refinement Classifier (P7)
+   =================================================================== */
+  var CONFIRM_KEYWORDS_RE = /(?:áp\s+dụng|tạo\s+làm|làm\s+làm|confirm|execute|apply|ship\s+it|go\s+ahead|yes|ok|\blàm\b|\btạo\b|\bxác\s+nhận\b|\bthực\s+hiện\b)/i;
+  var CANCEL_KEYWORDS_RE = /(?:hủy\s+đề\s+xuất|huỷ\s+đề\s+xuất|cancel|discard|bỏ\s+đề\s+xuất)/i;
+  var SELECT_RE = /(?:chọn|giữ|lấy|keep|select)\s+(?:tất\s+cả|all|mọi|\*|everything)/i;
+  var DESELECT_RE = /(?:bỏ|xóa|xoá|loại\s+bỏ|remove|deselect|drop)\s+(?:tất\s+cả|all|mọi|\*|everything)/i;
+  var SELECT_ONLY_RE = /(?:chỉ|only|giữ\s+lại|chỉ\s+giữ|keep\s+only)\s+(.+?)(?:\s*$)/i;
+  var BULK_SET_RE = /(?:đổi|thay\s+đổi|set|change|đặt|cho)\s+(?:tất\s+cả|all|mọi|\*|everything|các|những)\s+(?:task|việc|action|thành|\bto\b|\binto\b)\s*(.+)/i;
+  var SINGLE_EDIT_RE = /(?:đổi|thay\s+đổi|set|change|đặt)\s+(?:task|việc)?\s*(?:thứ\s+)?(\d+|đầu|cuối|first|last|\d+st|\d+nd|\d+rd|\d+th)\s+(?:thành|\bto\b|\binto\b)\s*(.+)/i;
+  var BULK_SELECT_INDEX_RE = /(?:chọn|giữ|lấy|keep|select)\s+(?:\d+\s+(?:task|việc)\s+(?:đầu|cuối|first|last)|(?:\d+)\s+(?:đầu|cuối|first|last))/i;
+
+  function classifyProposalMessage(message) {
+    var s = String(message || '').trim();
+    if (!s) return { kind: 'normal-chat', confidence: 'high', reason: 'empty-message' };
+
+    // P22: confirm attempt → BLOCK
+    if (CONFIRM_KEYWORDS_RE.test(s)) return { kind: 'confirm-attempt', confidence: 'high', reason: 'confirm-keyword' };
+
+    // P24: cancel
+    if (CANCEL_KEYWORDS_RE.test(s)) return { kind: 'cancel', confidence: 'high', reason: 'cancel-keyword' };
+
+    // P16: select all
+    if (SELECT_RE.test(s)) return { kind: 'refine', operationHint: 'select-all', confidence: 'high', reason: 'select-all' };
+
+    // P16: deselect all
+    if (DESELECT_RE.test(s)) return { kind: 'refine', operationHint: 'deselect-all', confidence: 'high', reason: 'deselect-all' };
+
+    // P16: filter-like commands (must be before select-only to avoid false match)
+    if (/(?:chỉ\s+giữ|keep\s+only|chỉ\s+lấy).*(?:deadline|ngày\s+hạn|có\s+ngày)/i.test(s))
+      return { kind: 'refine', operationHint: 'filter-date', confidence: 'high', reason: 'filter-date' };
+
+    // P11: select only specific indexes
+    if (SELECT_ONLY_RE.test(s)) return { kind: 'refine', operationHint: 'select-only', confidence: 'high', reason: 'select-only' };
+
+    // P15: bulk set (all tasks to X duration/priority/date)
+    if (BULK_SET_RE.test(s)) return { kind: 'refine', operationHint: 'bulk-set', confidence: 'high', reason: 'bulk-set' };
+
+    // P14: single task edit
+    if (SINGLE_EDIT_RE.test(s)) return { kind: 'refine', operationHint: 'single-edit', confidence: 'high', reason: 'single-edit' };
+
+    // P11: single select by index
+    if (/(?:chọn|giữ|lấy|keep|select)\s+(?:task|việc)?\s*(?:thứ\s+)?(\d+|đầu|cuối)/i.test(s))
+      return { kind: 'refine', operationHint: 'select', confidence: 'high', reason: 'select-index' };
+
+    // P12: single deselect by index
+    if (/(?:bỏ|xóa|xoá|loại\s+bỏ|remove|deselect)\s+(?:task|việc)?\s*(?:thứ\s+)?(\d+|đầu|cuối)/i.test(s))
+      return { kind: 'refine', operationHint: 'deselect', confidence: 'high', reason: 'deselect-index' };
+
+    // P17: reorder
+    if (/(?:đưa|đặt|move|put)\s+(?:task|việc)?\s*(?:thứ\s+)?(\d+|đầu|cuối).*(?:lên|xuống|trước|sau|to\s+(?:top|bottom)|before|after)/i.test(s))
+      return { kind: 'refine', operationHint: 'reorder', confidence: 'medium', reason: 'reorder' };
+
+    // P25: questions during review
+    if (/\?$/.test(s) && /(?:tại\s+sao|why|ai|task\s+nào|có\s+task|bao\s+nhiêu|thứ\s+mấy)/i.test(s))
+      return { kind: 'question', confidence: 'medium', reason: 'review-question' };
+
+    // P33: adding new actions → BLOCK
+    if (/(?:thêm|add|tạo\s+thêm|create|new)\s+(?:task|việc)/i.test(s))
+      return { kind: 'refine', operationHint: 'add-blocked', confidence: 'high', reason: 'add-blocked' };
+
+    // P28: complex → needs AI
+    return { kind: 'refine', operationHint: 'complex', confidence: 'low', reason: 'complex-refinement' };
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });
