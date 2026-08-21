@@ -42,9 +42,10 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
   it('all console.log/error in file route must use defined variables only', () => {
     // Find the file route boundaries
     const fileRouteStart = src.indexOf("router.post('/file'");
-    const moduleExportsIdx = src.indexOf('module.exports = {');
-    assert.ok(fileRouteStart > 0 && moduleExportsIdx > fileRouteStart);
-    const fileRoute = src.substring(fileRouteStart, moduleExportsIdx);
+    const fileAgentStart = src.indexOf("router.post('/file-agent'");
+    const endIdx = fileAgentStart > 0 ? fileAgentStart : src.indexOf('module.exports = {');
+    assert.ok(fileRouteStart > 0 && endIdx > fileRouteStart);
+    const fileRoute = src.substring(fileRouteStart, endIdx);
 
     // Extract all variable declarations in the file route
     const varDecls = new Set();

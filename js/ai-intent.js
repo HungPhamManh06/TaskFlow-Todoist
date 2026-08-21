@@ -190,5 +190,49 @@
 
   function isActionIntent(message) { return classifyIntent(message).kind === 'agent'; }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /* ===================================================================
+   Phase 6D: File Intent Classifier (deterministic, no LLM)
+   Classifies a file-attached message as READ / AGENT / CLARIFY.
+   =================================================================== */
+  // Action verb patterns for file context
+  var FILE_ACTION_RE = /(?:tạo|thêm|add|create|new|lập|trích|xếp|đặt|schedule|import|chèn|insert|đưa\s+vào|gắn|classifyFileIntent|add\s+to|create\s+(?:task|deadline|event|todo)|make\s+(?:task|event|todo)|extract\s+(?:task|deadline|todo)|schedule\s+(?:these|all|every)|plan|lên\s+kế\s+hoạch|xếp\s+lịch|lập\s+lịch|lập\s+kế\s+hoạch)\s*(?:task|công\s+việc|việc|deadline|sự\s+kiện|todo|event|schedule|lịch|kế\s+hoạch|plan|assignment|bài|bài\s+tập)?/i;
+  // File-specific context: mention of file/upload
+  var FILE_CONTEXT_RE = /(?:file|tài\s+liệu|document|pdf|syllabus|assignment|chương|trang|page|chụp|screenshot|ảnh|image| ảnh|\bpdf\b|\btxt\b|\bmd\b|\bdoc\b|\bimg\b)/i;
+  // Negation
+  var FILE_NEGATION_RE = /(?:không|đừng|\bko\b|chớ|chẳng|thôi|\bno\b|\bdo\s+not\b|\bdon'?t\b|\bnever\b|\bstop\b|\bskip\b|\bkhông\s+cần\b|\bchỉ\s+(?:tóm\s+tắt|giải\s+thích|đọc|liệt\s+kê|describe|summarize|explain|read|list))\s*(?:tạo|thêm|create|add|schedule|xếp|lập|delete|remove|update|modify)?/i;
+  // Hypothetical
+  var FILE_HYPOTHETICAL_RE = /(?:nếu(?:\s+(?:tôi|ta)\s+)?|giả\s+sử|giả\s+như|\bsuppose\b|\bassume\b|\bwhat\s+(?:if|happens\s+if)\b|\bimagine\b|thì\s+sao|\bhow\s+(?:would|could|can)\s+you|\bcó\s+thể\s+(?:tạo|làm|xóa))/i;
+  // Ambiguous — no clear action or read intent
+  var FILE_AMBIGUOUS_RE = /^(?:làm|xử\s+lý|handle|deal\s+with|take\s+care|help|giúp)(?:\s+[^\n]*)?\s*[.!?]*\s*$/i;
+
+  function classifyFileIntent(message, hasFile) {
+    var s = String(message || '').trim();
+    if (!s) return { kind: 'clarify', confidence: 'medium', reason: 'empty-file-message' };
+    if (!hasFile) return { kind: 'read', confidence: 'high', reason: 'no-file-attached' };
+
+    // P8: negation always → READ
+    if (FILE_NEGATION_RE.test(s)) return { kind: 'read', confidence: 'high', reason: 'file-negation' };
+    // P9: hypothetical always → READ
+    if (FILE_HYPOTHETICAL_RE.test(s)) return { kind: 'read', confidence: 'high', reason: 'file-hypothetical' };
+
+    // P10: ambiguous → CLARIFY
+    if (FILE_AMBIGUOUS_RE.test(s)) return { kind: 'clarify', confidence: 'medium', reason: 'file-ambiguous' };
+
+    // High-confidence action: explicit action verb + file context or explicit mutation keywords
+    var hasActionVerb = FILE_ACTION_RE.test(s);
+    var hasFileContext = FILE_CONTEXT_RE.test(s);
+
+    if (hasActionVerb && hasFileContext) {
+      return { kind: 'agent', confidence: 'high', reason: 'file-action-with-context' };
+    }
+    if (hasActionVerb) {
+      // Action verb present but no explicit file context — still agent if intent is clear
+      return { kind: 'agent', confidence: 'high', reason: 'file-action-verb' };
+    }
+
+    // Default: READ (safe default — never infer mutation intent)
+    return { kind: 'read', confidence: 'high', reason: 'file-read-default' };
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });

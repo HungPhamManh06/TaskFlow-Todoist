@@ -55,8 +55,8 @@ describe('Phase 6C.1: Backend URL Routing', () => {
   const chatSrc = read('js/chat.js');
 
   it('file upload uses apiBase (not relative URL)', () => {
-    // Should use _getApiBase() + '/api/ai/file'
-    assert.ok(chatSrc.includes("apiBase + '/api/ai/file'"), 'should use apiBase for file endpoint');
+    // Should use apiBase for file endpoints (either literal or via variable)
+    assert.ok(chatSrc.includes('apiBase + endpoint') || chatSrc.includes("apiBase + '/api/ai/file'"), 'should use apiBase for file endpoint');
     // Should NOT have bare fetch('/api/ai/file', ...) without apiBase
     const fetchMatches = chatSrc.match(/fetch\(['"]\/api\/ai\/file['"]/g);
     assert.ok(!fetchMatches, 'should not use bare relative URL for file endpoint');

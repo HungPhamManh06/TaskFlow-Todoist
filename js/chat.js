@@ -423,6 +423,7 @@
   var _attachedFile = null;
   var _fileObjectURL = null;
   var _fileAbort = null;
+  var _pendingFileProposal = null; // Phase 6D: pending file-agent proposal awaiting review
   var _FILE_MAX_BYTES = 15 * 1024 * 1024; // 15 MB client limit
   var _ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain', 'text/markdown']);
   var _ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.txt', '.md']);
@@ -432,17 +433,24 @@
     { key: 'fileChipImageExplain', prompt: 'Giải thích nội dung trong ảnh' },
     { key: 'fileChipImageRead', prompt: 'Đọc nội dung chữ trong ảnh' },
     { key: 'fileChipImageFindError', prompt: 'Tìm lỗi trong ảnh này' },
+    { key: 'fileChipCreateTask', prompt: 'Tạo task từ ảnh này', isAction: true },
+    { key: 'fileChipExtractDeadline', prompt: 'Trích deadline từ ảnh', isAction: true },
   ];
   var FILE_CHIPS_DOC = [
     { key: 'fileChipSummary', prompt: 'Tóm tắt tài liệu này' },
     { key: 'fileChipExplain', prompt: 'Giải thích nội dung chính' },
     { key: 'fileChipKeyPoints', prompt: 'Liệt kê các điểm chính' },
     { key: 'fileChipQuiz', prompt: 'Tạo 10 câu hỏi ôn tập từ tài liệu' },
+    { key: 'fileChipCreateTask', prompt: 'Tạo task từ tài liệu này', isAction: true },
+    { key: 'fileChipExtractDeadline', prompt: 'Trích deadline từ tài liệu', isAction: true },
+    { key: 'fileChipPlan', prompt: 'Lập kế hoạch học từ tài liệu này', isAction: true },
   ];
   var FILE_CHIPS_TEXT = [
     { key: 'fileChipSummary', prompt: 'Tóm tắt nội dung' },
     { key: 'fileChipKeyPoints', prompt: 'Tìm các ý chính' },
     { key: 'fileChipDocExtract', prompt: 'Trích xuất thông tin quan trọng' },
+    { key: 'fileChipCreateTask', prompt: 'Tạo task từ nội dung này', isAction: true },
+    { key: 'fileChipExtractDeadline', prompt: 'Trích deadline từ nội dung', isAction: true },
   ];
 
   function _formatFileSize(bytes) {
@@ -584,6 +592,19 @@
     _renderFileCard(file);
   }
 
+  /* ---- Phase 6D: File intent detection (simple, no LLM) ---- */
+  var _FILE_ACTION_RE = /(?:tạo|thêm|add|create|new|lập|trích|xếp|đặt|schedule|import|chèn|đưa\s+vào|gắn|plan|lên\s+kế\s+hoạch|xếp\s+lịch|lập\s+lịch|lập\s+kế\s+hoạch)\s*(?:task|công\s+việc|việc|deadline|sự\s+kiện|todo|event|schedule|lịch|kế\s+hoạch|plan|assignment|bài|bài\s+tập)?/i;
+  var _FILE_ACTION_CONTEXT_RE = /(?:file|tài\s+liệu|document|pdf|syllabus|assignment|chương|trang|page|chụp|screenshot|ảnh|image)/i;
+  var _FILE_NEGATION_RE = /(?:không|đừng|\bko\b|\bno\b|\bdo\s+not\b|\bdon'?t\b|\bnever\b|\bstop\b|\bskip\b|\bchỉ\s+(?:tóm\s+tắt|giải\s+thích|đọc|liệt\s+kê))/i;
+  var _FILE_HYPOTHETICAL_RE = /(?:nếu|giả\s+sử|giả\s+như|\bsuppose\b|\bassume\b|\bwhat\s+if\b|\bimagine\b|thì\s+sao|\bhow\s+(?:would|could|can))/i;
+
+  function _isFileAgentIntent(text) {
+    if (!text) return false;
+    if (_FILE_NEGATION_RE.test(text)) return false;
+    if (_FILE_HYPOTHETICAL_RE.test(text)) return false;
+    return _FILE_ACTION_RE.test(text);
+  }
+
   async function _sendWithFile(text, file) {
     if (_inFlight || !file) return;
 
@@ -604,6 +625,10 @@
       return;
     }
 
+    // Phase 6D: detect file-agent intent and route accordingly
+    var isFileAgent = _isFileAgentIntent(text);
+    var endpoint = isFileAgent ? '/api/ai/file-agent' : '/api/ai/file';
+
     // ── Now safe to lock UI ──
     _inFlight = true;
     _setInputEnabled(false);
@@ -623,13 +648,26 @@
       fd.append('file', file);
       fd.append('message', text);
 
+      // Phase 6D: attach TaskFlow context for file-agent proposals (duplicate detection)
+      if (isFileAgent) {
+        try {
+          var ctxProvider = window.TaskFlowChatContextProvider;
+          if (ctxProvider && typeof ctxProvider.prepare === 'function') {
+            var ctxResult = ctxProvider.prepare(text);
+            if (ctxResult && ctxResult.ok && ctxResult.envelope) {
+              fd.append('taskflowContext', JSON.stringify(ctxResult.envelope.data || {}));
+            }
+          }
+        } catch (e) { /* context must never break file send */ }
+      }
+
       // Token from localStorage (same pattern as _callChatAPI)
       var token = null;
       try { token = localStorage.getItem('planner-token'); } catch (e) { /* */ }
       var headers = {};
       if (token) headers['Authorization'] = 'Bearer ' + token;
 
-      var resp = await fetch(apiBase + '/api/ai/file', {
+      var resp = await fetch(apiBase + endpoint, {
         method: 'POST',
         headers: headers,
         body: fd,
@@ -650,12 +688,33 @@
         return;
       }
 
-      // Success — safe text rendering
-      _appendText(msgs, json.answer || '', 'chat-msg bot');
-
-      _history.push({ role: 'user', content: text });
-      _history.push({ role: 'assistant', content: json.answer || '' });
-      if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+      // Phase 6D: if file-agent returned a proposal, feed into review system
+      if (isFileAgent && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
+        _pendingFileProposal = { proposal: json.proposal, source: json.source || { type: file.type, name: file.name } };
+        // Show summary + delegate to Phase 5C review via AgentRuntime
+        _appendText(msgs, json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }), 'chat-msg bot');
+        _history.push({ role: 'user', content: text });
+        _history.push({ role: 'assistant', content: json.proposal.summary || '' });
+        if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+        // Trigger Phase 5C review card if AgentRuntime is available
+        try {
+          if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
+            window.TaskFlowAIAgentRuntime.handleExternalProposal(json.proposal, { source: 'file', fileName: json.source && json.source.name, fileMime: json.source && json.source.type });
+          }
+        } catch (e) { /* review must never break chat */ }
+      } else if (isFileAgent && json.proposal && json.proposal.actions && json.proposal.actions.length === 0) {
+        // Phase 6D: no actions found
+        _appendText(msgs, json.proposal.summary || _t('fileAgentNoActions'), 'chat-msg bot');
+        _history.push({ role: 'user', content: text });
+        _history.push({ role: 'assistant', content: json.proposal.summary || '' });
+        if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+      } else {
+        // Phase 6C: normal read-only answer
+        _appendText(msgs, json.answer || '', 'chat-msg bot');
+        _history.push({ role: 'user', content: text });
+        _history.push({ role: 'assistant', content: json.answer || '' });
+        if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+      }
     } catch (e) {
       _setFileLoading(file.name, false);
       if (e && e.name === 'AbortError') return; // cancelled
