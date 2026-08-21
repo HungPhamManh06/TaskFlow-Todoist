@@ -453,6 +453,60 @@ function checkDailyReminder() {
 if (!window.TaskFlowRemindUI) throw new Error('TaskFlowRemindUI missing — js/remind-ui.js failed to load');
 const { syncReminderTimers, renderRemindList, insertBeforeTaskActions, beginRemindEdit, turnOffRemind } = window.TaskFlowRemindUI;
 
+/* ---------- Phase 6T: Adaptive Planning UI helpers ---------- */
+
+function _updateAdaptiveToggleUI() {
+  try {
+    if (!window.TaskFlowAIAdaptation) return;
+    const enabled = window.TaskFlowAIAdaptation.isEnabled();
+    const label = document.getElementById('adaptiveToggleLabel');
+    if (label) label.textContent = enabled ? t('adaptiveEnabled') : t('adaptiveDisabled');
+    const btn = document.getElementById('adaptiveToggleBtn');
+    if (btn) btn.setAttribute('aria-pressed', String(enabled));
+  } catch (e) { /* silent */ }
+}
+
+function _showAdaptivePatterns() {
+  try {
+    const content = document.getElementById('adaptivePatternsContent');
+    if (!content) return;
+    if (!window.TaskFlowAIAdaptation) { content.innerHTML = '<p>' + esc(t('notEnoughData')) + '</p>'; TaskFlowUI.openDialog('adaptivePatternsModal'); return; }
+    const hints = window.TaskFlowAIAdaptation.buildAdaptiveHints();
+    if (!hints || Object.keys(hints).length === 0) {
+      content.innerHTML = '<p class="adaptive-empty">' + esc(t('notEnoughData')) + '</p>';
+      TaskFlowUI.openDialog('adaptivePatternsModal');
+      return;
+    }
+    let html = '';
+    const confidenceLabel = (c) => { if (c === 'high') return t('highConfidence'); if (c === 'medium') return t('mediumConfidence'); return t('lowConfidence'); };
+    if (hints.focusDuration && hints.focusDuration.suggestedMinutes) {
+      html += '<div class="adaptive-pattern-item"><strong>' + esc(t('typicalFocusDuration')) + '</strong> '
+        + esc(String(hints.focusDuration.suggestedMinutes)) + ' min '
+        + '<span class="adaptive-meta">' + esc(confidenceLabel(hints.focusDuration.confidence)) + ' · '
+        + esc(String(hints.focusDuration.samples)) + ' ' + esc(t('samples')) + '</span></div>';
+    }
+    if (hints.focusWindow && hints.focusWindow.start) {
+      html += '<div class="adaptive-pattern-item"><strong>' + esc(t('productiveTime')) + '</strong> '
+        + esc(String(hints.focusWindow.start)) + '–' + esc(String(hints.focusWindow.end)) + ' '
+        + '<span class="adaptive-meta">' + esc(confidenceLabel(hints.focusWindow.confidence)) + ' · '
+        + esc(String(hints.focusWindow.samples)) + ' ' + esc(t('samples')) + '</span></div>';
+    }
+    if (hints.weekdayPatterns && hints.weekdayPatterns.productiveDays) {
+      html += '<div class="adaptive-pattern-item"><strong>' + esc(t('productiveDays')) + '</strong> '
+        + esc(hints.weekdayPatterns.productiveDays.join(', ')) + ' '
+        + '<span class="adaptive-meta">' + esc(confidenceLabel(hints.weekdayPatterns.confidence)) + '</span></div>';
+    }
+    if (hints.durationCalibration && hints.durationCalibration.suggestedMinutes) {
+      html += '<div class="adaptive-pattern-item"><strong>' + esc(t('durationCalibration')) + '</strong> '
+        + esc(String(hints.durationCalibration.suggestedMinutes)) + ' min '
+        + '<span class="adaptive-meta">' + esc(confidenceLabel(hints.durationCalibration.confidence)) + ' · '
+        + esc(String(hints.durationCalibration.samples)) + ' ' + esc(t('samples')) + '</span></div>';
+    }
+    content.innerHTML = html || '<p class="adaptive-empty">' + esc(t('notEnoughData')) + '</p>';
+    TaskFlowUI.openDialog('adaptivePatternsModal');
+  } catch (e) { /* adaptive view must never break app */ }
+}
+
 /* ---------- Phase 7.1: Chỉnh sửa lặp lại task (repeat-edit) ---------- */
 
 function beginRepeatEdit(btn) {
@@ -978,6 +1032,11 @@ async function aiRun() {
     today: PlannerUI.todayStr(),
     lang: getLang(),
   });
+  // Phase 6T: Show feedback bar after proposal renders
+  try {
+    const fbBar = resultHost.querySelector('[data-role="ai-feedback"]');
+    if (fbBar) fbBar.hidden = false;
+  } catch (e) { /* feedback bar is optional */ }
   // P6: AI thành công → AI preview là kế hoạch CHÍNH, rule planner + footer ẩn đi.
   setPlannerMode('ai');
   trackEvent('ai_preview');
@@ -5885,6 +5944,18 @@ document.addEventListener('click', (e) => {
     const host = document.querySelector('#plannerAi [data-role="ai-result"]');
     if (host) host.innerHTML = '';
     setPlannerMode('rule'); // P6.1: Hủy AI → khôi phục rule planner + footer, không reload.
+  } else if (act === 'ai-feedback') {
+    // Phase 6T: Record helpful/not-helpful feedback
+    try {
+      const rating = el.dataset.rating;
+      if (window.TaskFlowAIFeedback && rating) {
+        window.TaskFlowAIFeedback.recordFeedback({ feature: 'plan_day', rating: rating, timestamp: Date.now() });
+        const fbBar = el.closest('[data-role="ai-feedback"]');
+        if (fbBar) {
+          fbBar.innerHTML = '<span class="ai-feedback-thanks">' + esc(t('thanksFeedback')) + '</span>';
+        }
+      }
+    } catch (e) { /* feedback must never break app */ }
   } else if (act === 'ai-kind') {
     const kind = el.value || 'plan_day';
     const targets = el.closest('[data-role="ai-panel"]') && el.closest('[data-role="ai-panel"]').querySelector('[data-role="ai-targets"]');
@@ -6458,6 +6529,31 @@ document.addEventListener('click', (e) => {
   } else if (act === 'export-ics') {
     togglePop('dataPop');
     exportICS();
+  } else if (act === 'adaptive-toggle') {
+    // Phase 6T: Toggle adaptive planning on/off
+    try {
+      if (window.TaskFlowAIAdaptation) {
+        const enabled = window.TaskFlowAIAdaptation.isEnabled();
+        window.TaskFlowAIAdaptation.setEnabled(!enabled);
+        _updateAdaptiveToggleUI();
+        TaskFlowUI.toast(t(enabled ? 'adaptiveDisabled' : 'adaptiveEnabled'), 'success');
+      }
+    } catch (e) { /* adaptive toggle must never break app */ }
+  } else if (act === 'adaptive-view') {
+    // Phase 6T: Show learned patterns modal
+    _showAdaptivePatterns();
+  } else if (act === 'adaptive-reset') {
+    // Phase 6T: Reset learned data with confirmation
+    try {
+      if (window.TaskFlowAIAdaptation && confirm(t('resetConfirm'))) {
+        window.TaskFlowAIAdaptation.reset();
+        _updateAdaptiveToggleUI();
+        TaskFlowUI.toast(t('resetSuccess'), 'success');
+        trackEvent('adaptive_reset');
+      }
+    } catch (e) { /* adaptive reset must never break app */ }
+  } else if (act === 'adaptive-close') {
+    TaskFlowUI.closeDialog('adaptivePatternsModal');
   } else if (act === 'widget-settings') {
     openWidgetSettingsModal(el.dataset.view);
   } else if (act === 'widget-toggle') {
@@ -7444,6 +7540,7 @@ window.addEventListener('pageshow', reconcileOverlayScrollLocks);
 setTheme(THEME);
 applyDark(DARK);
 applyStaticI18N();
+_updateAdaptiveToggleUI();
 applySidebarCollapse();
 updateBrand(PLAN_YEAR, PLAN_MONTH);
 renderClock();

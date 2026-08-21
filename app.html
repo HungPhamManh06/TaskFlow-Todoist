@@ -313,6 +313,22 @@
           data-shell-icon="overview"><span>EN</span></button>
       </section>
 
+      <!-- Phase 6T: Adaptive Planning settings -->
+      <section class="tools-group" aria-labelledby="toolsAdaptiveTitle">
+        <h3 id="toolsAdaptiveTitle" data-i18n="adaptivePlanning">Lập kế hoạch thích ứng</h3>
+        <div class="tools-row tools-adaptive-toggle">
+          <span data-i18n="adaptivePlanningDesc">Sử dụng các mẫu làm việc được học cục bộ để cải thiện gợi ý lập kế hoạch.</span>
+        </div>
+        <div class="tools-action-grid">
+          <button type="button" class="tools-action" id="adaptiveToggleBtn" data-action="adaptive-toggle"
+            data-shell-icon="settings"><span id="adaptiveToggleLabel">Đã tắt</span></button>
+          <button type="button" class="tools-action" data-action="adaptive-view"
+            data-shell-icon="stats"><span data-i18n="viewLearnedPatterns">Xem mẫu đã học</span></button>
+          <button type="button" class="tools-action tools-action-danger" data-action="adaptive-reset"
+            data-shell-icon="refresh"><span data-i18n="resetLearnedData">Xóa dữ liệu đã học</span></button>
+        </div>
+      </section>
+
       <section class="tools-group" aria-labelledby="toolsMoreTitle">
         <h3 id="toolsMoreTitle">Hỗ trợ và hệ thống</h3>
         <button type="button" class="tools-row" data-action="print" data-i18n-title="printTitle"
@@ -416,6 +432,16 @@
         data-i18n-aria="closeBtn" data-shell-icon="close"></button>
       <h2 class="sync-modal-title" id="backupDialogTitle"><span data-i18n="backupRestore">Khôi phục bản sao lưu tự động</span></h2>
       <div id="backupList" class="backup-list"></div>
+    </div>
+  </div>
+
+  <!-- ===== Adaptive Patterns View (Phase 6T) ===== -->
+  <div class="report-modal" id="adaptivePatternsModal" hidden data-testid="adaptive-patterns-modal">
+    <div class="report-modal-card dialog" role="dialog" aria-modal="true" aria-labelledby="adaptivePatternsTitle">
+      <button type="button" class="sync-close" data-action="adaptive-close" aria-label="Đóng"
+        data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+      <h2 class="sync-modal-title" id="adaptivePatternsTitle"><span data-i18n="viewLearnedPatterns">Xem mẫu đã học</span></h2>
+      <div id="adaptivePatternsContent" class="adaptive-patterns-body"></div>
     </div>
   </div>
 
@@ -889,10 +915,12 @@
   <script src="js/timeblocks-ui.min.js?v=7"></script>
   <script src="js/gcal.min.js?v=3"></script>
   <script src="js/gcal-ui.min.js?v=3"></script>
-  <script src="js/ai.min.js?v=4"></script>
+  <script src="js/ai.min.js?v=5"></script>
   <!-- Phase 6S: Adaptive planning — loaded early for Focus + Settings availability -->
   <script src="js/ai-adaptation.min.js"></script>
-  <script src="js/app.min.js?v=217"></script>
+  <!-- Phase 6T: AI feedback store -->
+  <script src="js/ai-feedback.min.js"></script>
+  <script src="js/app.min.js?v=218"></script>
 </body>
 
 </html>

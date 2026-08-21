@@ -432,6 +432,10 @@
         <button type="button" class="button button-ghost button-sm" data-action="ai-cancel">${t('aiCancel')}</button>
         <button type="button" class="button button-primary button-sm" data-action="ai-apply">${t('aiApply')}</button>
       </div>
+      <div class="ai-feedback-bar" data-role="ai-feedback" hidden>
+        <button type="button" class="button button-ghost button-sm ai-feedback-btn" data-action="ai-feedback" data-rating="helpful">👍 ${t('helpful')}</button>
+        <button type="button" class="button button-ghost button-sm ai-feedback-btn" data-action="ai-feedback" data-rating="not-helpful">👎 ${t('notHelpful')}</button>
+      </div>
     </div>`;
   }
 

@@ -461,3 +461,15 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - logout() and deleteAccount() both clear adaptation data.
 - sync.min.js bumped to v7 (app.html + tests).
 - All existing tests pass. Phase 6S is genuinely CLOSED.
+
+## Phase 6T — AI UX, Trust & User Control (Aug 22, 2026)
+
+- **Adaptive Planning settings UI** — Toggle in Tools drawer (default OFF), View learned patterns modal, Reset learned data
+- **Learned patterns view** — Transparent read-only display of focus duration, productive time, productive days, duration calibration with confidence levels
+- **AI feedback store** — `js/ai-feedback.js` — Local-only bounded (200 entries, 90-day retention), stores only {feature, rating, reason, timestamp}, no task text or chat content
+- **Proposal feedback** — Helpful/Not helpful buttons on AI plan preview
+- **Adaptive settings in tools drawer** — Toggle, view patterns, reset
+- **Smart Planner integration** — Adaptive hints attached to /api/ai/plan context
+- **i18n** — 36 VI + EN strings for adaptive planning trust UX
+- **Phase 6T test suite** — 41 deterministic tests (adaptation, feedback, i18n, boot, context, privacy)
+- **app.min.js v218, sw CACHE v270**
