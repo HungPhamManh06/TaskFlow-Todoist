@@ -373,7 +373,7 @@ test('UI: planner-ui đọc global chuẩn TaskFlowI18N (không TaskFlowI18n)', 
 test('wiring: app.html load planner-rules + planner-ui trước app.js + v176', () => {
   assert.match(APP, /src="js\/planner-rules\.min\.js\?v=\d+"/);
   assert.match(APP, /src="js\/planner-ui\.min\.js\?v=\d+"/);
-  assert.match(APP, /js\/app\.min\.js\?v=216/);
+  assert.match(APP, /js\/app\.min\.js\?v=217/);
   const rulesIdx = APP.indexOf('js/planner-rules.min.js?v=');
   const uiIdx = APP.indexOf('js/planner-ui.min.js?v=');
   const appIdx = APP.indexOf('js/app.min.js?v=');
@@ -383,7 +383,7 @@ test('wiring: app.html load planner-rules + planner-ui trước app.js + v176', 
 test('wiring: sw.js precache planner modules + cache bump v215', () => {
   assert.ok(SW.includes("'./js/planner-rules.min.js'"), 'SW precache planner-rules.min.js');
   assert.ok(SW.includes("'./js/planner-ui.min.js'"), 'SW precache planner-ui.min.js');
-  assert.match(SW, /const CACHE = 'taskflow-v268'/);
+  assert.match(SW, /const CACHE = 'taskflow-v269'/);
 });
 
 test('wiring: app.js dispatcher có planner-open / planner-apply / planner-cancel', () => {

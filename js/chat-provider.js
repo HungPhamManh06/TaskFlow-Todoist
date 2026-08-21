@@ -178,6 +178,17 @@
         }
       } catch (e) { /* memory must never break chat */ }
 
+      // Phase 6S: Inject adaptive productivity hints when adaptation is enabled.
+      // Hints are advisory, local, and stripped server-side before reaching the model.
+      try {
+        var adapt = (typeof window !== 'undefined' && window.TaskFlowAIAdaptation)
+          ? window.TaskFlowAIAdaptation.buildAdaptiveHints()
+          : null;
+        if (adapt && typeof adapt === 'object') {
+          envelope.adaptiveHints = adapt;
+        }
+      } catch (e) { /* adaptation must never break chat */ }
+
       if (!cc.validateEnvelope || !cc.validateEnvelope(envelope).ok) {
         _log('prepare-failed', 'final-validation');
         return { ok: false, reason: 'final-validation' };

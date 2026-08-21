@@ -265,6 +265,21 @@
     session.elapsedMinutes = elapsed;
     clearActiveSession();
     saveSessionToHistory(session);
+
+    // Phase 6S: Record safe structural adaptation event (advisory only).
+    try {
+      if (typeof window !== 'undefined' && window.TaskFlowAIAdaptation && window.TaskFlowAIAdaptation.isEnabled()) {
+        window.TaskFlowAIAdaptation.recordEvent({
+          type: 'focus_session',
+          timestamp: session.endedAt || Date.now(),
+          plannedMinutes: session.plannedMinutes,
+          actualMinutes: session.elapsedMinutes,
+          completed: outcome.type === 'task-completed' || outcome.type === 'progress',
+          sessionId: session.id,
+        });
+      }
+    } catch (e) { /* adaptation must never break focus flow */ }
+
     return { session };
   }
 
