@@ -77,6 +77,7 @@ const APP_SHELL = [
   './js/ai-memory.min.js',
   './js/ai-adaptation.min.js',
   './js/ai-feedback.min.js',
+  './js/ai-review.min.js',
   './js/ai-chat-context.min.js',
   './js/chat-provider.min.js',
   './js/ai-agent.min.js',

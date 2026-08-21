@@ -977,11 +977,12 @@ function renderAiPanel() {
   delete window._lastAiProposal;
 }
 
+let _aiRequestGen = 0;
+let _aiAbortCtrl = null;
+
 async function aiRun() {
   const AI = window.TaskFlowAI;
   if (!AI) return;
-  // Debug-only diagnostics (?debug=1): chỉ log mã lỗi + validation code an toàn,
-  // KHÔNG bao giờ log prompt/context/reflection/mood hay nội dung upstream.
   const debugLog = typeof location !== 'undefined' && /[?&]debug=1/.test(location.search);
   const panel = document.querySelector('#plannerAi [data-role="ai-panel"]');
   if (!panel) return;
@@ -999,45 +1000,58 @@ async function aiRun() {
   const runBtn = panel.querySelector('[data-action="ai-run"]');
   const resultHost = panel.querySelector('[data-role="ai-result"]');
   if (runBtn) { runBtn.disabled = true; runBtn.textContent = t('aiRunning'); }
-  if (resultHost) resultHost.innerHTML = '';
-  const res = await AI.callPlanner(context);
+  if (resultHost) resultHost.innerHTML = '<p class="ai-loading">' + esc(t('aiPreparing')) + '</p>';
+  // Stale response protection: increment generation
+  const gen = ++_aiRequestGen;
+  // Cancel previous in-flight request
+  if (_aiAbortCtrl) { try { _aiAbortCtrl.abort(); } catch (e) { /* ignore */ } }
+  _aiAbortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const res = await AI.callPlanner(context, _aiAbortCtrl ? _aiAbortCtrl.signal : undefined);
+  // Stale response: if generation changed, discard this response
+  if (gen !== _aiRequestGen) return;
+  _aiAbortCtrl = null;
   if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('aiRun'); }
   if (!resultHost) return;
   if (!res.ok) {
-    const code = res.error || 'ai-provider-unavailable';
-    const details = Array.isArray(res.details) ? res.details : [];
-    if (debugLog) console.warn('[ai] plan rejected:', code, details);
-    const msg = code === 'ai-not-configured' ? 'aiNotConfigured'
-      : code === 'ai-invalid-response' || code === 'ai-validation-failed' ? 'aiInvalidOutput'
-      : code === 'ai-timeout' || code === 'network' ? 'aiError' : 'aiError';
-    // P6.1: lỗi AI → thông báo thân thiện + giữ rule planner dùng được bên dưới.
-    resultHost.innerHTML = `<p class="ai-error">${esc(t(msg))}</p><p class="ai-fallback-note">${esc(t('aiFallbackNote'))}</p>`;
+    const Review = (typeof window !== 'undefined' && window.TaskFlowAIReview) || null;
+    const errMsg = Review ? Review.friendlyError(res.error, getLang()) : esc(t('aiError'));
+    const fallbackNote = t('aiFallbackNote');
+    if (debugLog) console.warn('[ai] plan rejected:', res.error, res.details);
+    resultHost.innerHTML = `<p class="ai-error">${esc(errMsg)}</p><p class="ai-fallback-note">${esc(fallbackNote)}</p><button type="button" class="button button-ghost button-sm" data-action="ai-retry">${t('aiRetry')}</button>`;
     return;
   }
   const refs = { taskUids: new Set(context.tasks.concat(context.overdue).map((tk) => tk.uid)) };
   const v = AI.validateProposalLocal(res.proposal, refs);
   if (!v.ok) {
     if (debugLog) console.warn('[ai] client validation failed:', v.errors);
-    resultHost.innerHTML = `<p class="ai-error">${esc(t('aiInvalidOutput'))}</p><p class="ai-fallback-note">${esc(t('aiFallbackNote'))}</p>`; return;
+    const Review = (typeof window !== 'undefined' && window.TaskFlowAIReview) || null;
+    const errMsg = Review ? Review.friendlyError('ai-invalid-response', getLang()) : esc(t('aiInvalidOutput'));
+    resultHost.innerHTML = `<p class="ai-error">${esc(errMsg)}</p><p class="ai-fallback-note">${esc(t('aiFallbackNote'))}</p>`; return;
   }
   const warnings = AI.conflictCheck(res.proposal, context.timeblocks, context.busy);
   window._lastAiProposal = { proposal: res.proposal, refs };
-  // P3.1: bản đồ uid → task.text để preview HIỆN TÊN task, không bao giờ UID nội bộ.
   const taskLabels = {};
   context.tasks.concat(context.overdue).forEach((tk) => {
     if (tk && tk.uid && !taskLabels[tk.uid] && typeof tk.text === 'string' && tk.text.trim()) taskLabels[tk.uid] = tk.text;
   });
+  // Phase 6T.1: Build context usage for Data Used section
+  let contextUsage = [];
+  try {
+    const Explain = (typeof window !== 'undefined' && window.TaskFlowAIExplainability) || null;
+    if (Explain) contextUsage = Explain.buildContextUsageSummary(context, {});
+  } catch (e) { /* optional */ }
   resultHost.innerHTML = AI.previewHTML(res.proposal, warnings, {
     taskLabels,
     today: PlannerUI.todayStr(),
     lang: getLang(),
+    canonical: context,
+    context: context,
+    contextUsage: contextUsage,
   });
-  // Phase 6T: Show feedback bar after proposal renders
   try {
     const fbBar = resultHost.querySelector('[data-role="ai-feedback"]');
     if (fbBar) fbBar.hidden = false;
   } catch (e) { /* feedback bar is optional */ }
-  // P6: AI thành công → AI preview là kế hoạch CHÍNH, rule planner + footer ẩn đi.
   setPlannerMode('ai');
   trackEvent('ai_preview');
 }
@@ -1051,6 +1065,8 @@ function aiApply() {
   if (!AI || !last || aiApplying) return;
   aiApplying = true;
   try {
+    // Phase 6T.1: Push undo BEFORE mutations so Apply → Undo works
+    pushUndo();
     const result = AI.applyProposal(last.proposal, {
       findTask: (uid) => !!findPlannerTaskByUid(uid),
       createBlock: (payload) => {
@@ -1068,7 +1084,9 @@ function aiApply() {
     TaskFlowUI.closeDialog('plannerModal');
     delete window._lastAiProposal;
     const skip = result.skipped && result.skipped.length ? ' ' + t('aiSkipNote', { n: result.skipped.length }) : '';
-    TaskFlowUI.toast(t('aiApplied') + skip, 'success');
+    const count = (result.created || 0) + (result.rescheduled || 0);
+    const undoHint = count > 0 ? ' · ' + t('undoHint') : '';
+    TaskFlowUI.toast(t('aiApplied') + skip + undoHint, 'success');
     trackEvent('ai_apply');
   } finally {
     aiApplying = false;
@@ -5940,10 +5958,16 @@ document.addEventListener('click', (e) => {
   } else if (act === 'ai-apply') {
     aiApply();
   } else if (act === 'ai-cancel') {
+    // Phase 6T.1: Cancel also aborts in-flight request
+    if (_aiAbortCtrl) { try { _aiAbortCtrl.abort(); } catch (e) { /* ignore */ } _aiAbortCtrl = null; }
+    _aiRequestGen++;
     delete window._lastAiProposal;
     const host = document.querySelector('#plannerAi [data-role="ai-result"]');
     if (host) host.innerHTML = '';
-    setPlannerMode('rule'); // P6.1: Hủy AI → khôi phục rule planner + footer, không reload.
+    setPlannerMode('rule');
+  } else if (act === 'ai-retry') {
+    // Phase 6T.1: Retry requires explicit user action
+    aiRun();
   } else if (act === 'ai-feedback') {
     // Phase 6T: Record helpful/not-helpful feedback
     try {

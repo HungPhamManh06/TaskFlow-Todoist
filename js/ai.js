@@ -361,29 +361,28 @@
     </div>`;
   }
 
-  /* ---- Preview: semantic rows, KHÔNG hiện UID nội bộ ---- */
-  // opts = { taskLabels: {uid → task.text}, today: 'YYYY-MM-DD', lang: 'vi'|'en' }
+  /* ---- Preview: review model with before/after, provenance, edit support ---- */
+  // opts = { taskLabels, today, lang, canonical: { tasks, timeblocks }, context, contextUsage }
   function previewHTML(proposal, warnings, opts) {
     const o = opts || {};
     const labels = (o.taskLabels && typeof o.taskLabels === 'object') ? o.taskLabels : {};
     const lang = o.lang === 'en' ? 'en' : 'vi';
     const warnMap = {};
-    (warnings || []).forEach((w) => { warnMap[w.actionIndex] = w; });
-    // UID KHÔNG bao giờ là display text: fallback an toàn nếu thiếu label.
+    (warnings || []).forEach((w) => { if (w) warnMap[w.actionIndex] = w; });
     const labelFor = (uid) => {
       const v = labels[uid];
       return (typeof v === 'string' && v.trim()) ? v : t('aiTaskFallback');
     };
-    const shortDate = (dateStr) => {
+    const shortD = (dateStr) => {
       if (!validDate(dateStr)) return '';
-      const y = +dateStr.slice(0, 4), mo = +dateStr.slice(5, 7), d = +dateStr.slice(8, 10);
+      const mo = +dateStr.slice(5, 7), d = +dateStr.slice(8, 10);
       if (lang === 'vi') return String(d).padStart(2, '0') + '/' + String(mo).padStart(2, '0');
-      const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return d + ' ' + MONTHS[mo - 1];
+      const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return d + ' ' + M[mo - 1];
     };
     const dateLabel = (a) => {
       if (a.date && o.today && a.date === o.today) return t('aiPlanToday');
-      const s = shortDate(a.date);
+      const s = shortD(a.date);
       return s ? s : '';
     };
     const durText = (a) => {
@@ -396,38 +395,96 @@
       if (!r) return lang === 'vi' ? h + ' giờ' : h + ' h';
       return lang === 'vi' ? h + ' giờ ' + r + ' phút' : h + ' h ' + r + ' min';
     };
+    // Build review model for before/after diffs
+    const Review = (typeof window !== 'undefined' && window.TaskFlowAIReview) || null;
+    const Explain = (typeof window !== 'undefined' && window.TaskFlowAIExplainability) || null;
+    const canonical = o.canonical || { tasks: (o.context && o.context.tasks) || [], timeblocks: (o.context && o.context.timeblocks) || [] };
+    let reviewModel = null;
+    if (Review) {
+      try {
+        reviewModel = Review.buildReview(proposal, canonical, {
+          taskLabels: labels,
+          warnings: warnings,
+          lang: lang,
+          contextUsage: o.contextUsage || [],
+        });
+      } catch (e) { reviewModel = null; }
+    }
+    // Per-action items with before/after + provenance
     const items = proposal.actions.map((a, i) => {
       const w = warnMap[i];
-      // P6: badge nhỏ gọn + text accessible theo kind (conflictCheck đã lộ kind an toàn).
-      const kindKey = w && w.kind ? { existing: 'aiConflictExisting', busy: 'aiConflictBusy', proposed: 'aiConflictProposed' }[w.kind] : null;
-      const tag = w
-        ? ` <span class="ai-warn" role="note"${kindKey ? ` title="${escAttr(t(kindKey))}" aria-label="${escAttr(t(kindKey))}"` : ''}>${escHtml(t('aiConflict'))}</span>`
-        : '';
+      const kindKey = w && w.kind ? { existing:'aiConflictExisting', busy:'aiConflictBusy', proposed:'aiConflictProposed' }[w.kind] : null;
+      const tag = w ? ` <span class="ai-warn" role="note"${kindKey ? ` title="${escAttr(t(kindKey))}" aria-label="${escAttr(t(kindKey))}"` : ''}>${escHtml(t('aiConflict'))}</span>` : '';
+      const rd = reviewModel && reviewModel.actions ? reviewModel.actions[i] : null;
+      const beforeText = rd && rd.before && rd.before.lines ? rd.before.lines.join(' · ') : '';
+      const afterText = rd && rd.after && rd.after.lines ? rd.after.lines.join(' · ') : '';
+      const hasEdit = rd && rd.editableFields && rd.editableFields.length > 0;
+      // Build item HTML
+      let html = '';
       if (a.type === 'schedule_task') {
         const dLabel = dateLabel(a);
         const dateTime = (validDate(a.date) && validTime(a.start)) ? escAttr(a.date + 'T' + a.start) : '';
-        return `<li class="ai-plan-item">
+        html = `<li class="ai-plan-item" data-action-id="${escAttr(a.id)}">
           <time class="ai-plan-time"${dateTime ? ` datetime="${dateTime}"` : ''}>${escHtml(a.start || '--:--')}</time>
           <div class="ai-plan-main">
             <strong class="ai-plan-task">${escHtml(labelFor(a.taskUid))}${tag}</strong>
             <span class="ai-plan-meta">${escHtml(durText(a))}${dLabel ? ' · ' + escHtml(dLabel) : ''}</span>
+            ${beforeText ? `<div class="ai-diff"><span class="ai-diff-before">${escHtml(beforeText)}</span> → <span class="ai-diff-after">${escHtml(afterText)}</span></div>` : ''}
           </div>
           <span class="ai-plan-uid" data-task-uid="${escAttr(a.taskUid)}" hidden></span>
         </li>`;
+      } else if (a.type === 'reschedule_task') {
+        html = `<li class="ai-plan-item ai-plan-item-reschedule" data-action-id="${escAttr(a.id)}">
+          ${escHtml(t('aiActReschedule', { task: labelFor(a.taskUid), opt: t('aiOpt' + a.option) }))}${tag}
+          ${beforeText ? `<div class="ai-diff"><span class="ai-diff-before">${escHtml(beforeText)}</span> → <span class="ai-diff-after">${escHtml(afterText)}</span></div>` : ''}
+        </li>`;
+      } else if (a.type === 'create_task') {
+        html = `<li class="ai-plan-item ai-plan-item-create" data-action-id="${escAttr(a.id)}">
+          <strong>${escHtml(t('aiActNew'))}: ${escHtml(a.text)}</strong>${tag}
+          <span class="ai-plan-meta">${escHtml(durText(a))}</span>
+          ${beforeText ? `<div class="ai-diff"><span class="ai-diff-before">${escHtml(beforeText)}</span> → <span class="ai-diff-after">${escHtml(afterText)}</span></div>` : ''}
+        </li>`;
+      } else {
+        html = `<li class="ai-plan-item ai-plan-item-next" data-action-id="${escAttr(a.id)}">
+          ${escHtml(t('aiActNext'))}: ${escHtml(a.text)}${tag}
+        </li>`;
+    }
+      // Provenance (Why this suggestion?)
+      let provHtml = '';
+      if (Explain && o.context) {
+        try {
+          const prov = Explain.buildActionFactors(a, { proposal, ctx: o.context, warnings: warnings });
+          if (prov && prov.factors && prov.factors.length > 0) {
+            const factorItems = prov.factors.map(f => `<span class="ai-prov-factor" data-prov-type="${escAttr(f.type)}">${escHtml(f.label)}</span>`).join(' ');
+            provHtml = `<details class="ai-prov"><summary class="ai-prov-toggle" aria-expanded="false">${t('whySuggestion')}</summary><div class="ai-prov-body">${factorItems}</div></details>`;
+          }
+        } catch (e) { /* explainability optional */ }
       }
-      if (a.type === 'reschedule_task') {
-        return `<li class="ai-plan-item ai-plan-item-reschedule">${escHtml(t('aiActReschedule', { task: labelFor(a.taskUid), opt: t('aiOpt' + a.option) }))}${tag}</li>`;
-      }
-      return `<li class="ai-plan-item ai-plan-item-next">${escHtml(t('aiActNext'))}: ${escHtml(a.text)}${tag}</li>`;
+      return `<div class="ai-action-block">${html}${provHtml}</div>`;
     }).join('');
     const warnNote = (warnings && warnings.length)
       ? `<p class="ai-warn-note">${t('aiConflictsNote')}</p>`
       : '';
+    // Data used section
+    let dataUsedHtml = '';
+    if (Explain && o.contextUsage && o.contextUsage.length > 0) {
+      const labels2 = o.contextUsage.map(cu => `<span class="ai-data-tag">${escHtml(lang === 'en' ? cu.label_en : cu.label_vi)}</span>`).join(' ');
+      dataUsedHtml = `<details class="ai-data-used"><summary class="ai-data-toggle">${t('dataUsed')}</summary><div class="ai-data-body">${labels2}</div></details>`;
+    } else if (Explain && o.context) {
+      try {
+        const summary = Explain.buildContextUsageSummary(o.context, o.contextUsageOpts || {});
+        if (summary && summary.length > 0) {
+          const tags = summary.map(s => `<span class="ai-data-tag">${escHtml(lang === 'en' ? s.label_en : s.label_vi)}</span>`).join(' ');
+          dataUsedHtml = `<details class="ai-data-used"><summary class="ai-data-toggle">${t('dataUsed')}</summary><div class="ai-data-body">${tags}</div></details>`;
+        }
+      } catch (e) { /* data used optional */ }
+    }
     return `<div class="ai-preview" data-role="ai-preview">
       <p class="ai-summary"><strong>${t('aiSummary')}:</strong> ${escHtml(proposal.summary)}</p>
       ${warnNote}
       <h4 class="ai-plan-section">${t('aiPlanSection')}</h4>
       <ul class="ai-plan-list">${items}</ul>
+      ${dataUsedHtml}
       <div class="ai-preview-actions">
         <button type="button" class="button button-ghost button-sm" data-action="ai-cancel">${t('aiCancel')}</button>
         <button type="button" class="button button-primary button-sm" data-action="ai-apply">${t('aiApply')}</button>

@@ -473,3 +473,17 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - **i18n** — 36 VI + EN strings for adaptive planning trust UX
 - **Phase 6T test suite** — 41 deterministic tests (adaptation, feedback, i18n, boot, context, privacy)
 - **app.min.js v218, sw CACHE v270**
+
+## Phase 6T.1 — Trust UX Completion (Aug 22, 2026)
+
+- **Release gate repair** — i18n.min.js version pin fixed (v51 → v52)
+- **Review model** — `js/ai-review.js` deterministic before/after diffs for schedule, reschedule, create actions
+- **Explainability integration** — "Why this suggestion?" provenance panels via existing ai-explainability.js
+- **Data used transparency** — expandable context category display
+- **Undo integration** — aiApply() pushes undo snapshot before mutations
+- **AbortController** — in-flight requests cancelled on new run or panel close
+- **Stale response protection** — monotonically increasing request generation counter
+- **Friendly error mapping** — VI/EN error messages for all provider errors via TaskFlowAIReview.friendlyError()
+- **Retry button** — explicit user-initiated retry after errors
+- **Loading states** — honest progress indicator during AI request
+- **app.min.js v219, i18n.min.js v52, sw CACHE v271**
