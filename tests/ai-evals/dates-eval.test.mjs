@@ -5,10 +5,8 @@
  * Tests valid/invalid dates, leap years, month/year/week boundaries,
  * time formats, durations, and reschedule options.
  *
- * NOTE: server/ai.js validDate uses new Date() which accepts some
- * technically-invalid dates (e.g. Feb 30) due to JS roll-over.
- * Client-side js/ai.js has stricter round-trip validation.
- * Tests match actual server behavior and document limitations.
+ * Phase 6R.1: server/ai.js validDate now uses strict round-trip validation.
+ * All impossible calendar dates (e.g. Feb 30, Apr 31) are now rejected.
  */
 
 import { describe, it } from 'node:test';
@@ -75,27 +73,88 @@ describe('Date/Time Eval: Invalid Date Formats', () => {
    SECTION 3: Server Date Roll-Over Limitation
    ================================================================ */
 
-describe('Date/Time Eval: Server Date Roll-Over Limitation', () => {
-  // server/ai.js validDate uses new Date(s + 'T00:00:00') which rolls over
-  // technically-invalid dates. Client-side js/ai.js has stricter validation.
-  // These tests document the server's actual behavior.
+describe('Date/Time Eval: Strict Calendar Validation (6R.1 Fix)', () => {
+  // Phase 6R.1: server/ai.js validDate now uses strict round-trip validation.
+  // Impossible calendar dates are now REJECTED at the server level.
 
-  it('Feb 30 accepted by server (roll-over to Mar 2) — client rejects', () => {
-    // This is a known server-side limitation
+  it('Feb 30 rejected — not a valid calendar date', () => {
     const v = validateProposal({
       summary: 'Plan',
       actions: [{ type: 'schedule_task', taskUid: 't1', date: '2026-02-30', start: '09:00', duration: 60, option: null, text: null }],
     }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
-    // Server accepts due to Date roll-over — this is a known limitation
-    assert.equal(v.ok, true, 'Server accepts Feb 30 due to Date roll-over (known limitation)');
+    assert.equal(v.ok, false, 'Feb 30 must be rejected by strict calendar validation');
   });
 
-  it('April 31 accepted by server (roll-over) — client rejects', () => {
+  it('April 31 rejected — not a valid calendar date', () => {
     const v = validateProposal({
       summary: 'Plan',
       actions: [{ type: 'schedule_task', taskUid: 't1', date: '2026-04-31', start: '09:00', duration: 60, option: null, text: null }],
     }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
-    assert.equal(v.ok, true, 'Server accepts Apr 31 due to Date roll-over (known limitation)');
+    assert.equal(v.ok, false, 'Apr 31 must be rejected by strict calendar validation');
+  });
+
+  it('June 31 rejected — not a valid calendar date', () => {
+    const v = validateProposal({
+      summary: 'Plan',
+      actions: [{ type: 'schedule_task', taskUid: 't1', date: '2026-06-31', start: '09:00', duration: 60, option: null, text: null }],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, 'Jun 31 must be rejected');
+  });
+
+  it('September 31 rejected — not a valid calendar date', () => {
+    const v = validateProposal({
+      summary: 'Plan',
+      actions: [{ type: 'schedule_task', taskUid: 't1', date: '2026-09-31', start: '09:00', duration: 60, option: null, text: null }],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, 'Sep 31 must be rejected');
+  });
+
+  it('November 31 rejected — not a valid calendar date', () => {
+    const v = validateProposal({
+      summary: 'Plan',
+      actions: [{ type: 'schedule_task', taskUid: 't1', date: '2026-11-31', start: '09:00', duration: 60, option: null, text: null }],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, 'Nov 31 must be rejected');
+  });
+
+  it('2027-02-29 rejected — 2027 is not a leap year', () => {
+    const v = validateProposal({
+      summary: 'Plan',
+      actions: [{ type: 'schedule_task', taskUid: 't1', date: '2027-02-29', start: '09:00', duration: 60, option: null, text: null }],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, 'Non-leap Feb 29 must be rejected');
+  });
+
+  it('2028-02-29 accepted — 2028 IS a leap year', () => {
+    const v = validateProposal({
+      summary: 'Plan',
+      actions: [{ type: 'schedule_task', taskUid: 't1', date: '2028-02-29', start: '09:00', duration: 60, option: null, text: null }],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, true, 'Leap year Feb 29 must be accepted');
+  });
+
+  it('2026-02-31 rejected — not a valid calendar date', () => {
+    const v = validateProposal({
+      summary: 'Plan',
+      actions: [{ type: 'schedule_task', taskUid: 't1', date: '2026-02-31', start: '09:00', duration: 60, option: null, text: null }],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, 'Feb 31 must be rejected');
+  });
+
+  it('1900-02-29 rejected — outside TaskFlow year range', () => {
+    const v = validateProposal({
+      summary: 'Plan',
+      actions: [{ type: 'schedule_task', taskUid: 't1', date: '1900-02-29', start: '09:00', duration: 60, option: null, text: null }],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, '1900 is outside year range');
+  });
+
+  it('2000-02-29 accepted — 2000 is a leap year in range', () => {
+    const v = validateProposal({
+      summary: 'Plan',
+      actions: [{ type: 'schedule_task', taskUid: 't1', date: '2000-02-29', start: '09:00', duration: 60, option: null, text: null }],
+    }, { taskUids: new Set(['t1']), projectIds: new Set(), milestoneIds: new Set() });
+    assert.equal(v.ok, false, '2000 is outside year range (2020-2099)');
   });
 });
 

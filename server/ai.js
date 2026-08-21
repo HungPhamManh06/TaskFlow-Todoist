@@ -239,8 +239,11 @@ function sanitizeContext(raw) {
 
 function validDate(s) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const d = new Date(s + 'T00:00:00');
-  return !Number.isNaN(d.getTime()) && d.getFullYear() >= 2020 && d.getFullYear() <= 2099;
+  const parts = s.split('-').map(Number);
+  const year = parts[0], month = parts[1], day = parts[2];
+  if (year < 2020 || year > 2099) return false;
+  const d = new Date(year, month - 1, day);
+  return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
 }
 
 function validTime(s) {

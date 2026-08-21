@@ -28,6 +28,16 @@
   var MAX_DEPTH = 4;         // P24
   var MAX_HISTORY = 5;       // P53
 
+  /* Strict calendar date validation — rejects impossible dates like 2026-02-30 */
+  function isValidCalendarDate(s) {
+    if (typeof s !== 'string' || !ISO_DATE_RE.test(s)) return false;
+    var parts = s.split('-').map(Number);
+    var year = parts[0], month = parts[1], day = parts[2];
+    if (year < 2020 || year > 2099) return false;
+    var d = new Date(year, month - 1, day);
+    return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+  }
+
   /* ─── P11: Goal Normalization ─── */
   function normalizeGoal(raw) {
     if (!raw || typeof raw !== 'object') return null;
@@ -35,7 +45,7 @@
     if (!title) return null;
     return {
       title: title,
-      targetDate: (raw.targetDate && ISO_DATE_RE.test(raw.targetDate)) ? raw.targetDate : null,
+      targetDate: (raw.targetDate && isValidCalendarDate(raw.targetDate)) ? raw.targetDate : null,
       desiredOutcome: typeof raw.desiredOutcome === 'string' ? raw.desiredOutcome.trim() : null,
       scope: raw.scope || null,
       constraints: raw.constraints || null
@@ -101,7 +111,7 @@
       milestoneId: task.milestoneId || null,
       title: task.title || '',
       duration: typeof task.duration === 'number' ? Math.max(1, task.duration) : null,
-      deadline: task.deadline || null,
+      deadline: (task.deadline && isValidCalendarDate(task.deadline)) ? task.deadline : null,
       dependsOn: Array.isArray(task.dependsOn) ? task.dependsOn : [],
       existingTaskKey: task.existingTaskKey || null,
       source: task.source || 'ai-suggested',
