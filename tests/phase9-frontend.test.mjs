@@ -2308,10 +2308,10 @@ test('release: offline app deep links resolve the cached app shell instead of la
   assert.match(String(matchCalls[0].request.url || matchCalls[0].request), /app\.html/);
 });
 
-test('release: sync.min.js cache-bust upgraded to v6 with no stale v5 reference', () => {
-  // P1: sync.min.js changed in Phase 6S.1 → bump ?v=6.
-  assert.match(APP, /js\/sync\.min\.js\?v=6/);
-  assert.doesNotMatch(APP, /js\/sync\.min\.js\?v=5/, 'không được để lại tham chiếu ?v=5 cũ');
+test('release: sync.min.js cache-bust upgraded to v7 with no stale v6 reference', () => {
+  // P1: sync.min.js changed in Phase 6S.3 → bump ?v=7.
+  assert.match(APP, /js\/sync\.min\.js\?v=7/);
+  assert.doesNotMatch(APP, /js\/sync\.min\.js\?v=6/, 'không được để lại tham chiếu ?v=6 cũ');
   // SW precache phải chứa sync.min.js để offline phục vụ được
   assert.ok(SW.includes("\'./js/sync.min.js\'"), 'sw.js phải precache js/sync.min.js');
 });
@@ -2458,15 +2458,15 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
   // ngay trong lần load nâng cấp đầu tiên (không cần reload lần 2)
   let responsePromise;
   handlers.fetch({
-    request: { method: 'GET', mode: 'cors', url: 'https://taskflow.test/js/sync.min.js?v=6' },
+    request: { method: 'GET', mode: 'cors', url: 'https://taskflow.test/js/sync.min.js?v=7' },
     respondWith(promise) { responsePromise = promise; },
   });
   const res = await responsePromise;
-  assert.ok(res && res.source === 'network-new-v5', 'lần load đầu sau nâng cấp phải lấy sync.min.js?v=6 mới từ network');
+  assert.ok(res && res.source === 'network-new-v5', 'lần load đầu sau nâng cấp phải lấy sync.min.js?v=7 mới từ network');
   assert.notEqual(res, oldV4, 'entry v4 cũ không bao giờ được trả cho request v5');
   assert.equal(matchCalls.length, 1, 'chỉ 1 lần match exact URL (online không dùng ignoreSearch)');
   assert.equal(matchCalls[0].options?.ignoreSearch, undefined);
-  assert.equal(matchCalls[0].request.url, 'https://taskflow.test/js/sync.min.js?v=6');
+  assert.equal(matchCalls[0].request.url, 'https://taskflow.test/js/sync.min.js?v=7');
 });
 
 test('release: offline navigation fallback strips Content-Disposition from cached HTML', async () => {

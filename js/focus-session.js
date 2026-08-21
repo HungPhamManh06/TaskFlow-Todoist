@@ -267,14 +267,16 @@
     saveSessionToHistory(session);
 
     // Phase 6S: Record safe structural adaptation event (advisory only).
+    // Only count as successful when task completed, or progress with credited time.
     try {
       if (typeof window !== 'undefined' && window.TaskFlowAIAdaptation && window.TaskFlowAIAdaptation.isEnabled()) {
+        var isProductive = outcome.type === 'task-completed' || (outcome.type === 'progress' && creditedMinutes > 0);
         window.TaskFlowAIAdaptation.recordEvent({
           type: 'focus_session',
           timestamp: session.endedAt || Date.now(),
           plannedMinutes: session.plannedMinutes,
           actualMinutes: session.elapsedMinutes,
-          completed: outcome.type === 'task-completed' || outcome.type === 'progress',
+          completed: isProductive,
           sessionId: session.id,
         });
       }

@@ -152,6 +152,16 @@
         value: m && typeof m.value === 'number' ? m.value : null,
       })).filter((x) => x && x.date);
     }
+    // Phase 6S: Attach adaptive productivity hints when adaptation is enabled.
+    // Hints are advisory, local, and stripped server-side before reaching the model.
+    try {
+      if (typeof window !== 'undefined' && window.TaskFlowAIAdaptation && window.TaskFlowAIAdaptation.isEnabled()) {
+        var hints = window.TaskFlowAIAdaptation.buildAdaptiveHints();
+        if (hints && typeof hints === 'object') {
+          ctx.adaptiveHints = hints;
+        }
+      }
+    } catch (e) { /* adaptation must never break planner */ }
     return ctx;
   }
 
