@@ -495,5 +495,39 @@
     return null;
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, classifyGoalIntent: classifyGoalIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /* ─── P7: Focus Session Intent Router (deterministic) ─── */
+  function classifyFocusIntent(message) {
+    if (typeof message !== 'string') return null;
+    var s = _normalize(message);
+
+    // Start focus
+    if (/(?:bắt đầu|start)\s+(?:focus|tập trung|phiên)/i.test(s))
+      return { kind: 'start-focus', confidence: 'high', reason: 'start-focus' };
+    if (/(?:tập trung|focus)\s+(?:task|việc|assignment|database)/i.test(s))
+      return { kind: 'start-focus', confidence: 'high', reason: 'focus-task' };
+    if (/^(?:học|làm)\s+/.test(s) && /\d+\s*(?:phút|p|min)/i.test(s))
+      return { kind: 'start-focus', confidence: 'medium', reason: 'focus-duration' };
+
+    // Pause
+    if (/^(?:tạm dừng|pause|dừng)(?:\s+lại)?$/.test(s))
+      return { kind: 'pause-focus', confidence: 'high', reason: 'pause-focus' };
+
+    // Resume
+    if (/^(?:tiếp tục|resume|tiếp)(?:\s+lại)?$/.test(s))
+      return { kind: 'resume-focus', confidence: 'high', reason: 'resume-focus' };
+
+    // End session
+    if (/^(?:kết thúc|end|dừng|xong|stop)\s*(?:phiên|focus)?/.test(s))
+      return { kind: 'end-focus', confidence: 'high', reason: 'end-focus' };
+
+    // Progress report
+    if (/tôi\s+(?:làm được|đã làm|focus được|đ được)\s+\d+/i.test(s))
+      return { kind: 'progress-report', confidence: 'high', reason: 'progress-report' };
+    if (/\d+\s*(?:phút|p|min)\s*(?:tiến độ|progress|thực sự)/i.test(s))
+      return { kind: 'progress-report', confidence: 'high', reason: 'progress-report-duration' };
+
+    return null;
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, classifyGoalIntent: classifyGoalIntent, classifyFocusIntent: classifyFocusIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });
