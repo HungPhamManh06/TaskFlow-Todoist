@@ -36,7 +36,7 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { authMiddleware } = require('./auth');
 const { callAiText, callAiJson, getConfig } = require('./ai-provider');
-const { validateRoadmapModelOutput } = require('./ai-roadmap-validator');
+const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('./ai-roadmap-validator');
 
 // Generate a short request correlation ID
 function generateRequestId() {
@@ -243,6 +243,64 @@ function sanitizeContext(raw) {
       if (val !== null) sanitized[k] = val;
     }
     if (Object.keys(sanitized).length > 0) ctx.preferences = sanitized;
+  }
+  // Phase 6S: Sanitize adaptive productivity hints (advisory only, strict allowlist).
+  if (raw.adaptiveHints && typeof raw.adaptiveHints === 'object') {
+    const AH = {};
+    const ah = raw.adaptiveHints;
+    // durationCalibration
+    if (ah.durationCalibration && typeof ah.durationCalibration === 'object') {
+      const d = ah.durationCalibration;
+      const m = Number(d.suggestedMinutes);
+      if (isFinite(m) && m >= 5 && m <= 480) {
+        AH.durationCalibration = {
+          suggestedMinutes: Math.round(m),
+          confidence: ['low', 'medium', 'high'].includes(d.confidence) ? d.confidence : 'low',
+          samples: Math.min(Math.max(Number(d.samples) || 0, 0), 999),
+        };
+      }
+    }
+    // focusDuration
+    if (ah.focusDuration && typeof ah.focusDuration === 'object') {
+      const f = ah.focusDuration;
+      const m = Number(f.suggestedMinutes);
+      if (isFinite(m) && m >= 5 && m <= 480) {
+        AH.focusDuration = {
+          suggestedMinutes: Math.round(m),
+          confidence: ['low', 'medium', 'high'].includes(f.confidence) ? f.confidence : 'low',
+          samples: Math.min(Math.max(Number(f.samples) || 0, 0), 999),
+        };
+      }
+    }
+    // focusWindow
+    if (ah.focusWindow && typeof ah.focusWindow === 'object') {
+      const w = ah.focusWindow;
+      const s = typeof w.start === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(w.start) ? w.start : null;
+      const e = typeof w.end === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(w.end) ? w.end : null;
+      if (s && e) {
+        AH.focusWindow = {
+          start: s,
+          end: e,
+          confidence: ['low', 'medium', 'high'].includes(w.confidence) ? w.confidence : 'low',
+          samples: Math.min(Math.max(Number(w.samples) || 0, 0), 999),
+        };
+      }
+    }
+    // weekdayPatterns
+    if (ah.weekdayPatterns && typeof ah.weekdayPatterns === 'object') {
+      const wp = ah.weekdayPatterns;
+      if (Array.isArray(wp.productiveDays)) {
+        const validDays = wp.productiveDays.filter(d => typeof d === 'string' && ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].includes(d));
+        if (validDays.length > 0 && validDays.length < 7) {
+          AH.weekdayPatterns = {
+            productiveDays: validDays.slice(0, 7),
+            confidence: ['low', 'medium', 'high'].includes(wp.confidence) ? wp.confidence : 'low',
+            samples: Math.min(Math.max(Number(wp.samples) || 0, 0), 999),
+          };
+        }
+      }
+    }
+    if (Object.keys(AH).length > 0) ctx.adaptiveHints = AH;
   }
   return { ctx, trimmed };
 }
@@ -2280,7 +2338,9 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
       return res.status(422).json({ ok: false, error: 'ai-roadmap-invalid-output', details: vResult.errors.slice(0, 5) });
     }
 
-    res.json({ ok: true, roadmap });
+    // Canonicalize: strip unknown provider fields before returning to client
+    const canonical = canonicalizeRoadmapModelOutput(roadmap);
+    res.json({ ok: true, roadmap: canonical || roadmap });
   } catch (err) {
     return res.status(500).json({ ok: false, error: 'ai-provider-unavailable' });
   }

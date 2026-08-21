@@ -418,3 +418,15 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - Added 17 new server-boundary tests (existingTaskKey empty set, dependency depth, empty roadmap, source/reuse validation).
 - Full validation: 2551 tests pass, sync 13/13, security 5/5, release assets OK.
 - Phase 6R is now CLOSED — all roadmap boundary contracts hardened.
+
+## Phase 6S — Privacy-First Adaptive Personal Planning (Aug 21, 2026)
+
+- Created `js/ai-adaptation.js` — deterministic, local-only behavioral learning module.
+- Signals: focus session duration, task completion times, work windows, weekday patterns.
+- Privacy: no task text, no reflection, no mood, no chat content, no sensitive traits.
+- Retention: 90 days / 500 events (whichever first).
+- Confidence model: low (3+), medium (5+), high (10+) samples.
+- Explicit preferences always override adaptive hints.
+- Server sanitizes `adaptiveHints` with strict allowlist.
+- Pre-flight: canonicalized roadmap output, strict milestone integer order, source contract tightened.
+- 62 Phase 6S tests, 2613 total repository tests, all green.
