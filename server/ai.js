@@ -1981,5 +1981,191 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
   }
 });
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, FILE_AGENT_ACTION_TYPES, validateFileAgentProposal, FILE_AGENT_SCHEMA };
+/* ============ Phase 6F: POST /api/ai/refine — Conversational Proposal Refinement ============ */
+
+// P32: Allowed operation types
+const REFINE_OP_TYPES = ['select', 'deselect', 'select-all', 'deselect-all', 'select-only', 'set', 'bulk-set', 'filter-date', 'reorder'];
+const REFINE_SET_FIELDS = ['duration', 'date', 'text', 'priority', 'start'];
+const REFINE_MAX_OPS = 20;
+
+/** Validate a single refinement operation */
+function validateRefineOp(op, actions) {
+  if (!op || typeof op !== 'object') return 'op-not-object';
+  if (REFINE_OP_TYPES.indexOf(op.op) === -1) return 'op-type-not-allowed';
+  if (op.op === 'set') {
+    if (typeof op.actionId !== 'string' || !validActionId(op.actionId)) return 'set-invalid-actionId';
+    if (actions && !actions.find(function (a) { return a.id === op.actionId; })) return 'set-unknown-action';
+    if (REFINE_SET_FIELDS.indexOf(op.field) === -1) return 'set-field-not-allowed';
+    if (op.field === 'duration' && (typeof op.value !== 'number' || op.value < 1 || op.value > 1440)) return 'set-invalid-duration';
+    if (op.field === 'date' && op.value !== null && op.value !== undefined && !validDate(op.value)) return 'set-invalid-date';
+    if (op.field === 'text' && (typeof op.value !== 'string' || !op.value.trim() || op.value.length > 300)) return 'set-invalid-text';
+    if (op.field === 'priority' && typeof op.value !== 'boolean') return 'set-invalid-priority';
+    if (op.field === 'start' && (typeof op.value !== 'string' || !validTime(op.value))) return 'set-invalid-start';
+  }
+  if (op.op === 'bulk-set') {
+    if (['duration', 'date', 'priority'].indexOf(op.field) === -1) return 'bulk-field-not-allowed';
+    if (op.field === 'duration' && (typeof op.value !== 'number' || op.value < 1 || op.value > 1440)) return 'bulk-invalid-duration';
+  }
+  if (op.op === 'set' || op.op === 'deselect' || op.op === 'select') {
+    // P37: reject prototype pollution
+    for (const k of Object.keys(op)) {
+      if (k === '__proto__' || k === 'prototype' || k === 'constructor') return 'op-prototype-pollution';
+    }
+  }
+  return null;
+}
+
+/** Validate refinement request body */
+function validateRefineRequest(body) {
+  if (!body || typeof body !== 'object') return { ok: false, errors: ['body-not-object'] };
+  if (typeof body.message !== 'string' || !body.message.trim()) return { ok: false, errors: ['message-invalid'] };
+  if (body.message.length > MAX_MESSAGE_LEN) return { ok: false, errors: ['message-too-long'] };
+  if (!body.proposal || typeof body.proposal !== 'object') return { ok: false, errors: ['proposal-invalid'] };
+  if (!Array.isArray(body.proposal.actions) || body.proposal.actions.length > AGENT_MAX_ACTIONS) return { ok: false, errors: ['proposal-actions-invalid'] };
+  if (typeof body.revision !== 'number' || body.revision < 0) return { ok: false, errors: ['revision-invalid'] };
+  return { ok: true, errors: [] };
+}
+
+// POST /api/ai/refine (Bearer) { message, proposal, revision, taskflowContext? }
+// Returns structured operations for client to apply to review state.
+// NO direct TaskFlow writes. NO autonomous execution.
+router.post('/refine', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => {
+  const requestId = generateRequestId();
+  try {
+    if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
+
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const vr = validateRefineRequest(body);
+    if (!vr.ok) return res.status(400).json({ error: 'invalid-request', details: vr.errors });
+
+    const message = body.message.trim();
+    const proposal = body.proposal;
+    const revision = body.revision;
+    const actions = Array.isArray(proposal.actions) ? proposal.actions : [];
+
+    // Validate operations in message locally first (deterministic fast path)
+    const localOps = _classifyLocalOps(message);
+    if (localOps && localOps.length > 0) {
+      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' mode=local operationCount=' + localOps.length + ' latencyMs=0');
+      return res.json({ ok: true, operations: localOps, baseRevision: revision, mode: 'local' });
+    }
+
+    // Complex: call Gemini for structured operations
+    const lang = /[a-zA-Z]/.test(message) && !/[àáảãạ]/.test(message) ? 'en' : 'vi';
+    const REFINE_INSTRUCTION = lang === 'en'
+      ? 'You modify a pending TaskFlow proposal. The user sends natural language refinement.\n'
+        + 'Return ONLY a JSON array of operations. NEVER apply changes directly.\n'
+        + 'Allowed operations: {op:"select", index:N}, {op:"deselect", index:N}, {op:"select-all"}, {op:"deselect-all"},\n'
+        + '{op:"set", actionId:"a1", field:"duration", value:45}, {op:"bulk-set", field:"duration", value:45},\n'
+        + '{op:"filter-date"}. Max 20 operations.\n'
+        + 'Current proposal actions: ' + JSON.stringify(actions.map(function (a) { return { id: a.id, type: a.type, text: (a.args||{}).text || '', date: (a.args||{}).date || null }; })) + '\n'
+        + 'Return format: {"operations": [...]}'
+      : 'Bạn chỉnh sửa đề xuất TaskFlow đang chờ. Người dùng gửi yêu cầu chỉnh sửa bằng lời.\n'
+        + 'CHỈ trả về JSON mảng các thao tác. KHÔNG BAO GIỜ áp dụng trực tiếp.\n'
+        + 'Thao tác cho phép: {op:"select", index:N}, {op:"deselect", index:N}, {op:"select-all"}, {op:"deselect-all"},\n'
+        + '{op:"set", actionId:"a1", field:"duration", value:45}, {op:"bulk-set", field:"duration", value:45},\n'
+        + '{op:"filter-date"}. Tối đa 20 thao tác.\n'
+        + 'Đề xuất hiện tại: ' + JSON.stringify(actions.map(function (a) { return { id: a.id, type: a.type, text: (a.args||{}).text || '', date: (a.args||{}).date || null }; })) + '\n'
+        + 'Định dạng: {"operations": [...]}';
+
+    const messages = [
+      { role: 'system', content: REFINE_INSTRUCTION },
+      { role: 'user', content: message },
+    ];
+
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+
+    let upstream;
+    try {
+      upstream = await fetch(AI_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + AI_API_KEY },
+        body: JSON.stringify({ model: AI_MODEL, max_tokens: 2048, messages }),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      const latencyMs = Date.now() - startedAt;
+      if (e && e.name === 'AbortError') {
+        console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=timeout latencyMs=' + latencyMs);
+        return res.status(504).json({ error: 'ai-timeout' });
+      }
+      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=upstream-error latencyMs=' + latencyMs);
+      return res.status(502).json({ error: 'ai-provider-unavailable' });
+    }
+    clearTimeout(timer);
+    const latencyMs = Date.now() - startedAt;
+
+    if (!upstream.ok) {
+      const code = upstream.status === 400 ? 'ai-provider-bad-request' : upstream.status === 429 ? 'ai-rate-limited' : 'ai-provider-unavailable';
+      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=upstream-error upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
+      return res.status(upstream.status === 429 ? 429 : 502).json({ error: code });
+    }
+
+    let json;
+    try { json = await upstream.json(); } catch (e) { return res.status(502).json({ error: 'ai-provider-unavailable' }); }
+    const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+    if (typeof content !== 'string' || !content.trim()) {
+      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=empty-content latencyMs=' + latencyMs);
+      return res.status(422).json({ error: 'ai-invalid-response', details: ['empty-content'] });
+    }
+
+    // Parse structured operations from response
+    let ops = [];
+    try {
+      const parsed = JSON.parse(content.replace(/^```json\s*/, '').replace(/```$/, '').trim());
+      ops = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.operations) ? parsed.operations : []);
+    } catch (e) {
+      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=parse-failed latencyMs=' + latencyMs);
+      return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
+    }
+
+    // P36+P38: validate operations
+    if (ops.length > REFINE_MAX_OPS) {
+      return res.status(422).json({ error: 'ai-refine-too-many-ops', details: ['max ' + REFINE_MAX_OPS] });
+    }
+    const errors = [];
+    for (let i = 0; i < ops.length; i++) {
+      const err = validateRefineOp(ops[i], actions);
+      if (err) errors.push('op-' + i + '-' + err);
+    }
+    if (errors.length) {
+      console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' status=validation-failed latencyMs=' + latencyMs);
+      return res.status(422).json({ error: 'ai-refine-validation-failed', details: errors.slice(0, 5) });
+    }
+
+    console.log('[ai] route=/api/ai/refine requestId=' + requestId + ' operationCount=' + ops.length + ' status=success latencyMs=' + latencyMs);
+    return res.json({ ok: true, operations: ops, baseRevision: revision, mode: 'ai' });
+  } catch (e) {
+    const safeType = e && e.constructor ? e.constructor.name : 'Error';
+    console.error('[ai] route=/api/ai/refine status=internal-error errorType=' + safeType);
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
+/** Simple local-only operation classification (deterministic, no Gemini) */
+function _classifyLocalOps(message) {
+  const s = String(message || '').trim();
+  if (!s) return null;
+  // Select all
+  if (/(?:chọn|giữ|lấy|keep|select)\s+(?:tất\s+cả|all|mọi|\*|everything)/i.test(s))
+    return [{ op: 'select-all' }];
+  // Deselect all
+  if (/(?:bỏ|xóa|xoá|loại\s+bỏ|remove|deselect|drop)\s+(?:tất\s+cả|all|mọi|\*|everything)/i.test(s))
+    return [{ op: 'deselect-all' }];
+  // Filter date
+  if (/(?:chỉ\s+giữ|keep\s+only|chỉ\s+lấy).*(?:deadline|ngày\s+hạn|có\s+ngày)/i.test(s))
+    return [{ op: 'filter-date' }];
+  // Single deselect
+  const deselectMatch = s.match(/(?:bỏ|xóa|xoá|loại\s+bỏ|remove|deselect)\s+(?:task|việc)?\s*(?:thứ\s+)?(\d+|đầu|cuối)/i);
+  if (deselectMatch) return [{ op: 'deselect', index: deselectMatch[1] }];
+  // Single select
+  const selectMatch = s.match(/(?:chọn|giữ|lấy|keep|select)\s+(?:task|việc)?\s*(?:thứ\s+)?(\d+|đầu|cuối)/i);
+  if (selectMatch) return [{ op: 'select', index: selectMatch[1] }];
+  return null;
+}
+
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, FILE_AGENT_ACTION_TYPES, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS };
 
