@@ -2482,5 +2482,87 @@ function _classifyLocalOps(message) {
   return null;
 }
 
+/* ============ POST /api/ai/roadmap — Phase 6M goal-to-roadmap ============ */
+// P31: Dedicated endpoint for roadmap generation.
+const ROADMAP_LIMITER = rateLimit({ windowMs: 60000, max: 3, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => String(req.user.id), message: { error: 'ai-rate-limited', retryAfterSeconds: 60 }, handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }) });
+const ROADMAP_HOURLY = rateLimit({ windowMs: 3600000, max: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => String(req.user.id), message: { error: 'ai-rate-limited', retryAfterSeconds: 3600 }, handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 3600 }) });
+router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
+  const startMs = Date.now();
+  try {
+    if (!AI_CONFIGURED) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
+    const body = req.body || {};
+    if (!body.goal || typeof body.goal !== 'object' || !body.goal.title) {
+      return res.status(400).json({ ok: false, error: 'ai-roadmap-invalid-goal' });
+    }
+
+    const goalTitle = String(body.goal.title || '').trim().slice(0, TEXT_MAX);
+    if (!goalTitle) return res.status(400).json({ ok: false, error: 'ai-roadmap-invalid-goal' });
+
+    const targetDate = body.goal.targetDate || null;
+    const existingWork = Array.isArray(body.existingWork) ? body.existingWork.slice(0, 60) : [];
+    const limits = body.limits || {};
+    const maxMilestones = Math.min(Number(limits.maxMilestones) || 8, 8);
+    const maxTasks = Math.min(Number(limits.maxTasks) || 20, 20);
+    const constraints = body.constraints || null;
+    const lang = body.lang || 'vi';
+
+    const existingWorkStr = existingWork.map((t) => {
+      const key = t.key || '';
+      const title = String(t.title || '').slice(0, TEXT_MAX);
+      return `${key}: ${title}${t.status ? ' [' + t.status + ']' : ''}`;
+    }).join('\n');
+
+    const goalLine = `Goal: ${goalTitle}${targetDate ? '\nTarget date: ' + targetDate : ''}`;
+    const constraintLine = constraints ? `\nConstraints: ${JSON.stringify(constraints).slice(0, 500)}` : '';
+    const limitLine = `\nLimits: maxMilestones=${maxMilestones}, maxTasks=${maxTasks}, maxDependencyDepth=4`;
+    const existingLine = existingWorkStr ? `\nExisting work (reuse where possible, never duplicate):\n${existingWorkStr}` : '';
+
+    const systemPrompt = lang === 'en'
+      ? 'You generate a structured ROADMAP PREVIEW as strict JSON. You cannot create tasks, apply changes, write TaskFlow, schedule events, change deadlines, or delete work. Return JSON with: { milestones: [{tempId, title, order}], tasks: [{tempId, milestoneId, title, duration, deadline, dependsOn: [], existingTaskKey, source}], reuse: [{existingTaskKey, roadmapTitle}] }. No chain-of-thought. No markdown. JSON only.'
+      : 'Bạn tạo ROADMAP PREVIEW dưới dạng JSON chặt chẽ. Bạn KHÔNG được tạo task, áp dụng thay đổi, ghi TaskFlow, xếp lịch, đổi deadline, hay xóa việc. Trả về JSON: { milestones: [{tempId, title, order}], tasks: [{tempId, milestoneId, title, duration, deadline, dependsOn: [], existingTaskKey, source}], reuse: [{existingTaskKey, roadmapTitle}] }. Không suy luận. Không markdown. Chỉ JSON.';
+
+    const userPrompt = `${goalLine}${constraintLine}${limitLine}${existingLine}`;
+
+    const result = await callAI({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      responseMimeType: 'application/json',
+      maxOutputTokens: 4096
+    });
+
+    if (!result || !result.text) {
+      logSafe('route=/api/ai/roadmap status=provider-empty ms=' + (Date.now() - startMs));
+      return res.status(502).json({ ok: false, error: 'ai-roadmap-provider-empty' });
+    }
+
+    let roadmap;
+    try { roadmap = JSON.parse(result.text); } catch (_jsonErr) {
+      logSafe('route=/api/ai/roadmap status=invalid-json ms=' + (Date.now() - startMs));
+      return res.status(422).json({ ok: false, error: 'ai-roadmap-provider-invalid' });
+    }
+
+    if (!roadmap || !Array.isArray(roadmap.milestones) || !Array.isArray(roadmap.tasks)) {
+      logSafe('route=/api/ai/roadmap status=invalid-structure ms=' + (Date.now() - startMs));
+      return res.status(422).json({ ok: false, error: 'ai-roadmap-invalid-structure' });
+    }
+
+    // Enforce caps
+    if (roadmap.milestones.length > maxMilestones || roadmap.tasks.length > maxTasks) {
+      logSafe('route=/api/ai/roadmap status=too-large ms=' + (Date.now() - startMs));
+      return res.status(422).json({ ok: false, error: 'ai-roadmap-too-large' });
+    }
+
+    logSafe(`route=/api/ai/roadmap milestoneCount=${roadmap.milestones.length} taskCount=${roadmap.tasks.length} status=success ms=${Date.now() - startMs}`);
+
+    res.json({ ok: true, roadmap });
+  } catch (err) {
+    const ms = Date.now() - startMs;
+    const mapped = mapProviderError(err, 'route=/api/ai/roadmap ms=' + ms);
+    res.status(mapped.status).json({ ok: false, error: mapped.error });
+  }
+});
+
 module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, FILE_AGENT_ACTION_TYPES, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS };
 
