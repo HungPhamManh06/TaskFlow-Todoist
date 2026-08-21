@@ -107,10 +107,9 @@ describe('Phase 6F — Refinement Router', () => {
     assert.equal(r.operationHint, 'filter-date');
   });
 
-  it('returns refine add-blocked for "Thêm task mới"', () => {
+  it('returns expand for "Thêm task mới" (Phase 6G routes add to expand)', () => {
     const r = classifyProposalMessage('Thêm task mới');
-    assert.equal(r.kind, 'refine');
-    assert.equal(r.operationHint, 'add-blocked');
+    assert.equal(r.kind, 'expand');
   });
 
   it('returns question for "Tại sao task 2 có 90 phút?"', () => {

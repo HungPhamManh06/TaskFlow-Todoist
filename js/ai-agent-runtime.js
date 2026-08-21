@@ -533,6 +533,110 @@
     return -1;
   }
 
+  /** Phase 6G: Allocate next proposal-local action ID */
+  function _nextProposalActionId(actions) {
+    let maxNum = 0;
+    (actions || []).forEach(function (a) {
+      const m = (a.id || '').match(/^a(\d+)$/);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    return 'a' + (maxNum + 1);
+  }
+
+  /** Phase 6G: Parse simple add command deterministically */
+  function _parseSimpleAdd(message) {
+    if (!message) return null;
+    const s = String(message).trim();
+    // "Thêm task X 30 phút" or "Thêm việc X"
+    const match = s.match(/(?:thêm|add|tạo\s+thêm|create)\s+(?:task|việc)?\s*(.+?)(?:\s+(\d+)\s*phút)?$/i);
+    if (match) {
+      const text = match[1].trim().replace(/\s+\d+\s*phút$/, '').trim();
+      const duration = match[2] ? parseInt(match[2], 10) : null;
+      if (text && text.length > 0 && text.length <= 300) {
+        return {
+          op: 'add',
+          action: {
+            type: 'create_task',
+            args: { text: text, date: null, duration: duration || null, priority: null }
+          }
+        };
+      }
+    }
+    return null;
+  }
+
+  /** Phase 6G: Add action to working proposal */
+  function _addExpansionAction(op, proposal) {
+    if (!op || !op.action) return { ok: false, reason: 'no-action' };
+    if (!_reviewState) return { ok: false, reason: 'no-review' };
+    const actions = _reviewState.actions;
+
+    // Check max cap
+    const maxActions = 10;
+    if (actions.length >= maxActions) return { ok: false, reason: 'too-many-actions' };
+
+    // Allocate ID
+    const actionId = _nextProposalActionId(actions);
+    const action = op.action;
+    action.id = actionId;
+
+    // Map temp references
+    if (op.tempId && proposal) {
+      proposal.actions.forEach(function (a) { if (a.id === op.tempId) a.id = actionId; });
+    }
+
+    // Create new review entry
+    actions.push({
+      id: actionId,
+      selected: true,
+      editedArgs: null,
+      originalArgs: JSON.parse(JSON.stringify(action.args || {})),
+      isDependent: false,
+      isNew: true,
+    });
+
+    return { ok: true, actionId: actionId };
+  }
+
+  /** Phase 6G: Handle expansion request */
+  function handleExpansion(message, msgs, card, proposal) {
+    if (!message || !_reviewState) return null;
+    const msgsEl = msgs || (typeof document !== 'undefined' ? document.getElementById('chatMessages') : null);
+
+    // Classify
+    if (typeof window === 'undefined' || !window.TaskFlowAIIntent) return null;
+    const intent = window.TaskFlowAIIntent.classifyProposalMessage(message);
+    if (intent.kind !== 'expand') return null;
+
+    // Try simple local add first
+    if (intent.operationHint === 'add') {
+      const parsed = _parseSimpleAdd(message);
+      if (parsed) {
+        _pushUndo();
+        const result = _addExpansionAction(parsed, proposal);
+        const b = _bubble('agent-info');
+        if (result.ok) {
+          b.textContent = _t('expansionAdded').replace('{n}', '1');
+          if (card) _refreshReviewUI(card, proposal);
+        } else {
+          b.textContent = _t('expansionFailed');
+        }
+        if (msgsEl) { msgsEl.appendChild(b); msgsEl.scrollTop = msgsEl.scrollHeight; }
+        return { handled: true, reply: result.ok ? 'added' : result.reason };
+      }
+    }
+
+    // Complex decomposition/add — needs AI
+    // For now, show placeholder
+    const b = _bubble('agent-info');
+    b.textContent = _t('expansionComplex');
+    if (msgsEl) { msgsEl.appendChild(b); msgsEl.scrollTop = msgsEl.scrollHeight; }
+    return { handled: true, reply: 'expansion-ai-needed' };
+  }
+
   /** Apply a single operation to review state */
   function _applyOperation(op, card, proposal) {
     if (!_reviewState || !op) return { ok: false, reason: 'no-review' };
@@ -596,6 +700,10 @@
       });
       _propagateDeselect(actions, proposal);
       return { ok: true, summary: 'Đã giữ việc có deadline' };
+    }
+    // Phase 6G: add operation
+    if (op.op === 'add') {
+      return _addExpansionAction(op, proposal);
     }
     return { ok: false, reason: 'unknown-op' };
   }
@@ -686,6 +794,9 @@
     // Classify the message
     if (typeof window === 'undefined' || !window.TaskFlowAIIntent) return null;
     const intent = window.TaskFlowAIIntent.classifyProposalMessage(message);
+    if (intent.kind === 'expand') {
+      return handleExpansion(message, msgs, card, proposal);
+    }
     if (intent.kind !== 'refine' && intent.kind !== 'cancel' && intent.kind !== 'question') return null;
 
     // P24: cancel
@@ -1831,6 +1942,7 @@
     _mapValidationError: _mapValidationError,
     handleExternalProposal: handleExternalProposal,
     handleRefinement: handleRefinement,
+    handleExpansion: handleExpansion,
     _undoRefinement: _undoRefinement,
     _resetToOriginal: _resetToOriginal,
     _isConfirmAttempt: _isConfirmAttempt,
