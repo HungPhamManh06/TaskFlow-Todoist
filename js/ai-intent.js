@@ -529,5 +529,37 @@
     return null;
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, classifyGoalIntent: classifyGoalIntent, classifyFocusIntent: classifyFocusIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /* ─── P8: Estimate Intent Router (deterministic) ─── */
+  function classifyEstimateIntent(message) {
+    if (typeof message !== 'string') return null;
+    var s = _normalize(message);
+
+    // Estimate question
+    if (/(?:task|việc|công việc).*(?:bao lâu|bao nhiêu phút|estimate|thời gian)/i.test(s))
+      return { kind: 'estimate-question', confidence: 'high', reason: 'estimate-question' };
+    if (/(?:nên|thể).*(?:để bao nhiêu|bao nhiêu phút|estimate)/i.test(s))
+      return { kind: 'estimate-question', confidence: 'high', reason: 'estimate-should' };
+
+    // Use calibrated estimate
+    if (/(?:dùng|sử dụng).*(?:estimate đề xuất|đề xuất|đã hiệu chỉnh|calibrated)/i.test(s))
+      return { kind: 'use-calibrated-estimate', confidence: 'high', reason: 'use-calibrated' };
+
+    // Keep original
+    if (/(?:giữ|keep).*(?:original|hiện tại|current)/i.test(s))
+      return { kind: 'keep-original-estimate', confidence: 'high', reason: 'keep-original' };
+
+    // Update task estimate
+    if (/(?:cập nhật|update).*(?:estimate|thời gian|duration)/i.test(s))
+      return { kind: 'update-task-estimate', confidence: 'high', reason: 'update-estimate' };
+
+    // Calibration status/settings
+    if (/(?:hiệu chỉnh|calibration).*(?:bật|tắt|enable|disable|trạng thái|status)/i.test(s))
+      return { kind: 'calibration-settings', confidence: 'high', reason: 'calibration-settings' };
+    if (/(?:tắt|disable).*(?:học estimate|calibration|hiệu chỉnh)/i.test(s))
+      return { kind: 'calibration-settings', confidence: 'high', reason: 'disable-calibration' };
+
+    return null;
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, classifyGoalIntent: classifyGoalIntent, classifyFocusIntent: classifyFocusIntent, classifyEstimateIntent: classifyEstimateIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });
