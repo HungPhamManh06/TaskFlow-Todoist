@@ -377,3 +377,34 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - **Bug fix (tự phát hiện):** pillars.js `iconHTML()` gates on the user-icon palette (`ICONS`), so action buttons `edit/trash/plus/refresh` were rendering as literal text since the P1 migration. Added dedicated `actionIcon()` (no palette gate) → verified all 14 action buttons render sprite `<use>`.
 - Kept personality emoji: 🙈 pillar visibility toggle, ✓ confirm-addgoal, 🗓️ copyhabits, ✨ templates, mood/pomodoro/streak/celebration.
 - Versions: app v169 → pillars v5 → **CACHE v203** · gates: unit 471/0, E2E RELEASE OK, a11y 62/0, mobile QA PASS, minify 66 OK.
+
+## Phase 6Q — Unified AI Provider Gateway (Aug 21, 2026)
+
+- Created `server/ai-provider.js` — single centralized LLM transport module.
+- All 9 AI routes now delegate to `callAiText()` / `callAiJson()` instead of duplicating fetch + AbortController + error mapping.
+- Removed legacy `@google/generative-ai` SDK dependency from `/api/ai/plan-health`.
+
+## Phase 6Q.1 — Provider Runtime Hardening (Aug 21, 2026)
+
+- Fixed `ReferenceError: AI_TIMEOUT_MS is not defined` in `callAiCore()` — timeout default now read dynamically from `getConfig()`.
+- Removed dead duplicated constants from `server/ai.js`.
+- Added 54 comprehensive mock-only tests.
+
+## Phase 6R — AI Contract Evaluation & Adversarial Testing (Aug 21, 2026)
+
+- Created `tests/ai-evals/` evaluation harness with ~335 deterministic tests.
+- Vietnamese fixtures (13), English fixtures (8), date/time contracts (55), adversarial edge cases (50+), roadmap contracts (15).
+- All tests use mocked provider outputs — no live Gemini calls in CI.
+
+## Phase 6R.1 — Strict Calendar Validation (Aug 21, 2026)
+
+- Fixed `server/ai.js` `validDate()` — replaced rollover-prone validation with strict round-trip calendar validation.
+- Impossible dates (Feb 30, Apr 31, non-leap Feb 29) now rejected at server level.
+- Added `isValidCalendarDate()` to `js/ai-roadmap.js`.
+
+## Phase 6R.2 — AI Boundary Validation Completion (Aug 21, 2026)
+
+- Hardened `sanitizeContext()` — all date fields use strict calendar validation.
+- Created `server/ai-roadmap-validator.js` — server-side model output validation.
+- Added `validateRoadmapForApply()` — final AI roadmaps require ≥1 milestone AND ≥1 task.
+- 335 Phase 6R evaluation tests, 2199+ full repository tests.

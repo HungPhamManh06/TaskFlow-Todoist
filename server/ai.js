@@ -36,6 +36,7 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { authMiddleware } = require('./auth');
 const { callAiText, callAiJson, getConfig } = require('./ai-provider');
+const { validateRoadmapModelOutput } = require('./ai-roadmap-validator');
 
 // Generate a short request correlation ID
 function generateRequestId() {
@@ -2259,13 +2260,13 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
 
     const roadmap = aiResult.parsed;
 
-    if (!roadmap || !Array.isArray(roadmap.milestones) || !Array.isArray(roadmap.tasks)) {
-      return res.status(422).json({ ok: false, error: 'ai-roadmap-invalid-structure' });
-    }
+    // Build set of existing work keys for hallucination check
+    const existingWorkKeys = new Set(existingWork.map(t => t.key).filter(Boolean));
 
-    // Enforce caps
-    if (roadmap.milestones.length > maxMilestones || roadmap.tasks.length > maxTasks) {
-      return res.status(422).json({ ok: false, error: 'ai-roadmap-too-large' });
+    // Validate model output atomically — one bad item invalidates entire response
+    const vResult = validateRoadmapModelOutput(roadmap, existingWorkKeys, { maxMilestones, maxTasks });
+    if (!vResult.ok) {
+      return res.status(422).json({ ok: false, error: 'ai-roadmap-invalid-output', details: vResult.errors.slice(0, 5) });
     }
 
     res.json({ ok: true, roadmap });
