@@ -561,5 +561,39 @@
     return null;
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, classifyGoalIntent: classifyGoalIntent, classifyFocusIntent: classifyFocusIntent, classifyEstimateIntent: classifyEstimateIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  /* ─── P9: Goal Tracking Intent Router (deterministic) ─── */
+  function classifyGoalTrackingIntent(message) {
+    if (typeof message !== 'string') return null;
+    var s = _normalize(message);
+
+    // Goal status
+    if (/(?:tiến|mục tiêu|goal).*(?:thế nào|progress|status)/i.test(s))
+      return { kind: 'goal-status', confidence: 'high', reason: 'goal-status' };
+    if (/(?:tôi làm đến đâu|làm đến đâu)/i.test(s))
+      return { kind: 'goal-status', confidence: 'high', reason: 'progress-check' };
+
+    // Goal progress
+    if (/(?:bao nhiêu|mấy).*(?:task|việc).*(?:hoàn thành|xong)/i.test(s))
+      return { kind: 'goal-progress', confidence: 'high', reason: 'task-count' };
+
+    // Milestone status
+    if (/milestone.*(?:chậm|blocked|delayed)/i.test(s))
+      return { kind: 'milestone-status', confidence: 'high', reason: 'milestone-blocked' };
+
+    // Goal health
+    if (/(?:còn kịp|kịp|risk|nguy cơ|trễ|late)/i.test(s))
+      return { kind: 'goal-health', confidence: 'high', reason: 'goal-health' };
+
+    // Course correction
+    if (/(?:điều chỉnh|adjust|giảm scope|thay đổi).*(?:roadmap|mục tiêu|goal)/i.test(s))
+      return { kind: 'goal-course-correct', confidence: 'high', reason: 'course-correct' };
+
+    // Complete goal
+    if (/(?:hoàn thành|xong|complete).*(?:mục tiêu|goal)/i.test(s))
+      return { kind: 'goal-complete', confidence: 'high', reason: 'complete-goal' };
+
+    return null;
+  }
+
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, classifyGoalIntent: classifyGoalIntent, classifyFocusIntent: classifyFocusIntent, classifyEstimateIntent: classifyEstimateIntent, classifyGoalTrackingIntent: classifyGoalTrackingIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });
