@@ -345,6 +345,9 @@
     if (!roadmap || typeof roadmap !== 'object') return { valid: false, errors: [{ code: 'not-object' }] };
 
     if (!roadmap.goal || !roadmap.goal.title) errors.push({ code: 'missing-goal-title' });
+    if (roadmap.goal && roadmap.goal.targetDate && !isValidCalendarDate(roadmap.goal.targetDate)) {
+      errors.push({ code: 'invalid-target-date', date: roadmap.goal.targetDate });
+    }
     if (!Array.isArray(roadmap.milestones)) errors.push({ code: 'missing-milestones' });
     else if (roadmap.milestones.length > MAX_MILESTONES) errors.push({ code: 'too-many-milestones', count: roadmap.milestones.length });
     if (!Array.isArray(roadmap.tasks)) errors.push({ code: 'missing-tasks' });
@@ -368,6 +371,9 @@
         else if (tIds[t.id]) errors.push({ code: 'duplicate-task-id', id: t.id });
         else tIds[t.id] = true;
         if (!t.title) errors.push({ code: 'missing-task-title', id: t.id });
+        if (t.deadline && !isValidCalendarDate(t.deadline)) {
+          errors.push({ code: 'invalid-deadline', taskId: t.id, date: t.deadline });
+        }
         if (t.milestoneId && roadmap.milestones && !roadmap.milestones.some(function (m) { return m.id === t.milestoneId; })) {
           errors.push({ code: 'unknown-milestone-ref', taskId: t.id, milestoneId: t.milestoneId });
         }
@@ -526,6 +532,21 @@
     };
   }
 
+  /* ─── Final roadmap validation (for AI-generated roadmaps before apply) ─── */
+  function validateRoadmapForApply(roadmap) {
+    var base = validateRoadmap(roadmap);
+    if (!base.valid) return base;
+    var errors = [];
+    // Final AI roadmap must have useful content
+    if (Array.isArray(roadmap.milestones) && roadmap.milestones.length === 0) {
+      errors.push({ code: 'empty-milestones' });
+    }
+    if (Array.isArray(roadmap.tasks) && roadmap.tasks.length === 0) {
+      errors.push({ code: 'empty-tasks' });
+    }
+    return { valid: errors.length === 0, errors: errors };
+  }
+
   /* ─── Exports ─── */
   var api = {
     MAX_MILESTONES: MAX_MILESTONES,
@@ -533,6 +554,7 @@
     MAX_DEPTH: MAX_DEPTH,
     MAX_HISTORY: MAX_HISTORY,
 
+    isValidCalendarDate: isValidCalendarDate,
     normalizeGoal: normalizeGoal,
     createRoadmap: createRoadmap,
     addMilestone: addMilestone,
@@ -546,6 +568,7 @@
     computeFeasibility: computeFeasibility,
     classifyGoalIntent: classifyGoalIntent,
     validateRoadmap: validateRoadmap,
+    validateRoadmapForApply: validateRoadmapForApply,
     convertToProposal: convertToProposal,
     createRoadmapState: createRoadmapState,
     refineRoadmap: refineRoadmap,
