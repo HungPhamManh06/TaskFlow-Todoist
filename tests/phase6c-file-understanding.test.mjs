@@ -273,7 +273,9 @@ describe('Phase 6C: Regression — No Agent Routing', () => {
     const src = read('server/ai.js');
     // File route section should not contain agent-specific logic
     const fileStart = src.indexOf("router.post('/file'");
-    const fileEnd = src.indexOf('module.exports');
+    // End at the Phase 6D section boundary or module.exports
+    const phase6dMarker = src.indexOf('Phase 6D: POST /api/ai/file-agent');
+    const fileEnd = phase6dMarker > fileStart ? phase6dMarker : src.indexOf('module.exports');
     const fileSection = src.slice(fileStart, fileEnd);
     assert.ok(!fileSection.includes('buildAgentDependencyGraph'));
     assert.ok(!fileSection.includes('AGENT_ACTION_TYPES'));

@@ -63,7 +63,11 @@ test('P1: agent route sits behind the auth middleware chain (router.use(authMidd
 });
 
 test('P1: agent route returns { ok, proposal } — it never executes actions', () => {
-  const seg = src.slice(src.indexOf("router.post('/agent'"), src.indexOf('module.exports'));
+  // Bound the segment to just the agent route (stop before the file route)
+  const agentStart = src.indexOf("router.post('/agent'");
+  const fileStart = src.indexOf("router.post('/file'");
+  const endIdx = fileStart > agentStart ? fileStart : src.indexOf('module.exports');
+  const seg = src.slice(agentStart, endIdx);
   assert.match(seg, /resp = \{ ok: true, proposal \}/);
   assert.match(seg, /return res\.json\(resp\)/);
   assert.doesNotMatch(seg, /delete\s+from|db\.|fs\.|writeFile/i, 'no persistence calls inside agent route');

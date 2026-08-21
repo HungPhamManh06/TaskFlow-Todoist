@@ -1405,6 +1405,57 @@
   function getPendingClarification() { return _pendingClarification; }
   function clearPendingClarification() { _pendingClarification = null; }
 
+  /* ---- Phase 6D: handle external file-agent proposal ---- */
+  // Receives a server-validated proposal from /api/ai/file-agent.
+  // Feeds it into the same Phase 5C review/confirm/apply pipeline.
+  function handleExternalProposal(proposal, opts) {
+    try {
+      const msgs = _el('chatMessages');
+      if (!msgs) return;
+
+      // Validate against current TaskFlow state
+      const ctx = buildContext();
+      const v = window.TaskFlowAIAgent.validateProposal(proposal, ctx);
+      if (!v.ok) {
+        const b = _bubble('agent-info');
+        b.textContent = _mapValidationError(v.errors);
+        msgs.appendChild(b);
+        msgs.scrollTop = msgs.scrollHeight;
+        return;
+      }
+      const dry = window.TaskFlowAIAgent.dryRun(proposal, ctx);
+      if (!dry.valid) {
+        const b = _bubble('agent-info');
+        b.textContent = _mapValidationError(dry.errors);
+        msgs.appendChild(b);
+        msgs.scrollTop = msgs.scrollHeight;
+        return;
+      }
+      if (!Array.isArray(dry.changes) || !dry.changes.length) {
+        const b = _bubble('agent-info');
+        b.textContent = _t('agentErrorNoActions');
+        msgs.appendChild(b);
+        msgs.scrollTop = msgs.scrollHeight;
+        return;
+      }
+      dry._ctx = ctx;
+      dry._source = opts && opts.source ? opts.source : 'file';
+      dry._fileName = opts && opts.fileName ? opts.fileName : '';
+      dry._fileMime = opts && opts.fileMime ? opts.fileMime : '';
+      _renderCard(msgs, proposal, dry);
+    } catch (e) {
+      try {
+        const msgs = _el('chatMessages');
+        if (msgs) {
+          const b = _bubble('agent-info');
+          b.textContent = _t('agentErrorServer');
+          msgs.appendChild(b);
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+      } catch (e2) { /* */ }
+    }
+  }
+
   return {
     isActionIntent: isActionIntent,
     handleAgent: handleAgent,
@@ -1416,6 +1467,7 @@
     getReviewState: _getReviewState,
     _mapError: _mapError,
     _mapValidationError: _mapValidationError,
+    handleExternalProposal: handleExternalProposal,
     _locate: _locate,
     _applyAction: _applyAction,
     _endClock: _endClock,

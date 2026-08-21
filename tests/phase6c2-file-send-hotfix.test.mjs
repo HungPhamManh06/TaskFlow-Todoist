@@ -104,8 +104,8 @@ describe('Phase 6C.2 — File Send Hotfix', () => {
     // Should use apiBase + '/api/ai/file', NOT bare '/api/ai/file'
     assert.ok(!/fetch\(['"]\/api\/ai\/file['"]/.test(body),
       'should NOT use bare /api/ai/file without apiBase');
-    assert.ok(/apiBase\s*\+\s*['"]\/api\/ai\/file['"]/.test(body),
-      'should use apiBase + /api/ai/file');
+    assert.ok(/apiBase\s*\+\s*(?:endpoint|['"]\/api\/ai\/file['"])/.test(body),
+      'should use apiBase + /api/ai/file or apiBase + endpoint');
   });
 
   it('should have _showInfo fallback for api-config-missing in preflight', () => {
