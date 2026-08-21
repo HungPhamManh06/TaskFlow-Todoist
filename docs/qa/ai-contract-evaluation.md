@@ -89,7 +89,7 @@ Dedicated date/time evaluation with:
 - **Year boundaries**: 2099-12-31 accepted, 2100-01-01 rejected
 - **Invalid times**: 25:00, 09:60, 9:00, noon, empty
 - **Duration boundaries**: 5 (min), 480 (max), null (flexible)
-- **Server roll-over limitation**: Feb 30 accepted by server (JS Date roll-over) — documented
+- **Strict calendar validation (6R.1/6R.2)**: Feb 30, Apr 31, non-leap Feb 29 all rejected
 
 ### 5. Reference Integrity
 
@@ -164,9 +164,9 @@ Tests roadmap validation:
 |----------|--------|-------|
 | Forbidden fields in args | **Stripped silently** | Server uses per-type args allowlist |
 | Array proposal | `summary-invalid` + `actions-invalid` | Arrays are objects in JS |
-| Feb 30 / Apr 31 | **Accepted by server** | JS Date roll-over limitation |
+| Feb 30 / Apr 31 | **Rejected by server** | Strict calendar validation (6R.1/6R.2) |
 | Empty milestones/tasks | **Accepted** | No minimum count enforcement |
-| Duplicate IDs | **Accepted** | addMilestone/addCandidateTask don't dedup |
+| Duplicate IDs | **Rejected by validateRoadmap()** | Already had duplicate protection |
 
 ## Files Changed
 

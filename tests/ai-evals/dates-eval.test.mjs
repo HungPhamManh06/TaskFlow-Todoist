@@ -149,7 +149,7 @@ describe('Date/Time Eval: Strict Calendar Validation (6R.1 Fix)', () => {
     assert.equal(v.ok, false, '1900 is outside year range');
   });
 
-  it('2000-02-29 accepted — 2000 is a leap year in range', () => {
+  it('2000-02-29 rejected — calendar-valid but outside TaskFlow year range (2020-2099)', () => {
     const v = validateProposal({
       summary: 'Plan',
       actions: [{ type: 'schedule_task', taskUid: 't1', date: '2000-02-29', start: '09:00', duration: 60, option: null, text: null }],

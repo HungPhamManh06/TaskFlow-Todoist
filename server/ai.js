@@ -128,6 +128,9 @@ const KINDS = ['plan_day', 'plan_week', 'next_actions', 'breakdown_project', 'br
 const ACTION_TYPES = ['schedule_task', 'reschedule_task', 'next_action'];
 const RESCHEDULE_OPTIONS = ['tomorrow', 'this-week', 'inbox'];
 
+// Fields in context items that contain calendar dates — must use strict validation
+const DATE_FIELDS = new Set(['deadline', 'targetDate', 'date']);
+
 // Allowlist key cấp cao của context. Mọi key khác bị loại bỏ.
 const CTX_KEYS = new Set([
   'kind', 'lang', 'today', 'weekStart', 'weekEnd',
@@ -164,9 +167,9 @@ function sanitizeContext(raw) {
   const trimmed = false;
   ctx.kind = KINDS.includes(raw.kind) ? raw.kind : null;
   ctx.lang = raw.lang === 'en' ? 'en' : 'vi';
-  ctx.today = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.today || '')) ? String(raw.today) : '';
-  ctx.weekStart = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.weekStart || '')) ? String(raw.weekStart) : '';
-  ctx.weekEnd = /^\d{4}-\d{2}-\d{2}$/.test(String(raw.weekEnd || '')) ? String(raw.weekEnd) : '';
+  ctx.today = validDate(String(raw.today || '')) ? String(raw.today) : '';
+  ctx.weekStart = validDate(String(raw.weekStart || '')) ? String(raw.weekStart) : '';
+  ctx.weekEnd = validDate(String(raw.weekEnd || '')) ? String(raw.weekEnd) : '';
   ctx.selectedProjectId = capText(raw.selectedProjectId, 64);
   ctx.selectedMilestoneId = capText(raw.selectedMilestoneId, 64);
   ctx.userText = capText(raw.userText, 300);
@@ -180,8 +183,14 @@ function sanitizeContext(raw) {
       const out = {};
       for (const f of allowed) {
         if (item[f] === undefined) continue;
-        if (typeof item[f] === 'string') out[f] = capText(item[f], TEXT_MAX);
-        else if (Array.isArray(item[f])) out[f] = item[f].slice(0, 8).map((x) => capText(x, 40));
+        if (typeof item[f] === 'string') {
+          // Strict calendar validation for known date-only fields
+          if (DATE_FIELDS.has(f)) {
+            out[f] = validDate(item[f]) ? item[f] : null;
+          } else {
+            out[f] = capText(item[f], TEXT_MAX);
+          }
+        } else if (Array.isArray(item[f])) out[f] = item[f].slice(0, 8).map((x) => capText(x, 40));
         else out[f] = item[f];
       }
       return out;
@@ -193,14 +202,14 @@ function sanitizeContext(raw) {
     if (Array.isArray(raw.reflections)) {
       ctx.reflections = raw.reflections.slice(0, ARRAY_CAPS.reflections)
         .map((r) => (r && typeof r === 'object' ? {
-          date: /^\d{4}-\d{2}-\d{2}$/.test(String(r.date || '')) ? String(r.date) : '',
+          date: validDate(String(r.date || '')) ? String(r.date) : '',
           text: capText(r.text, 300),
         } : null)).filter(Boolean);
     }
     if (Array.isArray(raw.mood)) {
       ctx.mood = raw.mood.slice(0, ARRAY_CAPS.mood)
         .map((m) => (m && typeof m === 'object' ? {
-          date: /^\d{4}-\d{2}-\d{2}$/.test(String(m.date || '')) ? String(m.date) : '',
+          date: validDate(String(m.date || '')) ? String(m.date) : '',
           value: m.value,
         } : null)).filter(Boolean);
     }
@@ -696,6 +705,8 @@ const CHAT_FORBIDDEN_KEYS = [
 ];
 
 // Allowlist theo scope — khớp output shape của TaskFlowAIContext.build (Phase 3A).
+const CHAT_DATE_FIELDS = new Set(['today', 'date', 'weekStart', 'weekEnd']);
+
 const CHAT_SCOPE_FIELDS = {
   today: new Set(['scope', 'date', 'tasks', 'timeblocks', 'busy']),
   week: new Set(['scope', 'weekStart', 'weekEnd', 'days']),
@@ -746,7 +757,13 @@ function sanitizeChatItem(item, allowed) {
   const out = {};
   for (const f of allowed) {
     if (item[f] === undefined) continue;
-    if (typeof item[f] === 'string') out[f] = capText(item[f], TEXT_MAX);
+    if (typeof item[f] === 'string') {
+      if (DATE_FIELDS.has(f)) {
+        out[f] = validDate(item[f]) ? item[f] : null;
+      } else {
+        out[f] = capText(item[f], TEXT_MAX);
+      }
+    }
     else if (Array.isArray(item[f])) {
       if (CHAT_NESTED_ARRAYS.has(f)) {
         out[f] = item[f].slice(0, CHAT_ARRAY_CAPS[f] || 30).map((x) => sanitizeChatItem(x, CHAT_ITEM_KEYS[f])).filter(Boolean);
@@ -785,7 +802,11 @@ function sanitizeChatContextEnvelope(raw) {
       const items = src[f].slice(0, cap).map((it) => sanitizeChatItem(it, CHAT_ITEM_KEYS[f])).filter(Boolean);
       if (items.length) data[f] = items;
     } else if (typeof src[f] === 'string') {
-      data[f] = capText(src[f], 20);
+      if (CHAT_DATE_FIELDS.has(f)) {
+        data[f] = validDate(src[f]) ? src[f] : '';
+      } else {
+        data[f] = capText(src[f], 20);
+      }
     }
   }
   // P10.2: reflections/mood không bao giờ vào prompt — allowlist trên đã loại,
