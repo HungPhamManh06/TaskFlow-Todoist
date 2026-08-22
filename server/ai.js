@@ -1027,6 +1027,11 @@ function sanitizeChatHistory(raw) {
 // POST /api/ai/chat (Bearer) { message, history? } → { ok, answer }
 router.post('/chat', aiChatLimiter, async (req, res) => {
   const requestId = req.aiRequestId;
+  // Phase: link client disconnect to provider abort
+  const clientAbort = new AbortController();
+  const onClientClose = () => clientAbort.abort();
+  req.on('aborted', onClientClose);
+  res.on('close', () => { req.removeListener('aborted', onClientClose); });
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -1066,7 +1071,8 @@ router.post('/chat', aiChatLimiter, async (req, res) => {
       messages,
       maxTokens: 1024,
       requestId,
-      routeName: '/api/ai/chat'
+      routeName: '/api/ai/chat',
+      signal: clientAbort.signal
     });
 
     if (!aiResult.ok) {
@@ -1409,6 +1415,10 @@ const AGENT_SYSTEM_INSTRUCTION_EN = 'You are TaskFlow\'s safe action agent. The 
 // Lifecycle: validate cheap → sanitize → idempotency → acquire slot → Gemini → release slot.
 router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => {
   const requestId = req.aiRequestId;
+  const clientAbort = new AbortController();
+  const onClientClose = () => clientAbort.abort();
+  req.on('aborted', onClientClose);
+  res.on('close', () => { req.removeListener('aborted', onClientClose); });
 
   try {
     // ── 1. Feature flag / config (no slot needed) ──
@@ -1514,7 +1524,8 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
         schema: AGENT_PROPOSAL_SCHEMA,
         maxTokens: 1200,
         requestId,
-        routeName: '/api/ai/agent'
+        routeName: '/api/ai/agent',
+        signal: clientAbort.signal
       });
 
       if (!aiResult.ok) {
@@ -1649,6 +1660,10 @@ const _fileInFlight = new Map();
 
 router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
   const requestId = req.aiRequestId;
+  const clientAbort = new AbortController();
+  const onClientClose = () => clientAbort.abort();
+  req.on('aborted', onClientClose);
+  res.on('close', () => { req.removeListener('aborted', onClientClose); });
   let fileBuffer = null;
   let fileName = '';
   let fileMime = '';
@@ -1789,7 +1804,8 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
         maxTokens: 2048,
         timeoutMs: AI_FILE_TIMEOUT_MS,
         requestId,
-        routeName: '/api/ai/file'
+        routeName: '/api/ai/file',
+        signal: clientAbort.signal
       });
 
       if (!aiResult.ok) {
@@ -1984,6 +2000,10 @@ function validateFileAgentProposal(proposal, refs) {
 // Phase 6D: structured extraction → server validate → browser review → user confirm → apply
 router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
   const requestId = req.aiRequestId;
+  const clientAbort = new AbortController();
+  const onClientClose = () => clientAbort.abort();
+  req.on('aborted', onClientClose);
+  res.on('close', () => { req.removeListener('aborted', onClientClose); });
   let fileBuffer = null;
   let fileName = '';
   let fileMime = '';
@@ -2127,7 +2147,8 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
         maxTokens: 4096,
         timeoutMs: AI_FILE_TIMEOUT_MS,
         requestId,
-        routeName: '/api/ai/file-agent'
+        routeName: '/api/ai/file-agent',
+        signal: clientAbort.signal
       });
 
       if (!aiResult.ok) {

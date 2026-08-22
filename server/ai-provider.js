@@ -151,6 +151,11 @@ async function callAiCore(options) {
   const startedAt = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+  // Phase: link external abort signal (e.g. client disconnect) to provider abort
+  if (options.signal) {
+    if (options.signal.aborted) { controller.abort(); clearTimeout(timer); }
+    else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
 
   const logPrefix = (routeName ? 'route=' + routeName : 'route=unknown')
     + (requestId ? ' requestId=' + requestId : '');

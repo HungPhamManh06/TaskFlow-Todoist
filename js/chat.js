@@ -6,20 +6,162 @@
 // fallback về chat thường — không bao giờ làm hỏng cuộc trò chuyện.
 // Gateway: Browser → TaskFlow backend → Gemini (KHÔNG BAO GIỜ browser → Gemini trực tiếp).
 // Lazy-loaded — giữ nguyên pattern P1.5, không nằm trong boot path.
+// Phase: Chat History + Stop Response Lifecycle
 (function (root, factory) {
-  const api = factory();
+  var api = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TaskFlowChat = api;
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
 
   /* ---- Config ---- */
-  var MAX_HISTORY = 10;
+  var MAX_PROVIDER_HISTORY = 10;
   var MAX_MSG_LEN = 4000;
 
   /* ---- State ---- */
-  var _history = [];        // [{role:'user'|'assistant', content:string}]
-  var _inFlight = false;    // double-send guard
+  var _inFlight = false;
+  var _activeRequest = null;   // { generation, controller, kind }
+  var _requestGeneration = 0;
+
+  /* ---- History ---- */
+  var _historyMod = null;
+  var _accountScope = null;
+  var _activeConversationId = null;
+
+  function _getHistory() {
+    if (!_historyMod) {
+      _historyMod = (typeof TaskFlowChatHistory !== 'undefined') ? TaskFlowChatHistory : null;
+    }
+    return _historyMod;
+  }
+
+  function _getAccountScope() {
+    if (_accountScope !== null) return _accountScope;
+    try {
+      if (window.Sync && typeof Sync.getUserId === 'function') {
+        var uid = Sync.getUserId();
+        _accountScope = uid || 'anon';
+      } else {
+        _accountScope = 'anon';
+      }
+    } catch (e) {
+      _accountScope = 'anon';
+    }
+    return _accountScope;
+  }
+
+  function _getActiveConversation() {
+    var mod = _getHistory();
+    if (!mod) return null;
+    var scope = _getAccountScope();
+    var convId = _activeConversationId;
+    if (!convId) {
+      // Get or create active conversation
+      var state = mod.load(scope);
+      convId = state.activeConversationId;
+      if (!convId || !mod.getConversation(scope, convId)) {
+        var conv = mod.createConversation(scope);
+        convId = conv.id;
+      }
+      _activeConversationId = convId;
+    }
+    return mod.getConversation(scope, convId);
+  }
+
+  function _ensureConversation() {
+    var conv = _getActiveConversation();
+    if (conv) return conv;
+    var mod = _getHistory();
+    if (!mod) return null;
+    var scope = _getAccountScope();
+    var newConv = mod.createConversation(scope);
+    _activeConversationId = newConv.id;
+    return newConv;
+  }
+
+  function _persistUserMessage(text, attachment) {
+    var mod = _getHistory();
+    if (!mod) return;
+    var conv = _ensureConversation();
+    if (!conv) return;
+    mod.addMessage(_getAccountScope(), conv.id, {
+      role: 'user',
+      content: text,
+      attachment: attachment || null
+    });
+  }
+
+  function _persistAssistantMessage(text) {
+    var mod = _getHistory();
+    if (!mod) return;
+    var conv = _getActiveConversation();
+    if (!conv) return;
+    mod.addMessage(_getAccountScope(), conv.id, {
+      role: 'assistant',
+      content: text
+    });
+  }
+
+  function _getProviderHistory() {
+    var mod = _getHistory();
+    if (!mod) return [];
+    var conv = _getActiveConversation();
+    if (!conv) return [];
+    return mod.getProviderHistory(_getAccountScope(), conv.id, MAX_PROVIDER_HISTORY);
+  }
+
+  /* ---- Shared Request Lifecycle ---- */
+
+  function _startRequest(kind) {
+    // Cancel any existing request
+    if (_activeRequest) {
+      try { _activeRequest.controller.abort(); } catch (e) { /* */ }
+      _activeRequest = null;
+    }
+    _requestGeneration++;
+    var gen = _requestGeneration;
+    var controller = new AbortController();
+    _activeRequest = { generation: gen, controller: controller, kind: kind };
+    return { signal: controller.signal, generation: gen };
+  }
+
+  function _isCurrentRequest(gen) {
+    return _activeRequest && _activeRequest.generation === gen;
+  }
+
+  function stopActiveResponse() {
+    if (!_activeRequest) return false;
+    try { _activeRequest.controller.abort(); } catch (e) { /* */ }
+    _requestGeneration++;
+    _activeRequest = null;
+    _inFlight = false;
+    // Remove typing indicator
+    var typingEl = document.querySelector('.chat-typing');
+    if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+    // Re-enable input
+    _setInputEnabled(true);
+    _setSendMode(false);
+    // Optionally show stopped message
+    var msgs = _el('chatMessages');
+    if (msgs) {
+      _appendText(msgs, _t('chatStopped'), 'chat-msg bot chat-stopped');
+    }
+    return true;
+  }
+
+  function _setSendMode(isStopping) {
+    var sendBtn = document.querySelector('[data-action="chat-send"]');
+    if (!sendBtn) return;
+    if (isStopping) {
+      sendBtn.textContent = _t('chatStop');
+      sendBtn.setAttribute('aria-label', _t('chatStopAria'));
+      sendBtn.classList.add('chat-send--stopping');
+    } else {
+      sendBtn.textContent = _t('chatSend');
+      sendBtn.setAttribute('aria-label', _t('chatSend'));
+      sendBtn.classList.remove('chat-send--stopping');
+    }
+  }
 
   /* ---- i18n helpers ---- */
   function _t(key) {
@@ -45,7 +187,7 @@
   /* ---- DOM helpers ---- */
   function _el(id) { return document.getElementById(id); }
 
-  /* ---- Suggestion chips mapping: topic → natural-language Gemini question ---- */
+  /* ---- Suggestion chips mapping ---- */
   var SUGGESTIONS = {
     'study-plan': { text: '📚 Lên kế hoạch học tập', prompt: 'Giúp tôi tạo một phương pháp lập kế hoạch học tập hiệu quả.' },
     'goal-tips':  { text: '🎯 Mẹo đạt mục tiêu', prompt: 'Cho tôi những mẹo thiết thực để đạt được mục tiêu học tập và làm việc.' },
@@ -57,7 +199,6 @@
   function _appendText(container, text, className) {
     var div = document.createElement('div');
     div.className = className;
-    // Render as text — no innerHTML for untrusted model output
     div.textContent = text;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
@@ -77,7 +218,7 @@
     if (el && el.parentNode) el.parentNode.removeChild(el);
   }
 
-  /* ---- Show localized message (error / offline / guest) ---- */
+  /* ---- Show localized message ---- */
   function _showInfo(container, text) {
     var el = document.createElement('div');
     el.className = 'chat-msg bot chat-info';
@@ -107,7 +248,7 @@
     container.scrollTop = container.scrollHeight;
   }
 
-  /* ---- Show retry button (P8: ONE wrapper = mapped error text + retry) ---- */
+  /* ---- Show retry button ---- */
   function _showRetry(container, failedMsg, mappedErrorText) {
     var wrap = document.createElement('div');
     wrap.className = 'chat-msg bot chat-retry-wrap';
@@ -119,7 +260,6 @@
     btn.className = 'chat-retry-btn';
     btn.textContent = _t('chatRetry');
     btn.addEventListener('click', function () {
-      // P9: reuse same message, one request — user bubble already exists.
       if (failedMsg) _doSend(failedMsg, { userBubble: false });
     });
     wrap.appendChild(btn);
@@ -130,9 +270,7 @@
   /* ---- Update input enabled/disabled state ---- */
   function _setInputEnabled(enabled) {
     var input = _el('chatInput');
-    var sendBtn = document.querySelector('[data-action="chat-send"]');
     if (input) input.disabled = !enabled;
-    if (sendBtn) sendBtn.disabled = !enabled;
   }
 
   /* ---- Hide suggestion chips during active chat ---- */
@@ -143,7 +281,7 @@
     }
   }
 
-  /* ---- Context badge (P18): shows which scope is in use, or nothing ---- */
+  /* ---- Context badge ---- */
   function _setContextBadge(scope) {
     var badge = _el('chatContextBadge');
     if (!badge) return;
@@ -161,9 +299,7 @@
     badge.hidden = false;
   }
 
-  /* ---- API base resolution (canonical pattern shared with sync/gcal/ai) ----
-     api-config.js declares `const API_CONFIG` at top level — a lexical global,
-     NOT attached to the window object; resolve it lexically. */
+  /* ---- API base resolution ---- */
   function _getApiBase() {
     try {
       if (typeof API_CONFIG !== 'undefined'
@@ -176,25 +312,19 @@
   }
 
   /* ---- API call ---- */
-  async function _callChatAPI(message, history) {
+  async function _callChatAPI(message, history, signal) {
     var apiBase = _getApiBase();
-
-    // P3: no silent production fallback — if the backend base cannot be
-    // resolved, fail locally instead of calling the wrong origin (e.g. Vercel).
     if (!apiBase) {
       throw { code: 'api-config-missing' };
     }
     var url = apiBase + '/api/ai/chat';
 
-    // Get token — Sync module or direct localStorage
     var token = null;
     try { token = localStorage.getItem('planner-token'); } catch (e) { /* */ }
 
     var headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
 
-    // Phase 3B (P7): optional taskflowContext envelope from the trusted
-    // provider. Any failure → proceed WITHOUT context (P8), never break chat.
     var taskflowContext = null;
     var ctxScope = null;
     try {
@@ -226,6 +356,7 @@
       method: 'POST',
       headers: headers,
       body: JSON.stringify(body),
+      signal: signal,
     });
 
     var json;
@@ -241,6 +372,7 @@
 
   /* ---- Error message mapping ---- */
   function _mapError(err) {
+    if (err && err.name === 'AbortError') return null; // user stopped — no error
     var code = err && err.code ? err.code : 'network';
     switch (code) {
       case 'ai-not-configured': return _t('chatErrorNotConfigured');
@@ -268,7 +400,6 @@
     var msgs = _el('chatMessages');
     if (!msgs) return;
 
-    // 1. Pre-flight checks
     if (!_isOnline()) {
       _showInfo(msgs, _t('chatOffline'));
       return;
@@ -277,8 +408,6 @@
       _showGuestPrompt(msgs);
       return;
     }
-
-    // 2. Validate input length
     if (text.length > MAX_MSG_LEN) {
       _showInfo(msgs, _t('chatErrorTooLong'));
       return;
@@ -287,16 +416,19 @@
     _inFlight = true;
     _setInputEnabled(false);
     _setChipsVisible(false);
+    _setSendMode(true);
 
-    // 3. Append user bubble (skipped on retry — bubble already in thread)
     if (opts.userBubble !== false) _appendText(msgs, text, 'chat-msg user');
 
-    // 4. Show typing indicator
+    // Persist user message to history
+    _persistUserMessage(text);
+
     var typingEl = _showTyping(msgs);
 
+    // Start request lifecycle
+    var req = _startRequest('chat');
+
     try {
-      // Phase 5B: deterministic intent classification with ambiguity handling.
-      // classifyIntent returns { kind, actionType, confidence, reason, taskHint, candidates }
       var intent = null;
       if (window.TaskFlowAIIntent && typeof window.TaskFlowAIIntent.classifyIntent === 'function') {
         try {
@@ -306,69 +438,59 @@
         } catch (e) { intent = null; }
       }
 
-      // Phase 4B/5B: route based on intent classification
       var useAgent = false;
       if (intent) {
         if (intent.kind === 'clarify' && intent.candidates && intent.candidates.length > 0) {
-          // Ambiguous task → show clarification card (P14-P17)
           _removeTyping(typingEl);
           if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.showClarification === 'function') {
             window.TaskFlowAIAgentRuntime.showClarification(msgs, intent, function (selectedUid, selectedTask) {
-              // User selected a task — re-send as agent with resolution hint
               var _send = (typeof send === 'function') ? send : null;
               if (_send) _send(text, { userBubble: false, resolutionHint: { taskUid: selectedUid } });
             });
           } else {
             _appendText(msgs, _t('clarifyFallback'), 'chat-msg bot');
           }
-          _history.push({ role: 'user', content: text });
-          if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
           return;
         }
         useAgent = (intent.kind === 'agent');
       } else {
-        // Fallback: legacy isActionIntent if classifyIntent unavailable
         useAgent = !!(window.TaskFlowAIAgentRuntime && window.TaskFlowAIAgentRuntime.isActionIntent(text));
       }
 
       if (useAgent) {
-        var agentRes = await window.TaskFlowAIAgentRuntime.handleAgent(text, _history, msgs);
+        var agentRes = await window.TaskFlowAIAgentRuntime.handleAgent(text, _getProviderHistory(), msgs, { signal: req.signal, generation: req.generation });
+        if (!_isCurrentRequest(req.generation)) return; // stale
         _removeTyping(typingEl);
         if (agentRes && agentRes.handled) {
           var agentReply = (window.TaskFlowAIAgentRuntime.takeResult ? window.TaskFlowAIAgentRuntime.takeResult() : null) || agentRes.reply || null;
-          _history.push({ role: 'user', content: text });
-          if (agentReply) _history.push({ role: 'assistant', content: agentReply });
-          if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+          if (agentReply) _persistAssistantMessage(agentReply);
           return;
         }
         throw { code: 'agent-unhandled' };
       }
 
-      // 5. Call API
-      var answer = await _callChatAPI(text, _history);
+      var answer = await _callChatAPI(text, _getProviderHistory(), req.signal);
 
-      // 6. Remove typing
+      if (!_isCurrentRequest(req.generation)) return; // stale
       _removeTyping(typingEl);
-
-      // 7. Append assistant bubble (safe text)
       _appendText(msgs, answer, 'chat-msg bot');
-
-      // 8. Update bounded history
-      _history.push({ role: 'user', content: text });
-      _history.push({ role: 'assistant', content: answer });
-      if (_history.length > MAX_HISTORY) {
-        _history = _history.slice(-MAX_HISTORY);
-      }
+      _persistAssistantMessage(answer);
 
     } catch (err) {
+      if (err && err.name === 'AbortError') {
+        // User stopped — typing already removed by stopActiveResponse
+        return;
+      }
       _removeTyping(typingEl);
       var errMsg = _mapError(err);
-      // P8: exactly ONE error bubble + ONE retry button — no second info bubble.
-      _showRetry(msgs, text, errMsg);
+      if (errMsg) _showRetry(msgs, text, errMsg);
     } finally {
-      _inFlight = false;
+      if (_isCurrentRequest(req.generation)) {
+        _inFlight = false;
+        _activeRequest = null;
+      }
       _setInputEnabled(true);
-      // Re-focus input
+      _setSendMode(false);
       var input = _el('chatInput');
       if (input) input.focus();
     }
@@ -376,8 +498,12 @@
 
   /* ---- Public API ---- */
 
-  /** Send from chat input */
   function doChatSend() {
+    // If a request is active, this becomes the Stop action
+    if (_inFlight && _activeRequest) {
+      stopActiveResponse();
+      return;
+    }
     var input = _el('chatInput');
     if (!input) return;
     var text = input.value.trim();
@@ -386,8 +512,11 @@
     _doSend(text);
   }
 
-  /** Handle suggestion chip click — sends real natural-language prompt */
   function doChatSuggest(topic) {
+    if (_inFlight && _activeRequest) {
+      stopActiveResponse();
+      return;
+    }
     var sug = SUGGESTIONS[topic];
     if (sug && sug.prompt) {
       var input = _el('chatInput');
@@ -398,16 +527,34 @@
 
   /** Clear conversation — reset to welcome state */
   function doChatClear() {
-    _history = [];
-    _inFlight = false;
-    _setInputEnabled(true);
-    _setContextBadge(null);
+    stopActiveResponse();
     _clearFileAttachment();
+    // Don't delete conversation from history — just reset the view
+    _renderWelcome();
+    _setChipsVisible(true);
+    _setContextBadge(null);
+  }
+
+  /** New conversation — create fresh conversation and clear view */
+  function newConversation() {
+    stopActiveResponse();
+    _clearFileAttachment();
+    _activeConversationId = null;
+    var mod = _getHistory();
+    if (mod) {
+      var conv = mod.createConversation(_getAccountScope());
+      _activeConversationId = conv.id;
+    }
+    _renderWelcome();
+    _setChipsVisible(true);
+    _setContextBadge(null);
+  }
+
+  /** Render welcome message */
+  function _renderWelcome() {
     var msgs = _el('chatMessages');
     if (!msgs) return;
-    // Remove all messages
     msgs.innerHTML = '';
-    // Re-add welcome
     var welcomeDiv = document.createElement('div');
     welcomeDiv.className = 'chat-msg bot';
     var welcomeSpan = document.createElement('span');
@@ -415,16 +562,214 @@
     welcomeSpan.textContent = _t('chatWelcome');
     welcomeDiv.appendChild(welcomeSpan);
     msgs.appendChild(welcomeDiv);
-    // Restore suggestion chips
+  }
+
+  /** Open a conversation by ID */
+  function openConversation(conversationId) {
+    stopActiveResponse();
+    _clearFileAttachment();
+    _activeConversationId = conversationId;
+    var mod = _getHistory();
+    if (!mod) return;
+    var scope = _getAccountScope();
+    mod.setActiveConversation(scope, conversationId);
+    var conv = mod.getConversation(scope, conversationId);
+    if (!conv) { _renderWelcome(); return; }
+    // Render messages
+    var msgs = _el('chatMessages');
+    if (!msgs) return;
+    msgs.innerHTML = '';
+    for (var i = 0; i < conv.messages.length; i++) {
+      var m = conv.messages[i];
+      var cls = m.role === 'user' ? 'chat-msg user' : 'chat-msg bot';
+      _appendText(msgs, m.content, cls);
+    }
+    _setChipsVisible(false);
+  }
+
+  /** Delete a conversation */
+  function deleteConversation(conversationId) {
+    var mod = _getHistory();
+    if (!mod) return;
+    var scope = _getAccountScope();
+    mod.deleteConversation(scope, conversationId);
+    if (_activeConversationId === conversationId) {
+      _activeConversationId = null;
+      _ensureConversation();
+      _renderWelcome();
+      _setChipsVisible(true);
+    }
+    // Refresh history drawer if open
+    _renderHistoryDrawer();
+  }
+
+  /** Clear all history for current account */
+  function clearAllHistory() {
+    var mod = _getHistory();
+    if (!mod) return;
+    mod.clearAll(_getAccountScope());
+    _activeConversationId = null;
+    _ensureConversation();
+    _renderWelcome();
     _setChipsVisible(true);
+    _renderHistoryDrawer();
+  }
+
+  /* ---- History Drawer ---- */
+  var _drawerOpen = false;
+
+  function toggleHistory() {
+    _drawerOpen = !_drawerOpen;
+    var drawer = _el('chatHistoryDrawer');
+    if (drawer) {
+      drawer.hidden = !_drawerOpen;
+      if (_drawerOpen) _renderHistoryDrawer();
+    }
+  }
+
+  function _renderHistoryDrawer() {
+    var drawer = _el('chatHistoryDrawer');
+    if (!drawer) return;
+    drawer.innerHTML = '';
+
+    var mod = _getHistory();
+    var scope = _getAccountScope();
+    var conversations = mod ? mod.listConversations(scope) : [];
+
+    // Header
+    var header = document.createElement('div');
+    header.className = 'chat-history-header';
+    var titleEl = document.createElement('strong');
+    titleEl.textContent = _t('chatHistory');
+    header.appendChild(titleEl);
+    var newBtn = document.createElement('button');
+    newBtn.type = 'button';
+    newBtn.className = 'chat-history-new-btn';
+    newBtn.textContent = '+ ' + _t('chatNewConversation');
+    newBtn.setAttribute('aria-label', _t('chatNewConversation'));
+    newBtn.addEventListener('click', function () { newConversation(); _drawerOpen = false; _el('chatHistoryDrawer').hidden = true; });
+    header.appendChild(newBtn);
+    drawer.appendChild(header);
+
+    if (conversations.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'chat-history-empty';
+      var emptyText = document.createElement('p');
+      emptyText.textContent = _t('chatHistoryEmpty');
+      empty.appendChild(emptyText);
+      var emptyNote = document.createElement('p');
+      emptyNote.className = 'chat-history-empty-note';
+      emptyNote.textContent = _t('chatHistoryLocalNote');
+      empty.appendChild(emptyNote);
+      drawer.appendChild(empty);
+    } else {
+      // Group by date
+      var groups = _groupByDate(conversations);
+      for (var g = 0; g < groups.length; g++) {
+        var group = groups[g];
+        var groupEl = document.createElement('div');
+        groupEl.className = 'chat-history-group';
+        var groupTitle = document.createElement('div');
+        groupTitle.className = 'chat-history-group-title';
+        groupTitle.textContent = group.label;
+        groupEl.appendChild(groupTitle);
+        for (var i = 0; i < group.items.length; i++) {
+          var conv = group.items[i];
+          var itemEl = document.createElement('div');
+          itemEl.className = 'chat-history-item';
+          if (conv.id === _activeConversationId) itemEl.classList.add('chat-history-item--active');
+
+          var itemBtn = document.createElement('button');
+          itemBtn.type = 'button';
+          itemBtn.className = 'chat-history-item-btn';
+          itemBtn.textContent = conv.title || 'Cuộc trò chuyện mới';
+          itemBtn.setAttribute('aria-label', conv.title);
+          itemBtn.addEventListener('click', (function (id) {
+            return function () {
+              openConversation(id);
+              _drawerOpen = false;
+              _el('chatHistoryDrawer').hidden = true;
+            };
+          })(conv.id));
+          itemEl.appendChild(itemBtn);
+
+          var timeEl = document.createElement('span');
+          timeEl.className = 'chat-history-item-time';
+          timeEl.textContent = _formatTime(conv.updatedAt);
+          itemEl.appendChild(timeEl);
+
+          var delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'chat-history-item-delete';
+          delBtn.textContent = '×';
+          delBtn.setAttribute('aria-label', _t('chatDeleteConversation') + ' ' + (conv.title || ''));
+          delBtn.addEventListener('click', (function (id) {
+            return function (e) {
+              e.stopPropagation();
+              deleteConversation(id);
+            };
+          })(conv.id));
+          itemEl.appendChild(delBtn);
+
+          groupEl.appendChild(itemEl);
+        }
+        drawer.appendChild(groupEl);
+      }
+
+      // Clear all
+      var clearEl = document.createElement('div');
+      clearEl.className = 'chat-history-clear';
+      var clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'chat-history-clear-btn';
+      clearBtn.textContent = _t('chatClearHistory');
+      clearBtn.addEventListener('click', function () {
+        if (confirm(_t('chatClearHistoryConfirm'))) {
+          clearAllHistory();
+        }
+      });
+      clearEl.appendChild(clearBtn);
+      drawer.appendChild(clearEl);
+    }
+  }
+
+  function _groupByDate(conversations) {
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    var yesterday = today - 86400000;
+    var weekAgo = today - 7 * 86400000;
+
+    var groups = [];
+    var todayItems = [], yesterdayItems = [], weekItems = [], olderItems = [];
+
+    for (var i = 0; i < conversations.length; i++) {
+      var ts = conversations[i].updatedAt;
+      if (ts >= today) todayItems.push(conversations[i]);
+      else if (ts >= yesterday) yesterdayItems.push(conversations[i]);
+      else if (ts >= weekAgo) weekItems.push(conversations[i]);
+      else olderItems.push(conversations[i]);
+    }
+
+    if (todayItems.length > 0) groups.push({ label: _t('chatToday'), items: todayItems });
+    if (yesterdayItems.length > 0) groups.push({ label: _t('chatYesterday'), items: yesterdayItems });
+    if (weekItems.length > 0) groups.push({ label: _t('chatLast7Days'), items: weekItems });
+    if (olderItems.length > 0) groups.push({ label: _t('chatOlder'), items: olderItems });
+
+    return groups;
+  }
+
+  function _formatTime(ts) {
+    var d = new Date(ts);
+    var h = d.getHours().toString().padStart(2, '0');
+    var m = d.getMinutes().toString().padStart(2, '0');
+    return h + ':' + m;
   }
 
   /* ---- Phase 6C: File Attachment ---- */
   var _attachedFile = null;
   var _fileObjectURL = null;
-  var _fileAbort = null;
-  var _pendingFileProposal = null; // Phase 6D: pending file-agent proposal awaiting review
-  var _FILE_MAX_BYTES = 15 * 1024 * 1024; // 15 MB client limit
+  var _pendingFileProposal = null;
+  var _FILE_MAX_BYTES = 15 * 1024 * 1024;
   var _ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain', 'text/markdown']);
   var _ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.txt', '.md']);
 
@@ -490,7 +835,6 @@
     icon.textContent = _fileIcon(file.type);
     cardEl.appendChild(icon);
 
-    // Image preview
     if (file.type && file.type.startsWith('image/') && _fileObjectURL) {
       var preview = document.createElement('img');
       preview.className = 'chat-file-preview';
@@ -520,8 +864,6 @@
     cardEl.appendChild(removeBtn);
 
     card.appendChild(cardEl);
-
-    // Show chips
     _renderFileChips(file.type);
   }
 
@@ -569,7 +911,6 @@
   function _clearFileAttachment() {
     _attachedFile = null;
     if (_fileObjectURL) { URL.revokeObjectURL(_fileObjectURL); _fileObjectURL = null; }
-    if (_fileAbort) { try { _fileAbort.abort(); } catch (e) {} _fileAbort = null; }
     var card = _el('chatFileCard');
     if (card) card.innerHTML = '';
     var chips = _el('chatFileChips');
@@ -592,31 +933,23 @@
     _renderFileCard(file);
   }
 
-  /* ---- Phase 6D: File intent detection (simple, no LLM) ---- */
-  /**
-   * classifyFileIntent — deterministic file-action classifier.
-   * Returns { kind: 'read'|'create-tasks'|'schedule-tasks'|'import-plan',
-   *           confidence: 'high'|'medium'|'low', reason: string }
-   */
+  /* ---- Phase 6D: File intent detection ---- */
   function classifyFileIntent(text) {
     if (!text) return { kind: 'read', confidence: 'high', reason: 'empty' };
     var t = text.toLowerCase();
 
-    // Negation wins — always read-only
-    if (/(?:không|đừng|\bko\b|\bno\b|\bdo\s+not\b|\bdon'?t\b|\bnever\b|\bskip\b|\bchỉ\s+(?:tóm\s+tắt|giải\s+thích|đọc|liệt\s+kê))/.test(t)) {
+    if (/(?:không|đừng|\\bko\\b|\\bno\\b|\\bdo\\s+not\\b|\\bdon'?t\\b|\\bnever\\b|\\bskip\\b|\\bchỉ\\s+(?:tóm\\s+tắt|giải\\s+thích|đọc|liệt\\s+kê))/.test(t)) {
       return { kind: 'read', confidence: 'high', reason: 'negation' };
     }
-    // Hypothetical — never mutate
-    if (/(?:nếu|giả\s+sử|giả\s+như|\bsuppose\b|\bassume\b|\bwhat\s+if\b|\bimagine\b|thì\s+sao|\bhow\s+(?:would|could|can))/.test(t)) {
+    if (/(?:nếu|giả\\s+sử|giả\\s+như|\\bsuppose\\b|\\bassume\\b|\\bwhat\\s+if\\b|\\bimagine\\b|thì\\s+sao|\\bhow\\s+(?:would|could|can))/.test(t)) {
       return { kind: 'read', confidence: 'high', reason: 'hypothetical' };
     }
 
-    // High-confidence action signals ( Vietnamese + English )
-    var createVerbs = /(?:tạo|thêm|lập|lên|chia|tách|biến|chuyển|đưa\s+vào|import|create|add|make|turn\s+into|convert|split|break\s+down)/i;
-    var taskNouns = /(?:task|tasks|công\s+việc|việc|nhiệm\s+vụ|todo|to-do|checklist|action|action\s+item|bước|việc\s+cần\s+làm)/i;
-    var planNouns = /(?:kế\s+hoạch|plan|roadmap|lịch|schedule|deadline|xếp\s+lịch|lịch\s+học|lịch\s+trình)/i;
-    var dayPattern = /(?:theo\s+ngày|từng\s+ngày|mỗi\s+ngày|theo\s+tuần|daily|weekly|each\s+day|per\s+day)/i;
-    var flowVerbs = /(?:đưa\s+(?:toàn\s+bộ|tất\+cả|vào)|đưa\s+vào\s+taskflow|vào\s+taskflow|import\s+to\s+taskflow)/i;
+    var createVerbs = /(?:tạo|thêm|lập|lên|chia|tách|biến|chuyển|đưa\\s+vào|import|create|add|make|turn\\s+into|convert|split|break\\s+down)/i;
+    var taskNouns = /(?:task|tasks|công\\s+việc|việc|nhiệm\\s+vụ|todo|to-do|checklist|action|action\\s+item|bước|việc\\s+cần\\s+làm)/i;
+    var planNouns = /(?:kế\\s+hoạch|plan|roadmap|lịch|schedule|deadline|xếp\\s+lịch|lịch\\s+học|lịch\\s+trình)/i;
+    var dayPattern = /(?:theo\\s+ngày|từng\\s+ngày|mỗi\\s+ngày|theo\\s+tuần|daily|weekly|each\\s+day|per\\s+day)/i;
+    var flowVerbs = /(?:đưa\\s+(?:toàn\\s+bộ|tất\\+cả|vào)|đưa\\s+vào\\s+taskflow|vào\\s+taskflow|import\\s+to\\s+taskflow)/i;
 
     var hasCreateVerb = createVerbs.test(t);
     var hasTaskNoun = taskNouns.test(t);
@@ -624,30 +957,24 @@
     var hasDayPattern = dayPattern.test(t);
     var hasFlowVerb = flowVerbs.test(t);
 
-    // import-plan: explicit import into TaskFlow
     if (hasFlowVerb) {
       return { kind: 'import-plan', confidence: 'high', reason: 'import-to-taskflow' };
     }
-    // schedule-tasks: create + scheduling together
     if (hasCreateVerb && hasDayPattern) {
       return { kind: 'schedule-tasks', confidence: 'high', reason: 'create-with-schedule' };
     }
     if (hasCreateVerb && hasPlanNoun) {
       return { kind: 'schedule-tasks', confidence: 'high', reason: 'create-with-plan' };
     }
-    // create-tasks: create verb + task noun
     if (hasCreateVerb && hasTaskNoun) {
       return { kind: 'create-tasks', confidence: 'high', reason: 'create-with-task' };
     }
-    // Medium confidence: action verb alone (file is attached → task context implied)
     if (hasCreateVerb) {
       return { kind: 'create-tasks', confidence: 'medium', reason: 'create-verb-only' };
     }
-    // Task noun alone without create verb — user wants tasks from the file
     if (hasTaskNoun) {
       return { kind: 'create-tasks', confidence: 'medium', reason: 'task-noun-only' };
     }
-    // Planning nouns alone
     if (hasPlanNoun && hasDayPattern) {
       return { kind: 'schedule-tasks', confidence: 'medium', reason: 'plan-with-schedule' };
     }
@@ -663,7 +990,6 @@
   async function _sendWithFile(text, file) {
     if (_inFlight || !file) return;
 
-    // ── Pre-flight checks BEFORE locking UI ──
     var msgs = _el('chatMessages');
     if (!msgs) return;
     if (!_isOnline()) {
@@ -680,30 +1006,34 @@
       return;
     }
 
-    // Phase 6D: detect file-agent intent and route accordingly
     var isFileAgent = _isFileAgentIntent(text);
     var endpoint = isFileAgent ? '/api/ai/file-agent' : '/api/ai/file';
 
-    // ── Now safe to lock UI ──
     _inFlight = true;
     _setInputEnabled(false);
     _setChipsVisible(false);
+    _setSendMode(true);
+
+    // Start request lifecycle
+    var req = _startRequest(isFileAgent ? 'file-agent' : 'file');
 
     try {
-      // User bubble using canonical _appendText
       var fileLabel = _fileIcon(file.type) + ' ' + file.name + ' (' + _formatFileSize(file.size) + ')';
       _appendText(msgs, text + '\n' + fileLabel, 'chat-msg user');
 
-      // Loading indicator
+      // Persist to history with attachment metadata
+      _persistUserMessage(text + '\n' + fileLabel, {
+        type: file.type,
+        name: file.name,
+        size: file.size
+      });
+
       _setFileLoading(file.name, true);
 
-      // Build FormData
-      _fileAbort = new AbortController();
       var fd = new FormData();
       fd.append('file', file);
       fd.append('message', text);
 
-      // Phase 6D: attach TaskFlow context for file-agent proposals (duplicate detection)
       if (isFileAgent) {
         try {
           var ctxProvider = window.TaskFlowChatContextProvider;
@@ -716,7 +1046,6 @@
         } catch (e) { /* context must never break file send */ }
       }
 
-      // Token from localStorage (same pattern as _callChatAPI)
       var token = null;
       try { token = localStorage.getItem('planner-token'); } catch (e) { /* */ }
       var headers = {};
@@ -726,9 +1055,10 @@
         method: 'POST',
         headers: headers,
         body: fd,
-        signal: _fileAbort.signal,
+        signal: req.signal,
       });
-      _fileAbort = null;
+
+      if (!_isCurrentRequest(req.generation)) return;
 
       var json;
       try { json = await resp.json(); } catch (e) { json = null; }
@@ -745,56 +1075,52 @@
             : _t('fileFailed');
         } catch (e) { fileErrMsg = _t('fileFailed'); }
         _appendText(msgs, fileErrMsg, 'chat-msg bot');
-        _history.push({ role: 'user', content: text });
-        _history.push({ role: 'assistant', content: fileErrMsg });
-        if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+        _persistAssistantMessage(fileErrMsg);
         return;
       }
 
-      // Phase 6D: if file-agent returned a proposal, feed into review system
       if (isFileAgent && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
         _pendingFileProposal = { proposal: json.proposal, source: json.source || { type: file.type, name: file.name } };
-        // Show summary + delegate to Phase 5C review via AgentRuntime
         _appendText(msgs, json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }), 'chat-msg bot');
-        _history.push({ role: 'user', content: text });
-        _history.push({ role: 'assistant', content: json.proposal.summary || '' });
-        if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
-        // Trigger Phase 5C review card if AgentRuntime is available
+        _persistAssistantMessage(json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }));
         try {
           if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
             window.TaskFlowAIAgentRuntime.handleExternalProposal(json.proposal, { source: 'file', fileName: json.source && json.source.name, fileMime: json.source && json.source.type });
           }
         } catch (e) { /* review must never break chat */ }
       } else if (isFileAgent && json.proposal && json.proposal.actions && json.proposal.actions.length === 0) {
-        // Phase 6D: no actions found
         _appendText(msgs, json.proposal.summary || _t('fileAgentNoActions'), 'chat-msg bot');
-        _history.push({ role: 'user', content: text });
-        _history.push({ role: 'assistant', content: json.proposal.summary || '' });
-        if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+        _persistAssistantMessage(json.proposal.summary || _t('fileAgentNoActions'));
       } else {
-        // Phase 6C: normal read-only answer
         _appendText(msgs, json.answer || '', 'chat-msg bot');
-        _history.push({ role: 'user', content: text });
-        _history.push({ role: 'assistant', content: json.answer || '' });
-        if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
+        _persistAssistantMessage(json.answer || '');
       }
     } catch (e) {
       _setFileLoading(file.name, false);
-      if (e && e.name === 'AbortError') return; // cancelled
+      if (e && e.name === 'AbortError') return;
       var errMsg = (e && e.code === 'api-config-missing') ? _t('chatErrorApiConfig') : _t('fileFailed');
       _appendText(msgs, errMsg, 'chat-msg bot');
     } finally {
-      _inFlight = false;
+      if (_isCurrentRequest(req.generation)) {
+        _inFlight = false;
+        _activeRequest = null;
+      }
       _setInputEnabled(true);
+      _setSendMode(false);
       _clearFileAttachment();
       var input = _el('chatInput');
       if (input) input.focus();
     }
   }
 
-  /** Override doChatSend to check for attached file */
+  /* Override doChatSend to check for attached file */
   var _origDoChatSend = doChatSend;
   doChatSend = function () {
+    // If a request is active, this becomes the Stop action
+    if (_inFlight && _activeRequest) {
+      stopActiveResponse();
+      return;
+    }
     var input = _el('chatInput');
     if (!input) return;
     var text = input.value.trim();
@@ -807,7 +1133,7 @@
     }
   };
 
-  /** Initialize file attachment handlers (idempotent, safe to call multiple times) */
+  /* ---- Initialize file attachment handlers ---- */
   var _fileInited = false;
   function _initFileAttachment() {
     if (_fileInited) return;
@@ -822,22 +1148,64 @@
     });
     _fileInited = true;
   }
-  // Initialize immediately — DOM elements are in app.html before lazy chat.js loads
   _initFileAttachment();
+
+  /* ---- Initialize history drawer ---- */
+  function _initHistoryDrawer() {
+    if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return;
+    var historyBtn = document.querySelector('[data-action="chat-history"]');
+    if (historyBtn) {
+      historyBtn.addEventListener('click', toggleHistory);
+    }
+    var newChatBtn = document.querySelector('[data-action="chat-new"]');
+    if (newChatBtn) {
+      newChatBtn.addEventListener('click', newConversation);
+    }
+    // Close drawer when clicking outside
+    var drawer = _el('chatHistoryDrawer');
+    if (drawer) {
+      drawer.addEventListener('click', function (e) {
+        if (e.target === drawer) {
+          _drawerOpen = false;
+          drawer.hidden = true;
+        }
+      });
+    }
+  }
+  _initHistoryDrawer();
+
+  /* ---- Listen for account changes ---- */
+  function _onAccountChange() {
+    _accountScope = null; // Force re-detection
+    _activeConversationId = null;
+    var mod = _getHistory();
+    if (mod) {
+      var conv = mod.createConversation(_getAccountScope());
+      _activeConversationId = conv.id;
+    }
+    _renderWelcome();
+    _setChipsVisible(true);
+  }
 
   return {
     SUGGESTIONS: SUGGESTIONS,
     doChatSend: doChatSend,
     doChatSuggest: doChatSuggest,
     doChatClear: doChatClear,
-    // Expose for testing
+    newConversation: newConversation,
+    openConversation: openConversation,
+    deleteConversation: deleteConversation,
+    clearAllHistory: clearAllHistory,
+    toggleHistory: toggleHistory,
+    stopActiveResponse: stopActiveResponse,
+    classifyFileIntent: classifyFileIntent,
     _doSend: _doSend,
     _hasToken: _hasToken,
     _isOnline: _isOnline,
-    _history: function () { return _history; },
     _setContextBadge: _setContextBadge,
     _getApiBase: _getApiBase,
     _callChatAPI: _callChatAPI,
     _mapError: _mapError,
+    _onAccountChange: _onAccountChange,
   };
 });
