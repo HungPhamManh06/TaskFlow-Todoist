@@ -546,3 +546,32 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 | /file-agent | aiFileLimiter + hourly | ✓ central | ✓ |
 | /refine | aiAgentLimiter + hourly | ✓ central | ✓ |
 | /roadmap | ROADMAP_LIMITER + hourly | ✓ central | ✓ |
+
+## Phase 6V — TaskFlow AI v1.0 Release Candidate
+
+**Branch:** `release/ai-v1-rc`
+
+### Baseline
+- Main SHA: `ba33c17`
+- Phase 6U.1 SHA: `90a9918`
+- PR #60 merged
+
+### AI Route Matrix (9 routes)
+| Route | Auth | Limiter | Request ID | maxTokens | Provider msg budget |
+|-------|------|---------|------------|-----------|-------------------|
+| /plan | ✓ router | aiPlanLimiter | ✓ central | 1200 | ✓ |
+| /plan-synthesis | ✓ router | aiPlanSynth + hourly | ✓ central | 2048 | ✓ |
+| /plan-health | ✓ router | aiAgentLimiter | ✓ central | 1024 | ✓ |
+| /chat | ✓ router | aiChatLimiter | ✓ central | 1024 | ✓ |
+| /agent | ✓ router | aiAgentLimiter + hourly | ✓ central | (dynamic) | ✓ |
+| /file | ✓ router | aiFileLimiter + hourly | ✓ central | 2048 | ✓ |
+| /file-agent | ✓ router | aiFileLimiter + hourly | ✓ central | 4096 | ✓ |
+| /refine | ✓ router | aiAgentLimiter + hourly | ✓ central | (dynamic) | ✓ |
+| /roadmap | ✓ router | ROADMAP_LIMITER + hourly | ✓ central | 4096 | ✓ |
+
+### RC Validation
+- 61 RC journey/invariant tests: ALL PASS
+- Phase 6R/6S/6T/6U/6U.1 regression: ALL PASS
+- Full unit suite: 2902 pass, 3 pre-existing server failures
+- Release assets: 0 FAIL
+- Known limitations: in-memory rate limits are instance-local (serverless defense-in-depth)
