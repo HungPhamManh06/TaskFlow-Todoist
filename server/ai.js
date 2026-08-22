@@ -1583,6 +1583,8 @@ const AI_FILE_RATE_LIMIT_PER_MIN = parseInt(process.env.AI_FILE_RATE_LIMIT_PER_M
 const AI_FILE_RATE_LIMIT_PER_HOUR = parseInt(process.env.AI_FILE_RATE_LIMIT_PER_HOUR || '15', 10);
 const AI_FILE_TIMEOUT_MS = getConfig().timeoutMs;
 const AI_FILE_MAX_TEXT_CHARS = 500000;
+const AI_FILE_PROVIDER_MAX_MESSAGE_BYTES = Math.ceil(AI_FILE_MAX_TOTAL_BYTES * 4 / 3)
+  + AI_FILE_MAX_TEXT_CHARS + 64 * 1024;
 
 const FILE_ALLOWED_MIMES = new Set([
   'image/jpeg', 'image/png', 'image/webp',
@@ -1905,6 +1907,7 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
       const aiResult = await callAiText({
         messages,
         maxTokens: 2048,
+        maxMessageBytes: AI_FILE_PROVIDER_MAX_MESSAGE_BYTES,
         timeoutMs: AI_FILE_TIMEOUT_MS,
         requestId,
         routeName: '/api/ai/file',
@@ -2305,6 +2308,7 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
           messages: chunkMessages,
           schema: FILE_AGENT_SCHEMA,
           maxTokens: FILE_AGENT_CHUNK_TOKENS,
+          maxMessageBytes: AI_FILE_PROVIDER_MAX_MESSAGE_BYTES,
           timeoutMs: AI_FILE_TIMEOUT_MS,
           requestId,
           routeName: '/api/ai/file-agent',
@@ -2684,5 +2688,5 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
   }
 });
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS };
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS };
 
