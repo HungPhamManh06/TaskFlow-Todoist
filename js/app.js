@@ -4487,6 +4487,15 @@ function setChatConsentPermission(control) {
    Đóng popover, cập nhật aria-expanded, trả focus về FAB nếu chat mở từ FAB.
    KHÔNG xoá hội thoại/lịch sử. */
 let _chatOpenedFromFab = false;
+let _chatOpener = null;
+function canRestoreChatFocus(element) {
+  if (!element || !element.isConnected || typeof element.focus !== 'function' || element.hidden) return false;
+  if (typeof window.getComputedStyle === 'function') {
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+  }
+  return typeof element.getClientRects !== 'function' || element.getClientRects().length > 0;
+}
 function syncChatPresentation() {
   const panel = document.getElementById('chatPop');
   if (!panel) return;
@@ -4558,7 +4567,11 @@ function closeChatPanel() {
   p.hidden = true;
   const fab = document.getElementById('chatFab');
   if (fab) fab.setAttribute('aria-expanded', 'false');
-  if (_chatOpenedFromFab && fab && typeof fab.focus === 'function') fab.focus();
+  const mobileMore = document.querySelector('#mobileNav [data-action="more"]');
+  const focusCandidates = [_chatOpener, fab, mobileMore];
+  const focusTarget = focusCandidates.find((candidate) => canRestoreChatFocus(candidate));
+  if (focusTarget) focusTarget.focus();
+  _chatOpener = null;
   _chatOpenedFromFab = false;
   return true;
 }
@@ -5710,6 +5723,7 @@ document.addEventListener('click', (e) => {
       if (fab) fab.setAttribute('aria-expanded', String(opening));
       // Chat mở từ FAB → trả focus về FAB khi đóng (P15).
       _chatOpenedFromFab = !!(el === fab || (el && el.closest && el.closest('#chatFabWrap')));
+      _chatOpener = el;
       preloadLazyChat();
       const pomoPanel = document.getElementById('pomoPanel');
       if (pomoPanel) pomoPanel.hidden = true;

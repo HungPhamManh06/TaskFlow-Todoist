@@ -195,6 +195,18 @@ test('outside-click containment survives history item re-rendering', () => {
   assert.match(outsideClick, /closeChatPanel\(\)/);
 });
 
+test('closing chat restores focus to a visible opener with stable fallbacks', () => {
+  assert.match(APP_JS, /let _chatOpener = null/);
+  assert.match(APP_JS, /function canRestoreChatFocus\(element\)/);
+  const closePanel = functionBody(APP_JS, 'closeChatPanel');
+  assert.match(closePanel, /_chatOpener/);
+  assert.match(closePanel, /document\.getElementById\('chatFab'\)/);
+  assert.match(closePanel, /#mobileNav \[data-action="more"\]/);
+  const toggleStart = APP_JS.indexOf("else if (act === 'chat-toggle')");
+  const toggleFlow = APP_JS.slice(toggleStart, toggleStart + 1000);
+  assert.match(toggleFlow, /_chatOpener = el/);
+});
+
 test('composer helpers submit plain Enter while preserving Shift+Enter and IME composition', () => {
   const previousDocument = globalThis.document;
   globalThis.document = {
