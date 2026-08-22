@@ -46,15 +46,30 @@ function generateRequestId() {
 const router = express.Router();
 router.use(authMiddleware);
 
+// Phase 6U.1: Central request-ID middleware — one correlation ID per AI request
+router.use((req, res, next) => {
+  const rid = generateRequestId();
+  req.aiRequestId = rid;
+  res.setHeader('X-Request-Id', rid);
+  next();
+});
+
 const AI_API_KEY = process.env.AI_API_KEY || '';
 const AI_MODEL = process.env.AI_MODEL || 'gemini-3.6-flash';
 const AI_AGENT_ENABLED = process.env.AI_AGENT_ENABLED === 'true';
 
+// Phase 6U.1: Rate-limit env validation — safe bounded positive integers
+function readBoundedPositiveIntEnv(raw, def, max) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return def;
+  return Math.min(Math.floor(n), max || 1000);
+}
+
 // Rate limiters for AI endpoints
-const AI_CHAT_RATE_LIMIT = Number(process.env.AI_CHAT_RATE_LIMIT_PER_MIN) || 15;
-const AI_AGENT_RATE_LIMIT = Number(process.env.AI_AGENT_RATE_LIMIT_PER_MIN) || 6;
-const AI_PLAN_RATE_LIMIT = Number(process.env.AI_PLAN_RATE_LIMIT_PER_MIN) || 6;
-const AI_AGENT_HOURLY_LIMIT = Number(process.env.AI_AGENT_RATE_LIMIT_PER_HOUR) || 30;
+const AI_CHAT_RATE_LIMIT = readBoundedPositiveIntEnv(process.env.AI_CHAT_RATE_LIMIT_PER_MIN, 15, 120);
+const AI_AGENT_RATE_LIMIT = readBoundedPositiveIntEnv(process.env.AI_AGENT_RATE_LIMIT_PER_MIN, 6, 60);
+const AI_PLAN_RATE_LIMIT = readBoundedPositiveIntEnv(process.env.AI_PLAN_RATE_LIMIT_PER_MIN, 6, 60);
+const AI_AGENT_HOURLY_LIMIT = readBoundedPositiveIntEnv(process.env.AI_AGENT_RATE_LIMIT_PER_HOUR, 30, 500);
 
 const aiChatLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -123,6 +138,23 @@ const agentInFlight = new Map(); // userId -> count
 // Idempotency cache for agent requests (userId + agentRequestId -> proposal)
 const agentIdempotencyCache = new Map(); // key: userId:agentRequestId -> { proposal, timestamp }
 const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_IDEMPOTENCY_ENTRIES = 500;
+
+// Phase 6U.1: True bounded idempotency cleanup
+function cleanupIdempotencyCache(cache, now) {
+  // 1. Remove expired entries
+  for (const [key, value] of cache.entries()) {
+    if (now - value.timestamp > IDEMPOTENCY_TTL_MS) cache.delete(key);
+  }
+  // 2. If still over max, evict oldest entries deterministically
+  if (cache.size > MAX_IDEMPOTENCY_ENTRIES) {
+    const entries = Array.from(cache.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp);
+    const toRemove = cache.size - MAX_IDEMPOTENCY_ENTRIES;
+    for (let i = 0; i < toRemove && i < entries.length; i++) {
+      cache.delete(entries[i][0]);
+    }
+  }
+}
 
 // Idempotency cache
 const KINDS = ['plan_day', 'plan_week', 'next_actions', 'breakdown_project', 'breakdown_milestone', 'reschedule'];
@@ -448,9 +480,8 @@ function buildPrompt(ctx) {
 
 // ---- POST /api/ai/plan (Bearer) {kind, context, userText?} → {ok, proposal} ----
 router.post('/plan', aiPlanLimiter, async (req, res) => {
-  const requestId = generateRequestId();
+  const requestId = req.aiRequestId;
   try {
-    res.setHeader('X-Request-Id', requestId);
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const { ctx } = sanitizeContext(body.context);
@@ -552,7 +583,7 @@ const PLAN_SYNTHESIS_SCHEMA = {
 };
 
 router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, async (req, res) => {
-  const requestId = generateRequestId();
+  const requestId = req.aiRequestId;
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -707,6 +738,7 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
 // Input: { healthReport, message, mode? }
 // Output: { ok, explanation, mitigationSummary? }
 router.post('/plan-health', aiAgentLimiter, async (req, res) => {
+  const requestId = req.aiRequestId;
   try {
     const body = req.body || {};
     const healthReport = body.healthReport;
@@ -736,6 +768,7 @@ router.post('/plan-health', aiAgentLimiter, async (req, res) => {
         { role: 'user', content: message }
       ],
       maxTokens: 1024,
+      requestId,
       routeName: '/api/ai/plan-health'
     });
 
@@ -992,6 +1025,7 @@ function sanitizeChatHistory(raw) {
 
 // POST /api/ai/chat (Bearer) { message, history? } → { ok, answer }
 router.post('/chat', aiChatLimiter, async (req, res) => {
+  const requestId = req.aiRequestId;
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
@@ -1030,6 +1064,7 @@ router.post('/chat', aiChatLimiter, async (req, res) => {
     const aiResult = await callAiText({
       messages,
       maxTokens: 1024,
+      requestId,
       routeName: '/api/ai/chat'
     });
 
@@ -1372,7 +1407,7 @@ const AGENT_SYSTEM_INSTRUCTION_EN = 'You are TaskFlow\'s safe action agent. The 
 // Server returns a SANITIZED proposal ONLY — it never executes actions.
 // Lifecycle: validate cheap → sanitize → idempotency → acquire slot → Gemini → release slot.
 router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => {
-  const requestId = generateRequestId();
+  const requestId = req.aiRequestId;
 
   try {
     // ── 1. Feature flag / config (no slot needed) ──
@@ -1505,13 +1540,8 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
       if (agentRequestId && userId) {
         const cacheKey = userId + ':' + agentRequestId;
         agentIdempotencyCache.set(cacheKey, { proposal, timestamp: Date.now() });
-        // Bounded cleanup: evict expired entries when cache exceeds 500
-        if (agentIdempotencyCache.size > 500) {
-          const now = Date.now();
-          for (const [key, value] of agentIdempotencyCache.entries()) {
-            if (now - value.timestamp > IDEMPOTENCY_TTL_MS) agentIdempotencyCache.delete(key);
-          }
-        }
+        // Phase 6U.1: True bounded cleanup — always enforce max after insert
+        cleanupIdempotencyCache(agentIdempotencyCache, Date.now());
       }
       // Output size guard: reject oversized responses
       const respBody = JSON.stringify(resp);
@@ -1617,6 +1647,7 @@ const aiFileHourlyLimiter = rateLimit({
 const _fileInFlight = new Map();
 
 router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
+  const requestId = req.aiRequestId;
   let fileBuffer = null;
   let fileName = '';
   let fileMime = '';
@@ -1751,6 +1782,7 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
         messages,
         maxTokens: 2048,
         timeoutMs: AI_FILE_TIMEOUT_MS,
+        requestId,
         routeName: '/api/ai/file'
       });
 
@@ -1937,6 +1969,7 @@ function validateFileAgentProposal(proposal, refs) {
 // POST /api/ai/file-agent (Bearer) multipart: file + message + optional taskflowContext
 // Phase 6D: structured extraction → server validate → browser review → user confirm → apply
 router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
+  const requestId = req.aiRequestId;
   let fileBuffer = null;
   let fileName = '';
   let fileMime = '';
@@ -2073,6 +2106,7 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
         messages,
         maxTokens: 4096,
         timeoutMs: AI_FILE_TIMEOUT_MS,
+        requestId,
         routeName: '/api/ai/file-agent'
       });
 
@@ -2180,7 +2214,7 @@ function validateRefineRequest(body) {
 // Returns structured operations for client to apply to review state.
 // NO direct TaskFlow writes. NO autonomous execution.
 router.post('/refine', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => {
-  const requestId = generateRequestId();
+  const requestId = req.aiRequestId;
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
 
@@ -2294,6 +2328,7 @@ function _classifyLocalOps(message) {
 const ROADMAP_LIMITER = rateLimit({ windowMs: 60000, max: 3, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => String(req.user.id), message: { error: 'ai-rate-limited', retryAfterSeconds: 60 }, handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }) });
 const ROADMAP_HOURLY = rateLimit({ windowMs: 3600000, max: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => String(req.user.id), message: { error: 'ai-rate-limited', retryAfterSeconds: 3600 }, handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 3600 }) });
 router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
+  const requestId = req.aiRequestId;
   const startMs = Date.now();
   try {
     if (!AI_API_KEY) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
@@ -2347,6 +2382,7 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
         { role: 'user', content: userPrompt }
       ],
       maxTokens: 4096,
+      requestId,
       routeName: '/api/ai/roadmap'
     });
 

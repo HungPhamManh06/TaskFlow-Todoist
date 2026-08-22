@@ -521,3 +521,28 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - **agentRequestId validation** — tightened to 8-64 chars, /^[a-zA-Z0-9_-]+$/ safe chars only
 - **66 new tests** — timeout/maxTokens validation, status mapping, provider label, batch rollback, busy-window preservation, prompt budget, payload limit, request ID, rate limits, concurrency, idempotency, safe errors, context bounds, prompt injection, sensitive context, edit contract, timeout bounds
 - **Version pins** — app.min.js v221
+
+## Phase 6U.1 — Cross-Endpoint Production Hardening Closure
+
+**Branch:** `fix/ai-phase6u1-cross-endpoint-hardening`
+
+### Changes
+- **Central request-ID middleware** — `req.aiRequestId` + `X-Request-Id` header applied at router boundary; all 9 provider-backed routes use it
+- **Provider message budget** — `validateMaxMessageBytes()` in ai-provider.js caps outbound messages at 256KB max (64KB default); rejects before fetch
+- **True idempotency bound** — `cleanupIdempotencyCache()` helper: removes expired entries first, then evicts oldest by timestamp; guaranteed <=500 entries
+- **Rate-limit env validation** — `readBoundedPositiveIntEnv()` validates all AI rate-limit env vars; rejects NaN/negative/Infinity/excessive values
+- **64 new tests** — route inventory, central requestId middleware, X-Request-Id coverage, message budget, idempotency bounds, rate-limit env, concurrency, config override, safe errors, context bounds, prompt injection, sensitive context, edit contract, batch rollback, timeout/maxTokens bounds
+- **Updated Phase 6U/5a1 tests** for new patterns
+
+### Route Inventory (9 provider-backed routes)
+| Route | Limiter | Request ID | Provider requestId |
+|-------|---------|------------|-------------------|
+| /plan | aiPlanLimiter | ✓ central | ✓ |
+| /plan-synthesis | aiPlanSynthLimiter + hourly | ✓ central | ✓ |
+| /plan-health | aiAgentLimiter | ✓ central | ✓ |
+| /chat | aiChatLimiter | ✓ central | ✓ |
+| /agent | aiAgentLimiter + hourly | ✓ central | ✓ |
+| /file | aiFileLimiter + hourly | ✓ central | ✓ |
+| /file-agent | aiFileLimiter + hourly | ✓ central | ✓ |
+| /refine | aiAgentLimiter + hourly | ✓ central | ✓ |
+| /roadmap | ROADMAP_LIMITER + hourly | ✓ central | ✓ |
