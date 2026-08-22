@@ -59,7 +59,9 @@ describe('6U.1: Central request-ID middleware', () => {
   });
 
   it('/plan uses req.aiRequestId', () => {
-    assert.ok(aiJS.includes("const requestId = req.aiRequestId;\r\n  try {\r\n    if (!AI_API_KEY"), 'plan must use req.aiRequestId');
+    const planIdx = aiJS.indexOf("router.post('/plan'");
+    const planSeg = aiJS.slice(planIdx, planIdx + 500);
+    assert.ok(planSeg.includes('const requestId = req.aiRequestId;'), 'plan must use req.aiRequestId');
   });
 
   it('/plan-synthesis uses req.aiRequestId', () => {
