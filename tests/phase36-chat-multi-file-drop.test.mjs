@@ -17,7 +17,7 @@ test('chat header uses an in-flow close control', () => {
 });
 
 test('composer exposes a multi-file picker and drop status', () => {
-  assert.match(HTML, /id="chat-file-input"[^>]*multiple/);
+  assert.match(HTML, /id="chatFileInput"[^>]*multiple/);
   assert.match(HTML, /id="chat-drop-status"[^>]*role="status"[^>]*aria-live="polite"/);
   assert.match(HTML, /class="chat-drop-overlay"[^>]*aria-hidden="true"/);
   assert.match(CSS, /\[data-drop-active="true"\]\s+\.chat-drop-overlay/);
