@@ -160,6 +160,7 @@
     if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
     // Re-enable input
     _setInputEnabled(true);
+    _setAttachmentControlsDisabled(false);
     _setSendMode(false);
     var msgs = _el('chatMessages');
     if (msgs) {
@@ -354,7 +355,7 @@
   function _syncComposerState() {
     var input = _el('chatInput');
     var send = document.querySelector('[data-action="chat-send"]');
-    var hasPayload = !!(input && String(input.value || '').trim()) || !!_attachedFile;
+    var hasPayload = !!(input && String(input.value || '').trim()) || _attachedFiles.length > 0;
     if (send) send.disabled = !_inFlight && !hasPayload;
     var composer = _el('chatComposer');
     if (composer) composer.setAttribute('aria-busy', String(_inFlight));
@@ -683,7 +684,7 @@
   /** Clear conversation — reset to welcome state */
   function doChatClear() {
     stopActiveResponse();
-    _clearFileAttachment();
+    _clearFileAttachments();
     // Don't delete conversation from history — just reset the view
     _renderWelcome();
     _setChipsVisible(true);
@@ -694,7 +695,7 @@
   function newConversation() {
     _captureConversationView();
     stopActiveResponse();
-    _clearFileAttachment();
+    _clearFileAttachments();
     _activeConversationId = null;
     var mod = _getHistory();
     if (mod) mod.setActiveConversation(_getAccountScope(), '');
@@ -723,7 +724,7 @@
   function openConversation(conversationId) {
     _captureConversationView();
     stopActiveResponse();
-    _clearFileAttachment();
+    _clearFileAttachments();
     _activeConversationId = conversationId;
     var mod = _getHistory();
     if (!mod) return;
@@ -976,8 +977,10 @@
   }
 
   /* ---- Phase 6C: File Attachment ---- */
-  var _attachedFile = null;
-  var _fileObjectURL = null;
+  var _attachedFiles = [];
+  var _fileObjectUrls = new Map();
+  var _attachmentQueueVersion = 0;
+  var _dragDepth = 0;
   var _pendingFileProposal = null;
   var _FILE_MAX_FILES = 5;
   var _FILE_MAX_BYTES = 15 * 1024 * 1024;
@@ -1071,56 +1074,68 @@
     return { ok: true };
   }
 
-  function _renderFileCard(file) {
+  function _renderFileCards() {
     var card = _el('chatFileCard');
     if (!card) return;
     card.innerHTML = '';
-    if (!file) return;
+    _attachedFiles.forEach(function (file) {
+      var fileKey = _fileKey(file);
+      var cardEl = document.createElement('div');
+      cardEl.className = 'chat-file-card';
+      cardEl.setAttribute('data-file-key', fileKey);
 
-    var cardEl = document.createElement('div');
-    cardEl.className = 'chat-file-card';
+      var icon = document.createElement('span');
+      icon.className = 'chat-file-card-icon';
+      icon.textContent = _fileIcon(file.type);
+      cardEl.appendChild(icon);
 
-    var icon = document.createElement('span');
-    icon.className = 'chat-file-card-icon';
-    icon.textContent = _fileIcon(file.type);
-    cardEl.appendChild(icon);
+      var objectUrl = _fileObjectUrls.get(fileKey);
+      if (file.type && file.type.startsWith('image/') && objectUrl) {
+        var preview = document.createElement('img');
+        preview.className = 'chat-file-preview';
+        preview.src = objectUrl;
+        preview.alt = file.name;
+        cardEl.appendChild(preview);
+      }
 
-    if (file.type && file.type.startsWith('image/') && _fileObjectURL) {
-      var preview = document.createElement('img');
-      preview.className = 'chat-file-preview';
-      preview.src = _fileObjectURL;
-      preview.alt = file.name;
-      cardEl.appendChild(preview);
-    }
+      var info = document.createElement('div');
+      info.className = 'chat-file-card-info';
+      var name = document.createElement('div');
+      name.className = 'chat-file-card-name';
+      name.textContent = file.name;
+      info.appendChild(name);
+      var size = document.createElement('div');
+      size.className = 'chat-file-card-size';
+      size.textContent = _formatFileSize(file.size);
+      info.appendChild(size);
+      cardEl.appendChild(info);
 
-    var info = document.createElement('div');
-    info.className = 'chat-file-card-info';
-    var name = document.createElement('div');
-    name.className = 'chat-file-card-name';
-    name.textContent = file.name;
-    info.appendChild(name);
-    var size = document.createElement('div');
-    size.className = 'chat-file-card-size';
-    size.textContent = _formatFileSize(file.size);
-    info.appendChild(size);
-    cardEl.appendChild(info);
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'chat-file-card-remove';
+      removeBtn.setAttribute('aria-label', _t('chatRemoveFile', { name: file.name }));
+      removeBtn.textContent = '×';
+      removeBtn.disabled = _inFlight;
+      removeBtn.addEventListener('click', function () { _removeAttachedFile(fileKey, true); });
+      cardEl.appendChild(removeBtn);
+      card.appendChild(cardEl);
+    });
 
-    var removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'chat-file-card-remove';
-    removeBtn.setAttribute('aria-label', _t('fileRemove'));
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', function () { _clearFileAttachment(); });
-    cardEl.appendChild(removeBtn);
+    _renderFileChips(_attachedFiles[0] && _attachedFiles[0].type);
+  }
 
-    card.appendChild(cardEl);
-    _renderFileChips(file.type);
+  function _renderFileCard() {
+    _renderFileCards();
   }
 
   function _renderFileChips(mimeType) {
     var chipsEl = _el('chatFileChips');
     if (!chipsEl) return;
     chipsEl.innerHTML = '';
+    if (!_attachedFiles.length) {
+      chipsEl.hidden = true;
+      return;
+    }
     chipsEl.hidden = false;
     var chips = mimeType && mimeType.startsWith('image/') ? FILE_CHIPS_IMAGE
       : mimeType === 'application/pdf' ? FILE_CHIPS_DOC : FILE_CHIPS_TEXT;
@@ -1158,31 +1173,102 @@
     }
   }
 
-  function _clearFileAttachment() {
-    _attachedFile = null;
-    if (_fileObjectURL) { URL.revokeObjectURL(_fileObjectURL); _fileObjectURL = null; }
-    var card = _el('chatFileCard');
-    if (card) card.innerHTML = '';
-    var chips = _el('chatFileChips');
-    if (chips) { chips.innerHTML = ''; chips.hidden = true; }
+  function _setAttachmentControlsDisabled(disabled) {
+    var attachBtn = _el('chatAttachBtn');
+    var fileInput = _el('chatFileInput');
+    if (attachBtn) attachBtn.disabled = !!disabled;
+    if (fileInput) fileInput.disabled = !!disabled;
+    if (typeof document !== 'undefined' && document.querySelectorAll) {
+      document.querySelectorAll('.chat-file-card-remove').forEach(function (button) {
+        button.disabled = !!disabled;
+      });
+    }
+  }
+
+  function _announceRejectedFiles(rejected) {
+    if (!Array.isArray(rejected) || !rejected.length) return;
+    var keyByCode = {
+      duplicate: 'chatFileDuplicate',
+      'unsupported-type': 'chatFileUnsupported',
+      'too-large': 'chatFileTooLarge',
+      'too-many-files': 'chatFileTooMany',
+      'total-too-large': 'chatFilesTotalTooLarge'
+    };
+    var lines = rejected.map(function (item) {
+      if (item.code === 'empty-file') return item.name + ': ' + _t('fileEmpty');
+      return _t(keyByCode[item.code] || 'fileFailed', { name: item.name });
+    });
+    var message = lines.join(' ');
+    var status = _el('chat-drop-status');
+    if (status) status.textContent = message;
+    var toast = window.TaskFlowUI && TaskFlowUI.toast;
+    if (toast) toast(message, 'error');
+  }
+
+  function _announceAcceptedCount() {
+    var status = _el('chat-drop-status');
+    if (status) status.textContent = _attachedFiles.length ? _t('chatAcceptedCount', { count: _attachedFiles.length }) : '';
+  }
+
+  function _removeAttachedFile(fileKey, restoreFocus) {
+    if (_inFlight) return;
+    var index = _attachedFiles.findIndex(function (file) { return _fileKey(file) === fileKey; });
+    if (index < 0) return;
+    var objectUrl = _fileObjectUrls.get(fileKey);
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    _fileObjectUrls.delete(fileKey);
+    _attachedFiles = _attachedFiles.filter(function (file) { return _fileKey(file) !== fileKey; });
+    _attachmentQueueVersion++;
+    _renderFileCards();
+    _announceAcceptedCount();
+    _syncComposerState();
+    if (restoreFocus) {
+      var buttons = document.querySelectorAll('.chat-file-card-remove');
+      var target = buttons[index] || buttons[index - 1] || _el('chatAttachBtn');
+      if (target && typeof target.focus === 'function') target.focus();
+    }
+  }
+
+  function _clearFileAttachments() {
+    _fileObjectUrls.forEach(function (objectUrl) { URL.revokeObjectURL(objectUrl); });
+    _fileObjectUrls.clear();
+    _attachedFiles = [];
+    _attachmentQueueVersion++;
     var fileInput = _el('chatFileInput');
     if (fileInput) fileInput.value = '';
+    _renderFileCards();
+    _announceAcceptedCount();
     _syncComposerState();
   }
 
-  function _handleFileSelect(file) {
-    var validation = _validateFile(file);
-    if (!validation.ok) {
-      var toast = window.TaskFlowUI && TaskFlowUI.toast;
-      if (toast) toast(_t(validation.reason), 'error');
-      return;
-    }
-    _attachedFile = file;
-    if (file.type && file.type.startsWith('image/')) {
-      _fileObjectURL = URL.createObjectURL(file);
-    }
-    _renderFileCard(file);
+  function _clearFileAttachment() {
+    _clearFileAttachments();
+  }
+
+  function _handleFileSelect(candidates) {
+    if (_inFlight) return;
+    var candidateFiles = candidates && typeof candidates.length === 'number'
+      ? Array.from(candidates)
+      : (candidates ? [candidates] : []);
+    var result = _mergeAttachmentCandidates(_attachedFiles, candidateFiles);
+    result.files.forEach(function (file) {
+      var key = _fileKey(file);
+      if (file.type && file.type.startsWith('image/') && !_fileObjectUrls.has(key)) {
+        _fileObjectUrls.set(key, URL.createObjectURL(file));
+      }
+    });
+    if (result.files.length !== _attachedFiles.length) _attachmentQueueVersion++;
+    _attachedFiles = result.files;
+    _renderFileCards();
+    if (result.rejected.length) _announceRejectedFiles(result.rejected);
+    else _announceAcceptedCount();
     _syncComposerState();
+  }
+
+  function _resetFileDragState() {
+    _dragDepth = 0;
+    var panel = _el('chatPop');
+    if (panel) panel.removeAttribute('data-drop-active');
   }
 
   /* ---- Phase 6D: File intent detection ---- */
@@ -1449,7 +1535,7 @@
   function _onAccountChange() {
     _captureConversationView();
     stopActiveResponse();
-    _clearFileAttachment();
+    _clearFileAttachments();
     _accountScope = null; // Force re-detection
     _activeConversationId = null;
     var mod = _getHistory();

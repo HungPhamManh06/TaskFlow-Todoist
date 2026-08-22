@@ -10,6 +10,9 @@ const read = (file) => readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n
 const HTML = read('app.html');
 const CSS = read('css/styles.css');
 const I18N = read('js/i18n.js');
+const CHAT_SOURCE = read('js/chat.js');
+const APP_SOURCE = read('js/app.js');
+const FRONTEND_E2E = read('scripts/e2e-frontend.py');
 const require = createRequire(import.meta.url);
 
 globalThis.document = {
@@ -20,6 +23,21 @@ const CHAT = require('../js/chat.js');
 
 const MB = 1024 * 1024;
 const fileLike = (name, type, size = 1024, lastModified = 1) => ({ name, type, size, lastModified });
+
+function functionBody(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.ok(start >= 0, `${name} must exist`);
+  const brace = source.indexOf('{', start);
+  let depth = 0;
+  for (let index = brace; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1;
+    if (source[index] === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+  }
+  assert.fail(`${name} body must be extractable`);
+}
 
 test('chat header uses an in-flow close control', () => {
   assert.match(HTML, /id="chat-close"[^>]*class="[^"]*chat-close-btn/);
@@ -125,4 +143,73 @@ test('attachment queue partially accepts a mixed batch in input order without mu
   assert.deepEqual(result.rejected.map((item) => item.code), ['unsupported-type', 'duplicate', 'too-large']);
   assert.deepEqual(candidates, before);
   assert.notEqual(result.files, current);
+});
+
+test('client lifecycle uses an array queue, stable-key removal, and object URL map', () => {
+  assert.match(CHAT_SOURCE, /var _attachedFiles = \[\];/);
+  assert.match(CHAT_SOURCE, /var _fileObjectUrls = new Map\(\);/);
+  assert.match(CHAT_SOURCE, /var _dragDepth = 0;/);
+  assert.match(functionBody(CHAT_SOURCE, '_removeAttachedFile'), /_fileKey\(file\) === fileKey/);
+  assert.match(functionBody(CHAT_SOURCE, '_clearFileAttachments'), /_fileObjectUrls\.forEach/);
+  assert.match(functionBody(CHAT_SOURCE, '_renderFileCards'), /chatRemoveFile/);
+});
+
+test('one file request freezes the queue and appends repeated multipart fields', () => {
+  const body = functionBody(CHAT_SOURCE, '_sendWithFile');
+  assert.match(body, /var requestFiles = _attachedFiles\.slice\(\);/);
+  assert.match(body, /requestFiles\.forEach\(function \(file\) \{\s*fd\.append\('files', file, file\.name\);/);
+  assert.doesNotMatch(body, /fd\.append\('file', file\)/);
+  assert.match(body, /_setAttachmentControlsDisabled\(true\)/);
+  assert.match(body, /if \(requestSucceeded\) _clearFileAttachments\(\)/);
+});
+
+test('stale file requests cannot clear or re-enable a newer queue', () => {
+  const body = functionBody(CHAT_SOURCE, '_sendWithFile');
+  assert.match(CHAT_SOURCE, /var _attachmentQueueVersion = 0;/);
+  assert.match(body, /var requestQueueVersion = _attachmentQueueVersion;/);
+  assert.match(body, /if \(!_isCurrentRequest\(req\.generation\)\) return;/);
+  assert.match(body, /requestQueueVersion === _attachmentQueueVersion/);
+  assert.match(body, /_setAttachmentControlsDisabled\(false\)/);
+});
+
+test('server rejection metadata is announced before accepted attachments reach history', () => {
+  const body = functionBody(CHAT_SOURCE, '_sendWithFile');
+  const announce = body.indexOf('_announceRejectedFiles(json.rejectedFiles');
+  const persist = body.indexOf('_persistUserMessage(');
+  assert.ok(announce >= 0, 'server rejectedFiles must be announced');
+  assert.ok(persist > announce, 'history persistence must happen after server reconciliation');
+  assert.match(body, /json\.files/);
+});
+
+test('picker and drag-drop share partial acceptance without hijacking non-file drags', () => {
+  const initBody = functionBody(CHAT_SOURCE, '_initFileAttachment');
+  assert.match(initBody, /fileInput\.files/);
+  assert.match(initBody, /dragenter/);
+  assert.match(initBody, /dragleave/);
+  assert.match(initBody, /drop/);
+  assert.match(initBody, /dataTransfer\.types/);
+  assert.match(initBody, /_mergeAttachmentCandidates\(_attachedFiles,/);
+  assert.match(initBody, /fileInput\.value = ''/);
+  assert.match(initBody, /window\.addEventListener\('blur', _resetFileDragState\)/);
+  assert.match(initBody, /document\.addEventListener\('drop'/);
+});
+
+test('conversation, panel, and account transitions clear attachments and drag state', () => {
+  for (const name of ['doChatClear', 'newConversation', 'openConversation', '_onAccountChange']) {
+    assert.match(functionBody(CHAT_SOURCE, name), /_clearFileAttachments\(\)/, `${name} must clear attachment files`);
+  }
+  assert.match(functionBody(APP_SOURCE, 'closeChatPanel'), /resetAttachmentDragState/);
+  assert.match(functionBody(APP_SOURCE, '_resetChatForAccountChange'), /TaskFlowChat\._onAccountChange\(\)/);
+  assert.match(functionBody(APP_SOURCE, 'doSyncLogin'), /_resetChatForAccountChange\(\)/);
+  assert.match(functionBody(APP_SOURCE, 'doSyncGoogle'), /_resetChatForAccountChange\(\)/);
+  const logoutBody = functionBody(APP_SOURCE, 'doSyncLogout');
+  assert.ok(logoutBody.indexOf('_resetChatForAccountChange()') < logoutBody.indexOf('window.Sync.logout()'));
+});
+
+test('frontend E2E covers two-file selection, keyboard removal, and one retained multipart filename', () => {
+  assert.match(FRONTEND_E2E, /chatFileInput.*set_input_files/s);
+  assert.match(FRONTEND_E2E, /chat-file-card-remove.*press\("Enter"\)/s);
+  assert.match(FRONTEND_E2E, /retained\.md/);
+  assert.match(FRONTEND_E2E, /post_data_buffer/);
+  assert.match(FRONTEND_E2E, /data-drop-active/);
 });

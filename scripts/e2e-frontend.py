@@ -4357,7 +4357,7 @@ def ai_checks(browser, base, width, height, errors, screenshot):
     ctx.close()
 
 
-def chat_history_redesign_checks(page, viewport_name):
+def chat_history_redesign_checks(page, viewport_name, file_requests):
     """Focused Coach history, composer, stop, keyboard, and responsive checks."""
     mobile = viewport_name == "mobile"
     panel = page.locator("#chatPop")
@@ -4403,6 +4403,33 @@ def chat_history_redesign_checks(page, viewport_name):
         assert panel.get_attribute("aria-modal") is None
         assert 388 <= compact_box["width"] <= 412, \
             f"desktop compact width outside [388, 412]: {compact_box['width']}"
+
+    if not mobile:
+        # Multi-file picker: keep one file after keyboard removal and send it once.
+        page.evaluate("localStorage.setItem('planner-token', 'e2e-chat-token')")
+        page.locator("#chatFileInput").set_input_files([
+            {"name": "remove.txt", "mimeType": "text/plain", "buffer": b"remove me"},
+            {"name": "retained.md", "mimeType": "text/markdown", "buffer": b"retained content"},
+        ])
+        assert page.locator(".chat-file-card").count() == 2
+        page.evaluate("""() => {
+          const event = new Event('dragenter', { bubbles: true, cancelable: true });
+          Object.defineProperty(event, 'dataTransfer', { value: { types: ['text/plain'], files: [] } });
+          document.querySelector('#chatPop').dispatchEvent(event);
+        }""")
+        assert panel.get_attribute("data-drop-active") is None, \
+            "non-file drags must not activate or hijack the chat drop zone"
+        first_remove = page.locator(".chat-file-card-remove").first
+        first_remove.focus()
+        first_remove.press("Enter")
+        assert page.locator(".chat-file-card").count() == 1
+        input_box.fill("Summarize the attached notes")
+        send.click()
+        page.wait_for_selector("#chatMessages .chat-msg.bot:has-text('Files received')")
+        assert len(file_requests) == 1
+        assert file_requests[0].count('filename="retained.md"') == 1
+        assert 'filename="remove.txt"' not in file_requests[0]
+        page.evaluate("localStorage.removeItem('planner-token')")
 
     # Multiline composer: Shift+Enter inserts a line, grows, and enables Send.
     initial_input_box = input_box.bounding_box()
@@ -4580,6 +4607,18 @@ def chat_history_redesign_scenario_checks(browser, base, width, height, errors, 
     page = ctx.new_page()
     page.on("pageerror", lambda error: errors.append(f"chat-history {viewport_name}: {error}"))
     install_chat_source_assets(page)
+    file_requests = []
+
+    def handle_file(route):
+        payload = route.request.post_data_buffer or b""
+        file_requests.append(payload.decode("latin-1"))
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"ok": True, "answer": "Files received"}),
+        )
+
+    page.route("**/api/ai/file", handle_file)
     page.route("**/api/ai/chat", lambda route: None)
     page.add_init_script("""(() => {
       localStorage.setItem('planner-onboarded', '1');
@@ -4593,7 +4632,7 @@ def chat_history_redesign_scenario_checks(browser, base, width, height, errors, 
     if page.locator('[data-testid="onboard-modal"]:visible').count():
         page.locator('[data-action="ob-skip"]').click()
     page.wait_for_selector('[data-testid="overview-view"] .overview-page', state="visible")
-    chat_history_redesign_checks(page, viewport_name)
+    chat_history_redesign_checks(page, viewport_name, file_requests)
     page.screenshot(path=screenshot, full_page=False)
     page.close()
     ctx.close()
