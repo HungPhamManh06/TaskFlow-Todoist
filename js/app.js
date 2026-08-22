@@ -4452,6 +4452,37 @@ function preloadLazyChat() {
     .catch(() => { /* im lặng — send path sẽ tự fallback */ });
 }
 
+function syncChatConsentSwitches() {
+  const permissions = { reflections: false, mood: false };
+  let consentAvailable = false;
+  try {
+    if (window.TaskFlowAIContextConsent && typeof TaskFlowAIContextConsent.getPermissions === 'function') {
+      consentAvailable = true;
+      const saved = TaskFlowAIContextConsent.getPermissions();
+      permissions.reflections = !!(saved && saved.reflections === true);
+      permissions.mood = !!(saved && saved.mood === true);
+    }
+  } catch (e) { /* safe default: both sensitive categories remain OFF */ }
+  document.querySelectorAll('[data-chat-consent]').forEach((control) => {
+    const key = control.dataset.chatConsent;
+    control.setAttribute('aria-checked', String(permissions[key] === true));
+    control.disabled = !consentAvailable;
+  });
+}
+
+function setChatConsentPermission(control) {
+  if (!control) return;
+  const key = control.dataset.chatConsent;
+  if (key !== 'reflections' && key !== 'mood') return;
+  const nextValue = control.getAttribute('aria-checked') !== 'true';
+  runLazyChat(() => {
+    if (window.TaskFlowAIContextConsent && typeof TaskFlowAIContextConsent.setPermission === 'function') {
+      TaskFlowAIContextConsent.setPermission(key, nextValue);
+    }
+    syncChatConsentSwitches();
+  });
+}
+
 /* ---- Chat panel: shared close (P11/P15) ----
    Đóng popover, cập nhật aria-expanded, trả focus về FAB nếu chat mở từ FAB.
    KHÔNG xoá hội thoại/lịch sử. */
@@ -5672,6 +5703,12 @@ document.addEventListener('click', (e) => {
     if (menu) menu.hidden = true;
     if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
     if (panel) panel.hidden = false;
+    syncChatConsentSwitches();
+    runLazyChat(() => syncChatConsentSwitches());
+    return;
+  }
+  else if (act === 'chat-consent-toggle') {
+    setChatConsentPermission(el);
     return;
   }
   else if (act === 'chat-data-info-close') {

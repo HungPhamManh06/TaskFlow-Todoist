@@ -546,6 +546,16 @@
                 data-i18n-aria="closeBtn"></button>
             </div>
             <p data-i18n="chatDataPanelBody">TaskFlow chỉ gửi dữ liệu liên quan đến câu hỏi. Reflection và Mood mặc định tắt và chỉ được gửi khi bạn chủ động bật.</p>
+            <div class="chat-consent-list">
+              <button type="button" class="chat-consent-switch" data-action="chat-consent-toggle"
+                data-chat-consent="reflections" role="switch" aria-checked="false" disabled>
+                <span data-i18n="chatConsentReflections">Reflection</span>
+              </button>
+              <button type="button" class="chat-consent-switch" data-action="chat-consent-toggle"
+                data-chat-consent="mood" role="switch" aria-checked="false" disabled>
+                <span data-i18n="chatConsentMood">Mood</span>
+              </button>
+            </div>
           </section>
           <div class="chat-context-status" id="chatContextStatus" aria-live="polite">
             <span class="chat-context-badge" id="chatContextBadge" hidden data-testid="chat-context-badge"></span>

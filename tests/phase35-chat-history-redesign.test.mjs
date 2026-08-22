@@ -259,3 +259,69 @@ test('composer and initial suggestions initialize in reachable module setup afte
   assert.ok(suggestionsInit > composerInit, 'initial suggestions render after composer setup');
   assert.ok(suggestionsInit < factoryReturn, 'module initialization must run before the factory returns');
 });
+
+test('context, consent, and local storage surfaces are explicit and independent', () => {
+  assert.match(CHAT, /function _contextKeysFromEnvelope\(envelope\)/);
+  assert.match(CHAT, /function _setContextStatus\(state, keys\)/);
+  assert.match(APP, /data-chat-consent="reflections"[^>]*role="switch"[^>]*aria-checked="false"/);
+  assert.match(APP, /data-chat-consent="mood"[^>]*role="switch"[^>]*aria-checked="false"/);
+  assert.match(APP_JS, /TaskFlowAIContextConsent\.setPermission/);
+  assert.match(functionBody(APP_JS, 'syncChatConsentSwitches'), /TaskFlowAIContextConsent\.getPermissions\(\)/);
+  assert.equal((I18N.match(/chatHistoryLocalLabel:/g) || []).length, 2);
+});
+
+test('context categories come only from fields in the trusted outgoing envelope', () => {
+  const previousDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: () => null,
+    querySelector: () => null,
+  };
+
+  try {
+    delete require.cache[require.resolve('../js/chat.js')];
+    const Chat = require('../js/chat.js');
+    assert.deepEqual(Chat._contextKeysFromEnvelope({
+      scope: 'overview',
+      data: {
+        tasks: [],
+        milestones: [],
+        busy: [],
+        habits: [],
+        reflections: [],
+      },
+      requestedPermissions: { mood: true },
+    }), ['tasks', 'projects', 'schedule', 'habits', 'reflections']);
+    assert.deepEqual(Chat._contextKeysFromEnvelope({
+      data: { mood: [], projects: [] },
+      permissions: { reflections: true },
+    }), ['projects', 'mood']);
+    assert.deepEqual(Chat._contextKeysFromEnvelope(null), []);
+  } finally {
+    globalThis.document = previousDocument;
+    delete require.cache[require.resolve('../js/chat.js')];
+  }
+});
+
+test('context status lifecycle is tied to the request envelope and every terminal path', () => {
+  const callApi = functionBody(CHAT, '_callChatAPI');
+  const send = functionBody(CHAT, '_doSend');
+  const fileSend = functionBody(CHAT, '_sendWithFile');
+  assert.match(callApi, /var contextKeys = _contextKeysFromEnvelope\(taskflowContext\)/);
+  assert.match(callApi, /_setContextStatus\('using', contextKeys\)[\s\S]*fetch\(/);
+  assert.match(callApi, /_setContextStatus\('used', contextKeys\)/);
+  assert.match(send, /_setContextStatus\('preparing', \[\]\)/);
+  assert.match(send, /_setContextStatus\('(idle|error)', \[\]\)/);
+  assert.match(fileSend, /_contextKeysFromEnvelope\(fileContextEnvelope\)/);
+  assert.match(functionBody(CHAT, 'stopActiveResponse'), /_setContextStatus\('idle', \[\]\)/);
+});
+
+test('context status copy and category labels exist once per locale', () => {
+  for (const key of [
+    'chatContextPreparing', 'chatContextUsing', 'chatContextUsed', 'chatContextError',
+    'chatContextCategoryTasks', 'chatContextCategoryProjects', 'chatContextCategorySchedule',
+    'chatContextCategoryHabits', 'chatContextCategoryReflections', 'chatContextCategoryMood',
+    'chatConsentReflections', 'chatConsentMood',
+  ]) {
+    assert.equal((I18N.match(new RegExp(`\\b${key}:`, 'g')) || []).length, 2, `${key} must exist once per locale`);
+  }
+});

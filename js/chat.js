@@ -1,8 +1,8 @@
 // TaskFlow — Trợ lý TaskFlow (Gemini Chat, Phase 2 + Phase 3B context).
 // Gửi tin nhắn → POST /api/ai/chat → backend gọi Gemini → trả lời thật.
 // Phase 3B: với câu hỏi về dữ liệu TaskFlow, client gửi taskflowContext
-// (envelope an toàn từ TaskFlowChatContextProvider — READ-ONLY, không
-// reflections/mood). Câu hỏi chung KHÔNG gửi context. Mọi lỗi context đều
+// (envelope an toàn từ TaskFlowChatContextProvider — READ-ONLY; Reflection
+// và Mood chỉ có sau opt-in tường minh). Câu hỏi chung KHÔNG gửi context. Mọi lỗi context đều
 // fallback về chat thường — không bao giờ làm hỏng cuộc trò chuyện.
 // Gateway: Browser → TaskFlow backend → Gemini (KHÔNG BAO GIỜ browser → Gemini trực tiếp).
 // Lazy-loaded — giữ nguyên pattern P1.5, không nằm trong boot path.
@@ -168,6 +168,7 @@
     var input = _el('chatInput');
     _resizeComposer(input);
     _syncComposerState();
+    _setContextStatus('idle', []);
     if (input) input.focus();
     return true;
   }
@@ -193,8 +194,8 @@
   }
 
   /* ---- i18n helpers ---- */
-  function _t(key) {
-    try { return (window.TaskFlowI18N && window.TaskFlowI18N.t) ? window.TaskFlowI18N.t(key) : key; }
+  function _t(key, vars) {
+    try { return (window.TaskFlowI18N && window.TaskFlowI18N.t) ? window.TaskFlowI18N.t(key, vars) : key; }
     catch (e) { return key; }
   }
   function _esc(s) {
@@ -375,7 +376,48 @@
     _syncComposerState();
   }
 
-  /* ---- Context badge ---- */
+  /* ---- Truthful context-use status ---- */
+  function _contextKeysFromEnvelope(envelope) {
+    var data = envelope && envelope.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
+    var has = function (key) { return Object.prototype.hasOwnProperty.call(data, key); };
+    var keys = [];
+    if (has('tasks')) keys.push('tasks');
+    if (has('projects') || has('milestones')) keys.push('projects');
+    if (has('timeblocks') || has('busy') || has('schedule')) keys.push('schedule');
+    if (has('habits')) keys.push('habits');
+    if (has('reflections')) keys.push('reflections');
+    if (has('mood')) keys.push('mood');
+    return keys;
+  }
+
+  function _setContextStatus(state, keys) {
+    var status = _el('chatContextStatus');
+    var badge = _el('chatContextBadge');
+    var copy = status && status.querySelector ? status.querySelector('[data-chat-context-copy]') : null;
+    var safeKeys = Array.isArray(keys) ? keys.slice() : [];
+    var labels = safeKeys.map(function (key) {
+      var suffix = key.charAt(0).toUpperCase() + key.slice(1);
+      return _t('chatContextCategory' + suffix);
+    });
+    var categories = labels.join(', ');
+    var copyKey = {
+      preparing: 'chatContextPreparing',
+      using: categories ? 'chatContextUsing' : 'chatContextNoData',
+      used: categories ? 'chatContextUsed' : 'chatContextNoData',
+      error: 'chatContextError',
+      idle: 'chatContextIdle',
+    }[state] || 'chatContextIdle';
+    if (status) status.setAttribute('data-context-state', state || 'idle');
+    if (copy) copy.textContent = _t(copyKey, { categories: categories });
+    if (badge) {
+      badge.textContent = categories;
+      badge.hidden = !categories;
+      badge.title = categories ? _t('chatContextBadgeTitle') : '';
+    }
+  }
+
+  /* Legacy public helper retained for compatibility; new requests use envelope categories. */
   function _setContextBadge(scope) {
     var badge = _el('chatContextBadge');
     if (!badge) return;
@@ -420,13 +462,11 @@
     if (token) headers['Authorization'] = 'Bearer ' + token;
 
     var taskflowContext = null;
-    var ctxScope = null;
     try {
       if (window.TaskFlowChatContextProvider && window.TaskFlowChatContextProvider.prepare) {
         var ctxRes = window.TaskFlowChatContextProvider.prepare(message);
         if (ctxRes && ctxRes.ok && ctxRes.envelope) {
           taskflowContext = ctxRes.envelope;
-          ctxScope = ctxRes.scope || taskflowContext.scope || null;
         }
       }
     } catch (e) {
@@ -434,10 +474,9 @@
         console.debug('[chat-context] prepare-failed (' + (e && e.name ? e.name : 'exception') + ')');
       }
     }
-    _setContextBadge(ctxScope);
-
     var body = { message: message, history: history };
     if (taskflowContext) body.taskflowContext = taskflowContext;
+    var contextKeys = _contextKeysFromEnvelope(taskflowContext);
 
     // P10: ?debug=1 safe diagnostics — URL resolution only, never token/body/context.
     var debugLog = typeof location !== 'undefined' && /[?&]debug=1/.test(location.search);
@@ -446,6 +485,7 @@
       console.log('[chat] request=/api/ai/chat');
     }
 
+    _setContextStatus('using', contextKeys);
     var res = await fetch(url, {
       method: 'POST',
       headers: headers,
@@ -457,10 +497,12 @@
     try { json = await res.json(); } catch (e) { json = null; }
 
     if (!res.ok || !json || !json.ok) {
+      _setContextStatus('error', []);
       var errCode = (json && json.error) || 'network';
       throw { code: errCode, status: res.status };
     }
 
+    _setContextStatus('used', contextKeys);
     return json.answer;
   }
 
@@ -495,18 +537,22 @@
     if (!msgs) return;
 
     if (!_isOnline()) {
+      _setContextStatus('error', []);
       _showInfo(msgs, _t('chatOffline'));
       return;
     }
     if (!_hasToken()) {
+      _setContextStatus('error', []);
       _showGuestPrompt(msgs);
       return;
     }
     if (text.length > MAX_MSG_LEN) {
+      _setContextStatus('error', []);
       _showInfo(msgs, _t('chatErrorTooLong'));
       return;
     }
 
+    _setContextStatus('preparing', []);
     _inFlight = true;
     _setInputEnabled(false);
     _setChipsVisible(false);
@@ -535,6 +581,7 @@
       var useAgent = false;
       if (intent) {
         if (intent.kind === 'clarify' && intent.candidates && intent.candidates.length > 0) {
+          _setContextStatus('idle', []);
           _removeTyping(typingEl);
           if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.showClarification === 'function') {
             window.TaskFlowAIAgentRuntime.showClarification(msgs, intent, function (selectedUid, selectedTask) {
@@ -556,6 +603,7 @@
         if (!_isCurrentRequest(req.generation)) return; // stale
         _removeTyping(typingEl);
         if (agentRes && agentRes.handled) {
+          _setContextStatus('idle', []);
           var agentReply = (window.TaskFlowAIAgentRuntime.takeResult ? window.TaskFlowAIAgentRuntime.takeResult() : null) || agentRes.reply || null;
           if (agentReply) _persistAssistantMessage(agentReply);
           return;
@@ -573,8 +621,10 @@
     } catch (err) {
       if (err && err.name === 'AbortError') {
         // User stopped — typing already removed by stopActiveResponse
+        _setContextStatus('idle', []);
         return;
       }
+      _setContextStatus('error', []);
       _removeTyping(typingEl);
       var errMsg = _mapError(err);
       if (errMsg) _showRetry(msgs, text, errMsg);
@@ -634,7 +684,7 @@
     // Don't delete conversation from history — just reset the view
     _renderWelcome();
     _setChipsVisible(true);
-    _setContextBadge(null);
+    _setContextStatus('idle', []);
   }
 
   /** New conversation — keep a session-only draft until the first user message */
@@ -647,7 +697,7 @@
     if (mod) mod.setActiveConversation(_getAccountScope(), '');
     _renderWelcome();
     _setChipsVisible(true);
-    _setContextBadge(null);
+    _setContextStatus('idle', []);
     _restoreConversationView(null);
     closeHistory({ focusTrigger: false });
   }
@@ -1152,15 +1202,18 @@
     var msgs = _el('chatMessages');
     if (!msgs) return;
     if (!_isOnline()) {
+      _setContextStatus('error', []);
       _showInfo(msgs, _t('chatOffline'));
       return;
     }
     if (!_hasToken()) {
+      _setContextStatus('error', []);
       _showGuestPrompt(msgs);
       return;
     }
     var apiBase = _getApiBase();
     if (!apiBase) {
+      _setContextStatus('error', []);
       _showInfo(msgs, _t('chatErrorApiConfig'));
       return;
     }
@@ -1168,6 +1221,7 @@
     var isFileAgent = _isFileAgentIntent(text);
     var endpoint = isFileAgent ? '/api/ai/file-agent' : '/api/ai/file';
 
+    _setContextStatus('preparing', []);
     _inFlight = true;
     _setInputEnabled(false);
     _setChipsVisible(false);
@@ -1193,12 +1247,14 @@
       fd.append('file', file);
       fd.append('message', text);
 
+      var fileContextEnvelope = null;
       if (isFileAgent) {
         try {
           var ctxProvider = window.TaskFlowChatContextProvider;
           if (ctxProvider && typeof ctxProvider.prepare === 'function') {
             var ctxResult = ctxProvider.prepare(text);
             if (ctxResult && ctxResult.ok && ctxResult.envelope) {
+              fileContextEnvelope = ctxResult.envelope;
               fd.append('taskflowContext', JSON.stringify(ctxResult.envelope.data || {}));
             }
           }
@@ -1210,6 +1266,8 @@
       var headers = {};
       if (token) headers['Authorization'] = 'Bearer ' + token;
 
+      var fileContextKeys = _contextKeysFromEnvelope(fileContextEnvelope);
+      _setContextStatus('using', fileContextKeys);
       var resp = await fetch(apiBase + endpoint, {
         method: 'POST',
         headers: headers,
@@ -1225,6 +1283,7 @@
       _setFileLoading(file.name, false);
 
       if (!resp.ok || !json || !json.ok) {
+        _setContextStatus('error', []);
         var errorCode = (json && typeof json.error === 'string') ? json.error : 'ai-file-processing-failed';
         var fileErrMsg;
         try {
@@ -1238,6 +1297,7 @@
         return;
       }
 
+      _setContextStatus('used', fileContextKeys);
       if (isFileAgent && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
         _pendingFileProposal = { proposal: json.proposal, source: json.source || { type: file.type, name: file.name } };
         _appendMessage(msgs, json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }), 'bot');
@@ -1256,7 +1316,11 @@
       }
     } catch (e) {
       _setFileLoading(file.name, false);
-      if (e && e.name === 'AbortError') return;
+      if (e && e.name === 'AbortError') {
+        _setContextStatus('idle', []);
+        return;
+      }
+      _setContextStatus('error', []);
       var errMsg = (e && e.code === 'api-config-missing') ? _t('chatErrorApiConfig') : _t('fileFailed');
       _appendMessage(msgs, errMsg, 'bot');
     } finally {
@@ -1349,7 +1413,7 @@
     if (mod) mod.setActiveConversation(_getAccountScope(), '');
     _renderWelcome();
     _setChipsVisible(true);
-    _setContextBadge(null);
+    _setContextStatus('idle', []);
     _restoreConversationView(null);
     closeHistory({ focusTrigger: false });
   }
@@ -1371,6 +1435,8 @@
     _hasToken: _hasToken,
     _isOnline: _isOnline,
     _setContextBadge: _setContextBadge,
+    _contextKeysFromEnvelope: _contextKeysFromEnvelope,
+    _setContextStatus: _setContextStatus,
     _getApiBase: _getApiBase,
     _callChatAPI: _callChatAPI,
     _mapError: _mapError,
