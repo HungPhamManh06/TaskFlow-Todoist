@@ -2,11 +2,12 @@
 /**
  * ai-file-parser.js — Safe PDF text extraction for the file AI routes.
  *
+ * Uses pdf-parse v2 (PDFParse class API).
  * Extracts text server-side so a 925 KB PDF does not become a 1.2 MB
  * Base64 payload that overflows the provider message budget.
  */
 
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 
 /* ---- text-budget constants (derived from provider gateway) ---- */
 
@@ -27,7 +28,7 @@ const HARD_EXTRACT_MAX_BYTES    = 200 * 1024;   // ~200 KB when route overrides
 /**
  * Extract text from a PDF buffer.
  *
- * @param {Buffer}  buffer          Raw PDF bytes
+ * @param {Buffer|Uint8Array} buffer  Raw PDF bytes
  * @param {object}  [opts]
  * @param {number}  [opts.maxBytes] Max UTF-8 bytes for extracted text
  *                                  (default DEFAULT_EXTRACT_MAX_BYTES)
@@ -39,11 +40,18 @@ async function extractPdfText(buffer, opts) {
     ? opts.maxBytes
     : DEFAULT_EXTRACT_MAX_BYTES;
 
-  try {
-    // pdf-parse can throw on corrupt / encrypted PDFs
-    const data = await pdfParse(buffer);
+  let parser = null;
 
-    let text = (data.text || '').trim();
+  try {
+    // pdf-parse v2 accepts Uint8Array; Buffer extends Uint8Array so it works
+    const data = buffer instanceof Uint8Array
+      ? new Uint8Array(buffer)
+      : new Uint8Array(buffer);
+
+    parser = new PDFParse({ data });
+    const result = await parser.getText();
+
+    let text = (result.text || '').trim();
 
     if (!text || text.length < 10) {
       return { ok: false, error: 'ai-file-no-text' };
@@ -52,7 +60,12 @@ async function extractPdfText(buffer, opts) {
     // Normalize whitespace: collapse runs of blank lines to double-newline
     text = text.replace(/\n{3,}/g, '\n\n');
 
-    const pages = typeof data.numpages === 'number' ? data.numpages : 0;
+    // Page count: v2 result.total is the canonical field
+    const pages = Number.isInteger(result.total)
+      ? result.total
+      : Array.isArray(result.pages)
+        ? result.pages.length
+        : 0;
 
     // Truncate to byte budget
     const encoder = new TextEncoder();
@@ -62,7 +75,6 @@ async function extractPdfText(buffer, opts) {
     if (encoded.byteLength > maxBytes) {
       // Slice by bytes then find last safe newline boundary
       const sliced = encoded.slice(0, maxBytes);
-      // Decode then find last newline to avoid cutting mid-line
       const decoded = new TextDecoder('utf-8', { fatal: false }).decode(sliced);
       const lastNewline = decoded.lastIndexOf('\n');
       text = lastNewline > decoded.length * 0.8
@@ -73,12 +85,18 @@ async function extractPdfText(buffer, opts) {
 
     return { ok: true, text, pages, truncated };
   } catch (e) {
+    const name = e && e.name ? e.name : '';
     const msg = e && typeof e.message === 'string' ? e.message.toLowerCase() : '';
-    if (msg.includes('password') || msg.includes('encrypted')) {
+    if (name === 'PasswordException' || msg.includes('password') || msg.includes('encrypted')) {
       return { ok: false, error: 'ai-file-pdf-unreadable' };
     }
-    // Corrupt / unparseable
+    // Corrupt / unparseable / runtime error
+    console.error('[ai-file-parser] pdf-runtime-error name=' + name + ' code=pdf-parser-runtime');
     return { ok: false, error: 'ai-file-pdf-unreadable' };
+  } finally {
+    if (parser && typeof parser.destroy === 'function') {
+      try { await parser.destroy(); } catch (_) { /* ignore destroy errors */ }
+    }
   }
 }
 
