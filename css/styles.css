@@ -3895,6 +3895,36 @@ sup.remind-dot {
 .chat-file-loading .spinner { width: 14px; height: 14px; border: 2px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin .8s linear infinite; }
 .chat-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 8px; }
 
+/* Phase 6E: Why button + panel */
+.agent-why-btn-row { padding: 2px 12px 0; }
+.agent-why-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; font-weight: 600; color: var(--accent-deep, #5a4637);
+  padding: 2px 6px; border-radius: 4px; text-decoration: none;
+}
+.agent-why-btn:hover { text-decoration: underline; }
+.agent-why-btn:focus-visible { outline: 2.5px solid var(--accent-deep); outline-offset: 2px; }
+.agent-why-panel {
+  margin: 4px 12px 4px 24px; padding: 8px 10px;
+  background: var(--bg-alt, #f9f6f3); border-radius: 6px; font-size: 12px;
+  color: var(--ink-soft, #857062); line-height: 1.5;
+  border: 1px solid var(--border, #e8e0d8);
+}
+:root[data-dark='true'] .agent-why-panel { background: #2a2520; border-color: #4a4035; }
+.agent-why-title { font-weight: 700; margin-bottom: 4px; color: var(--ink, #3d3028); font-size: 12.5px; }
+:root[data-dark='true'] .agent-why-title { color: #e8ddd0; }
+.agent-why-line { padding: 1px 0; }
+.agent-data-used {
+  padding: 2px 12px 0; font-size: 11px; color: var(--ink-soft, #857062);
+  font-style: italic;
+}
+.agent-summary {
+  padding: 4px 12px 0;
+  font-size: 11.5px; font-weight: 700; color: var(--ink-soft, #857062);
+}
+.agent-summary .warn-count { color: #b0562f; }
+:root[data-dark='true'] .agent-summary .warn-count { color: #f0a184; }
+
 /* A narrow viewport shows history as a child view instead of compressing both columns. */
 @media (max-width: 683px) {
   .chat-pop[data-history-open="true"] .chat-workspace { grid-template-columns: minmax(0, 1fr); }

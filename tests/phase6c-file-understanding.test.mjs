@@ -190,7 +190,7 @@ describe('Phase 6C: Client File Attachment', () => {
 });
 
 describe('Phase 6C: CSS Styles', () => {
-  const css = read('css/styles-critical.css');
+  const css = read('css/styles-critical.css') + read('css/styles-deferred.css');
 
   it('has attachment button styles', () => {
     assert.ok(css.includes('.chat-attach-btn'));

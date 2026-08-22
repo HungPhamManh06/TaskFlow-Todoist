@@ -1854,11 +1854,19 @@ def dialog_checks(browser, base, width, height, errors, screenshot):
         page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
         page.locator('#moreSheet [data-action="chat-toggle"]').click()
         assert page.locator('[data-testid="chat-pop"]:visible').count() == 1
-        page.locator('#moreSheet [data-action="pomo-toggle"]').click()
+        # The redesigned mobile chat is a full-screen sheet, so close it before
+        # interacting with the underlying More sheet again.
+        page.locator('#chatPop [data-action="chat-close"]').click()
         assert page.locator('[data-testid="chat-pop"]:visible').count() == 0
+        page.locator('#moreSheet [data-action="pomo-toggle"]').click()
         assert page.locator('[data-testid="pomo-panel"]:visible').count() == 1
-        page.locator('#moreSheet [data-action="chat-toggle"]').click()
+        # Dispatch through the shared action path to verify mutual exclusion;
+        # the floating Pomodoro panel intentionally overlays the sheet button.
+        page.locator('#moreSheet [data-action="chat-toggle"]').dispatch_event("click")
         assert page.locator('[data-testid="pomo-panel"]:visible').count() == 0
+        assert page.locator('[data-testid="chat-pop"]:visible').count() == 1
+        page.locator('#chatPop [data-action="chat-close"]').click()
+        assert page.locator('[data-testid="chat-pop"]:visible').count() == 0
         page.keyboard.press("Escape")
         page.wait_for_selector('[data-testid="more-sheet"]', state="hidden")
 

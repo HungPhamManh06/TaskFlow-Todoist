@@ -1934,6 +1934,33 @@ sup.remind-dot {
 .chat-file-preview { width: 56px; height: 48px; flex: none; border-radius: 8px; object-fit: cover; }
 .chat-file-loading { display: flex; align-items: center; gap: 8px; padding: 8px 14px; color: var(--color-text-muted); font-size: 12px; }
 .chat-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 8px; }
+
+/* Phase 6E: Why button + panel */
+.agent-why-btn-row { padding: 2px 12px 0; }
+.agent-why-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; font-weight: 600; color: var(--accent-deep, #5a4637);
+  padding: 2px 6px; border-radius: 4px; text-decoration: none;
+}
+.agent-why-btn:hover { text-decoration: underline; }
+.agent-why-btn:focus-visible { outline: 2.5px solid var(--accent-deep); outline-offset: 2px; }
+.agent-why-panel {
+  margin: 4px 12px 4px 24px; padding: 8px 10px;
+  background: var(--bg-alt, #f9f6f3); border-radius: 6px; font-size: 12px;
+  color: var(--ink-soft, #857062); line-height: 1.5;
+  border: 1px solid var(--border, #e8e0d8);
+}
+.agent-why-title { font-weight: 700; margin-bottom: 4px; color: var(--ink, #3d3028); font-size: 12.5px; }
+.agent-why-line { padding: 1px 0; }
+.agent-data-used {
+  padding: 2px 12px 0; font-size: 11px; color: var(--ink-soft, #857062);
+  font-style: italic;
+}
+.agent-summary {
+  padding: 4px 12px 0;
+  font-size: 11.5px; font-weight: 700; color: var(--ink-soft, #857062);
+}
+.agent-summary .warn-count { color: #b0562f; }
 .help-content h3 {
   font-size: 16px;
   margin: 0 0 12px;

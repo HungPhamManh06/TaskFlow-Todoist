@@ -1976,6 +1976,9 @@ textarea:focus-visible,
 .chat-history-item-actions button { min-height: 32px; padding: 6px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--color-danger); cursor: pointer; }
 .chat-history-clear-btn { width: 100%; min-height: 34px; padding: 6px 10px; border: 1px solid var(--color-control-border); border-radius: 10px; background: transparent; color: var(--color-text-muted); font-size: 11px; cursor: pointer; }
 .chat-file-loading .spinner { width: 14px; height: 14px; border: 2px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin .8s linear infinite; }
+:root[data-dark='true'] .agent-why-panel { background: #2a2520; border-color: #4a4035; }
+:root[data-dark='true'] .agent-why-title { color: #e8ddd0; }
+:root[data-dark='true'] .agent-summary .warn-count { color: #f0a184; }
 
 /* A narrow viewport shows history as a child view instead of compressing both columns. */
 @media (max-width: 683px) {
