@@ -626,3 +626,57 @@ assert.ok(planSeg.includes('const requestId = req.aiRequestId;'), 'plan must use
 | 32549419121 | bf4e462 (6V.1 main push) | failure | Unit tests |
 
 All three had the same root cause: `\r\n` vs `\n` mismatch in a source-inspection assertion.
+
+---
+
+## TaskFlow AI v3.0.0 — Final Release
+
+**Date:** 2026-08-22
+**Tag:** v3.0.0
+**Release SHA:** a6be0e83e62c70c86065b3308c8b78084f4200ea
+
+### Why v3.0.0?
+
+The repository already had two prior release tags:
+- `v1.0.0` — TaskFlow V1.0.0 "Calm Productivity" (pre-AI, 2026-08-13)
+- `v2.0.0` — TaskFlow V2.0.0 "Planning System" (early AI, 2026-08-14)
+
+The AI-enhanced major release is therefore tagged as `v3.0.0`.
+
+### Release Verification
+
+| Gate | Result |
+|------|--------|
+| PR #63 CI (run 32553584555) | completed / success |
+| Main push CI (run 32553589613) | completed / success |
+| Unit tests | 2545 pass, 0 fail |
+| Release assets | 0 FAIL |
+| Server security | PASS |
+| Sync | PASS |
+| Chromium smoke | success |
+| Firefox smoke | success |
+| WebKit smoke | success |
+| Frontend E2E | success |
+| Offline PWA E2E | success |
+| Production deployment | READY |
+| P0 | 0 |
+| P1 | 0 |
+
+### Production Deployment
+
+- **SHA:** a6be0e83e62c70c86065b3308c8b78084f4200ea
+- **State:** READY (production)
+- **URL:** https://taskflow-todoist.vercel.app
+
+### Known Limitations
+
+- In-memory rate limits are instance-local (serverless defense-in-depth)
+- No persistent durable quota across serverless instances
+- AI unavailable offline (deterministic planner works offline)
+
+### Branch Protection
+
+Main branch protection was not enabled at release time. Recommended for future:
+- Require PR before merge
+- Require CI success before merge
+- Block force pushes and deletion

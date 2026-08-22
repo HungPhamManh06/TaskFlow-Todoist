@@ -110,4 +110,16 @@
 - [x] 0 P0 issues
 - [x] 0 P1 issues
 - [x] RC validated
-- [ ] Final tag pending owner approval
+- [x] Final tag created
+
+## Release Record
+- **Version:** v3.0.0 (v1.0.0 already belonged to pre-AI TaskFlow V1; v2.0.0 to V2 planning release)
+- **Release SHA:** a6be0e83e62c70c86065b3308c8b78084f4200ea
+- **Release date:** 2026-08-22
+- **Tag:** v3.0.0 (annotated)
+- **PR CI:** 32553584555 — SUCCESS
+- **Main CI:** 32553589613 — SUCCESS
+- **Production:** READY
+- **P0:** 0
+- **P1:** 0
+- **GitHub Release:** pending auth — run `gh auth login` then see `release-notes-v3.0.0.md`
