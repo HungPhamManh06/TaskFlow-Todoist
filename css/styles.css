@@ -3608,6 +3608,10 @@ sup.remind-dot {
   background: var(--color-positive);
 }
 .chat-header-actions { display: flex; align-items: center; gap: 4px; margin-inline-start: auto; }
+.chat-close-btn {
+  position: static;
+  flex: none;
+}
 .chat-header-actions button,
 .chat-history-header button,
 .chat-data-panel-header button,
@@ -3721,6 +3725,29 @@ sup.remind-dot {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.chat-drop-overlay {
+  position: absolute;
+  z-index: 11;
+  inset: 76px 12px 76px;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  border: 2px dashed var(--color-accent);
+  border-radius: 14px;
+  background: var(--color-surface-elevated);
+  color: var(--color-accent);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+.chat-pop[data-drop-active="true"] .chat-drop-overlay {
+  opacity: 1;
+  visibility: visible;
 }
 .chat-messages {
   flex: 1;
@@ -3894,6 +3921,13 @@ sup.remind-dot {
 .chat-file-loading { display: flex; align-items: center; gap: 8px; padding: 8px 14px; color: var(--color-text-muted); font-size: 12px; }
 .chat-file-loading .spinner { width: 14px; height: 14px; border: 2px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin .8s linear infinite; }
 .chat-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 8px; }
+.chat-drop-status:empty { display: none; }
+.chat-drop-status {
+  padding: 0 14px 8px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
 
 /* Phase 6E: Why button + panel */
 .agent-why-btn-row { padding: 2px 12px 0; }

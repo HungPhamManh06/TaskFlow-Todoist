@@ -531,7 +531,7 @@
               <button type="button" class="chat-menu-btn" data-action="chat-menu-toggle"
                 aria-controls="chatMenu" aria-expanded="false" data-shell-icon="more"
                 data-i18n-aria="chatMenuAria"></button>
-              <button type="button" class="sync-close" data-action="chat-close" aria-label="Đóng"
+              <button id="chat-close" type="button" class="chat-icon-btn chat-close-btn" data-action="chat-close" aria-label="Đóng"
                 data-i18n-aria="closeBtn" data-shell-icon="close"></button>
             </div>
           </header>
@@ -561,6 +561,9 @@
             <span class="chat-context-badge" id="chatContextBadge" hidden data-testid="chat-context-badge"></span>
             <span data-chat-context-copy data-i18n="chatContextIdle">Chỉ dùng dữ liệu khi câu hỏi cần đến</span>
           </div>
+          <div class="chat-drop-overlay" aria-hidden="true">
+            <span data-i18n="chatDropPrompt">Thả tệp vào đây. Tối đa 5 tệp, 15 MB mỗi tệp, tổng 30 MB.</span>
+          </div>
           <div class="chat-messages" id="chatMessages" role="log" aria-live="polite">
             <div class="chat-msg bot"><span data-i18n="chatWelcome">Bạn muốn hoàn thành điều gì trước cuối ngày?</span></div>
           </div>
@@ -571,6 +574,7 @@
           </div>
           <div id="chatFileCard"></div>
           <div id="chatFileChips" class="chat-chips" hidden></div>
+          <div id="chat-drop-status" class="chat-drop-status" role="status" aria-live="polite"></div>
           <div class="chat-composer" id="chatComposer">
             <button type="button" class="chat-attach-btn" id="chatAttachBtn"
               data-shell-icon="plus" data-i18n-aria="fileAttach"></button>
@@ -580,7 +584,8 @@
               data-i18n-aria="chatSendAria" disabled><span aria-hidden="true">↑</span></button>
           </div>
           <div class="chat-stopped-note" id="chatStoppedNote" hidden></div>
-          <input type="file" id="chatFileInput" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,.md" hidden />
+          <input id="chat-file-input" type="file" multiple hidden
+            accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,.md" />
         </section>
       </div>
     </div>
