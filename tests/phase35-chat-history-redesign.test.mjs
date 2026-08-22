@@ -185,6 +185,16 @@ test('Escape closes visible history before closing the chatbot panel', () => {
   assert.match(closePanel, /historyBtn\.setAttribute\('aria-expanded', 'false'\)/);
 });
 
+test('outside-click containment survives history item re-rendering', () => {
+  const start = APP_JS.indexOf('// Click ngoài Chat');
+  const end = APP_JS.indexOf('/* ---- Phase 3B:', start);
+  const outsideClick = APP_JS.slice(start, end);
+  assert.match(outsideClick, /p\.getAttribute\('data-presentation'\) === 'sheet'/);
+  assert.match(outsideClick, /e\.composedPath\(\)/);
+  assert.match(outsideClick, /path\.indexOf\(p\) !== -1/);
+  assert.match(outsideClick, /closeChatPanel\(\)/);
+});
+
 test('composer helpers submit plain Enter while preserving Shift+Enter and IME composition', () => {
   const previousDocument = globalThis.document;
   globalThis.document = {

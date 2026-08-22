@@ -4571,6 +4571,11 @@ document.addEventListener('click', (e) => {
   if (!p || p.hidden) return;
   if (p.getAttribute('data-presentation') === 'sheet') return;
   const t = e.target;
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+  const wrap = document.getElementById('chatFabWrap');
+  // A history selection re-renders its clicked button before this listener
+  // runs. composedPath retains the original ancestry even after detachment.
+  if (path.indexOf(p) !== -1 || (wrap && path.indexOf(wrap) !== -1)) return;
   if (t && t.closest && (t.closest('#chatFabWrap') || t.closest('[data-action="chat-toggle"]'))) return;
   closeChatPanel();
 });
