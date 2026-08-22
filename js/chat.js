@@ -345,6 +345,9 @@
   function _resizeComposer(textarea) {
     if (!textarea || !textarea.style) return;
     textarea.style.height = 'auto';
+    // A flex item with height:auto can stretch to the composer's available
+    // height before scrollHeight is read. Collapse it for an intrinsic measure.
+    textarea.style.height = '0px';
     textarea.style.height = Math.min(textarea.scrollHeight || 0, 112) + 'px';
   }
 

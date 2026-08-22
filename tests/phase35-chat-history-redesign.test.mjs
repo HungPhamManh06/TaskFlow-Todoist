@@ -214,6 +214,32 @@ test('composer owns auto-growth and app no longer intercepts chat Enter', () => 
   assert.doesNotMatch(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,180}doChatSend/);
 });
 
+test('composer measures intrinsic content height instead of flex-stretched auto height', () => {
+  const previousDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: () => null,
+    querySelector: () => null,
+  };
+  let currentHeight = '';
+  const textarea = {
+    style: {
+      get height() { return currentHeight; },
+      set height(value) { currentHeight = value; },
+    },
+    get scrollHeight() { return currentHeight === '0px' ? 36 : 112; },
+  };
+
+  try {
+    delete require.cache[require.resolve('../js/chat.js')];
+    const Chat = require('../js/chat.js');
+    Chat._resizeComposer(textarea);
+    assert.equal(currentHeight, '36px');
+  } finally {
+    globalThis.document = previousDocument;
+    delete require.cache[require.resolve('../js/chat.js')];
+  }
+});
+
 test('safe message renderer keeps multiline text structured and scrolls only near the bottom', () => {
   assert.match(CHAT, /function _isNearBottom\(container\)/);
   assert.match(CHAT, /function _appendMessage\(container, text, role, metaKey\)/);
