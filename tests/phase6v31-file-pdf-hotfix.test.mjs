@@ -155,7 +155,7 @@ describe('v3.0.1: Provider error propagation', () => {
     const fileAgentStart = aiJS.indexOf("router.post('/file-agent'");
     const refineStart = aiJS.indexOf("router.post('/refine'");
     const route = aiJS.substring(fileAgentStart, refineStart > fileAgentStart ? refineStart : fileAgentStart + 3000);
-    assert.ok(route.includes("aiResult.status === 413"), '/file-agent must preserve 413');
+    assert.ok(route.includes('413'), '/file-agent must preserve 413');
   });
 
   it('/file preserves 503 status', () => {

@@ -53,18 +53,18 @@ describe('FILE_AGENT_SCHEMA — matches runtime contract', function () {
     assert.ok(!routeSection.includes("await callAiText("), 'file-agent must not use callAiText');
   });
 
-  it('passes FILE_AGENT_SCHEMA to callAiJson', function () {
+  it('passes FILE_AGENT_CHUNK_SCHEMA to callAiJson per chunk', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
-    assert.ok(routeSection.includes('schema: FILE_AGENT_SCHEMA'), 'Must pass FILE_AGENT_SCHEMA to callAiJson');
+    assert.ok(routeSection.includes('schema: FILE_AGENT_CHUNK_SCHEMA'), 'Must pass FILE_AGENT_CHUNK_SCHEMA to callAiJson per chunk');
   });
 
-  it('uses aiResult.parsed for structured output', function () {
+  it('uses chunkResult.parsed for structured output per chunk', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
-    assert.ok(routeSection.includes('aiResult.parsed'), 'Must use aiResult.parsed');
+    assert.ok(routeSection.includes('chunkResult.parsed'), 'Must use chunkResult.parsed');
   });
 
   it('has chunking function', function () {
@@ -398,12 +398,13 @@ describe('Long document flow', function () {
     assert.ok(routeSection.includes('buildAiFileBatchContent'), 'Must use bounded batch builder');
   });
 
-  it('uses one provider request instead of a chunk loop', function () {
+  it('uses chunked provider requests with merge for long documents', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
-    assert.equal((routeSection.match(/await callAiJson\(/g) || []).length, 1, 'Must call provider once');
-    assert.ok(!routeSection.includes('for (let ci = 0'), 'Must not split one batch into multiple provider calls');
+    assert.ok(routeSection.includes('chunkText'), 'Must use chunkText for long documents');
+    assert.ok(routeSection.includes('for (let ci = 0'), 'Must have chunk loop');
+    assert.ok(routeSection.includes('FILE_AGENT_TOTAL_TIMEOUT_MS'), 'Must have total timeout budget');
   });
 
   it('enforces FILE_IMPORT_MAX_ITEMS after merging', function () {
@@ -441,12 +442,12 @@ describe('Long document flow', function () {
     assert.ok(routeSection.includes('importMeta'), 'Must report importMeta for truncation');
   });
 
-  it('uses callAiJson with schema for the batch', function () {
+  it('uses callAiJson with chunk schema for the batch', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
     assert.ok(routeSection.includes('callAiJson'), 'Must use callAiJson');
-    assert.ok(routeSection.includes('schema: FILE_AGENT_SCHEMA'), 'Must pass schema');
+    assert.ok(routeSection.includes('schema: FILE_AGENT_CHUNK_SCHEMA'), 'Must pass chunk schema');
     assert.ok(routeSection.includes('FILE_AGENT_CHUNK_TOKENS'), 'Must use chunk token budget');
   });
 });
