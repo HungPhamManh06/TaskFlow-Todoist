@@ -502,41 +502,77 @@
       data-shell-icon="brain" aria-label="Mở Trợ lý TaskFlow" data-i18n-aria="chatFabAria"
       title="Trợ lý TaskFlow" data-i18n-title="chatFabTitle"
       aria-controls="chatPop" aria-expanded="false" data-testid="chat-fab"></button>
-    <div class="chat-pop" id="chatPop" hidden data-testid="chat-pop">
-      <div class="chat-header">
-        <strong data-i18n="chatTitle">🤖 Trợ lý TaskFlow</strong>
-        <span class="chat-context-badge" id="chatContextBadge" hidden data-testid="chat-context-badge"></span>
-        <div class="chat-header-actions">
-          <button type="button" class="chat-new-btn" data-action="chat-new" aria-label="Cuộc trò chuyện mới" data-i18n-aria="chatNewConversation" title="Cuộc trò chuyện mới">＋</button>
-          <button type="button" class="chat-history-btn" data-action="chat-history" aria-label="Lịch sử trò chuyện" data-i18n-aria="chatHistory" title="Lịch sử">🕘</button>
-          <button type="button" class="chat-clear-btn" data-action="chat-clear" aria-label="Xóa cuộc trò chuyện" data-i18n-aria="chatClearAria" title="Xóa cuộc trò chuyện">🗑️</button>
-          <button type="button" class="sync-close" data-action="chat-close" aria-label="Đóng"
-            data-i18n-aria="closeBtn" data-shell-icon="close"></button>
-        </div>
+    <div class="chat-pop" id="chatPop" hidden role="dialog" aria-labelledby="chatDialogTitle"
+      aria-describedby="chatContextStatus" data-testid="chat-pop">
+      <div class="chat-workspace">
+        <aside class="chat-history-drawer" id="chatHistoryDrawer" hidden
+          aria-labelledby="chatHistoryTitle" data-testid="chat-history-drawer">
+          <div class="chat-history-header">
+            <button type="button" id="chatHistoryBack" data-action="chat-history-close"
+              data-shell-icon="chevron-left" data-i18n-aria="chatHistoryBack"></button>
+            <strong id="chatHistoryTitle" data-i18n="chatHistory">Lịch sử trò chuyện</strong>
+            <button type="button" data-action="chat-new" data-i18n="chatNewConversation">Cuộc trò chuyện mới</button>
+          </div>
+          <p class="chat-history-local" data-i18n="chatHistoryLocalLabel">Lưu trên thiết bị này</p>
+          <div id="chatHistoryList"></div>
+          <div id="chatHistoryFooter"></div>
+        </aside>
+        <section class="chat-conversation">
+          <header class="chat-header">
+            <span class="chat-assistant-mark" aria-hidden="true">✦</span>
+            <span class="chat-heading-copy">
+              <strong id="chatDialogTitle" data-i18n="chatTitle">Trợ lý TaskFlow</strong>
+              <span class="chat-status"><span class="chat-status-dot" aria-hidden="true"></span><span id="chatStatusText" data-i18n="chatStatusReady">Sẵn sàng lập kế hoạch</span></span>
+            </span>
+            <div class="chat-header-actions">
+              <button type="button" class="chat-history-btn" data-action="chat-history"
+                aria-controls="chatHistoryDrawer" aria-expanded="false" data-shell-icon="clock"
+                data-i18n-aria="chatHistoryOpen"></button>
+              <button type="button" class="chat-menu-btn" data-action="chat-menu-toggle"
+                aria-controls="chatMenu" aria-expanded="false" data-shell-icon="more"
+                data-i18n-aria="chatMenuAria"></button>
+              <button type="button" class="sync-close" data-action="chat-close" aria-label="Đóng"
+                data-i18n-aria="closeBtn" data-shell-icon="close"></button>
+            </div>
+          </header>
+          <div class="chat-menu" id="chatMenu" hidden>
+            <button type="button" data-action="chat-data-info" data-i18n="chatDataSettings">Quyền truy cập dữ liệu</button>
+            <button type="button" data-action="chat-clear" data-i18n="chatClearAria">Xóa cuộc trò chuyện</button>
+          </div>
+          <section class="chat-data-panel" id="chatDataPanel" hidden aria-labelledby="chatDataPanelTitle">
+            <div class="chat-data-panel-header">
+              <strong id="chatDataPanelTitle" data-i18n="chatDataPanelTitle">Dữ liệu AI có thể sử dụng</strong>
+              <button type="button" data-action="chat-data-info-close" data-shell-icon="close"
+                data-i18n-aria="closeBtn"></button>
+            </div>
+            <p data-i18n="chatDataPanelBody">TaskFlow chỉ gửi dữ liệu liên quan đến câu hỏi. Reflection và Mood mặc định tắt và chỉ được gửi khi bạn chủ động bật.</p>
+          </section>
+          <div class="chat-context-status" id="chatContextStatus" aria-live="polite">
+            <span class="chat-context-badge" id="chatContextBadge" hidden data-testid="chat-context-badge"></span>
+            <span data-chat-context-copy data-i18n="chatContextIdle">Chỉ dùng dữ liệu khi câu hỏi cần đến</span>
+          </div>
+          <div class="chat-messages" id="chatMessages" role="log" aria-live="polite">
+            <div class="chat-msg bot"><span data-i18n="chatWelcome">Bạn muốn hoàn thành điều gì trước cuối ngày?</span></div>
+          </div>
+          <div class="chat-actions" id="chatActions">
+            <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="plan-today" data-i18n="chatSuggestPlanToday">Lập kế hoạch hôm nay</button>
+            <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="priority-work" data-i18n="chatSuggestPriority">Xem việc ưu tiên</button>
+            <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="week-summary" data-i18n="chatSuggestWeek">Tóm tắt tuần</button>
+          </div>
+          <div id="chatFileCard"></div>
+          <div id="chatFileChips" class="chat-chips" hidden></div>
+          <div class="chat-composer" id="chatComposer">
+            <button type="button" class="chat-attach-btn" id="chatAttachBtn"
+              data-shell-icon="plus" data-i18n-aria="fileAttach"></button>
+            <textarea class="chat-input" id="chatInput" rows="1" maxlength="4000"
+              data-i18n-placeholder="chatPh" data-i18n-aria="chatComposerAria"></textarea>
+            <button type="button" class="chat-send" data-action="chat-send"
+              data-i18n-aria="chatSendAria" disabled><span aria-hidden="true">↑</span></button>
+          </div>
+          <div class="chat-stopped-note" id="chatStoppedNote" hidden></div>
+          <input type="file" id="chatFileInput" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,.md" hidden />
+        </section>
       </div>
-      <div class="chat-history-drawer" id="chatHistoryDrawer" hidden data-testid="chat-history-drawer"></div>
-      <p class="chat-privacy-note" data-i18n="chatPrivacyNote">Với câu hỏi về dữ liệu TaskFlow, Trợ lý có thể gửi phần dữ liệu liên quan (Công việc, Dự án, Lịch hoặc Thói quen) đến Gemini để trả lời. Reflection và Mood không được gửi trong giai đoạn này.</p>
-      <div class="chat-messages" id="chatMessages" role="log" aria-live="polite">
-        <div class="chat-msg bot">
-          <span data-i18n="chatWelcome">👋 Chào bạn! Tôi là Trợ lý TaskFlow. Bạn có thể hỏi tôi về học tập, tập trung, mục tiêu và cách sử dụng TaskFlow.</span>
-        </div>
-      </div>
-      <div class="chat-actions" id="chatActions">
-        <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="study-plan">📚 Lên kế hoạch học tập</button>
-        <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="goal-tips">🎯 Mẹo đạt mục tiêu</button>
-        <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="habit-tips">🔥 Xây thói quen mới</button>
-        <button type="button" class="chat-chip" data-action="chat-suggest" data-topic="pomodoro-tips">🍅 Cách dùng Pomodoro</button>
-      </div>
-      <div id="chatFileCard"></div>
-      <div id="chatFileChips" class="chat-chips" hidden></div>
-      <div class="chat-input-wrap">
-        <button type="button" class="chat-attach-btn" id="chatAttachBtn" aria-label="" data-i18n-aria="fileAttach">📎</button>
-        <input type="text" class="chat-input" id="chatInput" placeholder="" data-i18n-placeholder="chatPh"
-          autocomplete="off" aria-label="Nhập tin nhắn" />
-        <button type="button" class="pop-btn primary chat-send" data-action="chat-send" data-i18n="chatSend">Gửi</button>
-      </div>
-      <div class="chat-stopped-note" id="chatStoppedNote" hidden></div>
-      <input type="file" id="chatFileInput" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/markdown,.md" hidden />
     </div>
   </div>
 
