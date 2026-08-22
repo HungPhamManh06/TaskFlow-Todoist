@@ -981,6 +981,7 @@ let _aiRequestGen = 0;
 let _aiAbortCtrl = null;
 let _aiDraft = null; // Phase 6T.2: cloned proposal draft for user edits
 let _aiEditActive = false; // Phase 6T.2: whether edit mode is active
+let _aiBusyWindows = []; // Phase 6U: busy windows from original AI request for edit revalidation
 
 async function aiRun() {
   const AI = window.TaskFlowAI;
@@ -1006,6 +1007,7 @@ async function aiRun() {
   // Phase 6T.2: Reset edit state for new request
   _aiDraft = null;
   _aiEditActive = false;
+  _aiBusyWindows = [];
   // Stale response protection: increment generation
   const gen = ++_aiRequestGen;
   // Cancel previous in-flight request
@@ -1038,6 +1040,8 @@ async function aiRun() {
   // Phase 6T.2: Clone proposal as editable draft (original remains immutable)
   _aiDraft = JSON.parse(JSON.stringify(res.proposal));
   _aiEditActive = false;
+  // Phase 6U: Store busy windows for edit revalidation
+  window._aiBusyWindows = Array.isArray(context.busy) ? context.busy : [];
   const taskLabels = {};
   context.tasks.concat(context.overdue).forEach((tk) => {
     if (tk && tk.uid && !taskLabels[tk.uid] && typeof tk.text === 'string' && tk.text.trim()) taskLabels[tk.uid] = tk.text;
@@ -1098,6 +1102,8 @@ function aiApply() {
   }
   aiApplying = true;
   const proposalSnapshot = JSON.parse(JSON.stringify(proposalToApply));
+  // Phase 6U: Capture pre-Apply state for rollback on partial failure
+  const preApplySnapshot = snapshotAll();
   try {
     // Phase 6T.1: Push undo BEFORE mutations so Apply → Undo works
     pushUndo();
@@ -1119,11 +1125,20 @@ function aiApply() {
     delete window._lastAiProposal;
     _aiDraft = null;
     _aiEditActive = false;
+    _aiBusyWindows = [];
     const skip = result.skipped && result.skipped.length ? ' ' + t('aiSkipNote', { n: result.skipped.length }) : '';
     const count = (result.created || 0) + (result.rescheduled || 0);
     const undoHint = count > 0 ? ' · ' + t('undoHint') : '';
     TaskFlowUI.toast(t('aiApplied') + skip + undoHint, 'success');
     trackEvent('ai_apply');
+  } catch (err) {
+    // Phase 6U: Rollback on unexpected mutation failure
+    try {
+      applySnapshot(preApplySnapshot);
+    } catch (e) { /* best-effort restore */ }
+    const Review = (typeof window !== 'undefined' && window.TaskFlowAIReview) || null;
+    const errMsg = Review ? Review.friendlyError('ai-provider-unavailable', getLang()) : t('aiError');
+    TaskFlowUI.toast(errMsg, 'error');
   } finally {
     aiApplying = false;
   }
@@ -6007,6 +6022,7 @@ document.addEventListener('click', (e) => {
     delete window._lastAiProposal;
     _aiDraft = null;
     _aiEditActive = false;
+    _aiBusyWindows = [];
     const host = document.querySelector('#plannerAi [data-role="ai-result"]');
     if (host) host.innerHTML = '';
     setPlannerMode('rule');
@@ -6734,7 +6750,7 @@ document.addEventListener('change', (e) => {
       // Rerun conflict check for schedule edits
       try {
         const blocks = loadTimeBlocksStore();
-        const warnings = AI.conflictCheck(_aiDraft, blocks, []);
+        const warnings = AI.conflictCheck(_aiDraft, blocks, window._aiBusyWindows || []);
         const warnMap = {};
         warnings.forEach(w => { if (w) warnMap[w.actionIndex] = w; });
         document.querySelectorAll('.ai-action-block').forEach((block, bi) => {

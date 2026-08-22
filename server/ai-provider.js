@@ -20,6 +20,9 @@
 'use strict';
 
 const DEFAULT_TIMEOUT_MS = 60000;
+const MIN_TIMEOUT_MS = 5000;
+const MAX_TIMEOUT_MS = 120000;
+const MAX_MAX_TOKENS = 8192;
 
 /**
  * Read provider configuration from environment.
@@ -36,12 +39,22 @@ function getConfig() {
 
 /**
  * Validate and normalize a timeout value.
- * Returns a safe positive integer, falling back to DEFAULT_TIMEOUT_MS.
+ * Returns a safe bounded integer between MIN_TIMEOUT_MS and MAX_TIMEOUT_MS.
  */
 function validateTimeout(raw) {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return DEFAULT_TIMEOUT_MS;
-  return Math.floor(n);
+  return Math.min(Math.max(Math.floor(n), MIN_TIMEOUT_MS), MAX_TIMEOUT_MS);
+}
+
+/**
+ * Validate and normalize a maxTokens value.
+ * Returns a safe positive integer capped at MAX_MAX_TOKENS.
+ */
+function validateMaxTokens(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 2048;
+  return Math.min(Math.floor(n), MAX_MAX_TOKENS);
 }
 
 /**
@@ -93,12 +106,13 @@ async function callAiCore(options) {
   const {
     messages,
     schema = null,
-    maxTokens = 2048,
+    maxTokens: rawMaxTokens = 2048,
     timeoutMs: explicitTimeout,
     requestId = '',
     routeName = '',
     model: modelOverride,
   } = options;
+  const maxTokens = validateMaxTokens(rawMaxTokens);
 
   const cfg = getConfig();
   if (!cfg.apiKey) {
@@ -236,5 +250,9 @@ module.exports = {
   getConfig,
   deriveProviderLabel,
   validateTimeout,
+  validateMaxTokens,
   DEFAULT_TIMEOUT_MS,
+  MIN_TIMEOUT_MS,
+  MAX_TIMEOUT_MS,
+  MAX_MAX_TOKENS,
 };
