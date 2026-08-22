@@ -3,6 +3,7 @@
    Không gọi Google thật: stub global.fetch chỉ cho URL calendar/v3. Kiểm tra:
    auth, validation, chưa kết nối, thiếu scope ghi, thành công + mapping,
    duplicate idempotent (không tạo event lặp), retry lỗi nhất thời. */
+process.env.AUTH_RATE_LIMIT_MAX = '1000'; // avoid rate-limit when creating many test accounts
 const assert = require('assert');
 const { app, ensureSchema } = require('./server/index');
 const { initDb } = require('./server/db');
