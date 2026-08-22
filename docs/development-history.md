@@ -505,3 +505,19 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - **i18n** — aiEdit, aiDone, aiEditDate/Start/Duration/Option/Blocked (VI + EN)
 - **51 tests** — Phase 6T.2 dedicated test suite covering strict dates, reschedule contract, Chinese text, proposal immutability, edit flow, undo integrity, error privacy
 - **Version pins** — ai.min.js v7, app.min.js v220, i18n.min.js v54
+
+## Phase 6U — AI Production Hardening
+
+**Branch:** `feat/ai-phase6u-production-hardening`
+
+### Changes
+- **Batch rollback** — aiApply() captures pre-Apply snapshot via snapshotAll(); on exception restores via applySnapshot() + shows error toast
+- **Busy-window preservation** — edit revalidation now passes stored _aiBusyWindows (not []) to conflictCheck, preserving Google Calendar conflict warnings
+- **Timeout bounds** — validateTimeout() clamps to MIN_TIMEOUT_MS (5s) — MAX_TIMEOUT_MS (120s), preventing absurd env values
+- **maxTokens validation** — validateMaxTokens() caps at MAX_MAX_TOKENS (8192), rejects NaN/negative/zero
+- **Request IDs** — /plan route now generates requestId, sets X-Request-Id header, passes to provider
+- **Prompt size budget** — 64KB prompt byte limit rejects oversized prompts before provider call
+- **Idempotency cache** — bounded to 500 entries (was 1000), TTL cleanup preserved
+- **agentRequestId validation** — tightened to 8-64 chars, /^[a-zA-Z0-9_-]+$/ safe chars only
+- **66 new tests** — timeout/maxTokens validation, status mapping, provider label, batch rollback, busy-window preservation, prompt budget, payload limit, request ID, rate limits, concurrency, idempotency, safe errors, context bounds, prompt injection, sensitive context, edit contract, timeout bounds
+- **Version pins** — app.min.js v221
