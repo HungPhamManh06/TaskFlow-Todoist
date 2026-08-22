@@ -12,8 +12,15 @@
   /* ---- Date/time helpers ---- */
   var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   var TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+  var RESCHEDULE_OPTIONS = ['tomorrow', 'this-week', 'inbox'];
 
-  function validDate(d) { return typeof d === 'string' && DATE_RE.test(d); }
+  function validDate(d) {
+    if (typeof d !== 'string' || !DATE_RE.test(d)) return false;
+    var parts = d.split('-').map(Number);
+    var dt = new Date(parts[0], parts[1] - 1, parts[2]);
+    return dt.getFullYear() === parts[0] && dt.getMonth() === parts[1] - 1 && dt.getDate() === parts[2]
+      && parts[0] >= 2020 && parts[0] <= 2099;
+  }
   function validTime(t) { return typeof t === 'string' && TIME_RE.test(t); }
 
   function shortDate(dateStr, lang) {
@@ -53,9 +60,7 @@
   /* ---- Editable field definitions per action type ---- */
   var EDITABLE_FIELDS = {
     schedule_task: ['date', 'start', 'duration'],
-    reschedule_task: ['date', 'start', 'duration'],
-    create_task: ['text', 'date', 'duration', 'priority'],
-    update_task: ['text', 'duration', 'priority'],
+    reschedule_task: ['option'],
   };
 
   /**
@@ -227,7 +232,7 @@
     var errors = [];
     var type = originalAction.type;
 
-    if (type === 'schedule_task' || type === 'reschedule_task') {
+    if (type === 'schedule_task') {
       if (reviewAction.editedFields) {
         var ef = reviewAction.editedFields;
         if (ef.date !== undefined && ef.date !== null && ef.date !== '' && !validDate(ef.date)) {
@@ -241,13 +246,11 @@
           if (!Number.isFinite(d) || d < 5 || d > 480) errors.push('invalid-duration');
         }
       }
-    } else if (type === 'create_task') {
+    } else if (type === 'reschedule_task') {
       if (reviewAction.editedFields) {
         var ef2 = reviewAction.editedFields;
-        if (ef2.text !== undefined && (!ef2.text || !ef2.text.trim())) errors.push('text-empty');
-        if (ef2.duration !== undefined && ef2.duration !== null) {
-          var d2 = Number(ef2.duration);
-          if (!Number.isFinite(d2) || d2 < 1 || d2 > 480) errors.push('invalid-duration');
+        if (ef2.option !== undefined && ef2.option !== null && ef2.option !== '' && RESCHEDULE_OPTIONS.indexOf(ef2.option) === -1) {
+          errors.push('invalid-reschedule-option');
         }
       }
     }
@@ -266,15 +269,14 @@
   function patchAction(action, editedFields) {
     if (!action || !editedFields) return action ? JSON.parse(JSON.stringify(action)) : action;
     var patched = JSON.parse(JSON.stringify(action));
-    if (patched.type === 'create_task') {
-      if (editedFields.text !== undefined) patched.text = editedFields.text;
-      if (editedFields.date !== undefined) patched.date = editedFields.date || undefined;
-      if (editedFields.duration !== undefined) patched.duration = editedFields.duration != null ? Number(editedFields.duration) : undefined;
-      if (editedFields.priority !== undefined) patched.priority = editedFields.priority;
-    } else if (patched.type === 'schedule_task' || patched.type === 'reschedule_task') {
+    if (patched.type === 'schedule_task') {
       if (editedFields.date !== undefined) patched.date = editedFields.date || undefined;
       if (editedFields.start !== undefined) patched.start = editedFields.start || undefined;
       if (editedFields.duration !== undefined) patched.duration = editedFields.duration != null ? Number(editedFields.duration) : undefined;
+    } else if (patched.type === 'reschedule_task') {
+      if (editedFields.option !== undefined && RESCHEDULE_OPTIONS.indexOf(editedFields.option) !== -1) {
+        patched.option = editedFields.option;
+      }
     }
     return patched;
   }
@@ -285,7 +287,7 @@
       'ai-not-configured': 'AI chưa được cấu hình.',
       'ai-timeout': 'Yêu cầu hết thời gian chờ.',
       'ai-rate-limited': 'Đã đạt giới hạn yêu cầu. Vui lòng thử lại sau.',
-      'ai-provider-unavailable': 'AI暂时不可用. Planner vẫn hoạt động bình thường.',
+      'ai-provider-unavailable': 'AI hiện không khả dụng. Trình lập kế hoạch vẫn hoạt động bình thường.',
       'ai-provider-auth': 'Lỗi xác thực AI.',
       'ai-provider-forbidden': 'AI bị từ chối truy cập.',
       'ai-provider-bad-request': 'Yêu cầu AI không hợp lệ.',
@@ -325,6 +327,7 @@
     friendlyError: friendlyError,
     shortDate: shortDate,
     formatMinutes: formatMinutes,
+    RESCHEDULE_OPTIONS: RESCHEDULE_OPTIONS,
     EDITABLE_FIELDS: EDITABLE_FIELDS,
     // For tests
     _findTask: findTask,

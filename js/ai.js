@@ -460,7 +460,28 @@
           }
         } catch (e) { /* explainability optional */ }
       }
-      return `<div class="ai-action-block">${html}${provHtml}</div>`;
+      // Build inline edit controls for editable actions
+      let editHtml = '';
+      if (hasEdit) {
+        const ef = rd.editableFields;
+        let controls = '';
+        if (a.type === 'schedule_task') {
+          if (ef.includes('date')) controls += `<label class="ai-edit-field"><span>${t('aiEditDate')}</span><input type="date" class="ai-edit-input" data-action="ai-edit-field" data-edit-field="date" data-action-index="${i}" value="${escAttr(a.date || '')}" min="2020-01-01" max="2099-12-31"></label>`;
+          if (ef.includes('start')) controls += `<label class="ai-edit-field"><span>${t('aiEditStart')}</span><input type="time" class="ai-edit-input" data-action="ai-edit-field" data-edit-field="start" data-action-index="${i}" value="${escAttr(a.start || '')}"></label>`;
+          if (ef.includes('duration')) controls += `<label class="ai-edit-field"><span>${t('aiEditDuration')}</span><input type="number" class="ai-edit-input" data-action="ai-edit-field" data-edit-field="duration" data-action-index="${i}" value="${escAttr(String(a.duration || 60))}" min="5" max="480" step="5"></label>`;
+        } else if (a.type === 'reschedule_task') {
+          if (ef.includes('option')) {
+            const Review = (typeof window !== 'undefined' && window.TaskFlowAIReview) || null;
+            const opts = Review && Review.RESCHEDULE_OPTIONS ? Review.RESCHEDULE_OPTIONS : ['tomorrow', 'this-week', 'inbox'];
+            const optOpts = opts.map(o => `<option value="${escAttr(o)}" ${o === a.option ? 'selected' : ''}>${escHtml(t('aiOpt' + o))}</option>`).join('');
+            controls += `<label class="ai-edit-field"><span>${t('aiEditOption')}</span><select class="ai-edit-input" data-action="ai-edit-field" data-edit-field="option" data-action-index="${i}">${optOpts}</select></label>`;
+          }
+        }
+        if (controls) {
+          editHtml = `<div class="ai-edit-controls" data-edit-index="${i}" hidden>${controls}<span class="ai-edit-status" data-edit-status="${i}"></span></div>`;
+        }
+      }
+      return `<div class="ai-action-block">${html}${provHtml}${editHtml}</div>`;
     }).join('');
     const warnNote = (warnings && warnings.length)
       ? `<p class="ai-warn-note">${t('aiConflictsNote')}</p>`
@@ -487,6 +508,7 @@
       ${dataUsedHtml}
       <div class="ai-preview-actions">
         <button type="button" class="button button-ghost button-sm" data-action="ai-cancel">${t('aiCancel')}</button>
+        <button type="button" class="button button-ghost button-sm" data-action="ai-edit">${t('aiEdit')}</button>
         <button type="button" class="button button-primary button-sm" data-action="ai-apply">${t('aiApply')}</button>
       </div>
       <div class="ai-feedback-bar" data-role="ai-feedback" hidden>

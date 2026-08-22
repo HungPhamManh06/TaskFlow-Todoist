@@ -189,8 +189,8 @@ test('validDate: từ chối roll-over (2026-13-40)', () => {
 /* ---------- production wiring ---------- */
 test('app.html: plannerAi host + ai.min.js script + app.min bump', () => {
   assert.ok(APP.includes('id="plannerAi"'), 'host #plannerAi');
-  assert.ok(APP.includes('js/ai.min.js?v=6'), 'script ai.min.js');
-  assert.ok(APP.includes('js/app.min.js?v=219'), 'app.min.js v198');
+  assert.ok(APP.includes('js/ai.min.js?v=7'), 'script ai.min.js');
+  assert.ok(APP.includes('js/app.min.js?v=220'), 'app.min.js v198');
 });
 
 test('sw.js: cache v241 + precache ai.min.js', () => {
