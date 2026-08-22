@@ -11,6 +11,7 @@ const APP_JS = read('js/app.js');
 const APP = read('app.html');
 const I18N = read('js/i18n.js');
 const CHAT = read('js/chat.js');
+const CSS = read('css/styles.css');
 const require = createRequire(import.meta.url);
 
 function functionBody(source, name) {
@@ -324,4 +325,27 @@ test('context status copy and category labels exist once per locale', () => {
   ]) {
     assert.equal((I18N.match(new RegExp(`\\b${key}:`, 'g')) || []).length, 2, `${key} must exist once per locale`);
   }
+});
+
+test('Focused Coach compact and expanded geometry use the approved adaptive grid', () => {
+  assert.match(CSS, /\.chat-pop \{[\s\S]*width: min\(400px, calc\(100vw - 24px\)\)/);
+  assert.match(CSS, /\.chat-pop\[data-history-open="true"\][\s\S]*width: min\(660px, calc\(100vw - 24px\)\)/);
+  assert.match(CSS, /\.chat-workspace[\s\S]*grid-template-columns/);
+  assert.match(CSS, /\.chat-history-item--active[\s\S]*border-inline-start/);
+});
+
+test('Focused Coach mobile presentation fills the dynamic viewport and honors safe areas', () => {
+  assert.match(CSS, /@media \(max-width: 767px\)[\s\S]*height: 100dvh/);
+  assert.match(CSS, /env\(safe-area-inset-bottom\)/);
+  assert.match(CSS, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.doesNotMatch(CSS, /\.fb-fab-wrap\s*\{\s*inset:\s*0/);
+});
+
+test('chat presentation semantics distinguish compact popover from mobile sheet', () => {
+  const presentation = functionBody(APP_JS, 'syncChatPresentation');
+  assert.match(presentation, /matchMedia\('\(max-width: 767px\)'\)/);
+  assert.match(presentation, /data-presentation/);
+  assert.match(presentation, /aria-modal/);
+  assert.match(presentation, /chatHistoryTitle/);
+  assert.match(presentation, /chatDialogTitle/);
 });

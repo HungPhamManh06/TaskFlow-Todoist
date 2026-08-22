@@ -4487,6 +4487,36 @@ function setChatConsentPermission(control) {
    Đóng popover, cập nhật aria-expanded, trả focus về FAB nếu chat mở từ FAB.
    KHÔNG xoá hội thoại/lịch sử. */
 let _chatOpenedFromFab = false;
+function syncChatPresentation() {
+  const panel = document.getElementById('chatPop');
+  if (!panel) return;
+  const isSheet = !!(window.matchMedia && window.matchMedia('(max-width: 767px)').matches);
+  const drawer = document.getElementById('chatHistoryDrawer');
+  const historyVisible = panel.getAttribute('data-history-open') === 'true' && !!drawer && !drawer.hidden;
+  panel.setAttribute('data-presentation', isSheet ? 'sheet' : 'compact');
+  if (isSheet) panel.setAttribute('aria-modal', 'true');
+  else panel.removeAttribute('aria-modal');
+  panel.setAttribute('aria-labelledby', isSheet && historyVisible ? 'chatHistoryTitle' : 'chatDialogTitle');
+}
+
+const _chatPresentationMedia = window.matchMedia && window.matchMedia('(max-width: 767px)');
+if (_chatPresentationMedia) {
+  const onChatPresentationChange = () => syncChatPresentation();
+  if (typeof _chatPresentationMedia.addEventListener === 'function') {
+    _chatPresentationMedia.addEventListener('change', onChatPresentationChange);
+  } else if (typeof _chatPresentationMedia.addListener === 'function') {
+    _chatPresentationMedia.addListener(onChatPresentationChange);
+  }
+}
+const _chatPresentationPanel = document.getElementById('chatPop');
+if (_chatPresentationPanel && typeof MutationObserver !== 'undefined') {
+  new MutationObserver(() => syncChatPresentation()).observe(_chatPresentationPanel, {
+    attributes: true,
+    attributeFilter: ['data-history-open'],
+  });
+}
+syncChatPresentation();
+
 function closeVisibleChatHistory(event) {
   const panel = document.getElementById('chatPop');
   const drawer = document.getElementById('chatHistoryDrawer');
@@ -4503,6 +4533,7 @@ function closeVisibleChatHistory(event) {
       if (typeof trigger.focus === 'function') trigger.focus();
     }
   }
+  syncChatPresentation();
   return true;
 }
 
@@ -4523,6 +4554,7 @@ function closeChatPanel() {
   const historyBtn = p.querySelector('[data-action="chat-history"]');
   if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
   if (historyBtn) historyBtn.setAttribute('aria-expanded', 'false');
+  syncChatPresentation();
   p.hidden = true;
   const fab = document.getElementById('chatFab');
   if (fab) fab.setAttribute('aria-expanded', 'false');
@@ -4537,6 +4569,7 @@ function closeChatPanel() {
 document.addEventListener('click', (e) => {
   const p = document.getElementById('chatPop');
   if (!p || p.hidden) return;
+  if (p.getAttribute('data-presentation') === 'sheet') return;
   const t = e.target;
   if (t && t.closest && (t.closest('#chatFabWrap') || t.closest('[data-action="chat-toggle"]'))) return;
   closeChatPanel();
@@ -5667,6 +5700,7 @@ document.addEventListener('click', (e) => {
         return;
       }
       p.hidden = false;
+      syncChatPresentation();
       const fab = document.getElementById('chatFab');
       if (fab) fab.setAttribute('aria-expanded', String(opening));
       // Chat mở từ FAB → trả focus về FAB khi đóng (P15).

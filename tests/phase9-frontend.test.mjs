@@ -1097,7 +1097,7 @@ test('P11: chat helpers extracted — CHAT_RESPONSES/doChatSend/doChatSuggest/ch
   assert.match(mod, /study-plan/);
 });
 
-test('P11: persistent floating Chat FAB — static HTML/CSS, lazy modules never boot-load', () => {
+test('P11: persistent floating Chat trigger anchors the adaptive assistant without boot-loading modules', () => {
   // 1. FAB exists in the wrap, uses the existing brain icon, ARIA-complete
   const fabBlock = (APP.match(/class="chat-fab" id="chatFab"[\s\S]*?<\/button>/) || [''])[0];
   assert.ok(fabBlock, 'FAB button block must exist');
@@ -1118,17 +1118,18 @@ test('P11: persistent floating Chat FAB — static HTML/CSS, lazy modules never 
   assert.doesNotMatch(APP, /src="js\/chat-provider\.min\.js/);
   assert.doesNotMatch(APP, /src="js\/ai-chat-context\.min\.js/);
   assert.doesNotMatch(APP, /src="js\/ai-context\.min\.js/);
-  // 4. FAB CSS in the critical path: 48px circle, semantic info-blue, dark-safe
-  const CSS = readRequiredAsset('css/styles-critical.css');
-  assert.match(CSS, /\.chat-fab \{\s*width: 48px;\s*height: 48px;\s*border-radius: 50%;/);
-  assert.match(CSS, /\.chat-fab \{\s*[\s\S]{0,300}background: var\(--color-info\);/);
+  // 4. Trigger CSS stays in the critical path and uses the single TaskFlow accent.
+  const CRITICAL_CSS = readRequiredAsset('css/styles-critical.css');
+  const CSS = CRITICAL_CSS + readRequiredAsset('css/styles-deferred.css');
+  assert.match(CRITICAL_CSS, /\.chat-fab \{\s*width: 48px;\s*height: 48px;\s*border-radius: 50%;/);
+  assert.match(CRITICAL_CSS, /\.chat-fab \{\s*[\s\S]{0,300}background: var\(--color-accent\);/);
   assert.match(CSS, /\.chat-fab:hover/);
   assert.match(CSS, /\.chat-fab:active/);
   assert.match(CSS, /\.chat-fab\[aria-expanded="true"\]/);
   // 5. Panel anchored ABOVE the FAB (bottom: calc(100% + 10px)) — no overlap
   assert.match(CSS, /\.chat-pop \{\s*position: absolute;\s*top: auto;\s*bottom: calc\(100% \+ 10px\);/);
-  // 6. Mobile: panel capped with 100dvh (keyboard-safe), FAB above bottom nav
-  assert.match(CSS, /@media \(max-width: 767px\) \{\s*[\s\S]{0,200}\.chat-pop \{ max-height: min\(480px, calc\(100dvh - 176px\)\); \}/);
+  // 6. Mobile: panel becomes a keyboard-safe full-screen sheet; trigger remains above bottom nav.
+  assert.match(CSS, /@media \(max-width: 767px\)[\s\S]*\.chat-pop \{[\s\S]*height: 100dvh/);
   const SHELL = readRequiredAsset('css/app-shell.css');
   assert.match(SHELL, /body \.fb-fab-wrap \{\s*bottom: calc\(82px \+ env\(safe-area-inset-bottom\)\);/);
   // 7. Hidden while More sheet is open (no overlap with critical modals)
