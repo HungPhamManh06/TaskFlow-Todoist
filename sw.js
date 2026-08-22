@@ -72,6 +72,7 @@ const APP_SHELL = [
   './js/popups.min.js',
   './js/inbox.min.js',
   './js/chat.min.js',
+  './js/chat-history.min.js',
   './js/ai-context.min.js',
   './js/ai-context-consent.min.js',
   './js/ai-memory.min.js',

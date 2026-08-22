@@ -170,7 +170,8 @@ describe('Phase 6C: Client File Attachment', () => {
 
   it('uses AbortController', () => {
     assert.ok(chatSrc.includes('AbortController'));
-    assert.ok(chatSrc.includes('_fileAbort'));
+    // Phase: _fileAbort replaced by shared _activeRequest lifecycle
+    assert.ok(chatSrc.includes('_activeRequest') || chatSrc.includes('_fileAbort'));
   });
 
   it('clears file on chat clear', () => {
