@@ -979,6 +979,8 @@ function renderAiPanel() {
 
 let _aiRequestGen = 0;
 let _aiAbortCtrl = null;
+let _aiDraft = null; // Phase 6T.2: cloned proposal draft for user edits
+let _aiEditActive = false; // Phase 6T.2: whether edit mode is active
 
 async function aiRun() {
   const AI = window.TaskFlowAI;
@@ -1001,6 +1003,9 @@ async function aiRun() {
   const resultHost = panel.querySelector('[data-role="ai-result"]');
   if (runBtn) { runBtn.disabled = true; runBtn.textContent = t('aiRunning'); }
   if (resultHost) resultHost.innerHTML = '<p class="ai-loading">' + esc(t('aiPreparing')) + '</p>';
+  // Phase 6T.2: Reset edit state for new request
+  _aiDraft = null;
+  _aiEditActive = false;
   // Stale response protection: increment generation
   const gen = ++_aiRequestGen;
   // Cancel previous in-flight request
@@ -1030,6 +1035,9 @@ async function aiRun() {
   }
   const warnings = AI.conflictCheck(res.proposal, context.timeblocks, context.busy);
   window._lastAiProposal = { proposal: res.proposal, refs };
+  // Phase 6T.2: Clone proposal as editable draft (original remains immutable)
+  _aiDraft = JSON.parse(JSON.stringify(res.proposal));
+  _aiEditActive = false;
   const taskLabels = {};
   context.tasks.concat(context.overdue).forEach((tk) => {
     if (tk && tk.uid && !taskLabels[tk.uid] && typeof tk.text === 'string' && tk.text.trim()) taskLabels[tk.uid] = tk.text;
@@ -1063,11 +1071,37 @@ function aiApply() {
   const AI = window.TaskFlowAI;
   const last = window._lastAiProposal;
   if (!AI || !last || aiApplying) return;
+  // Phase 6T.2: Use edited draft if available, otherwise original proposal
+  const proposalToApply = _aiDraft || last.proposal;
+  // Phase 6T.2: Preflight — revalidate all referenced tasks exist
+  const refs = last.refs || {};
+  const taskUids = refs.taskUids || new Set();
+  const preflightMissing = [];
+  if (proposalToApply && Array.isArray(proposalToApply.actions)) {
+    proposalToApply.actions.forEach((a) => {
+      if (a && a.taskUid && a.type !== 'next_action' && !taskUids.has(a.taskUid)) {
+        preflightMissing.push(a.taskUid);
+      }
+    });
+  }
+  if (preflightMissing.length > 0) {
+    TaskFlowUI.toast(t('aiSkipNote', { n: preflightMissing.length }), 'warning');
+    return;
+  }
+  // Phase 6T.2: Revalidate the proposal before applying
+  const v = AI.validateProposalLocal(proposalToApply, refs);
+  if (!v.ok) {
+    const Review = (typeof window !== 'undefined' && window.TaskFlowAIReview) || null;
+    const errMsg = Review ? Review.friendlyError('ai-validation-failed', getLang()) : t('aiInvalidOutput');
+    TaskFlowUI.toast(errMsg, 'error');
+    return;
+  }
   aiApplying = true;
+  const proposalSnapshot = JSON.parse(JSON.stringify(proposalToApply));
   try {
     // Phase 6T.1: Push undo BEFORE mutations so Apply → Undo works
     pushUndo();
-    const result = AI.applyProposal(last.proposal, {
+    const result = AI.applyProposal(proposalSnapshot, {
       findTask: (uid) => !!findPlannerTaskByUid(uid),
       createBlock: (payload) => {
         const store = loadTimeBlocksStore();
@@ -1083,6 +1117,8 @@ function aiApply() {
     renderCurrentView();
     TaskFlowUI.closeDialog('plannerModal');
     delete window._lastAiProposal;
+    _aiDraft = null;
+    _aiEditActive = false;
     const skip = result.skipped && result.skipped.length ? ' ' + t('aiSkipNote', { n: result.skipped.length }) : '';
     const count = (result.created || 0) + (result.rescheduled || 0);
     const undoHint = count > 0 ? ' · ' + t('undoHint') : '';
@@ -5190,6 +5226,8 @@ let undoStack = window.PlanMath ? window.PlanMath.makeUndoStack(50) : null;
 let lastSnapshotJson = null;
 
 function snapshotAll() {
+  var tb = null;
+  try { tb = JSON.parse(JSON.stringify(loadTimeBlocksStore())); } catch (e) { /* TimeBlock snapshot is best-effort */ }
   return {
     state: JSON.parse(JSON.stringify(state)),
     yearState: JSON.parse(JSON.stringify(yearState)),
@@ -5197,6 +5235,7 @@ function snapshotAll() {
     theme: (typeof THEME !== 'undefined' ? THEME : null) || null,
     plan: { y: PLAN_YEAR, m: PLAN_MONTH, cw: state.currentWeek },
     inbox: Array.isArray(inbox) ? JSON.parse(JSON.stringify(inbox)) : [],
+    timeblocks: tb,
   };
 }
 function pushUndo() {
@@ -5221,6 +5260,10 @@ function applySnapshot(snap) {
     PLAN_YEAR = snap.plan.y;
     PLAN_MONTH = snap.plan.m;
     state.currentWeek = snap.plan.cw;
+  }
+  // Phase 6T.2: Restore TimeBlocks on Undo
+  if (snap.timeblocks && window.TaskFlowTimeBlocks) {
+    try { saveTimeBlocksStore(snap.timeblocks); } catch (e) { /* restore best-effort */ }
   }
   invalidateYearCache();
   renderCurrentView();
@@ -5962,9 +6005,23 @@ document.addEventListener('click', (e) => {
     if (_aiAbortCtrl) { try { _aiAbortCtrl.abort(); } catch (e) { /* ignore */ } _aiAbortCtrl = null; }
     _aiRequestGen++;
     delete window._lastAiProposal;
+    _aiDraft = null;
+    _aiEditActive = false;
     const host = document.querySelector('#plannerAi [data-role="ai-result"]');
     if (host) host.innerHTML = '';
     setPlannerMode('rule');
+  } else if (act === 'ai-edit') {
+    // Phase 6T.2: Toggle edit mode on/off
+    _aiEditActive = !_aiEditActive;
+    const editBtns = document.querySelectorAll('[data-action="ai-edit"]');
+    editBtns.forEach(b => { b.textContent = _aiEditActive ? t('aiDone') : t('aiEdit'); });
+    const editControls = document.querySelectorAll('.ai-edit-controls');
+    editControls.forEach(c => { c.hidden = !_aiEditActive; });
+    if (_aiEditActive) {
+      // Focus first edit field
+      const firstInput = document.querySelector('.ai-edit-controls:not([hidden]) .ai-edit-input');
+      if (firstInput) firstInput.focus();
+    }
   } else if (act === 'ai-retry') {
     // Phase 6T.1: Retry requires explicit user action
     aiRun();
@@ -6641,6 +6698,57 @@ document.addEventListener('change', (e) => {
   else if (act === 'monthselect') openMonth(+e.target.value);
   else if (act === 'td-project' || act === 'td-milestone') onTaskLinkSelectChange(e, act);
   else if (act === 'ctx-name') onContextRename(e);
+  // Phase 6T.2: Edit field changes trigger draft revalidation
+  else if (act === 'ai-edit-field') {
+    const idx = parseInt(e.target.dataset.actionIndex, 10);
+    const field = e.target.dataset.editField;
+    if (isNaN(idx) || !field || !_aiDraft || !Array.isArray(_aiDraft.actions)) return;
+    const Review = (typeof window !== 'undefined' && window.TaskFlowAIReview) || null;
+    const AI = window.TaskFlowAI;
+    if (!Review || !AI) return;
+    const origProposal = window._lastAiProposal && window._lastAiProposal.proposal;
+    const origAction = origProposal && origProposal.actions ? origProposal.actions[idx] : _aiDraft.actions[idx];
+    if (!origAction) return;
+    // Collect all current edit values
+    const editedFields = {};
+    document.querySelectorAll(`[data-action-index="${idx}"].ai-edit-input`).forEach(inp => {
+      editedFields[inp.dataset.editField] = inp.value;
+    });
+    // Patch the draft action
+    _aiDraft.actions[idx] = Review.patchAction(origAction, editedFields);
+    // Revalidate
+    const draftValidation = Review.validateReviewDraft(
+      { editedFields }, origAction, { tasks: [], timeblocks: [] }
+    );
+    const refs = window._lastAiProposal && window._lastAiProposal.refs;
+    const fullValidation = AI.validateProposalLocal(_aiDraft, refs || {});
+    // Update status and Apply button state
+    const statusEl = document.querySelector(`[data-edit-status="${idx}"]`);
+    const applyBtn = document.querySelector('[data-action="ai-apply"]');
+    if (!draftValidation.ok || !fullValidation.ok) {
+      if (statusEl) statusEl.textContent = t('aiEditBlocked');
+      if (applyBtn) applyBtn.disabled = true;
+    } else {
+      if (statusEl) statusEl.textContent = '';
+      if (applyBtn) applyBtn.disabled = false;
+      // Rerun conflict check for schedule edits
+      try {
+        const blocks = loadTimeBlocksStore();
+        const warnings = AI.conflictCheck(_aiDraft, blocks, []);
+        const warnMap = {};
+        warnings.forEach(w => { if (w) warnMap[w.actionIndex] = w; });
+        document.querySelectorAll('.ai-action-block').forEach((block, bi) => {
+          const existingWarn = block.querySelector('.ai-warn');
+          if (warnMap[bi] && !existingWarn) {
+            const nameEl = block.querySelector('.ai-plan-task');
+            if (nameEl) nameEl.insertAdjacentHTML('beforeend', ` <span class="ai-warn" role="note">${esc(t('aiConflict'))}</span>`);
+          } else if (!warnMap[bi] && existingWarn) {
+            existingWarn.remove();
+          }
+        });
+      } catch (e) { /* conflict check is advisory */ }
+    }
+  }
 });
 
 // Đổi tên context trong manager — rename inline; label rỗng → revert về tên cũ.

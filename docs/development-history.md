@@ -487,3 +487,21 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - **Retry button** — explicit user-initiated retry after errors
 - **Loading states** — honest progress indicator during AI request
 - **app.min.js v219, i18n.min.js v52, sw CACHE v271**
+
+## Phase 6T.2 — Final Trust Integrity Closure
+
+**Branch:** `fix/ai-phase6t2-final-trust-integrity`
+
+### Changes
+- **Strict date validation** — ai-review.js validDate now uses calendar round-trip (not regex-only), rejects impossible dates like 2026-02-30/04-31, accepts leap days, enforces 2020–2099 range
+- **Reschedule edit contract fixed** — EDITABLE_FIELDS for reschedule_task = `['option']` (not date/start/duration), option strictly validated against RESCHEDULE_OPTIONS (tomorrow/this-week/inbox)
+- **Chinese text removed** — Vietnamese ai-provider-unavailable message now reads "AI hiện không khả dụng. Trình lập kế hoạch vẫn hoạt động bình thường."
+- **Dead edit definitions removed** — create_task/update_task removed from EDITABLE_FIELDS (not in current ACTION_TYPES contract)
+- **Edit UI** — proposal preview shows Cancel | Edit | Apply buttons; Edit toggles inline controls per action (date/start/duration for schedule, option select for reschedule)
+- **Draft immutability** — _aiDraft is a deep clone of original proposal; patchAction clones before patching; original provider proposal never mutated
+- **Post-edit validation** — every edit triggers validateReviewDraft + validateProposalLocal + conflictCheck; invalid edits disable Apply
+- **TimeBlock Undo** — snapshotAll() now includes timeblocks; applySnapshot() restores them; AI schedule/reschedule is genuinely reversible
+- **Batch atomicity** — aiApply() preflight-checks all task references exist before mutation; revalidates entire proposal; aborts with zero mutation if any reference is missing
+- **i18n** — aiEdit, aiDone, aiEditDate/Start/Duration/Option/Blocked (VI + EN)
+- **51 tests** — Phase 6T.2 dedicated test suite covering strict dates, reschedule contract, Chinese text, proposal immutability, edit flow, undo integrity, error privacy
+- **Version pins** — ai.min.js v7, app.min.js v220, i18n.min.js v54
