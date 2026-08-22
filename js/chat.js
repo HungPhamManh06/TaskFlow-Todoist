@@ -979,9 +979,49 @@
   var _attachedFile = null;
   var _fileObjectURL = null;
   var _pendingFileProposal = null;
+  var _FILE_MAX_FILES = 5;
   var _FILE_MAX_BYTES = 15 * 1024 * 1024;
+  var _FILE_MAX_TOTAL_BYTES = 30 * 1024 * 1024;
   var _ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain', 'text/markdown']);
   var _ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.txt', '.md']);
+
+  function _fileKey(file) {
+    return `${file.name}\u0000${file.size}\u0000${file.lastModified || 0}`;
+  }
+
+  function _mergeAttachmentCandidates(current, candidates) {
+    var files = Array.isArray(current) ? current.slice() : [];
+    var incoming = Array.isArray(candidates) ? candidates : Array.from(candidates || []);
+    var rejected = [];
+    var keys = new Set(files.map(_fileKey));
+    var totalBytes = files.reduce(function (sum, file) {
+      return sum + (Number.isFinite(file && file.size) && file.size > 0 ? file.size : 0);
+    }, 0);
+
+    incoming.forEach(function (file) {
+      var name = String(file && file.name || '');
+      var key = file ? _fileKey(file) : '';
+      var supported = !!file && (_ALLOWED_TYPES.has(file.type) || /\.md$/i.test(name));
+      var code = '';
+
+      if (keys.has(key)) code = 'duplicate';
+      else if (!supported) code = 'unsupported-type';
+      else if (!Number.isFinite(file.size) || file.size <= 0) code = 'empty-file';
+      else if (file.size > _FILE_MAX_BYTES) code = 'too-large';
+      else if (files.length >= _FILE_MAX_FILES) code = 'too-many-files';
+      else if (totalBytes + file.size > _FILE_MAX_TOTAL_BYTES) code = 'total-too-large';
+
+      if (code) {
+        rejected.push({ name: name, code: code });
+        return;
+      }
+      files.push(file);
+      keys.add(key);
+      totalBytes += file.size;
+    });
+
+    return { files: files, rejected: rejected };
+  }
 
   var FILE_CHIPS_IMAGE = [
     { key: 'fileChipImageDesc', prompt: 'Mô tả ảnh này' },
@@ -1454,5 +1494,12 @@
     _isNearBottom: _isNearBottom,
     _appendMessage: _appendMessage,
     _renderSuggestions: _renderSuggestions,
+    ATTACHMENT_LIMITS: {
+      maxFiles: _FILE_MAX_FILES,
+      maxFileBytes: _FILE_MAX_BYTES,
+      maxTotalBytes: _FILE_MAX_TOTAL_BYTES,
+    },
+    fileKey: _fileKey,
+    mergeAttachmentCandidates: _mergeAttachmentCandidates,
   };
 });
