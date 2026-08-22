@@ -575,3 +575,54 @@ Migrate toàn bộ glyph chức năng còn lại sang ui-sprite.svg (58 symbols,
 - Full unit suite: 2902 pass, 3 pre-existing server failures
 - Release assets: 0 FAIL
 - Known limitations: in-memory rate limits are instance-local (serverless defense-in-depth)
+
+---
+
+## Phase 6V.2 — Final CI Gate Closure
+
+**Date:** 2026-08-22
+**Branch:** fix/ai-phase6v2-final-ci-gate
+
+### Root Cause
+
+Phase 6V CI failed with a single test failure:
+
+```
+phase6u1-cross-endpoint-hardening.test.mjs:62
+"plan must use req.aiRequestId"
+```
+
+The assertion hardcoded `\r\n` (Windows CRLF) in a string literal:
+
+```javascript
+aiJS.includes("const requestId = req.aiRequestId;\r\n  try {\r\n    if (!AI_API_KEY")
+```
+
+On Windows (local dev), `readFileSync` returns the file with CRLF line endings (because `core.autocrlf=true`), so the `\r\n` matched. On Linux CI (Ubuntu), files are checked out with LF only, so the substring never matched — causing a false failure.
+
+### Fix
+
+Replaced the fragile full-string assertion with a platform-independent section-scan:
+
+```javascript
+const planIdx = aiJS.indexOf("router.post('/plan'");
+const planSeg = aiJS.slice(planIdx, planIdx + 500);
+assert.ok(planSeg.includes('const requestId = req.aiRequestId;'), 'plan must use req.aiRequestId');
+```
+
+### Files Changed
+- `tests/phase6u1-cross-endpoint-hardening.test.mjs` (1 assertion fix)
+
+### Test Results
+- Full unit suite: **2545 pass, 0 fail** (verified on both Windows and Linux-like checkout)
+- Release assets: **0 FAIL**
+- No production JS modified; no minification or pin bump needed
+
+### Previous Failed Runs
+| Run | SHA | Conclusion | Failing Step |
+|-----|-----|-----------|-------------|
+| 32548089956 | 9b0efbc (6V) | failure | Unit tests |
+| 32549412928 | 90ff37c (6V.1 PR) | failure | Unit tests |
+| 32549419121 | bf4e462 (6V.1 main push) | failure | Unit tests |
+
+All three had the same root cause: `\r\n` vs `\n` mismatch in a source-inspection assertion.
