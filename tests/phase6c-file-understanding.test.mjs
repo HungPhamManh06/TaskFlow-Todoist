@@ -114,7 +114,9 @@ describe('Phase 6C: Server File Validation', () => {
   it('returns safe response format', () => {
     assert.ok(src.includes('ok: true'));
     assert.ok(src.includes('answer:'));
-    assert.ok(src.includes('file: { name:')); 
+    assert.ok(src.includes('file: acceptedFiles[0]'));
+    assert.ok(src.includes('files: acceptedFiles'));
+    assert.ok(src.includes('rejectedFiles'));
   });
 });
 
