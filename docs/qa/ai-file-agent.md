@@ -43,6 +43,29 @@ Same as Phase 6C:
 - PDF (documents)
 - TXT, MD (text)
 
+## Multi-file picker and drag-and-drop QA
+
+The picker and chat drop zone accept one batch of up to **5 files**, with a
+**15 MB limit per file** and a **30 MB combined limit**. The legacy singular
+`file` multipart field remains accepted alongside repeated `files` fields.
+
+Manual mixed-batch scenario:
+
+1. Select or drop two supported task documents and one unsupported file.
+2. Confirm both valid filenames remain visible in their original order and the
+   rejected filename has a specific reason; partial rejection must not clear the
+   valid files.
+3. Send one prompt and confirm the network panel shows one `/api/ai/file-agent`
+   request and the UI shows one combined proposal for review.
+4. Confirm the response exposes only `file`/`files` metadata and
+   `rejectedFiles`; it must not contain raw bytes, Base64, object URLs, paths, or
+   extracted document text.
+5. Repeat with exactly five files, a file just over 15 MB, and a selection just
+   over 30 MB to verify each exact limit and partial acceptance behavior.
+
+All filenames and document bodies are untrusted data. Filename text must never
+be used as an executable instruction or an unescaped prompt delimiter.
+
 ## Evidence Design
 
 Each file-derived action carries a `source` field:

@@ -154,3 +154,27 @@ describe('Phase 36 — route-specific provider budget', () => {
     assert.ok(!chatRoute.includes('AI_FILE_PROVIDER_MAX_MESSAGE_BYTES'));
   });
 });
+
+describe('Phase 36 — one structured /file-agent batch', () => {
+  it('builds all accepted files once and invokes the structured provider once', () => {
+    const route = src.slice(src.indexOf("router.post('/file-agent'"), src.indexOf('Phase 6F: POST /api/ai/refine'));
+    assert.ok(route.includes('await buildAiFileBatchContent(parsed.files, userMessage)'));
+    assert.equal((route.match(/await callAiJson\(/g) || []).length, 1);
+    assert.ok(!route.includes('for (let ci = 0'));
+  });
+
+  it('validates one combined proposal once with the existing allowlist and dependencies', () => {
+    const route = src.slice(src.indexOf("router.post('/file-agent'"), src.indexOf('Phase 6F: POST /api/ai/refine'));
+    assert.equal((route.match(/validateFileAgentProposal\(/g) || []).length, 1);
+    assert.ok(src.includes("const FILE_AGENT_ACTION_TYPES = ['create_task', 'schedule_task']"));
+    assert.ok(src.includes('buildAgentDependencyGraph(proposal.actions, taskUids)'));
+  });
+
+  it('returns legacy and batch metadata with partial rejections in stable order', () => {
+    const route = src.slice(src.indexOf("router.post('/file-agent'"), src.indexOf('Phase 6F: POST /api/ai/refine'));
+    assert.ok(route.includes('source: acceptedFiles[0]'));
+    assert.ok(route.includes('file: acceptedFiles[0]'));
+    assert.ok(route.includes('files: acceptedFiles'));
+    assert.ok(route.includes('rejectedFiles'));
+  });
+});

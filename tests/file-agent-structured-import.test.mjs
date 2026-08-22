@@ -391,15 +391,19 @@ describe('Schema/Runtime alignment', function () {
 describe('Long document flow', function () {
   const aiSource = readFileSync(new URL('../server/ai.js', import.meta.url), 'utf8');
 
-  it('has total elapsed guard', function () {
-    assert.ok(aiSource.includes('MAX_TOTAL_MS'), 'Must have total elapsed guard');
-  });
-
-  it('has chunk processing loop', function () {
+  it('uses the aggregate bounded batch builder', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
-    assert.ok(routeSection.includes('for (let ci = 0'), 'Must have chunk processing loop');
+    assert.ok(routeSection.includes('buildAiFileBatchContent'), 'Must use bounded batch builder');
+  });
+
+  it('uses one provider request instead of a chunk loop', function () {
+    const routeStart = aiSource.indexOf("router.post('/file-agent'");
+    const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
+    const routeSection = aiSource.slice(routeStart, routeEnd);
+    assert.equal((routeSection.match(/await callAiJson\(/g) || []).length, 1, 'Must call provider once');
+    assert.ok(!routeSection.includes('for (let ci = 0'), 'Must not split one batch into multiple provider calls');
   });
 
   it('enforces FILE_IMPORT_MAX_ITEMS after merging', function () {
@@ -416,18 +420,18 @@ describe('Long document flow', function () {
     assert.ok(routeSection.includes('Deduplicate') || routeSection.includes('seen.add'), 'Must deduplicate');
   });
 
-  it('remaps chunk-local IDs to global', function () {
+  it('validates provider IDs in the combined proposal', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
-    assert.ok(routeSection.includes('idRemap'), 'Must remap IDs');
+    assert.ok(routeSection.includes('validateFileAgentProposal'), 'Must validate combined IDs');
   });
 
-  it('remaps taskRef.actionId within chunks', function () {
+  it('validates taskRef.actionId dependencies once', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
-    assert.ok(routeSection.includes('taskRef.actionId'), 'Must remap taskRef.actionId');
+    assert.ok(aiSource.includes('buildAgentDependencyGraph(proposal.actions, taskUids)'), 'Must validate dependencies');
   });
 
   it('reports truncation in importMeta', function () {
@@ -437,7 +441,7 @@ describe('Long document flow', function () {
     assert.ok(routeSection.includes('importMeta'), 'Must report importMeta for truncation');
   });
 
-  it('uses callAiJson with schema per chunk', function () {
+  it('uses callAiJson with schema for the batch', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
@@ -456,7 +460,8 @@ describe('File-agent — no raw PDF in provider messages', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
-    assert.ok(routeSection.includes('extractPdfText'), 'Must extract PDF text');
+    assert.ok(routeSection.includes('buildAiFileBatchContent'), 'Must use the shared extraction builder');
+    assert.ok(aiSource.includes('const pdfResult = await extractPdfText'), 'Shared builder must extract PDF text');
     assert.ok(!routeSection.includes('data:application/pdf;base64'), 'Must not send raw PDF base64');
   });
 });

@@ -2037,7 +2037,7 @@ const FILE_AGENT_INSTRUCTION_EN = 'You are TaskFlow\'s task extraction system.\n
 
 const FILE_AGENT_CHUNK_MAX_ACTIONS = 20;
 const FILE_AGENT_MAX_CHUNKS = 6;
-const FILE_AGENT_CHUNK_TOKENS = 2048;
+const FILE_AGENT_CHUNK_TOKENS = 8192;
 
 // File-agent structured output schema — nested args matching runtime contract
 const FILE_AGENT_SCHEMA = {
@@ -2046,7 +2046,7 @@ const FILE_AGENT_SCHEMA = {
     summary: { type: 'string', description: 'Brief summary of extracted items' },
     actions: {
       type: 'array',
-      maxItems: FILE_AGENT_CHUNK_MAX_ACTIONS,
+      maxItems: FILE_IMPORT_MAX_ITEMS,
       items: {
         type: 'object',
         properties: {
@@ -2191,7 +2191,7 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
       }
       const userMessage = parsed.message;
       const taskflowContext = parsed.taskflowContext;
-      const rejectedFiles = parsed.rejectedFiles;
+      let rejectedFiles = parsed.rejectedFiles;
       if (parsed.files.length === 0) {
         const firstCode = rejectedFiles[0] && rejectedFiles[0].code;
         const status = firstCode === 'file-too-large' || firstCode === 'total-too-large' ? 413
@@ -2200,11 +2200,6 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
           : status === 415 ? 'ai-file-type-unsupported' : 'ai-file-empty';
         return res.status(status).json({ error, details: rejectedFiles });
       }
-      const firstFile = parsed.files[0];
-      const fileBuffer = firstFile.buffer;
-      const fileName = firstFile.name;
-      const fileMime = firstFile.mime;
-
       // Validate message
       if (!userMessage || userMessage.length > MAX_MESSAGE_LEN) {
         return res.status(400).json({ error: 'invalid-message' });
@@ -2235,190 +2230,74 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
 
       const messages = [{ role: 'system', content: systemInstruction }];
 
-      // Build user message with file + TaskFlow context
-      let userContent;
-      if (fileMime.startsWith('image/')) {
-        const b64 = fileBuffer.toString('base64');
-        userContent = [
-          { type: 'text', text: userMessage + (taskflowContext ? '\n\n[TaskFlow context omitted for privacy — use source.evidence for extraction]' : '') },
-          { type: 'image_url', image_url: { url: 'data:' + fileMime + ';base64,' + b64 } },
-        ];
-      } else if (fileMime === 'application/pdf') {
-        // PDF: extract text server-side (never send raw Base64 through provider gateway)
-        const pdfResult = await extractPdfText(fileBuffer, { maxBytes: DEFAULT_EXTRACT_MAX_BYTES });
-        if (!pdfResult.ok) {
-          return res.status(422).json({ error: pdfResult.error });
-        }
-        let text = pdfResult.text;
-        if (text.length > AI_FILE_MAX_TEXT_CHARS) {
-          text = text.slice(0, AI_FILE_MAX_TEXT_CHARS) + '\n\n[...truncated — file exceeds ' + AI_FILE_MAX_TEXT_CHARS + ' chars]';
-        }
-        console.log('[ai] route=/api/ai/file-agent requestId=' + requestId + ' mode=pdf-extract pages=' + (pdfResult.pages || 0) + ' textBytes=' + Buffer.byteLength(text, 'utf8') + ' truncated=' + !!pdfResult.truncated);
-        userContent = userMessage + '\n\n--- PDF content (' + fileName + ', ' + (pdfResult.pages || '?') + ' pages) ---\n' + text + '\n--- End PDF content ---';
-      } else {
-        let text = fileBuffer.toString('utf8');
-        if (text.length > AI_FILE_MAX_TEXT_CHARS) {
-          text = text.slice(0, AI_FILE_MAX_TEXT_CHARS) + '\n\n[...truncated — file exceeds ' + AI_FILE_MAX_TEXT_CHARS + ' chars]';
-        }
-        userContent = userMessage + '\n\n--- File content (' + fileName + ') ---\n' + text + '\n--- End file content ---';
+      const batchContent = await buildAiFileBatchContent(parsed.files, userMessage);
+      const acceptedFiles = batchContent.acceptedFiles;
+      rejectedFiles = rejectedFiles.concat(batchContent.rejectedFiles);
+      if (acceptedFiles.length === 0) {
+        return res.status(422).json({ error: 'ai-file-processing-failed', details: rejectedFiles });
+      }
+      messages.push({ role: 'user', content: batchContent.content });
+
+      const aiResult = await callAiJson({
+        messages,
+        schema: FILE_AGENT_SCHEMA,
+        maxTokens: FILE_AGENT_CHUNK_TOKENS,
+        maxMessageBytes: AI_FILE_PROVIDER_MAX_MESSAGE_BYTES,
+        timeoutMs: AI_FILE_TIMEOUT_MS,
+        requestId,
+        routeName: '/api/ai/file-agent',
+        signal: clientAbort.signal
+      });
+      if (!aiResult.ok) {
+        const status = aiResult.status === 429 ? 429
+          : aiResult.status === 413 ? 413
+          : aiResult.status === 503 ? 503 : 502;
+        return res.status(status).json({ error: aiResult.error });
       }
 
-      // Extract file text content for chunking
-      let extractedText = '';
-      if (typeof userContent === 'string') {
-        // PDF or text file — extract the document text from userContent
-        const contentMatch = userContent.match(/--- (?:PDF|File) content \([^)]+\) ---\n([\s\S]*?)\n--- End (?:PDF|File) content ---/);
-        extractedText = contentMatch ? contentMatch[1] : '';
+      const proposal = aiResult.parsed && typeof aiResult.parsed === 'object'
+        ? aiResult.parsed : parseProposalContent(aiResult.content || '');
+      if (!proposal || !Array.isArray(proposal.actions)) {
+        return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
       }
 
-      // For image files or short text: single chunk; for long text: multiple chunks
-      const useChunking = extractedText.length > 0 && Buffer.byteLength(extractedText, 'utf8') > 28000;
-      const chunks = useChunking ? chunkText(extractedText) : [null]; // null = use full userContent
-
-      // Process chunks — collect all proposals
-      let allActions = [];
-      let allSummaries = [];
-      let truncated = false;
-      let chunkCount = 0;
-      const startTime = Date.now();
-      const MAX_TOTAL_MS = AI_FILE_TIMEOUT_MS * 1.5; // total budget
-
-      for (let ci = 0; ci < chunks.length && ci < FILE_AGENT_MAX_CHUNKS; ci++) {
-        if (Date.now() - startTime > MAX_TOTAL_MS) { truncated = true; break; }
-        if (allActions.length >= FILE_IMPORT_MAX_ITEMS) { truncated = true; break; }
-
-        const chunk = chunks[ci];
-        let chunkUserContent;
-        if (chunk === null) {
-          // Single chunk — use full userContent
-          chunkUserContent = userContent;
-        } else {
-          // Multi-chunk: rebuild user message with chunk text
-          const chunkLabel = chunks.length > 1 ? ' [chunk ' + (ci + 1) + '/' + chunks.length + ']' : '';
-          chunkUserContent = userMessage + (taskflowContext ? '\n\n[TaskFlow context omitted for privacy]' : '')
-            + '\n\n--- File content (' + fileName + ')' + chunkLabel + ' ---\n' + chunk + '\n--- End file content ---';
-        }
-
-        const chunkMessages = [
-          { role: 'system', content: systemInstruction },
-          { role: 'user', content: chunkUserContent }
-        ];
-
-        const aiResult = await callAiJson({
-          messages: chunkMessages,
-          schema: FILE_AGENT_SCHEMA,
-          maxTokens: FILE_AGENT_CHUNK_TOKENS,
-          maxMessageBytes: AI_FILE_PROVIDER_MAX_MESSAGE_BYTES,
-          timeoutMs: AI_FILE_TIMEOUT_MS,
-          requestId,
-          routeName: '/api/ai/file-agent',
-          signal: clientAbort.signal
-        });
-
-        if (!aiResult.ok) {
-          // If first chunk fails, return error. If later chunks fail, return partial.
-          if (ci === 0) {
-            const status = aiResult.status === 429 ? 429
-              : aiResult.status === 413 ? 413
-              : aiResult.status === 503 ? 503
-              : 502;
-            return res.status(status).json({ error: aiResult.error });
-          }
-          truncated = true;
-          break;
-        }
-
-        // Parse structured output
-        let chunkProposal = null;
-        if (aiResult.parsed && typeof aiResult.parsed === 'object') {
-          chunkProposal = aiResult.parsed;
-        } else if (aiResult.content) {
-          // Defensive fallback through text parser
-          chunkProposal = parseProposalContent(aiResult.content);
-        }
-
-        if (!chunkProposal || !Array.isArray(chunkProposal.actions)) {
-          if (ci === 0) {
-            return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
-          }
-          truncated = true;
-          break;
-        }
-
-        if (chunkProposal.summary) allSummaries.push(chunkProposal.summary);
-
-        // Remap chunk-local IDs (a1, a2...) to global IDs
-        const idRemap = {};
-        const globalIndex = allActions.length;
-        chunkProposal.actions.forEach((a, idx) => {
-          const localId = a.id;
-          const globalId = 'a' + (globalIndex + idx + 1);
-          idRemap[localId] = globalId;
-          a.id = globalId;
-        });
-
-        // Remap taskRef.actionId references within this chunk
-        chunkProposal.actions.forEach((a) => {
-          if (a.args && a.args.taskRef && a.args.taskRef.kind === 'action' && a.args.taskRef.actionId) {
-            if (idRemap[a.args.taskRef.actionId]) {
-              a.args.taskRef.actionId = idRemap[a.args.taskRef.actionId];
-            }
-          }
-        });
-
-        allActions = allActions.concat(chunkProposal.actions);
-        chunkCount++;
-      }
-
-      // Enforce global import limit
-      if (allActions.length > FILE_IMPORT_MAX_ITEMS) {
-        allActions = allActions.slice(0, FILE_IMPORT_MAX_ITEMS);
-        truncated = true;
-      }
-
-      // Deduplicate by normalized text + date
+      // Preserve provider order while removing exact duplicate task/date pairs.
       const seen = new Set();
-      allActions = allActions.filter((a) => {
-        if (a.type !== 'create_task' || !a.args || !a.args.text) return true;
-        const key = (a.args.text || '').trim().toLowerCase().replace(/\s+/g, ' ') + '|' + (a.args.date || '');
+      proposal.actions = proposal.actions.filter((action) => {
+        if (action.type !== 'create_task' || !action.args || !action.args.text) return true;
+        const key = action.args.text.trim().toLowerCase().replace(/\s+/g, ' ') + '|' + (action.args.date || '');
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
 
-      // Build final proposal
-      const proposal = {
-        summary: (allSummaries.length > 0 ? allSummaries[0] : 'Extracted ' + allActions.length + ' actions from document.')
-          + (truncated ? ' [' + (allActions.length >= FILE_IMPORT_MAX_ITEMS ? 'limit reached' : 'partial extraction') + ']' : ''),
-        actions: allActions,
-      };
-
       // Server-side validation — Phase 6D narrower allowlist
       const v = validateFileAgentProposal(proposal, { taskUids, projectIds, milestoneIds });
       if (!v.ok) {
-        // If first chunk failed validation and we have no actions, return error
-        if (allActions.length === 0) {
-          return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
-        }
-        // Partial validation failure — return what we have with warning
-        proposal.summary += ' [some actions failed validation]';
+        return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
       }
 
       // No actions found
-      if (allActions.length === 0) {
+      if (proposal.actions.length === 0) {
         return res.json({
           ok: true,
           proposal: { summary: proposal.summary || '', actions: [] },
-          source: { type: fileMime, name: fileName },
+          source: acceptedFiles[0],
+          file: acceptedFiles[0],
+          files: acceptedFiles,
+          rejectedFiles,
         });
       }
 
       const resp = {
         ok: true,
         proposal: proposal,
-        source: { type: fileMime, name: fileName },
+        source: acceptedFiles[0],
+        file: acceptedFiles[0],
+        files: acceptedFiles,
+        rejectedFiles,
       };
-      if (truncated) resp.importMeta = { truncated: true, maxItems: FILE_IMPORT_MAX_ITEMS };
+      if (acceptedFiles.some((file) => file.truncated)) resp.importMeta = { truncated: true, maxItems: FILE_IMPORT_MAX_ITEMS };
       return res.json(resp);
     } finally {
       releaseSlot();
