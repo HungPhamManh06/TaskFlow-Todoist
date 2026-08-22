@@ -593,16 +593,71 @@
   }
 
   /* ---- Phase 6D: File intent detection (simple, no LLM) ---- */
-  var _FILE_ACTION_RE = /(?:tạo|thêm|add|create|new|lập|trích|xếp|đặt|schedule|import|chèn|đưa\s+vào|gắn|plan|lên\s+kế\s+hoạch|xếp\s+lịch|lập\s+lịch|lập\s+kế\s+hoạch)\s*(?:task|công\s+việc|việc|deadline|sự\s+kiện|todo|event|schedule|lịch|kế\s+hoạch|plan|assignment|bài|bài\s+tập)?/i;
-  var _FILE_ACTION_CONTEXT_RE = /(?:file|tài\s+liệu|document|pdf|syllabus|assignment|chương|trang|page|chụp|screenshot|ảnh|image)/i;
-  var _FILE_NEGATION_RE = /(?:không|đừng|\bko\b|\bno\b|\bdo\s+not\b|\bdon'?t\b|\bnever\b|\bstop\b|\bskip\b|\bchỉ\s+(?:tóm\s+tắt|giải\s+thích|đọc|liệt\s+kê))/i;
-  var _FILE_HYPOTHETICAL_RE = /(?:nếu|giả\s+sử|giả\s+như|\bsuppose\b|\bassume\b|\bwhat\s+if\b|\bimagine\b|thì\s+sao|\bhow\s+(?:would|could|can))/i;
+  /**
+   * classifyFileIntent — deterministic file-action classifier.
+   * Returns { kind: 'read'|'create-tasks'|'schedule-tasks'|'import-plan',
+   *           confidence: 'high'|'medium'|'low', reason: string }
+   */
+  function classifyFileIntent(text) {
+    if (!text) return { kind: 'read', confidence: 'high', reason: 'empty' };
+    var t = text.toLowerCase();
+
+    // Negation wins — always read-only
+    if (/(?:không|đừng|\bko\b|\bno\b|\bdo\s+not\b|\bdon'?t\b|\bnever\b|\bskip\b|\bchỉ\s+(?:tóm\s+tắt|giải\s+thích|đọc|liệt\s+kê))/.test(t)) {
+      return { kind: 'read', confidence: 'high', reason: 'negation' };
+    }
+    // Hypothetical — never mutate
+    if (/(?:nếu|giả\s+sử|giả\s+như|\bsuppose\b|\bassume\b|\bwhat\s+if\b|\bimagine\b|thì\s+sao|\bhow\s+(?:would|could|can))/.test(t)) {
+      return { kind: 'read', confidence: 'high', reason: 'hypothetical' };
+    }
+
+    // High-confidence action signals ( Vietnamese + English )
+    var createVerbs = /(?:tạo|thêm|lập|lên|chia|tách|biến|chuyển|đưa\s+vào|import|create|add|make|turn\s+into|convert|split|break\s+down)/i;
+    var taskNouns = /(?:task|tasks|công\s+việc|việc|nhiệm\s+vụ|todo|to-do|checklist|action|action\s+item|bước|việc\s+cần\s+làm)/i;
+    var planNouns = /(?:kế\s+hoạch|plan|roadmap|lịch|schedule|deadline|xếp\s+lịch|lịch\s+học|lịch\s+trình)/i;
+    var dayPattern = /(?:theo\s+ngày|từng\s+ngày|mỗi\s+ngày|theo\s+tuần|daily|weekly|each\s+day|per\s+day)/i;
+    var flowVerbs = /(?:đưa\s+(?:toàn\s+bộ|tất\+cả|vào)|đưa\s+vào\s+taskflow|vào\s+taskflow|import\s+to\s+taskflow)/i;
+
+    var hasCreateVerb = createVerbs.test(t);
+    var hasTaskNoun = taskNouns.test(t);
+    var hasPlanNoun = planNouns.test(t);
+    var hasDayPattern = dayPattern.test(t);
+    var hasFlowVerb = flowVerbs.test(t);
+
+    // import-plan: explicit import into TaskFlow
+    if (hasFlowVerb) {
+      return { kind: 'import-plan', confidence: 'high', reason: 'import-to-taskflow' };
+    }
+    // schedule-tasks: create + scheduling together
+    if (hasCreateVerb && hasDayPattern) {
+      return { kind: 'schedule-tasks', confidence: 'high', reason: 'create-with-schedule' };
+    }
+    if (hasCreateVerb && hasPlanNoun) {
+      return { kind: 'schedule-tasks', confidence: 'high', reason: 'create-with-plan' };
+    }
+    // create-tasks: create verb + task noun
+    if (hasCreateVerb && hasTaskNoun) {
+      return { kind: 'create-tasks', confidence: 'high', reason: 'create-with-task' };
+    }
+    // Medium confidence: action verb alone (file is attached → task context implied)
+    if (hasCreateVerb) {
+      return { kind: 'create-tasks', confidence: 'medium', reason: 'create-verb-only' };
+    }
+    // Task noun alone without create verb — user wants tasks from the file
+    if (hasTaskNoun) {
+      return { kind: 'create-tasks', confidence: 'medium', reason: 'task-noun-only' };
+    }
+    // Planning nouns alone
+    if (hasPlanNoun && hasDayPattern) {
+      return { kind: 'schedule-tasks', confidence: 'medium', reason: 'plan-with-schedule' };
+    }
+
+    return { kind: 'read', confidence: 'high', reason: 'no-action-signal' };
+  }
 
   function _isFileAgentIntent(text) {
-    if (!text) return false;
-    if (_FILE_NEGATION_RE.test(text)) return false;
-    if (_FILE_HYPOTHETICAL_RE.test(text)) return false;
-    return _FILE_ACTION_RE.test(text);
+    var intent = classifyFileIntent(text);
+    return intent.kind !== 'read';
   }
 
   async function _sendWithFile(text, file) {
