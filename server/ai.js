@@ -34,6 +34,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
+const path = require('path');
 const { authMiddleware } = require('./auth');
 const { callAiText, callAiJson, getConfig } = require('./ai-provider');
 const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('./ai-roadmap-validator');
@@ -1576,6 +1577,8 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
 const Busboy = require('busboy');
 
 const AI_FILE_MAX_BYTES = parseInt(process.env.AI_FILE_MAX_BYTES || '15728640', 10); // 15 MB default
+const AI_FILE_MAX_FILES = 5;
+const AI_FILE_MAX_TOTAL_BYTES = 30 * 1024 * 1024;
 const AI_FILE_RATE_LIMIT_PER_MIN = parseInt(process.env.AI_FILE_RATE_LIMIT_PER_MIN || '3', 10);
 const AI_FILE_RATE_LIMIT_PER_HOUR = parseInt(process.env.AI_FILE_RATE_LIMIT_PER_HOUR || '15', 10);
 const AI_FILE_TIMEOUT_MS = getConfig().timeoutMs;
@@ -1631,6 +1634,125 @@ function sanitizeFilename(name) {
   return name.replace(/[\\/\0]/g, '').replace(/^\.+/, '').slice(0, 128) || 'unknown';
 }
 
+function uploadedFileRejection(name, code) {
+  return { name: sanitizeFilename(name), code };
+}
+
+function validateUploadedFileRecord(record) {
+  const name = sanitizeFilename(record && record.name);
+  const buffer = record && Buffer.isBuffer(record.buffer) ? record.buffer : null;
+  const size = record && Number.isFinite(record.size) ? record.size : (buffer ? buffer.length : 0);
+  if (!buffer || size === 0) return { ok: false, rejection: uploadedFileRejection(name, 'empty-file') };
+  if (size > AI_FILE_MAX_BYTES) return { ok: false, rejection: uploadedFileRejection(name, 'file-too-large') };
+
+  const detected = detectFileType(buffer);
+  if (!detected) return { ok: false, rejection: uploadedFileRejection(name, 'unsupported-type') };
+  const extension = path.extname(name).toLowerCase();
+  if (!FILE_ALLOWED_EXTENSIONS.has(extension)) {
+    return { ok: false, rejection: uploadedFileRejection(name, 'unsupported-type') };
+  }
+
+  const declaredMime = typeof record.mime === 'string' ? record.mime.toLowerCase() : '';
+  const textCompatible = detected.mime === 'text/plain'
+    && (declaredMime === 'text/plain' || declaredMime === 'text/markdown');
+  const mimeCompatible = !declaredMime || declaredMime === 'application/octet-stream'
+    || declaredMime === detected.mime || textCompatible;
+  const extensionCompatible = detected.mime === 'text/plain'
+    ? (extension === '.txt' || extension === '.md')
+    : detected.mime === 'image/jpeg'
+      ? (extension === '.jpg' || extension === '.jpeg')
+      : extension === detected.ext;
+  if (!mimeCompatible || !extensionCompatible) {
+    return { ok: false, rejection: uploadedFileRejection(name, 'type-mismatch') };
+  }
+
+  return {
+    ok: true,
+    file: { name, mime: detected.mime, size, buffer },
+  };
+}
+
+async function parseAiFileMultipart(req) {
+  const contentType = req.headers['content-type'] || '';
+  if (!contentType.includes('multipart/form-data')) {
+    const error = new Error('expected-multipart');
+    error.code = 'expected-multipart';
+    throw error;
+  }
+
+  return new Promise((resolve, reject) => {
+    let bb;
+    try {
+      bb = Busboy({ headers: req.headers, limits: { files: AI_FILE_MAX_FILES, fileSize: AI_FILE_MAX_BYTES, fields: 10 } });
+    } catch (error) {
+      return reject(error);
+    }
+
+    const records = [];
+    const rejectedFiles = [];
+    let message = '';
+    let taskflowContext = null;
+    let aggregateBytes = 0;
+    let partIndex = 0;
+
+    bb.on('file', (fieldname, stream, info) => {
+      const index = partIndex++;
+      const name = sanitizeFilename(info.filename);
+      if (fieldname !== 'file' && fieldname !== 'files') {
+        stream.resume();
+        return;
+      }
+
+      const chunks = [];
+      let size = 0;
+      let truncated = false;
+      let aggregateExceeded = false;
+      stream.on('limit', () => { truncated = true; });
+      stream.on('data', (chunk) => {
+        size += chunk.length;
+        aggregateBytes += chunk.length;
+        if (aggregateBytes > AI_FILE_MAX_TOTAL_BYTES) aggregateExceeded = true;
+        if (!truncated && !aggregateExceeded) chunks.push(chunk);
+      });
+      stream.on('end', () => {
+        if (truncated) {
+          rejectedFiles.push({ index, ...uploadedFileRejection(name, 'file-too-large') });
+          return;
+        }
+        if (aggregateExceeded) {
+          rejectedFiles.push({ index, name, code: 'total-too-large' });
+          return;
+        }
+        const result = validateUploadedFileRecord({
+          name,
+          mime: info.mimeType || '',
+          size,
+          buffer: Buffer.concat(chunks),
+        });
+        if (result.ok) records.push({ index, ...result.file });
+        else rejectedFiles.push({ index, ...result.rejection });
+      });
+      stream.on('error', reject);
+    });
+    bb.on('filesLimit', () => {
+      rejectedFiles.push({ index: partIndex++, name: 'unknown', code: 'too-many-files' });
+    });
+    bb.on('field', (name, value) => {
+      if (name === 'message' && typeof value === 'string') message = value.trim();
+      if (name === 'taskflowContext' && typeof value === 'string') {
+        try { taskflowContext = JSON.parse(value); } catch (error) { taskflowContext = null; }
+      }
+    });
+    bb.on('finish', () => {
+      const files = records.sort((a, b) => a.index - b.index).map(({ index, ...file }) => file);
+      const rejections = rejectedFiles.sort((a, b) => a.index - b.index).map(({ index, ...rejection }) => rejection);
+      resolve({ message, taskflowContext, files, rejectedFiles: rejections });
+    });
+    bb.on('error', reject);
+    req.pipe(bb);
+  });
+}
+
 function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
@@ -1664,11 +1786,6 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
   const onClientClose = () => clientAbort.abort();
   req.on('aborted', onClientClose);
   res.on('close', () => { req.removeListener('aborted', onClientClose); });
-  let fileBuffer = null;
-  let fileName = '';
-  let fileMime = '';
-  let fileSize = 0;
-  let userMessage = '';
   const fileMode = 'analyze'; // Phase 6C: read-only file analysis
   const userId = String(req.user.id);
 
@@ -1684,65 +1801,26 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
     try {
       if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
 
-      // Parse multipart form data
-      const contentType = req.headers['content-type'] || '';
-      if (!contentType.includes('multipart/form-data')) {
-        return res.status(400).json({ error: 'ai-file-invalid', details: ['expected-multipart'] });
+      let parsed;
+      try {
+        parsed = await parseAiFileMultipart(req);
+      } catch (error) {
+        return res.status(400).json({ error: 'ai-file-invalid', details: [error && error.code ? error.code : 'malformed-multipart'] });
       }
-
-      await new Promise((resolve, reject) => {
-        const bb = Busboy({ headers: req.headers, limits: { files: 1, fileSize: AI_FILE_MAX_BYTES, fields: 10 } });
-        bb.on('file', (fieldname, stream, info) => {
-          if (fieldname !== 'file') { stream.resume(); return; }
-          fileName = sanitizeFilename(info.filename);
-          fileMime = info.mimeType || '';
-          const chunks = [];
-          let totalBytes = 0;
-          stream.on('data', (chunk) => {
-            totalBytes += chunk.length;
-            if (totalBytes > AI_FILE_MAX_BYTES) {
-              stream.destroy();
-              return reject(new Error('ai-file-too-large'));
-            }
-            chunks.push(chunk);
-          });
-          stream.on('end', () => { fileBuffer = Buffer.concat(chunks); fileSize = fileBuffer.length; });
-          stream.on('error', reject);
-        });
-        bb.on('field', (name, val) => {
-          if (name === 'message' && typeof val === 'string') userMessage = val.trim();
-        });
-        bb.on('finish', resolve);
-        bb.on('error', reject);
-        req.pipe(bb);
-      });
-
-      // Validate file
-      if (!fileBuffer || fileSize === 0) {
-        return res.status(400).json({ error: 'ai-file-empty' });
+      const userMessage = parsed.message;
+      const rejectedFiles = parsed.rejectedFiles;
+      if (parsed.files.length === 0) {
+        const firstCode = rejectedFiles[0] && rejectedFiles[0].code;
+        const status = firstCode === 'file-too-large' || firstCode === 'total-too-large' ? 413
+          : firstCode === 'unsupported-type' || firstCode === 'type-mismatch' ? 415 : 400;
+        const error = status === 413 ? 'ai-file-too-large'
+          : status === 415 ? 'ai-file-type-unsupported' : 'ai-file-empty';
+        return res.status(status).json({ error, details: rejectedFiles });
       }
-      if (fileSize > AI_FILE_MAX_BYTES) {
-        return res.status(413).json({ error: 'ai-file-too-large', details: [formatSize(fileSize) + ' > ' + formatSize(AI_FILE_MAX_BYTES)] });
-      }
-
-      // Detect actual file type from magic bytes
-      const detected = detectFileType(fileBuffer);
-      if (!detected) {
-        console.log('[ai] route=/api/ai/file status=type-rejected mime=' + fileMime + ' ext=' + fileName.split('.').pop() + ' latencyMs=0');
-        return res.status(415).json({ error: 'ai-file-type-unsupported' });
-      }
-
-      // Cross-check MIME against detected type
-      if (fileMime && !FILE_ALLOWED_MIMES.has(fileMime) && fileMime !== 'application/octet-stream') {
-        // MIME mismatch — trust magic bytes but warn
-        fileMime = detected.mime;
-      } else {
-        fileMime = detected.mime;
-      }
-
-      if (!FILE_ALLOWED_MIMES.has(fileMime)) {
-        return res.status(415).json({ error: 'ai-file-type-unsupported' });
-      }
+      const firstFile = parsed.files[0];
+      const fileBuffer = firstFile.buffer;
+      const fileName = firstFile.name;
+      const fileMime = firstFile.mime;
 
       // Validate message
       if (!userMessage || userMessage.length > MAX_MESSAGE_LEN) {
@@ -2060,12 +2138,6 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
   const onClientClose = () => clientAbort.abort();
   req.on('aborted', onClientClose);
   res.on('close', () => { req.removeListener('aborted', onClientClose); });
-  let fileBuffer = null;
-  let fileName = '';
-  let fileMime = '';
-  let fileSize = 0;
-  let userMessage = '';
-  let taskflowContext = null;
   const fileMode = 'propose-actions';
   const userId = String(req.user.id);
 
@@ -2081,62 +2153,27 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
     try {
       if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
 
-      // Parse multipart form data
-      const contentType = req.headers['content-type'] || '';
-      if (!contentType.includes('multipart/form-data')) {
-        return res.status(400).json({ error: 'ai-file-invalid', details: ['expected-multipart'] });
+      let parsed;
+      try {
+        parsed = await parseAiFileMultipart(req);
+      } catch (error) {
+        return res.status(400).json({ error: 'ai-file-invalid', details: [error && error.code ? error.code : 'malformed-multipart'] });
       }
-
-      await new Promise((resolve, reject) => {
-        const bb = Busboy({ headers: req.headers, limits: { files: 1, fileSize: AI_FILE_MAX_BYTES, fields: 10 } });
-        bb.on('file', (fieldname, stream, info) => {
-          if (fieldname !== 'file') { stream.resume(); return; }
-          fileName = sanitizeFilename(info.filename);
-          fileMime = info.mimeType || '';
-          const chunks = [];
-          let totalBytes = 0;
-          stream.on('data', (chunk) => {
-            totalBytes += chunk.length;
-            if (totalBytes > AI_FILE_MAX_BYTES) {
-              stream.destroy();
-              return reject(new Error('ai-file-too-large'));
-            }
-            chunks.push(chunk);
-          });
-          stream.on('end', () => { fileBuffer = Buffer.concat(chunks); fileSize = fileBuffer.length; });
-          stream.on('error', reject);
-        });
-        bb.on('field', (name, val) => {
-          if (name === 'message' && typeof val === 'string') userMessage = val.trim();
-          if (name === 'taskflowContext' && typeof val === 'string') {
-            try { taskflowContext = JSON.parse(val); } catch (e) { /* ignore malformed context */ }
-          }
-        });
-        bb.on('finish', resolve);
-        bb.on('error', reject);
-        req.pipe(bb);
-      });
-
-      // Validate file
-      if (!fileBuffer || fileSize === 0) {
-        return res.status(400).json({ error: 'ai-file-empty' });
+      const userMessage = parsed.message;
+      const taskflowContext = parsed.taskflowContext;
+      const rejectedFiles = parsed.rejectedFiles;
+      if (parsed.files.length === 0) {
+        const firstCode = rejectedFiles[0] && rejectedFiles[0].code;
+        const status = firstCode === 'file-too-large' || firstCode === 'total-too-large' ? 413
+          : firstCode === 'unsupported-type' || firstCode === 'type-mismatch' ? 415 : 400;
+        const error = status === 413 ? 'ai-file-too-large'
+          : status === 415 ? 'ai-file-type-unsupported' : 'ai-file-empty';
+        return res.status(status).json({ error, details: rejectedFiles });
       }
-      if (fileSize > AI_FILE_MAX_BYTES) {
-        return res.status(413).json({ error: 'ai-file-too-large', details: [formatSize(fileSize) + ' > ' + formatSize(AI_FILE_MAX_BYTES)] });
-      }
-      const detected = detectFileType(fileBuffer);
-      if (!detected) {
-        console.log('[ai] route=/api/ai/file-agent mode=' + fileMode + ' status=type-rejected mime=' + fileMime + ' ext=' + (fileName.split('.').pop() || '') + ' latencyMs=0');
-        return res.status(415).json({ error: 'ai-file-type-unsupported' });
-      }
-      if (fileMime && !FILE_ALLOWED_MIMES.has(fileMime) && fileMime !== 'application/octet-stream') {
-        fileMime = detected.mime;
-      } else {
-        fileMime = detected.mime;
-      }
-      if (!FILE_ALLOWED_MIMES.has(fileMime)) {
-        return res.status(415).json({ error: 'ai-file-type-unsupported' });
-      }
+      const firstFile = parsed.files[0];
+      const fileBuffer = firstFile.buffer;
+      const fileName = firstFile.name;
+      const fileMime = firstFile.mime;
 
       // Validate message
       if (!userMessage || userMessage.length > MAX_MESSAGE_LEN) {
@@ -2620,5 +2657,5 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
   }
 });
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS };
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, validateUploadedFileRecord, parseAiFileMultipart, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS };
 

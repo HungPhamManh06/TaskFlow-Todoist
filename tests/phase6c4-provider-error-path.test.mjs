@@ -158,6 +158,12 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
     );
   });
 
+  it('shared multipart parsing preserves route-level provider handling', () => {
+    assert.ok(src.includes('async function parseAiFileMultipart(req)'));
+    assert.ok(src.includes('callAiText'));
+    assert.ok(src.includes('callAiJson'));
+  });
+
   it('no rate limiter should reference req.ip', () => {
     const keyGenMatches = src.match(/keyGenerator:\s*\(req\)\s*=>[^,]+/g) || [];
     assert.ok(keyGenMatches.length >= 6, 'should have at least 6 rate limiters');
