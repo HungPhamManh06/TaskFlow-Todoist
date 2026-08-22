@@ -256,7 +256,7 @@ test('wiring: app.html nạp contexts.min.js trước app.min.js + cache-bust đ
   const ctxIdx = APP.indexOf('js/contexts.min.js?v=1');
   const appIdx = APP.indexOf('js/app.min.js?v=219');
   assert.ok(ctxIdx !== -1, 'contexts.min.js phải được nạp');
-  assert.ok(appIdx !== -1, 'app.min.js?v=218');
+  assert.ok(appIdx !== -1, 'app.min.js?v=219');
   assert.ok(ctxIdx < appIdx, 'contexts nạp trước app.min.js');
 });
 
