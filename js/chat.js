@@ -681,9 +681,17 @@
       _setFileLoading(file.name, false);
 
       if (!resp.ok || !json || !json.ok) {
-        _appendText(msgs, _t('fileFailed'), 'chat-msg bot');
+        var errorCode = (json && typeof json.error === 'string') ? json.error : 'ai-file-processing-failed';
+        var fileErrMsg;
+        try {
+          var Review = window.TaskFlowAIReview;
+          fileErrMsg = Review && typeof Review.friendlyError === 'function'
+            ? Review.friendlyError(errorCode, window.TaskFlowI18n && typeof window.TaskFlowI18n.getLang === 'function' ? window.TaskFlowI18n.getLang() : 'vi')
+            : _t('fileFailed');
+        } catch (e) { fileErrMsg = _t('fileFailed'); }
+        _appendText(msgs, fileErrMsg, 'chat-msg bot');
         _history.push({ role: 'user', content: text });
-        _history.push({ role: 'assistant', content: _t('fileFailed') });
+        _history.push({ role: 'assistant', content: fileErrMsg });
         if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
         return;
       }
