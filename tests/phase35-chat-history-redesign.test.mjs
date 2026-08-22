@@ -12,6 +12,7 @@ const APP = read('app.html');
 const I18N = read('js/i18n.js');
 const CHAT = read('js/chat.js');
 const CSS = read('css/styles.css');
+const FRONTEND_E2E = read('scripts/e2e-frontend.py');
 const require = createRequire(import.meta.url);
 
 function functionBody(source, name) {
@@ -402,4 +403,24 @@ test('chat presentation semantics distinguish compact popover from mobile sheet'
   assert.match(presentation, /aria-modal/);
   assert.match(presentation, /chatHistoryTitle/);
   assert.match(presentation, /chatDialogTitle/);
+});
+
+test('frontend E2E covers the adaptive chat history interaction contract', () => {
+  assert.match(FRONTEND_E2E, /def chat_history_redesign_checks\(page, viewport_name\):/);
+  for (const selector of [
+    '#chatHistoryDrawer',
+    '#chatHistoryBack',
+    '#chatHistoryList',
+    '#chatContextStatus',
+    '#chatComposer',
+    '#chatInput',
+    '[data-action="chat-history"]',
+    '[data-action="chat-new"]',
+    '[data-action="chat-send"]',
+  ]) {
+    assert.ok(FRONTEND_E2E.includes(selector), `frontend E2E must cover ${selector}`);
+  }
+  for (const contract of ['Shift+Enter', 'aria-expanded', 'aria-modal', 'data-history-open']) {
+    assert.ok(FRONTEND_E2E.includes(contract), `frontend E2E must assert ${contract}`);
+  }
 });

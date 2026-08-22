@@ -733,6 +733,28 @@ def install_schedule_source_assets(page):
         )
 
 
+def install_chat_source_assets(page):
+    """Exercise authored chat assets before Task 8 regenerates minified bundles."""
+    page.route(
+        "**/css/styles-critical.min.css*",
+        lambda route: route.fulfill(
+            path=os.path.join(ROOT, "css", "styles.css"), content_type="text/css"
+        ),
+    )
+    page.route(
+        "**/css/styles-deferred.min.css*",
+        lambda route: route.fulfill(body="", content_type="text/css"),
+    )
+    for asset in ("i18n", "app", "chat-history", "chat"):
+        source = os.path.join(ROOT, "js", f"{asset}.js")
+        page.route(
+            f"**/js/{asset}.min.js*",
+            lambda route, _request, source=source: route.fulfill(
+                path=source, content_type="application/javascript"
+            ),
+        )
+
+
 def schedule_unscheduled_checks(
     browser, base, width, height, errors, screenshot, source_assets=False
 ):
@@ -4327,6 +4349,248 @@ def ai_checks(browser, base, width, height, errors, screenshot):
     ctx.close()
 
 
+def chat_history_redesign_checks(page, viewport_name):
+    """Focused Coach history, composer, stop, keyboard, and responsive checks."""
+    mobile = viewport_name == "mobile"
+    panel = page.locator("#chatPop")
+    input_box = page.locator("#chatInput")
+    composer = page.locator("#chatComposer")
+    history_trigger = page.locator('[data-action="chat-history"]')
+    send = page.locator('[data-action="chat-send"]')
+
+    if mobile:
+        page.locator('#mobileNav [data-action="more"]').click()
+        page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+        opener = page.locator('#moreSheet [data-action="chat-toggle"]')
+    else:
+        opener = page.locator("#chatFab")
+    opener.click()
+    page.wait_for_selector("#chatPop", state="visible")
+    page.wait_for_function("window.TaskFlowChat && window.TaskFlowChatHistory")
+    assert input_box.evaluate("el => document.activeElement === el"), \
+        f"{viewport_name}: opening chat must focus #chatInput"
+    if mobile:
+        # Chat intentionally opens above More; close the underlying launcher so
+        # Escape ordering below exercises history -> chat without another layer.
+        page.evaluate("closeMoreSheet()")
+        input_box.focus()
+
+    compact_box = panel.bounding_box()
+    assert compact_box is not None
+    if mobile:
+        assert panel.get_attribute("data-presentation") == "sheet"
+        assert panel.get_attribute("aria-modal") == "true"
+        viewport_height = page.evaluate("window.innerHeight")
+        assert abs(compact_box["height"] - viewport_height) <= 1, \
+            f"mobile chat must fill 100dvh: {compact_box['height']} vs {viewport_height}"
+        for selector in ('[data-action="chat-history"]', '[data-action="chat-send"]'):
+            box = page.locator(selector).bounding_box()
+            assert box and box["width"] >= 44 and box["height"] >= 44, \
+                f"mobile target {selector} must be at least 44px: {box}"
+        composer_box = composer.bounding_box()
+        assert composer_box and composer_box["y"] + composer_box["height"] <= viewport_height, \
+            f"mobile composer must remain inside the safe viewport: {composer_box}"
+    else:
+        assert panel.get_attribute("data-presentation") == "compact"
+        assert panel.get_attribute("aria-modal") is None
+        assert 388 <= compact_box["width"] <= 412, \
+            f"desktop compact width outside [388, 412]: {compact_box['width']}"
+
+    # Multiline composer: Shift+Enter inserts a line, grows, and enables Send.
+    initial_input_box = input_box.bounding_box()
+    initial_input_height = initial_input_box["height"]
+    input_box.fill("Plan the first priority")
+    input_box.evaluate("el => el.setSelectionRange(el.value.length, el.value.length)")
+    page.keyboard.press("Shift+Enter")  # Shift+Enter must preserve a newline.
+    input_box.type("Then protect a focus block")
+    multiline_value = input_box.input_value()
+    assert multiline_value == "Plan the first priority\nThen protect a focus block", \
+        f"Shift+Enter multiline value mismatch: {multiline_value!r}"
+    grown_height = input_box.bounding_box()["height"]
+    grown_style = input_box.get_attribute("style") or ""
+    assert grown_height > initial_input_height, \
+        f"composer did not auto-grow: {initial_input_box} -> {input_box.bounding_box()}, style={grown_style!r}"
+    assert not send.is_disabled()
+
+    # Seed bounded, safe text only through the public local-history module.
+    seeded = page.evaluate("""() => {
+      const history = window.TaskFlowChatHistory;
+      history.clearAll('anon');
+      const first = history.createConversation('anon', 'Weekly planning review');
+      history.addMessage('anon', first.id, { role: 'user', content: 'Review this week safely.' });
+      history.addMessage('anon', first.id, { role: 'assistant', content: 'Start with one priority.' });
+      const second = history.createConversation(
+        'anon',
+        'A very long local conversation title that must wrap without causing horizontal overflow anywhere'
+      );
+      history.addMessage('anon', second.id, {
+        role: 'user',
+        content: 'LONG_SAFE_MESSAGE_' + 'safe-word '.repeat(42) + '<script>never execute</script>'
+      });
+      window.TaskFlowChat.openConversation(second.id);
+      return { first: first.id, second: second.id };
+    }""")
+    assert page.locator("#chatMessages script").count() == 0
+    assert "<script>never execute</script>" in page.locator("#chatMessages").inner_text()
+
+    history_trigger.click()
+    page.wait_for_selector("#chatHistoryDrawer", state="visible")
+    assert history_trigger.get_attribute("aria-expanded") == "true"
+    assert panel.get_attribute("data-history-open") == "true"
+    assert page.locator("#chatHistoryList .chat-history-item").count() == 2
+    assert page.locator("#chatContextStatus").count() == 1
+
+    if mobile:
+        assert page.locator("#chatHistoryBack").is_visible()
+        assert not page.locator("#chatPop .chat-conversation").is_visible(), \
+            "mobile history must replace the conversation body"
+        for selector in (
+            "#chatHistoryBack",
+            '#chatHistoryDrawer [data-action="chat-new"]',
+        ):
+            box = page.locator(selector).bounding_box()
+            assert box and box["width"] >= 44 and box["height"] >= 44, \
+                f"mobile target {selector} must be at least 44px: {box}"
+    else:
+        assert page.locator("#chatContextStatus").is_visible()
+        page.wait_for_function("""() => {
+          const panel = document.querySelector('#chatPop');
+          if (!panel) return false;
+          const width = panel.getBoundingClientRect().width;
+          return width >= 648 && width <= 672;
+        }""")
+        expanded_box = panel.bounding_box()
+        assert expanded_box is not None and 648 <= expanded_box["width"] <= 672, \
+            f"desktop expanded width outside [648, 672]: {expanded_box and expanded_box['width']}"
+        assert page.locator("#chatPop .chat-conversation").is_visible(), \
+            "desktop history must keep the conversation visible"
+
+    # Select a local conversation, then open and close its secondary menu.
+    target = page.locator(f'#chatHistoryList .chat-history-item-btn[aria-label="Weekly planning review"]')
+    target.click()
+    if mobile:
+        assert panel.get_attribute("data-history-open") is None
+        history_trigger.click()
+        page.wait_for_selector("#chatHistoryDrawer", state="visible")
+    active = page.locator("#chatHistoryList .chat-history-item--active")
+    assert active.count() == 1
+    menu_button = active.locator(".chat-history-item-menu")
+    assert menu_button.is_visible(), page.evaluate("""() => ({
+      panelOpen: document.querySelector('#chatPop').getAttribute('data-history-open'),
+      drawerHidden: document.querySelector('#chatHistoryDrawer').hidden,
+      panel: document.querySelector('#chatPop').getBoundingClientRect().toJSON(),
+      drawer: document.querySelector('#chatHistoryDrawer').getBoundingClientRect().toJSON(),
+      active: document.querySelector('.chat-history-item--active').getBoundingClientRect().toJSON(),
+      menu: document.querySelector('.chat-history-item--active .chat-history-item-menu').getBoundingClientRect().toJSON(),
+    })""")
+    menu_button.click()
+    assert menu_button.get_attribute("aria-expanded") == "true"
+    assert active.locator('[role="menu"]').is_visible()
+    menu_button.click()
+    assert menu_button.get_attribute("aria-expanded") == "false"
+    assert not active.locator('[role="menu"]').is_visible()
+
+    # Escape closes history first and returns focus to the history trigger.
+    page.keyboard.press("Escape")
+    assert panel.is_visible()
+    assert panel.get_attribute("data-history-open") is None
+    assert history_trigger.get_attribute("aria-expanded") == "false"
+    assert history_trigger.evaluate("el => document.activeElement === el")
+
+    # Controlled pending request: Stop keeps the composer geometry stable and
+    # removes activity without waiting for a live AI service.
+    page.evaluate("localStorage.setItem('planner-token', 'e2e-chat-token')")
+    input_box.fill("Explain the priority ordering")
+    before_stop = composer.bounding_box()
+    send.evaluate("el => { window.__chatSendNode = el; }")
+    send.click()
+    page.wait_for_selector(".chat-typing", state="visible")
+    assert send.get_attribute("aria-label") == "Stop response"
+    page.wait_for_function("""() => {
+      const control = document.querySelector('[data-action="chat-send"]');
+      return control && !control.disabled;
+    }""")
+    assert send.evaluate("el => el === window.__chatSendNode"), \
+        "Send/Stop must retain the same button node"
+    during_stop = composer.bounding_box()
+    assert before_stop and during_stop
+    assert abs(before_stop["x"] - during_stop["x"]) <= 1
+    assert abs(before_stop["width"] - during_stop["width"]) <= 1
+    assert page.evaluate("window.TaskFlowChat.stopActiveResponse()") is True
+    page.wait_for_selector(".chat-typing", state="detached")
+    assert not page.locator(".chat-send--stopping").count()
+
+    # Dark and reduced-motion states retain visible textual state and marker.
+    page.emulate_media(reduced_motion="reduce")
+    page.evaluate("document.getElementById('btnDark').click()")
+    assert page.locator("html").get_attribute("data-dark") == "true"
+    if mobile:
+        assert panel.is_visible(), "outside actions must not close the mobile sheet"
+    else:
+        assert not panel.is_visible(), "ordinary outside clicks close compact desktop chat"
+        opener.click()
+        page.wait_for_selector("#chatPop", state="visible")
+    history_trigger.click()
+    page.wait_for_selector("#chatHistoryDrawer", state="visible")
+    assert page.locator("#chatContextStatus").inner_text().strip()
+    assert page.locator("#chatHistoryList .chat-history-item--active").count() == 1
+    transition_ms = panel.evaluate("el => parseFloat(getComputedStyle(el).transitionDuration) || 0")
+    assert transition_ms <= 0.01, f"reduced motion transition remains active: {transition_ms}s"
+    assert_no_page_overflow(page, f"chat history {viewport_name}")
+    assert panel.evaluate("el => el.scrollWidth <= el.clientWidth + 1"), \
+        f"chat history {viewport_name} has internal horizontal overflow"
+
+    # Back/Escape ordering and final focus restoration.
+    page.keyboard.press("Escape")
+    assert panel.is_visible(), "first Escape closes history, not chat"
+    page.keyboard.press("Escape")
+    assert not panel.is_visible(), "second Escape closes chat"
+    if not mobile:
+        assert page.locator("#chatFab").evaluate("el => document.activeElement === el"), \
+            "desktop close must restore focus to the FAB"
+    else:
+        mobile_focus_target = page.locator("#chatFab")
+        if not mobile_focus_target.is_visible():
+            mobile_focus_target = page.locator('#mobileNav [data-action="more"]')
+        assert mobile_focus_target.evaluate(
+            "el => document.activeElement === el"
+        ), "mobile close must restore focus to the first visible fallback"
+
+    page.evaluate("""() => {
+      window.TaskFlowChatHistory.clearAll('anon');
+      localStorage.removeItem('planner-token');
+      document.documentElement.removeAttribute('data-dark');
+    }""")
+    return {"seeded": seeded, "viewport": viewport_name}
+
+
+def chat_history_redesign_scenario_checks(browser, base, width, height, errors, screenshot):
+    viewport_name = "mobile" if width <= 767 else "desktop"
+    ctx = browser.new_context(
+        viewport={"width": width, "height": height}, service_workers="block"
+    )
+    page = ctx.new_page()
+    page.on("pageerror", lambda error: errors.append(f"chat-history {viewport_name}: {error}"))
+    install_chat_source_assets(page)
+    page.route("**/api/ai/chat", lambda route: None)
+    page.add_init_script("""(() => {
+      localStorage.setItem('planner-onboarded', '1');
+      localStorage.setItem('planner-lang', 'en');
+      for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('taskflow-chat-history-v1:')) localStorage.removeItem(key);
+      }
+    })()""")
+    page.goto(f"{base}/app.html?view=overview", wait_until="networkidle")
+    if page.locator('[data-testid="onboard-modal"]:visible').count():
+        page.locator('[data-action="ob-skip"]').click()
+    page.wait_for_selector('[data-testid="overview-view"] .overview-page', state="visible")
+    chat_history_redesign_checks(page, viewport_name)
+    page.screenshot(path=screenshot, full_page=False)
+    page.close()
+    ctx.close()
+
+
 def ai_planner_viewport_checks(browser, base, width, height, errors, screenshot):
     """P12/P13/P14: Planner modal UX theo viewport — 360x800, 390x844, 412x915,
     1366x768, 1440x900. Rule mode + AI success mode:
@@ -4568,7 +4832,7 @@ def release_layout_checks(browser, base, width, height, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="TaskFlow E2E frontend suite")
-    parser.add_argument("--view", choices=["overview", "week", "today-week-consistency", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "gcal-refresh", "gcal-month-pending", "ai", "planner-viewports"], default="overview")
+    parser.add_argument("--view", choices=["overview", "week", "today-week-consistency", "year", "calendar", "segmented-geometry", "schedule-unscheduled", "scroll-lock", "calendar-month-scroll", "inbox", "deeplink", "taskdetail", "reflection", "task-focus-metrics", "daily-alignment", "weekly-review", "monthly-review", "month-carryover", "report-growth", "data-lifecycle", "projects", "planner", "timeblock-ui", "habits-schedule", "quick-capture", "insights", "gcal", "gcal-write", "gcal-refresh", "gcal-month-pending", "ai", "chat-history", "planner-viewports"], default="overview")
     parser.add_argument("--dialogs", action="store_true")
     parser.add_argument("--landing", action="store_true")
     parser.add_argument("--all", action="store_true")
@@ -4656,6 +4920,11 @@ def main():
                     ai_planner_viewport_checks(
                         browser, base, w, h, errors,
                         os.path.join(tempfile.gettempdir(), f"taskflow-ai-viewport-{w}.png"),
+                    )
+                for w, h in ((390, 844), (1440, 900)):
+                    chat_history_redesign_scenario_checks(
+                        browser, base, w, h, errors,
+                        os.path.join(tempfile.gettempdir(), f"taskflow-chat-history-{w}.png"),
                     )
             elif args.landing:
                 landing_checks(browser, base, 1440, 900, errors, shots["desktop"])
@@ -4763,6 +5032,9 @@ def main():
             elif args.view == "ai":
                 ai_checks(browser, base, 1440, 900, errors, shots["desktop"])
                 ai_checks(browser, base, 390, 844, errors, shots["mobile"])
+            elif args.view == "chat-history":
+                chat_history_redesign_scenario_checks(browser, base, 1440, 900, errors, shots["desktop"])
+                chat_history_redesign_scenario_checks(browser, base, 390, 844, errors, shots["mobile"])
             elif args.view == "planner-viewports":
                 for w, h in ((360, 800), (390, 844), (412, 915), (1366, 768), (1440, 900)):
                     ai_planner_viewport_checks(
