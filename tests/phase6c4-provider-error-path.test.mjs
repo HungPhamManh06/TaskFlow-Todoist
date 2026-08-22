@@ -70,7 +70,7 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
       for (const ref of varRefs) {
         if (/^\d+$/.test(ref)) continue;
         if (['console', 'log', 'error', 'JSON', 'Date', 'Math', 'Error', 'String', 'parseInt', 'process', 'require', 'Buffer', 'Map', 'Set', 'fetch', 'AbortController', 'setTimeout', 'clearTimeout', 'encodeURIComponent'].includes(ref)) continue;
-        if (['ok', 'status', 'headers', 'json', 'trim', 'length', 'includes', 'split', 'pop', 'toString', 'get', 'set', 'delete', 'has', 'forEach', 'push', 'slice', 'test', 'match', 'indexOf', 'replace', 'startsWith', 'endsWith', 'join', 'filter', 'map', 'reduce', 'concat', 'keys', 'values', 'entries', 'from', 'isArray', 'assign', 'create', 'prototype', 'constructor', 'name', 'type', 'code', 'message', 'error', 'AbortError', 'destroy', 'resume', 'on', 'pipe', 'abort', 'signal', 'body', 'method', 'user', 'id', 'ip'].includes(ref)) continue;
+        if (['ok', 'status', 'headers', 'json', 'trim', 'length', 'includes', 'split', 'pop', 'toString', 'get', 'set', 'delete', 'has', 'forEach', 'push', 'slice', 'test', 'match', 'indexOf', 'replace', 'startsWith', 'endsWith', 'join', 'filter', 'map', 'reduce', 'concat', 'keys', 'values', 'entries', 'from', 'isArray', 'assign', 'create', 'prototype', 'constructor', 'name', 'type', 'code', 'message', 'error', 'AbortError', 'destroy', 'resume', 'on', 'pipe', 'abort', 'signal', 'body', 'method', 'user', 'id', 'ip', 'pages', 'truncated', 'textBytes', 'ok', 'text'].includes(ref)) continue;
         assert.ok(
           varDecls.has(ref),
           'Log references potentially undefined variable: ' + ref + ' in: ' + logContent.substring(0, 80)
@@ -94,14 +94,15 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
     );
   });
 
-  it('PDF payload must use file content part format', () => {
+  it('PDF payload uses text extraction (not raw Base64)', () => {
+    // v3.0.1: PDFs are now extracted as text server-side to avoid provider gateway overflow
     assert.ok(
-      src.includes("type: 'file'") || src.includes('type: "file"'),
-      'PDF payload must use file content part type'
+      src.includes('extractPdfText') || src.includes('pdf-extract'),
+      'PDF path must use server-side text extraction'
     );
     assert.ok(
-      src.includes('file_data:'),
-      'PDF payload must include file_data field'
+      !src.includes("type: 'file'") || src.includes('extractPdfText'),
+      'PDF must not send raw Base64 file_data through provider gateway'
     );
   });
 

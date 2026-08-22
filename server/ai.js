@@ -37,6 +37,7 @@ const crypto = require('crypto');
 const { authMiddleware } = require('./auth');
 const { callAiText, callAiJson, getConfig } = require('./ai-provider');
 const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('./ai-roadmap-validator');
+const { extractPdfText, DEFAULT_EXTRACT_MAX_BYTES, HARD_EXTRACT_MAX_BYTES } = require('./ai-file-parser');
 
 // Generate a short request correlation ID
 function generateRequestId() {
@@ -1754,19 +1755,24 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
       // Build user message with file content
       let userContent;
       if (fileMime.startsWith('image/')) {
-        // Image: use base64 inline data
+        // Image: use base64 inline data (provider multimodal contract)
         const b64 = fileBuffer.toString('base64');
         userContent = [
           { type: 'text', text: userMessage },
           { type: 'image_url', image_url: { url: 'data:' + fileMime + ';base64,' + b64 } },
         ];
       } else if (fileMime === 'application/pdf') {
-        // PDF: use base64 inline data
-        const b64 = fileBuffer.toString('base64');
-        userContent = [
-          { type: 'text', text: userMessage },
-          { type: 'file', file: { filename: fileName, file_data: 'data:application/pdf;base64,' + b64 } },
-        ];
+        // PDF: extract text server-side (never send raw Base64 through provider gateway)
+        const pdfResult = await extractPdfText(fileBuffer, { maxBytes: DEFAULT_EXTRACT_MAX_BYTES });
+        if (!pdfResult.ok) {
+          return res.status(422).json({ error: pdfResult.error });
+        }
+        let text = pdfResult.text;
+        if (text.length > AI_FILE_MAX_TEXT_CHARS) {
+          text = text.slice(0, AI_FILE_MAX_TEXT_CHARS) + '\n\n[...truncated — file exceeds ' + AI_FILE_MAX_TEXT_CHARS + ' chars]';
+        }
+        console.log('[ai] route=/api/ai/file requestId=' + requestId + ' mode=pdf-extract pages=' + (pdfResult.pages || 0) + ' textBytes=' + Buffer.byteLength(text, 'utf8') + ' truncated=' + !!pdfResult.truncated);
+        userContent = userMessage + '\n\n--- PDF content (' + fileName + ', ' + (pdfResult.pages || '?') + ' pages) ---\n' + text + '\n--- End PDF content ---';
       } else {
         // Text/Markdown: decode as UTF-8
         let text = fileBuffer.toString('utf8');
@@ -1787,7 +1793,10 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
       });
 
       if (!aiResult.ok) {
-        const status = aiResult.status === 429 ? 429 : 502;
+        const status = aiResult.status === 429 ? 429
+          : aiResult.status === 413 ? 413
+          : aiResult.status === 503 ? 503
+          : 502;
         return res.status(status).json({ error: aiResult.error });
       }
 
@@ -2087,11 +2096,17 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
           { type: 'image_url', image_url: { url: 'data:' + fileMime + ';base64,' + b64 } },
         ];
       } else if (fileMime === 'application/pdf') {
-        const b64 = fileBuffer.toString('base64');
-        userContent = [
-          { type: 'text', text: userMessage },
-          { type: 'file', file: { filename: fileName, file_data: 'data:application/pdf;base64,' + b64 } },
-        ];
+        // PDF: extract text server-side (never send raw Base64 through provider gateway)
+        const pdfResult = await extractPdfText(fileBuffer, { maxBytes: DEFAULT_EXTRACT_MAX_BYTES });
+        if (!pdfResult.ok) {
+          return res.status(422).json({ error: pdfResult.error });
+        }
+        let text = pdfResult.text;
+        if (text.length > AI_FILE_MAX_TEXT_CHARS) {
+          text = text.slice(0, AI_FILE_MAX_TEXT_CHARS) + '\n\n[...truncated — file exceeds ' + AI_FILE_MAX_TEXT_CHARS + ' chars]';
+        }
+        console.log('[ai] route=/api/ai/file-agent requestId=' + requestId + ' mode=pdf-extract pages=' + (pdfResult.pages || 0) + ' textBytes=' + Buffer.byteLength(text, 'utf8') + ' truncated=' + !!pdfResult.truncated);
+        userContent = userMessage + '\n\n--- PDF content (' + fileName + ', ' + (pdfResult.pages || '?') + ' pages) ---\n' + text + '\n--- End PDF content ---';
       } else {
         let text = fileBuffer.toString('utf8');
         if (text.length > AI_FILE_MAX_TEXT_CHARS) {
@@ -2111,7 +2126,10 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
       });
 
       if (!aiResult.ok) {
-        const status = aiResult.status === 429 ? 429 : 502;
+        const status = aiResult.status === 429 ? 429
+          : aiResult.status === 413 ? 413
+          : aiResult.status === 503 ? 503
+          : 502;
         return res.status(status).json({ error: aiResult.error });
       }
 
