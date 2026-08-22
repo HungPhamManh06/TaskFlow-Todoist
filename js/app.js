@@ -4552,6 +4552,9 @@ function closeChatPanel() {
   if (window.TaskFlowChat && typeof TaskFlowChat.closeHistory === 'function') {
     TaskFlowChat.closeHistory({ focusTrigger: false });
   }
+  if (window.TaskFlowChat && typeof TaskFlowChat.resetAttachmentDragState === 'function') {
+    TaskFlowChat.resetAttachmentDragState();
+  }
   const menu = document.getElementById('chatMenu');
   const dataPanel = document.getElementById('chatDataPanel');
   const historyDrawer = document.getElementById('chatHistoryDrawer');
@@ -7588,6 +7591,12 @@ function setSyncMode(mode) {
 
 const USER_RE = /^[A-Za-z0-9_.-]{3,30}$/;
 
+function _resetChatForAccountChange() {
+  if (window.TaskFlowChat && typeof TaskFlowChat._onAccountChange === 'function') {
+    TaskFlowChat._onAccountChange();
+  }
+}
+
 async function doSyncSignup() {
   if (!window.Sync) return;
   const { user, pass, pass2 } = syncFormValues();
@@ -7615,6 +7624,7 @@ async function doSyncSignup() {
 
 async function doSyncLogin() {
   if (!window.Sync) return;
+  _resetChatForAccountChange();
   const { user, pass } = syncFormValues();
   clearFormErrors(document.getElementById('syncModal'));
   let firstInvalid = null;
@@ -7640,6 +7650,7 @@ async function doSyncLogin() {
 
 async function doSyncGoogle() {
   if (!window.Sync) return;
+  _resetChatForAccountChange();
   const s = window.Sync.getStatus();
   if (s === 'off') { TaskFlowUI.toast(t('syncNeedConfig'), 'error'); return; }
   const r = await window.Sync.loginWithGoogle();
@@ -7651,6 +7662,7 @@ async function doSyncGoogle() {
 }
 
 function doSyncLogout() {
+  _resetChatForAccountChange();
   if (window.Sync) { window.Sync.logout(); updateSyncStatus(); }
 }
 

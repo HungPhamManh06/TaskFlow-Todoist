@@ -89,8 +89,8 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
       'image payload must include image_url.url field'
     );
     assert.ok(
-      src.includes("'data:' + fileMime + ';base64,'"),
-      'image payload must use data URL format with fileMime'
+      src.includes("'data:' + file.mime + ';base64,'"),
+      'image payload must use data URL format with validated file MIME'
     );
   });
 
@@ -106,11 +106,10 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
     );
   });
 
-  it('text content must be plain string (not array)', () => {
-    // For text/markdown files, userContent should be a plain string
+  it('text-only batch content remains a plain string', () => {
     assert.ok(
-      src.includes("userContent = userMessage + '\\n\\n--- File content"),
-      'text content must be plain string with file content marker'
+      src.includes("content: hasImages ? parts : parts.join('\\n\\n')"),
+      'text-only batch must collapse to its bounded text part'
     );
   });
 

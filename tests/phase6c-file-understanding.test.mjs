@@ -166,7 +166,7 @@ describe('Phase 6C: Client File Attachment', () => {
 
   it('sends via FormData', () => {
     assert.ok(chatSrc.includes('FormData'));
-    assert.ok(chatSrc.includes("fd.append('file'"));
+    assert.ok(chatSrc.includes("fd.append('files'"));
     assert.ok(chatSrc.includes("fd.append('message'"));
   });
 

@@ -94,7 +94,8 @@ describe('Phase 6C.2 — File Send Hotfix', () => {
     const finallySection = body.substring(finallyIdx);
     assert.ok(/_inFlight\s*=\s*false/.test(finallySection), 'finally should reset _inFlight');
     assert.ok(/_setInputEnabled\(true\)/.test(finallySection), 'finally should re-enable input');
-    assert.ok(/_clearFileAttachment\(\)/.test(finallySection), 'finally should clear file attachment');
+    assert.ok(/requestSucceeded && requestQueueVersion === _attachmentQueueVersion/.test(finallySection), 'finally should clear only the successful current queue');
+    assert.ok(/_clearFileAttachments\(\)/.test(finallySection), 'successful request should clear file attachments');
   });
 
   it('should NOT use bare /api/ai/file (must use apiBase prefix)', () => {
