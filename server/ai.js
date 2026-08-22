@@ -448,7 +448,9 @@ function buildPrompt(ctx) {
 
 // ---- POST /api/ai/plan (Bearer) {kind, context, userText?} → {ok, proposal} ----
 router.post('/plan', aiPlanLimiter, async (req, res) => {
+  const requestId = generateRequestId();
   try {
+    res.setHeader('X-Request-Id', requestId);
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const { ctx } = sanitizeContext(body.context);
@@ -465,6 +467,12 @@ router.post('/plan', aiPlanLimiter, async (req, res) => {
     const milestoneIds = new Set((ctx.milestones || []).map((m) => m && m.id).filter(Boolean));
 
     const { system, user } = buildPrompt(ctx);
+    // Phase 6U: Prompt size budget — reject oversized prompt before provider call
+    const promptBytes = Buffer.byteLength(system + user, 'utf8');
+    if (promptBytes > 64 * 1024) {
+      console.log('[ai] route=/api/ai/plan status=prompt-too-large promptBytes=' + promptBytes);
+      return res.status(413).json({ error: 'payload-too-large', details: ['prompt-too-large'] });
+    }
     const aiResult = await callAiJson({
       messages: [
         { role: 'system', content: system },
@@ -472,6 +480,7 @@ router.post('/plan', aiPlanLimiter, async (req, res) => {
       ],
       schema: PROPOSAL_SCHEMA,
       maxTokens: 1200,
+      requestId,
       routeName: '/api/ai/plan'
     });
 
@@ -1389,9 +1398,9 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
       return res.status(400).json({ error: 'ai-context-invalid', details: [ctxSan.reason] });
     }
 
-    // Validate agentRequestId: must be string, 8-128 chars if provided
+    // Validate agentRequestId: must be string, 8-64 chars, safe chars only
     const agentRequestId = typeof body.agentRequestId === 'string' ? body.agentRequestId : '';
-    if (agentRequestId && (agentRequestId.length < 8 || agentRequestId.length > 128)) {
+    if (agentRequestId && (agentRequestId.length < 8 || agentRequestId.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(agentRequestId))) {
       return res.status(400).json({ error: 'invalid-agent-request-id' });
     }
 
@@ -1496,8 +1505,8 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
       if (agentRequestId && userId) {
         const cacheKey = userId + ':' + agentRequestId;
         agentIdempotencyCache.set(cacheKey, { proposal, timestamp: Date.now() });
-        // Bounded cleanup: evict expired entries when cache exceeds 1000
-        if (agentIdempotencyCache.size > 1000) {
+        // Bounded cleanup: evict expired entries when cache exceeds 500
+        if (agentIdempotencyCache.size > 500) {
           const now = Date.now();
           for (const [key, value] of agentIdempotencyCache.entries()) {
             if (now - value.timestamp > IDEMPOTENCY_TTL_MS) agentIdempotencyCache.delete(key);

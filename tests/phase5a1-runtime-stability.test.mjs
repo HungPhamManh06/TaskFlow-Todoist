@@ -7,7 +7,7 @@
    - Agent history + context sanitization declarations restored
    - Agent concurrency Map bounded (delete on count=0)
    - Idempotency cache bounded / TTL cleanup
-   - agentRequestId validated (string, 8-128 chars)
+   - agentRequestId validated (string, 8-64 chars safe-chars-only)
    - Single generateRequestId() definition (no duplicates) */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -224,15 +224,15 @@ test('P5: idempotency cache lookup before slot acquisition', () => {
 /* ================================================================
    P6: agentRequestId validation
    ================================================================ */
-test('P6: agentRequestId validated as string, 8-128 chars', () => {
+test('P6: agentRequestId validated as string, 8-64 chars with safe chars', () => {
   const agentIdx = src.indexOf("router.post('/agent'");
   const agentSeg = src.slice(agentIdx, src.indexOf('module.exports'));
   assert.match(agentSeg, /typeof body\.agentRequestId === 'string'/,
     'agentRequestId must be validated as string type');
   assert.match(agentSeg, /agentRequestId\.length < 8/,
     'agentRequestId minimum length is 8');
-  assert.match(agentSeg, /agentRequestId\.length > 128/,
-    'agentRequestId maximum length is 128');
+  assert.match(agentSeg, /agentRequestId\.length > 64/,
+    'agentRequestId maximum length is 64');
   assert.match(agentSeg, /invalid-agent-request-id/,
     'invalid agentRequestId must return 400');
 });
@@ -240,11 +240,11 @@ test('P6: agentRequestId validated as string, 8-128 chars', () => {
 /* ================================================================
    P9: Idempotency cache bounded
    ================================================================ */
-test('P9: idempotency cache has size bound (1000) and TTL cleanup', () => {
+test('P9: idempotency cache has size bound (500) and TTL cleanup', () => {
   const agentIdx = src.indexOf("router.post('/agent'");
   const agentSeg = src.slice(agentIdx, src.indexOf('module.exports'));
-  assert.match(agentSeg, /agentIdempotencyCache\.size > 1000/,
-    'cache must have a size bound of 1000');
+  assert.match(agentSeg, /agentIdempotencyCache\.size > 500/,
+    'cache must have a size bound of 500');
   assert.match(agentSeg, /now - value\.timestamp > IDEMPOTENCY_TTL_MS/,
     'cache must evict expired entries');
 });
