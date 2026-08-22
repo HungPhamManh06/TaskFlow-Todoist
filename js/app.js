@@ -4561,12 +4561,7 @@ function initChatContextProvider() {
 }
 initChatContextProvider();
 
-// Enter key trong chat input gửi tin nhắn
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'chatInput') {
-    e.preventDefault();
-    runLazyChat(() => window.TaskFlowChat.doChatSend());
-  }
   if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'quickAddInput') {
     e.preventDefault();
     runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.submitQuickAdd());

@@ -3,7 +3,7 @@
  *
  * Verifies that _sendWithFile:
  * - Does NOT reference undefined helpers (_bubble, _appendBubble, _appendMarkdown, _getToken)
- * - Uses canonical helpers (_appendText, _hasToken, _getApiBase, _isOnline, _showInfo)
+ * - Uses canonical helpers (_appendMessage, _hasToken, _getApiBase, _isOnline, _showInfo)
  * - Has preflight checks BEFORE locking UI
  * - Has try/finally that ALWAYS restores _inFlight and input enabled state
  * - Uses localStorage token pattern (not undefined _getToken)
@@ -50,18 +50,18 @@ describe('Phase 6C.2 — File Send Hotfix', () => {
     assert.ok(!/_getToken\(/.test(body), '_sendWithFile references undefined _getToken()');
   });
 
-  it('should use _appendText for user bubble', () => {
+  it('should use _appendMessage for user bubble', () => {
     const match = src.match(/async function _sendWithFile[\s\S]*?^  \}/m);
     assert.ok(match, '_sendWithFile function not found');
     const body = match[0];
-    assert.ok(body.includes('_appendText(') && body.includes("'chat-msg user'"), 'should use _appendText for user message');
+    assert.ok(body.includes('_appendMessage(') && body.includes("'user'"), 'should use _appendMessage for user message');
   });
 
-  it('should use _appendText for bot response', () => {
+  it('should use _appendMessage for bot response', () => {
     const match = src.match(/async function _sendWithFile[\s\S]*?^  \}/m);
     assert.ok(match, '_sendWithFile function not found');
     const body = match[0];
-    assert.ok(body.includes('_appendText(') && body.includes("'chat-msg bot'"), 'should use _appendText for bot message');
+    assert.ok(body.includes('_appendMessage(') && body.includes("'bot'"), 'should use _appendMessage for bot message');
   });
 
   it('should use localStorage.getItem for token', () => {
@@ -164,6 +164,6 @@ describe('Phase 6C.2 — File Send Hotfix', () => {
     assert.ok(match, '_sendWithFile not found');
     const body = match[0];
     assert.ok(/AbortError/.test(body), 'should handle AbortError');
-    assert.ok(/_appendText.*chat-msg bot/.test(body), 'should show error via _appendText');
+    assert.ok(/_appendMessage.*'bot'/.test(body), 'should show error via _appendMessage');
   });
 });

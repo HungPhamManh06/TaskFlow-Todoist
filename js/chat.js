@@ -161,25 +161,34 @@
     // Re-enable input
     _setInputEnabled(true);
     _setSendMode(false);
-    // Optionally show stopped message
     var msgs = _el('chatMessages');
     if (msgs) {
-      _appendText(msgs, _t('chatStopped'), 'chat-msg bot chat-stopped');
+      _appendMessage(msgs, _t('chatStopped'), 'bot chat-stopped');
     }
+    var input = _el('chatInput');
+    _resizeComposer(input);
+    _syncComposerState();
+    if (input) input.focus();
     return true;
   }
 
   function _setSendMode(isStopping) {
     var sendBtn = document.querySelector('[data-action="chat-send"]');
     if (!sendBtn) return;
+    var marker = sendBtn.querySelector('[data-chat-send-marker]') || sendBtn.firstElementChild;
+    if (marker && !marker.hasAttribute('data-chat-send-marker')) {
+      marker.setAttribute('data-chat-send-marker', '');
+    }
     if (isStopping) {
-      sendBtn.textContent = _t('chatStop');
+      if (marker) marker.textContent = '■';
       sendBtn.setAttribute('aria-label', _t('chatStopAria'));
       sendBtn.classList.add('chat-send--stopping');
+      sendBtn.disabled = false;
     } else {
-      sendBtn.textContent = _t('chatSend');
-      sendBtn.setAttribute('aria-label', _t('chatSend'));
+      if (marker) marker.textContent = '↑';
+      sendBtn.setAttribute('aria-label', _t('chatSendAria'));
       sendBtn.classList.remove('chat-send--stopping');
+      _syncComposerState();
     }
   }
 
@@ -207,21 +216,35 @@
   /* ---- DOM helpers ---- */
   function _el(id) { return document.getElementById(id); }
 
-  /* ---- Suggestion chips mapping ---- */
+  /* ---- Suggestion chips mapping (replaces legacy study-plan topics) ---- */
   var SUGGESTIONS = {
-    'study-plan': { text: '📚 Lên kế hoạch học tập', prompt: 'Giúp tôi tạo một phương pháp lập kế hoạch học tập hiệu quả.' },
-    'goal-tips':  { text: '🎯 Mẹo đạt mục tiêu', prompt: 'Cho tôi những mẹo thiết thực để đạt được mục tiêu học tập và làm việc.' },
-    'habit-tips': { text: '🔥 Xây thói quen mới', prompt: 'Làm thế nào để xây dựng một thói quen mới và duy trì nó lâu dài?' },
-    'pomodoro-tips': { text: '🍅 Cách dùng Pomodoro', prompt: 'Giải thích kỹ thuật Pomodoro và cách áp dụng hiệu quả trong học tập.' },
+    'plan-today': { labelKey: 'chatSuggestPlanToday', promptKey: 'chatSuggestPlanTodayPrompt' },
+    'priority-work': { labelKey: 'chatSuggestPriority', promptKey: 'chatSuggestPriorityPrompt' },
+    'week-summary': { labelKey: 'chatSuggestWeek', promptKey: 'chatSuggestWeekPrompt' },
   };
 
   /* ---- Safe text rendering ---- */
-  function _appendText(container, text, className) {
-    var div = document.createElement('div');
-    div.className = className;
-    div.textContent = text;
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
+  function _isNearBottom(container) {
+    return !container || container.scrollHeight - container.scrollTop - container.clientHeight <= 72;
+  }
+
+  function _appendMessage(container, text, role, metaKey) {
+    var shouldStick = _isNearBottom(container);
+    var wrap = document.createElement('div');
+    wrap.className = 'chat-msg ' + role;
+    var body = document.createElement('div');
+    body.className = 'chat-msg-body';
+    body.textContent = text;
+    wrap.appendChild(body);
+    if (metaKey) {
+      var meta = document.createElement('div');
+      meta.className = 'chat-msg-meta';
+      meta.textContent = _t(metaKey);
+      wrap.appendChild(meta);
+    }
+    container.appendChild(wrap);
+    if (shouldStick) container.scrollTop = container.scrollHeight;
+    return wrap;
   }
 
   /* ---- Show/hide typing indicator ---- */
@@ -240,11 +263,7 @@
 
   /* ---- Show localized message ---- */
   function _showInfo(container, text) {
-    var el = document.createElement('div');
-    el.className = 'chat-msg bot chat-info';
-    el.textContent = text;
-    container.appendChild(el);
-    container.scrollTop = container.scrollHeight;
+    _appendMessage(container, text, 'bot chat-info');
   }
 
   /* ---- Show guest prompt with login button ---- */
@@ -293,12 +312,67 @@
     if (input) input.disabled = !enabled;
   }
 
+  function _renderSuggestions(mode) {
+    var actions = _el('chatActions');
+    if (!actions) return;
+    while (actions.firstChild) actions.removeChild(actions.firstChild);
+    if (mode === 'initial') {
+      Object.keys(SUGGESTIONS).forEach(function (topic) {
+        var suggestion = SUGGESTIONS[topic];
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chat-chip';
+        btn.setAttribute('data-action', 'chat-suggest');
+        btn.setAttribute('data-topic', topic);
+        btn.setAttribute('data-i18n', suggestion.labelKey);
+        btn.textContent = _t(suggestion.labelKey);
+        actions.appendChild(btn);
+      });
+    }
+  }
+
   /* ---- Hide suggestion chips during active chat ---- */
   function _setChipsVisible(visible) {
-    var chips = document.querySelectorAll('.chat-chip');
-    for (var i = 0; i < chips.length; i++) {
-      chips[i].style.display = visible ? '' : 'none';
-    }
+    _renderSuggestions(visible ? 'initial' : 'hidden');
+  }
+
+  /* ---- Multiline composer ---- */
+  function _shouldSubmitComposer(event) {
+    return !!event && event.key === 'Enter' && !event.shiftKey && !event.isComposing;
+  }
+
+  function _resizeComposer(textarea) {
+    if (!textarea || !textarea.style) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight || 0, 112) + 'px';
+  }
+
+  function _syncComposerState() {
+    var input = _el('chatInput');
+    var send = document.querySelector('[data-action="chat-send"]');
+    var hasPayload = !!(input && String(input.value || '').trim()) || !!_attachedFile;
+    if (send) send.disabled = !_inFlight && !hasPayload;
+    var composer = _el('chatComposer');
+    if (composer) composer.setAttribute('aria-busy', String(_inFlight));
+  }
+
+  var _composerInited = false;
+  function _initComposer() {
+    if (_composerInited) return;
+    var input = _el('chatInput');
+    if (!input) return;
+    input.addEventListener('input', function () {
+      _resizeComposer(input);
+      _syncComposerState();
+    });
+    input.addEventListener('keydown', function (event) {
+      if (!_shouldSubmitComposer(event)) return;
+      event.preventDefault();
+      doChatSend();
+    });
+    _composerInited = true;
+    _resizeComposer(input);
+    _syncComposerState();
   }
 
   /* ---- Context badge ---- */
@@ -438,7 +512,7 @@
     _setChipsVisible(false);
     _setSendMode(true);
 
-    if (opts.userBubble !== false) _appendText(msgs, text, 'chat-msg user');
+    if (opts.userBubble !== false) _appendMessage(msgs, text, 'user');
 
     // Persist user message to history
     _persistUserMessage(text);
@@ -468,7 +542,7 @@
               if (_send) _send(text, { userBubble: false, resolutionHint: { taskUid: selectedUid } });
             });
           } else {
-            _appendText(msgs, _t('clarifyFallback'), 'chat-msg bot');
+            _appendMessage(msgs, _t('clarifyFallback'), 'bot');
           }
           return;
         }
@@ -493,7 +567,7 @@
 
       if (!_isCurrentRequest(req.generation)) return; // stale
       _removeTyping(typingEl);
-      _appendText(msgs, answer, 'chat-msg bot');
+      _appendMessage(msgs, answer, 'bot');
       _persistAssistantMessage(answer);
 
     } catch (err) {
@@ -512,6 +586,8 @@
       _setInputEnabled(true);
       _setSendMode(false);
       var input = _el('chatInput');
+      _resizeComposer(input);
+      _syncComposerState();
       if (input) input.focus();
     }
   }
@@ -529,6 +605,8 @@
     var text = input.value.trim();
     if (!text) return;
     input.value = '';
+    _resizeComposer(input);
+    _syncComposerState();
     _doSend(text);
   }
 
@@ -538,10 +616,14 @@
       return;
     }
     var sug = SUGGESTIONS[topic];
-    if (sug && sug.prompt) {
+    if (sug && sug.promptKey) {
       var input = _el('chatInput');
-      if (input) input.value = '';
-      _doSend(sug.prompt);
+      if (input) {
+        input.value = '';
+        _resizeComposer(input);
+        _syncComposerState();
+      }
+      _doSend(_t(sug.promptKey));
     }
   }
 
@@ -608,8 +690,8 @@
     msgs.innerHTML = '';
     for (var i = 0; i < conv.messages.length; i++) {
       var m = conv.messages[i];
-      var cls = m.role === 'user' ? 'chat-msg user' : 'chat-msg bot';
-      _appendText(msgs, m.content, cls);
+      var role = m.role === 'user' ? 'user' : 'bot';
+      _appendMessage(msgs, m.content, role);
     }
     _setChipsVisible(false);
     _restoreConversationView(conversationId);
@@ -992,6 +1074,7 @@
     if (chips) { chips.innerHTML = ''; chips.hidden = true; }
     var fileInput = _el('chatFileInput');
     if (fileInput) fileInput.value = '';
+    _syncComposerState();
   }
 
   function _handleFileSelect(file) {
@@ -1006,6 +1089,7 @@
       _fileObjectURL = URL.createObjectURL(file);
     }
     _renderFileCard(file);
+    _syncComposerState();
   }
 
   /* ---- Phase 6D: File intent detection ---- */
@@ -1094,7 +1178,7 @@
 
     try {
       var fileLabel = _fileIcon(file.type) + ' ' + file.name + ' (' + _formatFileSize(file.size) + ')';
-      _appendText(msgs, text + '\n' + fileLabel, 'chat-msg user');
+      _appendMessage(msgs, text + '\n' + fileLabel, 'user');
 
       // Persist to history with attachment metadata
       _persistUserMessage(text + '\n' + fileLabel, {
@@ -1149,14 +1233,14 @@
             ? Review.friendlyError(errorCode, window.TaskFlowI18n && typeof window.TaskFlowI18n.getLang === 'function' ? window.TaskFlowI18n.getLang() : 'vi')
             : _t('fileFailed');
         } catch (e) { fileErrMsg = _t('fileFailed'); }
-        _appendText(msgs, fileErrMsg, 'chat-msg bot');
+        _appendMessage(msgs, fileErrMsg, 'bot');
         _persistAssistantMessage(fileErrMsg);
         return;
       }
 
       if (isFileAgent && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
         _pendingFileProposal = { proposal: json.proposal, source: json.source || { type: file.type, name: file.name } };
-        _appendText(msgs, json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }), 'chat-msg bot');
+        _appendMessage(msgs, json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }), 'bot');
         _persistAssistantMessage(json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }));
         try {
           if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
@@ -1164,17 +1248,17 @@
           }
         } catch (e) { /* review must never break chat */ }
       } else if (isFileAgent && json.proposal && json.proposal.actions && json.proposal.actions.length === 0) {
-        _appendText(msgs, json.proposal.summary || _t('fileAgentNoActions'), 'chat-msg bot');
+        _appendMessage(msgs, json.proposal.summary || _t('fileAgentNoActions'), 'bot');
         _persistAssistantMessage(json.proposal.summary || _t('fileAgentNoActions'));
       } else {
-        _appendText(msgs, json.answer || '', 'chat-msg bot');
+        _appendMessage(msgs, json.answer || '', 'bot');
         _persistAssistantMessage(json.answer || '');
       }
     } catch (e) {
       _setFileLoading(file.name, false);
       if (e && e.name === 'AbortError') return;
       var errMsg = (e && e.code === 'api-config-missing') ? _t('chatErrorApiConfig') : _t('fileFailed');
-      _appendText(msgs, errMsg, 'chat-msg bot');
+      _appendMessage(msgs, errMsg, 'bot');
     } finally {
       if (_isCurrentRequest(req.generation)) {
         _inFlight = false;
@@ -1184,6 +1268,8 @@
       _setSendMode(false);
       _clearFileAttachment();
       var input = _el('chatInput');
+      _resizeComposer(input);
+      _syncComposerState();
       if (input) input.focus();
     }
   }
@@ -1201,6 +1287,8 @@
     var text = input.value.trim();
     if (!text && !_attachedFile) return;
     input.value = '';
+    _resizeComposer(input);
+    _syncComposerState();
     if (_attachedFile) {
       _sendWithFile(text || _t('fileChipSummary'), _attachedFile);
     } else {
@@ -1247,6 +1335,8 @@
     }
   }
   _initHistoryDrawer();
+  _initComposer();
+  _renderSuggestions('initial');
 
   /* ---- Listen for account changes ---- */
   function _onAccountChange() {
@@ -1288,5 +1378,12 @@
     _captureConversationView: _captureConversationView,
     _restoreConversationView: _restoreConversationView,
     _setHistoryOpen: _setHistoryOpen,
+    _shouldSubmitComposer: _shouldSubmitComposer,
+    _resizeComposer: _resizeComposer,
+    _syncComposerState: _syncComposerState,
+    _initComposer: _initComposer,
+    _isNearBottom: _isNearBottom,
+    _appendMessage: _appendMessage,
+    _renderSuggestions: _renderSuggestions,
   };
 });

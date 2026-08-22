@@ -183,3 +183,79 @@ test('Escape closes visible history before closing the chatbot panel', () => {
   assert.match(closePanel, /removeAttribute\('data-history-open'\)/);
   assert.match(closePanel, /historyBtn\.setAttribute\('aria-expanded', 'false'\)/);
 });
+
+test('composer helpers submit plain Enter while preserving Shift+Enter and IME composition', () => {
+  const previousDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: () => null,
+    querySelector: () => null,
+  };
+
+  try {
+    delete require.cache[require.resolve('../js/chat.js')];
+    const Chat = require('../js/chat.js');
+    assert.equal(Chat._shouldSubmitComposer({ key: 'Enter', shiftKey: false, isComposing: false }), true);
+    assert.equal(Chat._shouldSubmitComposer({ key: 'Enter', shiftKey: true, isComposing: false }), false);
+    assert.equal(Chat._shouldSubmitComposer({ key: 'Enter', shiftKey: false, isComposing: true }), false);
+    assert.equal(Chat._shouldSubmitComposer({ key: 'Escape', shiftKey: false, isComposing: false }), false);
+  } finally {
+    globalThis.document = previousDocument;
+    delete require.cache[require.resolve('../js/chat.js')];
+  }
+});
+
+test('composer owns auto-growth and app no longer intercepts chat Enter', () => {
+  assert.match(CHAT, /function _resizeComposer\(textarea\)/);
+  assert.match(CHAT, /textarea\.style\.height = 'auto'/);
+  assert.match(CHAT, /Math\.min\([^,]+, 112\)/);
+  assert.match(CHAT, /function _syncComposerState\(\)/);
+  assert.match(CHAT, /function _initComposer\(\)/);
+  assert.doesNotMatch(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,180}doChatSend/);
+});
+
+test('safe message renderer keeps multiline text structured and scrolls only near the bottom', () => {
+  assert.match(CHAT, /function _isNearBottom\(container\)/);
+  assert.match(CHAT, /function _appendMessage\(container, text, role, metaKey\)/);
+  assert.match(CHAT, /body\.textContent = text/);
+  assert.doesNotMatch(CHAT, /body\.innerHTML = text/);
+  assert.match(functionBody(CHAT, '_appendMessage'), /if \(shouldStick\) container\.scrollTop = container\.scrollHeight/);
+  assert.doesNotMatch(CHAT, /function _appendText\(/);
+});
+
+test('send control keeps its node stable in stop mode and retry does not duplicate the user bubble', () => {
+  const sendMode = functionBody(CHAT, '_setSendMode');
+  assert.doesNotMatch(sendMode, /sendBtn\.textContent\s*=/);
+  assert.match(sendMode, /querySelector\('\[data-chat-send-marker\]'\)/);
+  assert.match(sendMode, /sendBtn\.disabled = false/);
+  assert.match(functionBody(CHAT, 'stopActiveResponse'), /_resizeComposer\(input\)/);
+  assert.match(functionBody(CHAT, 'stopActiveResponse'), /_syncComposerState\(\)/);
+  assert.match(functionBody(CHAT, '_showRetry'), /_doSend\(failedMsg, \{ userBubble: false \}\)/);
+});
+
+test('initial suggestions are exactly three localized safe actions', () => {
+  assert.deepEqual(
+    [...CHAT.matchAll(/^\s{4}'([^']+)': \{ labelKey:/gm)].map((match) => match[1]),
+    ['plan-today', 'priority-work', 'week-summary'],
+  );
+  assert.match(CHAT, /function _renderSuggestions\(mode\)/);
+  assert.match(functionBody(CHAT, '_renderSuggestions'), /btn\.textContent = _t\(suggestion\.labelKey\)/);
+  assert.match(functionBody(CHAT, '_renderSuggestions'), /mode === 'initial'/);
+  for (const key of [
+    'chatSuggestPlanToday', 'chatSuggestPriority', 'chatSuggestWeek',
+    'chatSuggestPlanTodayPrompt', 'chatSuggestPriorityPrompt', 'chatSuggestWeekPrompt',
+  ]) {
+    assert.equal((I18N.match(new RegExp(`\\b${key}:`, 'g')) || []).length, 2, `${key} must exist once per locale`);
+  }
+});
+
+test('composer and initial suggestions initialize in reachable module setup after history wiring', () => {
+  const historyInit = CHAT.indexOf('\n  _initHistoryDrawer();');
+  const composerInit = CHAT.indexOf('\n  _initComposer();');
+  const suggestionsInit = CHAT.indexOf("\n  _renderSuggestions('initial');");
+  const factoryReturn = CHAT.lastIndexOf('\n  return {');
+
+  assert.ok(historyInit >= 0, 'history initialization must exist');
+  assert.ok(composerInit > historyInit, 'composer initializes after history wiring');
+  assert.ok(suggestionsInit > composerInit, 'initial suggestions render after composer setup');
+  assert.ok(suggestionsInit < factoryReturn, 'module initialization must run before the factory returns');
+});

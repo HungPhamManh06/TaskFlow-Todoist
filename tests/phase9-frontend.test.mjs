@@ -1085,12 +1085,13 @@ test('P11: chat helpers extracted — CHAT_RESPONSES/doChatSend/doChatSuggest/ch
   assert.doesNotMatch(APP_JS, /^function doChatSend\(/m);
   assert.doesNotMatch(APP_JS, /^function doChatSuggest\(/m);
   assert.doesNotMatch(APP_JS, /^function chatBotReply\(/m);
-  // call-sites qua window access sau khi nạp — dispatcher + Enter key trong chat input
+  // Dispatcher vẫn qua window access; multiline composer tự sở hữu phím Enter trong chat.js.
   assert.match(APP_JS, /act === 'chat-send'[\s\S]{0,140}window\.TaskFlowChat\.doChatSend\(\)\)/);
   assert.match(APP_JS, /act === 'chat-suggest'[\s\S]{0,140}window\.TaskFlowChat\.doChatSuggest\(el\.dataset\.topic\)\)/);
-  assert.match(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,140}window\.TaskFlowChat\.doChatSend\(\)/);
+  assert.doesNotMatch(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,180}window\.TaskFlowChat\.doChatSend\(\)/);
   // module export đủ API + accessor pattern
   const mod = readRequiredAsset('js/chat.js');
+  assert.match(mod, /function _initComposer\(\)[\s\S]*input\.addEventListener\('keydown'/);
   assert.match(mod, /return \{[\s\S]*SUGGESTIONS[\s\S]*doChatSend[\s\S]*doChatSuggest[\s\S]*doChatClear/);
   assert.match(mod, /module\.exports/);
   assert.match(mod, /study-plan/);
