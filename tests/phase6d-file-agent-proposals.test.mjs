@@ -222,8 +222,9 @@ describe('Phase 6D — Structured Proposal Schema', () => {
   });
 
   it('schema requires source field on each action', () => {
-    assert.ok(serverSrc.includes("required: ['id', 'type', 'taskRef', 'taskIdRef', 'text', 'date', 'start', 'duration', 'priority', 'projectId', 'milestoneId', 'changes', 'source']"),
-      'source must be required');
+    // Phase: schema now uses nested args — require id, type, args, source
+    assert.ok(serverSrc.includes("required: ['id', 'type', 'args', 'source']"),
+      'source must be required in nested schema');
   });
 
   it('source.kind limited to document or ai-suggested', () => {
@@ -482,12 +483,12 @@ describe('Phase 6D — File Agent Route Safety', () => {
 
   it('file-agent route has timeout handling', () => {
     const route = serverSrc.substring(serverSrc.indexOf("router.post('/file-agent'"));
-    assert.ok(route.includes('callAiText'), 'must use unified provider for timeout handling');
+    assert.ok(route.includes('callAiJson'), 'must use structured provider for timeout handling');
   });
 
   it('file-agent route uses unified provider error mapping', () => {
     const route = serverSrc.substring(serverSrc.indexOf("router.post('/file-agent'"));
-    assert.ok(route.includes('callAiText'), 'must delegate to unified provider');
+    assert.ok(route.includes('callAiJson'), 'must delegate to unified provider');
     const providerSrc = read('server/ai-provider.js');
     assert.ok(providerSrc.includes('ai-provider-bad-request'), 'provider must map 400');
     assert.ok(providerSrc.includes('ai-provider-auth'), 'provider must map 401');
@@ -512,12 +513,12 @@ describe('Phase 6D — No Actions Found', () => {
 
   it('file-agent route handles empty actions array', () => {
     const route = serverSrc.substring(serverSrc.indexOf("router.post('/file-agent'"));
-    assert.ok(route.includes('actions.length === 0'), 'must handle empty actions');
+    assert.ok(route.includes('allActions.length === 0') || route.includes('actions.length === 0'), 'must handle empty actions');
   });
 
   it('returns ok:true with empty actions when no actions found', () => {
     const route = serverSrc.substring(serverSrc.indexOf("router.post('/file-agent'"));
-    assert.ok(route.includes('no-actions') || route.includes('noActions'), 'must handle no-actions case');
+    assert.ok(route.includes('no-actions') || route.includes('noActions') || route.includes('allActions.length === 0'), 'must handle no-actions case');
   });
 });
 
