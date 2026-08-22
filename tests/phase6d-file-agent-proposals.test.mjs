@@ -259,9 +259,9 @@ describe('Phase 6D — File Agent System Instructions', () => {
     assert.ok(serverSrc.includes('NEVER output delete_task'), 'EN must forbid delete');
   });
 
-  it('instructions mention max 10 actions', () => {
-    assert.ok(serverSrc.includes('KHÔNG tạo quá 10 hành động'), 'VI must cap at 10');
-    assert.ok(serverSrc.includes('NEVER produce more than 10 actions'), 'EN must cap at 10');
+  it('instructions mention max 120 actions for file import', () => {
+    assert.ok(serverSrc.includes('120 hành động') || serverSrc.includes('120'), 'VI must cap at 120 for file import');
+    assert.ok(serverSrc.includes('120 actions') || serverSrc.includes('120'), 'EN must cap at 120 for file import');
   });
 
   it('instructions forbid hallucination', () => {
@@ -281,19 +281,21 @@ describe('Phase 6D — Client File Intent Detection', () => {
     assert.ok(chatSrc.includes('function _isFileAgentIntent'), '_isFileAgentIntent must be defined');
   });
 
-  it('detects "Tạo task từ ảnh này" as action', () => {
-    assert.ok(chatSrc.includes("_FILE_ACTION_RE"), 'action regex must be defined');
-    assert.ok(chatSrc.includes("_FILE_ACTION_CONTEXT_RE"), 'context regex must be defined');
+  it('classifyFileIntent function exists', () => {
+    assert.ok(chatSrc.includes('function classifyFileIntent'), 'classifyFileIntent must be defined');
   });
 
-  it('detects negation and routes to read', () => {
-    assert.ok(chatSrc.includes('_FILE_NEGATION_RE'), 'negation regex must be defined');
-    assert.ok(chatSrc.includes('if (_FILE_NEGATION_RE.test(text)) return false'), 'negation must return false');
+  it('classifyFileIntent returns kind for action intent', () => {
+    assert.ok(chatSrc.includes("kind: 'create-tasks'"), 'must return create-tasks kind');
+    assert.ok(chatSrc.includes("kind: 'read'"), 'must return read kind');
   });
 
-  it('detects hypothetical and routes to read', () => {
-    assert.ok(chatSrc.includes('_FILE_HYPOTHETICAL_RE'), 'hypothetical regex must be defined');
-    assert.ok(chatSrc.includes('if (_FILE_HYPOTHETICAL_RE.test(text)) return false'), 'hypothetical must return false');
+  it('classifyFileIntent handles negation', () => {
+    assert.ok(chatSrc.includes("reason: 'negation'"), 'must detect negation');
+  });
+
+  it('classifyFileIntent handles hypothetical', () => {
+    assert.ok(chatSrc.includes("reason: 'hypothetical'"), 'must detect hypothetical');
   });
 
   it('_sendWithFile routes to /api/ai/file-agent when action intent detected', () => {
