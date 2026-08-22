@@ -360,6 +360,12 @@ test('Focused Coach compact and expanded geometry use the approved adaptive grid
   assert.match(CSS, /\.chat-history-item--active[\s\S]*border-inline-start/);
 });
 
+test('adaptive workspace pins conversation and history to stable grid columns', () => {
+  assert.match(CSS, /\.chat-history-drawer \{[^}]*grid-column:\s*1/);
+  assert.match(CSS, /\.chat-conversation \{[^}]*grid-column:\s*2/);
+  assert.match(CSS, /@media \(max-width: 767px\)[\s\S]*\.chat-conversation \{[^}]*grid-column:\s*1/);
+});
+
 test('Focused Coach mobile presentation fills the dynamic viewport and honors safe areas', () => {
   assert.match(CSS, /@media \(max-width: 767px\)[\s\S]*height: 100dvh/);
   assert.match(CSS, /env\(safe-area-inset-bottom\)/);

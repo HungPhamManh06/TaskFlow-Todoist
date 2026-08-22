@@ -1765,15 +1765,6 @@ sup.remind-dot {
 .chat-fab:hover { background: var(--color-accent-hover); transform: translateY(-1px); }
 .chat-fab:active { transform: scale(.98); }
 .chat-fab[aria-expanded="true"] { background: var(--color-accent-hover); }
-.chat-conversation {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--card-bg);
-}
 .chat-assistant-mark {
   display: inline-grid;
   place-items: center;
