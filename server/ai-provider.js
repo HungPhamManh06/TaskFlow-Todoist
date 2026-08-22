@@ -24,6 +24,10 @@ const MIN_TIMEOUT_MS = 5000;
 const MAX_TIMEOUT_MS = 120000;
 const MAX_MAX_TOKENS = 8192;
 
+// Phase 6U.1: Provider message budget — reject oversized messages before fetch
+const DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024;
+const MAX_MAX_MESSAGE_BYTES = 256 * 1024;
+
 /**
  * Read provider configuration from environment.
  * Called dynamically so values reflect runtime env changes (testability).
@@ -55,6 +59,16 @@ function validateMaxTokens(raw) {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return 2048;
   return Math.min(Math.floor(n), MAX_MAX_TOKENS);
+}
+
+/**
+ * Validate and normalize a maxMessageBytes value.
+ * Returns a safe positive integer capped at MAX_MAX_MESSAGE_BYTES.
+ */
+function validateMaxMessageBytes(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_MAX_MESSAGE_BYTES;
+  return Math.min(Math.floor(n), MAX_MAX_MESSAGE_BYTES);
 }
 
 /**
@@ -113,11 +127,21 @@ async function callAiCore(options) {
     model: modelOverride,
   } = options;
   const maxTokens = validateMaxTokens(rawMaxTokens);
+  const maxMessageBytes = validateMaxMessageBytes(options.maxMessageBytes);
 
   const cfg = getConfig();
   if (!cfg.apiKey) {
     return { ok: false, content: null, latencyMs: 0, status: 503, error: 'ai-not-configured', details: null };
   }
+
+  // Phase 6U.1: Provider message budget — reject before fetch
+  try {
+    const msgBytes = Buffer.byteLength(JSON.stringify(messages), 'utf8');
+    if (msgBytes > maxMessageBytes) {
+      logSafe('status=message-budget-exceeded msgBytes=' + msgBytes + ' maxBytes=' + maxMessageBytes + ' route=' + routeName);
+      return { ok: false, content: null, latencyMs: 0, status: 413, error: 'payload-too-large', details: ['provider-message-budget'] };
+    }
+  } catch (e) { /* serialization failure is non-critical but we continue */ }
 
   const model = modelOverride || cfg.model;
   const effectiveTimeout = (Number.isFinite(explicitTimeout) && explicitTimeout > 0)
@@ -251,8 +275,11 @@ module.exports = {
   deriveProviderLabel,
   validateTimeout,
   validateMaxTokens,
+  validateMaxMessageBytes,
   DEFAULT_TIMEOUT_MS,
   MIN_TIMEOUT_MS,
   MAX_TIMEOUT_MS,
   MAX_MAX_TOKENS,
+  DEFAULT_MAX_MESSAGE_BYTES,
+  MAX_MAX_MESSAGE_BYTES,
 };

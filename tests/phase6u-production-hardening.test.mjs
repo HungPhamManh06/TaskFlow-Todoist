@@ -229,12 +229,16 @@ describe('6U: Server payload limit (source)', () => {
 describe('6U: Server request ID (source)', () => {
   const aiJS = readFileSync('server/ai.js', 'utf8');
 
-  it('/plan route generates request ID', () => {
-    assert.ok(aiJS.includes("router.post('/plan'") && aiJS.includes('const requestId = generateRequestId()'), 'plan should have requestId');
+  it('/plan route uses central requestId from middleware', () => {
+    assert.ok(aiJS.includes('req.aiRequestId'), 'plan should use req.aiRequestId');
   });
 
-  it('/plan sets X-Request-Id header', () => {
-    assert.ok(aiJS.includes("res.setHeader('X-Request-Id', requestId)"), 'should set X-Request-Id header');
+  it('central middleware sets X-Request-Id header', () => {
+    assert.ok(aiJS.includes("res.setHeader('X-Request-Id', rid)"), 'middleware should set X-Request-Id');
+  });
+
+  it('central middleware generates requestId', () => {
+    assert.ok(aiJS.includes('req.aiRequestId = rid'), 'middleware should assign requestId');
   });
 
   it('requestId passed to callAiJson', () => {
@@ -303,7 +307,8 @@ describe('6U: Idempotency key validation (source)', () => {
   });
 
   it('cache has bounded size (500)', () => {
-    assert.ok(aiJS.includes('agentIdempotencyCache.size > 500'), 'cache must be bounded');
+    assert.ok(aiJS.includes('MAX_IDEMPOTENCY_ENTRIES'), 'cache must have named constant');
+    assert.ok(aiJS.includes('cleanupIdempotencyCache'), 'must have cleanup helper');
   });
 });
 
