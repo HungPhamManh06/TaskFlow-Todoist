@@ -4424,6 +4424,7 @@ function runLazyChat(fn) {
     .then(() => ensureLazyModule('js/effort-calibration.min.js'))
     .then(() => ensureLazyModule('js/goal-tracking.min.js'))
     .then(() => ensureLazyModule('js/ai-agent-runtime.min.js'))
+    .then(() => ensureLazyModule('js/chat-history.min.js'))
     .then(() => ensureLazyModule('js/chat.min.js'))
     .then(() => { initChatContextProvider(); if (fn) fn(); })
     .catch((err) => {
@@ -4445,6 +4446,7 @@ function preloadLazyChat() {
     .then(() => ensureLazyModule('js/ai-plan.min.js'))
     .then(() => ensureLazyModule('js/ai-plan-health.min.js'))
     .then(() => ensureLazyModule('js/ai-agent-runtime.min.js'))
+    .then(() => ensureLazyModule('js/chat-history.min.js'))
     .then(() => ensureLazyModule('js/chat.min.js'))
     .then(() => initChatContextProvider())
     .catch(() => { /* im lặng — send path sẽ tự fallback */ });
