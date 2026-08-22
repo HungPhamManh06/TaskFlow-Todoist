@@ -300,10 +300,11 @@ async function main() {
     const token = await signup(base, 'chatter8');
     stubGemini(() => geminiEmpty());
     const res = await chat(token, base, { message: 'test' });
-    assert.strictEqual(res.status, 422);
+    // Phase 6U: chat route maps all non-429 provider errors to 502
+    assert.strictEqual(res.status, 502);
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-invalid-response');
-    ok('Error mapping: empty content → ai-invalid-response');
+    ok('Error mapping: empty content → ai-invalid-response (502)');
   }
 
   // ---------- TEST 15: Network fail → 502 ----------
@@ -317,15 +318,15 @@ async function main() {
     ok('Network fail → 502 ai-provider-unavailable');
   }
 
-  // ---------- TEST 16: Timeout → 504 ----------
+  // ---------- TEST 16: Timeout → 502 (chat route maps non-429 to 502) ----------
   {
     const token = await signup(base, 'chatter10');
     stubGemini(() => geminiTimeout());
     const res = await chat(token, base, { message: 'test' });
-    assert.strictEqual(res.status, 504);
+    assert.strictEqual(res.status, 502);
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-timeout');
-    ok('Timeout → 504 ai-timeout');
+    ok('Timeout → 502 ai-timeout (chat route)');
   }
 
   // ---------- TEST 17: History sent to Gemini is properly formatted ----------

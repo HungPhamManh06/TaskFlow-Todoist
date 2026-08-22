@@ -188,12 +188,12 @@ async function main() {
     assert.strictEqual(upstreamUrl, AI_URL, 'gọi đúng Gemini endpoint');
     assert.strictEqual(upstreamOpts.headers.Authorization, 'Bearer test-ai-key', 'Bearer = AI_API_KEY');
     assert.strictEqual(upstreamBody.model, 'gemini-3.6-flash', 'model = gemini-3.6-flash');
-    // Latency tuning: reasoning_effort low (TEST D) — Gemini 3.6 default MEDIUM/8192 quá chậm
-    assert.strictEqual(upstreamBody.reasoning_effort, 'low', 'reasoning_effort = low');
+    // Phase 6U: reasoning_effort removed from unified provider gateway
+    // (provider handles thinking config internally; not sent by client)
     // Structured output: json_schema (không phải json_object) + schema TaskFlow
     assert.strictEqual(upstreamBody.response_format.type, 'json_schema', 'response_format là json_schema');
     const js = upstreamBody.response_format.json_schema;
-    assert.ok(js && js.name === 'taskflow_proposal', 'json_schema.name = taskflow_proposal');
+    assert.ok(js && js.name === 'taskflow_response', 'json_schema.name = taskflow_response');
     assert.strictEqual(js.strict, true, 'json_schema.strict = true');
     assert.strictEqual(js.schema.type, 'object', 'schema gốc là object');
     assert.strictEqual(js.schema.required.join(','), 'summary,actions', 'schema required summary+actions');
@@ -279,12 +279,13 @@ async function main() {
     };
     const res = await plan(token, base);
     globalThis.fetch = realFetch;
-    assert.strictEqual(res.status, 422, 'JSON hỏng → 422');
+    // Phase 6U: /plan route maps all non-429 provider errors to 502
+    assert.strictEqual(res.status, 502, 'JSON hỏng → 502');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-invalid-response');
     assert.ok(Array.isArray(j.details) && j.details.includes('parse-failed'), 'details nêu parse-failed');
     assert.ok(!JSON.stringify(j).includes('{not'), 'không echo nội dung upstream');
-    console.log('TEST 7 OK — output không parse được → 422 ai-invalid-response [parse-failed]');
+    console.log('TEST 7 OK — output không parse được → 502 ai-invalid-response [parse-failed]');
   }
 
   // ---------- TEST 8: upstream trả content rỗng → 422 ai-invalid-response + details ----------
@@ -299,7 +300,8 @@ async function main() {
     };
     const res = await plan(token, base);
     globalThis.fetch = realFetch;
-    assert.strictEqual(res.status, 422, 'content rỗng → 422');
+    // Phase 6U: /plan route maps all non-429 provider errors to 502
+    assert.strictEqual(res.status, 502, 'content rỗng → 502');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-invalid-response');
     assert.ok(Array.isArray(j.details) && j.details.includes('empty-content'), 'details nêu empty-content');
@@ -442,11 +444,13 @@ async function main() {
     const t0 = Date.now();
     const res = await plan(token, base);
     globalThis.fetch = realFetch;
-    assert.strictEqual(res.status, 504, 'quá hạn timeout → 504');
-    assert.ok(Date.now() - t0 < 5000, 'timeout phải nhanh (AI_TIMEOUT_MS=500)');
+    // Phase 6U: /plan route maps all non-429 provider errors to 502
+    assert.strictEqual(res.status, 502, 'quá hạn timeout → 502');
+    // Phase 6U: MIN_TIMEOUT_MS = 5000, so 500 gets clamped to 5000
+    assert.ok(Date.now() - t0 < 12000, 'timeout phải nhanh (MIN_TIMEOUT_MS=5000)');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-timeout');
-    console.log('TEST 13 OK (TEST C) — upstream vượt timeout → 504 ai-timeout (AbortController)');
+    console.log('TEST 13 OK (TEST C) — upstream vượt timeout → 502 ai-timeout (AbortController)');
   }
 
   console.log('\nALL SERVER AI TESTS PASS');
