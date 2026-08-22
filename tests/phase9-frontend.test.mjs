@@ -834,8 +834,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=221/);
-  assert.match(SW, /const CACHE = 'taskflow-v270';/);
+  assert.match(APP, /js\/app\.min\.js\?v=222/);
+  assert.match(SW, /const CACHE = 'taskflow-v271';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1085,18 +1085,19 @@ test('P11: chat helpers extracted — CHAT_RESPONSES/doChatSend/doChatSuggest/ch
   assert.doesNotMatch(APP_JS, /^function doChatSend\(/m);
   assert.doesNotMatch(APP_JS, /^function doChatSuggest\(/m);
   assert.doesNotMatch(APP_JS, /^function chatBotReply\(/m);
-  // call-sites qua window access sau khi nạp — dispatcher + Enter key trong chat input
+  // Dispatcher vẫn qua window access; multiline composer tự sở hữu phím Enter trong chat.js.
   assert.match(APP_JS, /act === 'chat-send'[\s\S]{0,140}window\.TaskFlowChat\.doChatSend\(\)\)/);
   assert.match(APP_JS, /act === 'chat-suggest'[\s\S]{0,140}window\.TaskFlowChat\.doChatSuggest\(el\.dataset\.topic\)\)/);
-  assert.match(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,140}window\.TaskFlowChat\.doChatSend\(\)/);
+  assert.doesNotMatch(APP_JS, /activeElement\.id === 'chatInput'[\s\S]{0,180}window\.TaskFlowChat\.doChatSend\(\)/);
   // module export đủ API + accessor pattern
   const mod = readRequiredAsset('js/chat.js');
+  assert.match(mod, /function _initComposer\(\)[\s\S]*input\.addEventListener\('keydown'/);
   assert.match(mod, /return \{[\s\S]*SUGGESTIONS[\s\S]*doChatSend[\s\S]*doChatSuggest[\s\S]*doChatClear/);
   assert.match(mod, /module\.exports/);
   assert.match(mod, /study-plan/);
 });
 
-test('P11: persistent floating Chat FAB — static HTML/CSS, lazy modules never boot-load', () => {
+test('P11: persistent floating Chat trigger anchors the adaptive assistant without boot-loading modules', () => {
   // 1. FAB exists in the wrap, uses the existing brain icon, ARIA-complete
   const fabBlock = (APP.match(/class="chat-fab" id="chatFab"[\s\S]*?<\/button>/) || [''])[0];
   assert.ok(fabBlock, 'FAB button block must exist');
@@ -1117,17 +1118,18 @@ test('P11: persistent floating Chat FAB — static HTML/CSS, lazy modules never 
   assert.doesNotMatch(APP, /src="js\/chat-provider\.min\.js/);
   assert.doesNotMatch(APP, /src="js\/ai-chat-context\.min\.js/);
   assert.doesNotMatch(APP, /src="js\/ai-context\.min\.js/);
-  // 4. FAB CSS in the critical path: 48px circle, semantic info-blue, dark-safe
-  const CSS = readRequiredAsset('css/styles-critical.css');
-  assert.match(CSS, /\.chat-fab \{\s*width: 48px;\s*height: 48px;\s*border-radius: 50%;/);
-  assert.match(CSS, /\.chat-fab \{\s*[\s\S]{0,300}background: var\(--color-info\);/);
+  // 4. Trigger CSS stays in the critical path and uses the single TaskFlow accent.
+  const CRITICAL_CSS = readRequiredAsset('css/styles-critical.css');
+  const CSS = CRITICAL_CSS + readRequiredAsset('css/styles-deferred.css');
+  assert.match(CRITICAL_CSS, /\.chat-fab \{\s*width: 48px;\s*height: 48px;\s*border-radius: 50%;/);
+  assert.match(CRITICAL_CSS, /\.chat-fab \{\s*[\s\S]{0,300}background: var\(--color-accent\);/);
   assert.match(CSS, /\.chat-fab:hover/);
   assert.match(CSS, /\.chat-fab:active/);
   assert.match(CSS, /\.chat-fab\[aria-expanded="true"\]/);
   // 5. Panel anchored ABOVE the FAB (bottom: calc(100% + 10px)) — no overlap
   assert.match(CSS, /\.chat-pop \{\s*position: absolute;\s*top: auto;\s*bottom: calc\(100% \+ 10px\);/);
-  // 6. Mobile: panel capped with 100dvh (keyboard-safe), FAB above bottom nav
-  assert.match(CSS, /@media \(max-width: 767px\) \{\s*[\s\S]{0,200}\.chat-pop \{ max-height: min\(480px, calc\(100dvh - 176px\)\); \}/);
+  // 6. Mobile: panel becomes a keyboard-safe full-screen sheet; trigger remains above bottom nav.
+  assert.match(CSS, /@media \(max-width: 767px\)[\s\S]*\.chat-pop \{[\s\S]*height: 100dvh/);
   const SHELL = readRequiredAsset('css/app-shell.css');
   assert.match(SHELL, /body \.fb-fab-wrap \{\s*bottom: calc\(82px \+ env\(safe-area-inset-bottom\)\);/);
   // 7. Hidden while More sheet is open (no overlap with critical modals)
@@ -1143,7 +1145,7 @@ test('P11: chat FAB behavior — toggle aria-expanded, focus return, Escape, cli
   // shared close: aria-expanded=false + focus return to FAB, no history wipe
   assert.match(APP_JS, /function closeChatPanel\(\) \{\s*const p = document\.getElementById\('chatPop'\);/);
   assert.match(APP_JS, /fab\.setAttribute\('aria-expanded', 'false'\)/);
-  assert.match(APP_JS, /if \(_chatOpenedFromFab && fab && typeof fab\.focus === 'function'\) fab\.focus\(\);/);
+  assert.match(APP_JS, /const focusCandidates = \[_chatOpener, fab, mobileMore\];\s*const focusTarget = focusCandidates\.find\(\(candidate\) => canRestoreChatFocus\(candidate\)\);\s*if \(focusTarget\) focusTarget\.focus\(\);/);
   assert.match(APP_JS, /act === 'chat-close'\) \{\s*closeChatPanel\(\);\s*return;/);
   // click-outside closes, but never while clicking inside the wrap or openers
   assert.match(APP_JS, /t\.closest\('#chatFabWrap'\) \|\| t\.closest\('\[data-action="chat-toggle"\]'\)\)\) return;/);
@@ -1444,7 +1446,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=221/);
+  assert.match(APP, /js\/app\.min\.js\?v=222/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
@@ -1452,7 +1454,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v270';/);
+  assert.match(SW, /const CACHE = 'taskflow-v271';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2114,7 +2116,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v270';/);
+  assert.match(SW, /const CACHE = 'taskflow-v271';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2192,7 +2194,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v270';/);
+  assert.match(SW, /const CACHE = 'taskflow-v271';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2430,7 +2432,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v270', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v271', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);

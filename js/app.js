@@ -4424,6 +4424,7 @@ function runLazyChat(fn) {
     .then(() => ensureLazyModule('js/effort-calibration.min.js'))
     .then(() => ensureLazyModule('js/goal-tracking.min.js'))
     .then(() => ensureLazyModule('js/ai-agent-runtime.min.js'))
+    .then(() => ensureLazyModule('js/chat-history.min.js'))
     .then(() => ensureLazyModule('js/chat.min.js'))
     .then(() => { initChatContextProvider(); if (fn) fn(); })
     .catch((err) => {
@@ -4445,22 +4446,132 @@ function preloadLazyChat() {
     .then(() => ensureLazyModule('js/ai-plan.min.js'))
     .then(() => ensureLazyModule('js/ai-plan-health.min.js'))
     .then(() => ensureLazyModule('js/ai-agent-runtime.min.js'))
+    .then(() => ensureLazyModule('js/chat-history.min.js'))
     .then(() => ensureLazyModule('js/chat.min.js'))
     .then(() => initChatContextProvider())
     .catch(() => { /* im lặng — send path sẽ tự fallback */ });
+}
+
+function syncChatConsentSwitches() {
+  const permissions = { reflections: false, mood: false };
+  let consentAvailable = false;
+  try {
+    if (window.TaskFlowAIContextConsent && typeof TaskFlowAIContextConsent.getPermissions === 'function') {
+      consentAvailable = true;
+      const saved = TaskFlowAIContextConsent.getPermissions();
+      permissions.reflections = !!(saved && saved.reflections === true);
+      permissions.mood = !!(saved && saved.mood === true);
+    }
+  } catch (e) { /* safe default: both sensitive categories remain OFF */ }
+  document.querySelectorAll('[data-chat-consent]').forEach((control) => {
+    const key = control.dataset.chatConsent;
+    control.setAttribute('aria-checked', String(permissions[key] === true));
+    control.disabled = !consentAvailable;
+  });
+}
+
+function setChatConsentPermission(control) {
+  if (!control) return;
+  const key = control.dataset.chatConsent;
+  if (key !== 'reflections' && key !== 'mood') return;
+  const nextValue = control.getAttribute('aria-checked') !== 'true';
+  runLazyChat(() => {
+    if (window.TaskFlowAIContextConsent && typeof TaskFlowAIContextConsent.setPermission === 'function') {
+      TaskFlowAIContextConsent.setPermission(key, nextValue);
+    }
+    syncChatConsentSwitches();
+  });
 }
 
 /* ---- Chat panel: shared close (P11/P15) ----
    Đóng popover, cập nhật aria-expanded, trả focus về FAB nếu chat mở từ FAB.
    KHÔNG xoá hội thoại/lịch sử. */
 let _chatOpenedFromFab = false;
+let _chatOpener = null;
+function canRestoreChatFocus(element) {
+  if (!element || !element.isConnected || typeof element.focus !== 'function' || element.hidden) return false;
+  if (typeof window.getComputedStyle === 'function') {
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+  }
+  return typeof element.getClientRects !== 'function' || element.getClientRects().length > 0;
+}
+function syncChatPresentation() {
+  const panel = document.getElementById('chatPop');
+  if (!panel) return;
+  const isSheet = !!(window.matchMedia && window.matchMedia('(max-width: 767px)').matches);
+  const drawer = document.getElementById('chatHistoryDrawer');
+  const historyVisible = panel.getAttribute('data-history-open') === 'true' && !!drawer && !drawer.hidden;
+  panel.setAttribute('data-presentation', isSheet ? 'sheet' : 'compact');
+  if (isSheet) panel.setAttribute('aria-modal', 'true');
+  else panel.removeAttribute('aria-modal');
+  panel.setAttribute('aria-labelledby', isSheet && historyVisible ? 'chatHistoryTitle' : 'chatDialogTitle');
+}
+
+const _chatPresentationMedia = window.matchMedia && window.matchMedia('(max-width: 767px)');
+if (_chatPresentationMedia) {
+  const onChatPresentationChange = () => syncChatPresentation();
+  if (typeof _chatPresentationMedia.addEventListener === 'function') {
+    _chatPresentationMedia.addEventListener('change', onChatPresentationChange);
+  } else if (typeof _chatPresentationMedia.addListener === 'function') {
+    _chatPresentationMedia.addListener(onChatPresentationChange);
+  }
+}
+const _chatPresentationPanel = document.getElementById('chatPop');
+if (_chatPresentationPanel && typeof MutationObserver !== 'undefined') {
+  new MutationObserver(() => syncChatPresentation()).observe(_chatPresentationPanel, {
+    attributes: true,
+    attributeFilter: ['data-history-open'],
+  });
+}
+syncChatPresentation();
+
+function closeVisibleChatHistory(event) {
+  const panel = document.getElementById('chatPop');
+  const drawer = document.getElementById('chatHistoryDrawer');
+  if (!panel || panel.hidden || !drawer || drawer.hidden) return false;
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
+  if (window.TaskFlowChat && typeof TaskFlowChat.closeHistory === 'function') {
+    TaskFlowChat.closeHistory({ focusTrigger: true });
+  } else {
+    drawer.hidden = true;
+    panel.removeAttribute('data-history-open');
+    const trigger = document.querySelector('[data-action="chat-history"]');
+    if (trigger) {
+      trigger.setAttribute('aria-expanded', 'false');
+      if (typeof trigger.focus === 'function') trigger.focus();
+    }
+  }
+  syncChatPresentation();
+  return true;
+}
+
 function closeChatPanel() {
   const p = document.getElementById('chatPop');
   if (!p || p.hidden) return false;
+  if (window.TaskFlowChat && typeof TaskFlowChat.closeHistory === 'function') {
+    TaskFlowChat.closeHistory({ focusTrigger: false });
+  }
+  const menu = document.getElementById('chatMenu');
+  const dataPanel = document.getElementById('chatDataPanel');
+  const historyDrawer = document.getElementById('chatHistoryDrawer');
+  if (menu) menu.hidden = true;
+  if (dataPanel) dataPanel.hidden = true;
+  if (historyDrawer) historyDrawer.hidden = true;
+  p.removeAttribute('data-history-open');
+  const menuBtn = p.querySelector('[data-action="chat-menu-toggle"]');
+  const historyBtn = p.querySelector('[data-action="chat-history"]');
+  if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+  if (historyBtn) historyBtn.setAttribute('aria-expanded', 'false');
+  syncChatPresentation();
   p.hidden = true;
   const fab = document.getElementById('chatFab');
   if (fab) fab.setAttribute('aria-expanded', 'false');
-  if (_chatOpenedFromFab && fab && typeof fab.focus === 'function') fab.focus();
+  const mobileMore = document.querySelector('#mobileNav [data-action="more"]');
+  const focusCandidates = [_chatOpener, fab, mobileMore];
+  const focusTarget = focusCandidates.find((candidate) => canRestoreChatFocus(candidate));
+  if (focusTarget) focusTarget.focus();
+  _chatOpener = null;
   _chatOpenedFromFab = false;
   return true;
 }
@@ -4471,7 +4582,13 @@ function closeChatPanel() {
 document.addEventListener('click', (e) => {
   const p = document.getElementById('chatPop');
   if (!p || p.hidden) return;
+  if (p.getAttribute('data-presentation') === 'sheet') return;
   const t = e.target;
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+  const wrap = document.getElementById('chatFabWrap');
+  // A history selection re-renders its clicked button before this listener
+  // runs. composedPath retains the original ancestry even after detachment.
+  if (path.indexOf(p) !== -1 || (wrap && path.indexOf(wrap) !== -1)) return;
   if (t && t.closest && (t.closest('#chatFabWrap') || t.closest('[data-action="chat-toggle"]'))) return;
   closeChatPanel();
 });
@@ -4526,12 +4643,7 @@ function initChatContextProvider() {
 }
 initChatContextProvider();
 
-// Enter key trong chat input gửi tin nhắn
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'chatInput') {
-    e.preventDefault();
-    runLazyChat(() => window.TaskFlowChat.doChatSend());
-  }
   if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'quickAddInput') {
     e.preventDefault();
     runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.submitQuickAdd());
@@ -5601,28 +5713,26 @@ document.addEventListener('click', (e) => {
     const p = document.getElementById('chatPop');
     if (p) {
       const opening = p.hidden;
-      p.hidden = !opening;
+      if (!opening) {
+        closeChatPanel();
+        return;
+      }
+      p.hidden = false;
+      syncChatPresentation();
       const fab = document.getElementById('chatFab');
       if (fab) fab.setAttribute('aria-expanded', String(opening));
-      if (opening) {
-        // Chat mở từ FAB → trả focus về FAB khi đóng (P15).
-        _chatOpenedFromFab = !!(el === fab || (el && el.closest && el.closest('#chatFabWrap')));
-        preloadLazyChat();
-        const pomoPanel = document.getElementById('pomoPanel');
-        if (pomoPanel) pomoPanel.hidden = true;
-        // Trợ lý mở từ Công cụ (desktop) → đóng drawer để panel hiển thị rõ.
-        // More sheet (mobile) giữ nguyên — E2E-verified flow: toggle chat/pomo trong sheet.
-        if (el && el.closest && el.closest('#toolsDrawer')) closeToolsDrawer();
-        // Focus vào input khi mở (P15).
-        const inp = document.getElementById('chatInput');
-        if (inp && typeof inp.focus === 'function') inp.focus();
-      } else {
-        // Đóng từ chính FAB → trả focus về FAB.
-        if (el === fab) {
-          if (fab && typeof fab.focus === 'function') fab.focus();
-          _chatOpenedFromFab = false;
-        }
-      }
+      // Chat mở từ FAB → trả focus về FAB khi đóng (P15).
+      _chatOpenedFromFab = !!(el === fab || (el && el.closest && el.closest('#chatFabWrap')));
+      _chatOpener = el;
+      preloadLazyChat();
+      const pomoPanel = document.getElementById('pomoPanel');
+      if (pomoPanel) pomoPanel.hidden = true;
+      // Trợ lý mở từ Công cụ (desktop) → đóng drawer để panel hiển thị rõ.
+      // More sheet (mobile) giữ nguyên — E2E-verified flow: toggle chat/pomo trong sheet.
+      if (el && el.closest && el.closest('#toolsDrawer')) closeToolsDrawer();
+      // Focus vào input khi mở (P15).
+      const inp = document.getElementById('chatInput');
+      if (inp && typeof inp.focus === 'function') inp.focus();
     }
     return;
   }
@@ -5630,11 +5740,62 @@ document.addEventListener('click', (e) => {
     closeChatPanel();
     return;
   }
+  else if (act === 'chat-menu-toggle') {
+    const menu = document.getElementById('chatMenu');
+    if (menu) {
+      const opening = menu.hidden;
+      menu.hidden = !opening;
+      el.setAttribute('aria-expanded', String(opening));
+    }
+    return;
+  }
+  else if (act === 'chat-data-info') {
+    const menu = document.getElementById('chatMenu');
+    const panel = document.getElementById('chatDataPanel');
+    const menuBtn = document.querySelector('[data-action="chat-menu-toggle"]');
+    if (menu) menu.hidden = true;
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+    if (panel) panel.hidden = false;
+    syncChatConsentSwitches();
+    runLazyChat(() => syncChatConsentSwitches());
+    return;
+  }
+  else if (act === 'chat-consent-toggle') {
+    setChatConsentPermission(el);
+    return;
+  }
+  else if (act === 'chat-data-info-close') {
+    const panel = document.getElementById('chatDataPanel');
+    const menuBtn = document.querySelector('[data-action="chat-menu-toggle"]');
+    if (panel) panel.hidden = true;
+    if (menuBtn && typeof menuBtn.focus === 'function') menuBtn.focus();
+    return;
+  }
+  else if (act === 'chat-history-close') {
+    if (window.TaskFlowChat && typeof TaskFlowChat.closeHistory === 'function') {
+      TaskFlowChat.closeHistory({ focusTrigger: true });
+    } else {
+      const p = document.getElementById('chatPop');
+      const drawer = document.getElementById('chatHistoryDrawer');
+      const historyBtn = document.querySelector('[data-action="chat-history"]');
+      if (drawer) drawer.hidden = true;
+      if (p) p.removeAttribute('data-history-open');
+      if (historyBtn) {
+        historyBtn.setAttribute('aria-expanded', 'false');
+        if (typeof historyBtn.focus === 'function') historyBtn.focus();
+      }
+    }
+    return;
+  }
   else if (act === 'chat-send') {
     runLazyChat(() => window.TaskFlowChat.doChatSend());
     return;
   }
   else if (act === 'chat-clear') {
+    const menu = document.getElementById('chatMenu');
+    const menuBtn = document.querySelector('[data-action="chat-menu-toggle"]');
+    if (menu) menu.hidden = true;
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
     runLazyChat(() => window.TaskFlowChat.doChatClear());
     return;
   }
@@ -6972,7 +7133,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape') {
-    // Floating Chat: Escape đóng popover (không xoá hội thoại), trả focus về FAB.
+    // Floating Chat: Escape đóng popover
+    if (closeVisibleChatHistory(e)) return;
     if (closeChatPanel()) return;
     // P0.2D: Escape trong ô text của draft task trống → xoá draft (không undo/toast)
     const edt = document.activeElement;

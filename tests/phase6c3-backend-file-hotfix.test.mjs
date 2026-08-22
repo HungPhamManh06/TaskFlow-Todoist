@@ -146,6 +146,10 @@ describe('Phase 6C.3 — Backend File Processing Hotfix', () => {
     );
   });
 
+  it('both file endpoints use the shared multipart parser', () => {
+    assert.equal((src.match(/await parseAiFileMultipart\(req\)/g) || []).length, 2);
+  });
+
   it('file route concurrency slot must be released in finally', () => {
     // Find the file route — it's the last router.post before module.exports
     const fileRouteStart = src.indexOf("router.post('/file'");

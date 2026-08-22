@@ -26,7 +26,9 @@ const MAX_MAX_TOKENS = 8192;
 
 // Phase 6U.1: Provider message budget — reject oversized messages before fetch
 const DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024;
-const MAX_MAX_MESSAGE_BYTES = 256 * 1024;
+// File routes may opt into a larger, still-bounded ceiling. Normal chat keeps
+// DEFAULT_MAX_MESSAGE_BYTES because callers must pass maxMessageBytes explicitly.
+const MAX_MAX_MESSAGE_BYTES = 41 * 1024 * 1024;
 
 /**
  * Read provider configuration from environment.

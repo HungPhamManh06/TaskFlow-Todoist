@@ -38,6 +38,21 @@ describe('TaskFlowChatHistory — pure module', function () {
     assert.equal(state.conversations.length, 0);
   });
 
+  it('activeConversationId stays empty across save and load until the first user message', function () {
+    globalThis.localStorage = mockStorage;
+    ChatHistory.save('user1', { version: 1, activeConversationId: '', conversations: [] });
+    const empty = ChatHistory.load('user1');
+    assert.equal(empty.activeConversationId, '');
+    assert.equal(empty.conversations.length, 0);
+
+    const conv = ChatHistory.createConversation('user1');
+    ChatHistory.addMessage('user1', conv.id, { role: 'user', content: 'Tin nhắn đầu tiên' });
+    const persisted = ChatHistory.load('user1');
+    assert.equal(persisted.activeConversationId, conv.id);
+    assert.equal(persisted.conversations.length, 1);
+    assert.equal(persisted.conversations[0].messages[0].role, 'user');
+  });
+
   it('create conversation', function () {
     globalThis.localStorage = mockStorage;
     const conv = ChatHistory.createConversation('user1', 'Test chat');
@@ -569,7 +584,7 @@ describe('chat.js — history drawer', function () {
   });
 
   it('drawer has new conversation button', function () {
-    assert.ok(chatSource.includes('chat-history-new-btn'), 'Must have new btn class');
+    assert.ok(chatSource.includes('[data-action="chat-new"]'), 'Must bind the static new conversation button');
   });
 
   it('drawer has clear all button', function () {
@@ -577,6 +592,6 @@ describe('chat.js — history drawer', function () {
   });
 
   it('drawer has delete per conversation', function () {
-    assert.ok(chatSource.includes('chat-history-item-delete'), 'Must have delete btn class');
+    assert.ok(chatSource.includes('chat-history-item-menu'), 'Must have a secondary menu per conversation');
   });
 });

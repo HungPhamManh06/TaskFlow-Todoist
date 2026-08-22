@@ -442,8 +442,8 @@ describe('Phase 6E — I18n Keys', () => {
 });
 
 describe('Phase 6E — CSS', () => {
-  it('styles-critical.css has Why button styles', () => {
-    const css = read('css/styles-critical.css');
+  it('generated CSS has Why button styles', () => {
+    const css = read('css/styles-critical.css') + read('css/styles-deferred.css');
     assert.ok(css.includes('.agent-why-btn'));
     assert.ok(css.includes('.agent-why-panel'));
     assert.ok(css.includes('.agent-why-title'));

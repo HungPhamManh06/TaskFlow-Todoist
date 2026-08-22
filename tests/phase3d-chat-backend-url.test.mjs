@@ -175,7 +175,7 @@ test('P9: retry reuses the same message, one request, no duplicate user bubble',
   const chat = read('chat.js');
   assert.match(chat, /_doSend\(failedMsg, \{ userBubble: false \}\)/);
   assert.match(chat, /async function _doSend\(text, opts\)/);
-  assert.match(chat, /if \(opts\.userBubble !== false\) _appendText/);
+  assert.match(chat, /if \(opts\.userBubble !== false\) _appendMessage/);
 });
 
 /* ---------- Provider registration ordering (gather fn after lazy load) ---------- */

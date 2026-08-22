@@ -190,11 +190,11 @@ test('validDate: từ chối roll-over (2026-13-40)', () => {
 test('app.html: plannerAi host + ai.min.js script + app.min bump', () => {
   assert.ok(APP.includes('id="plannerAi"'), 'host #plannerAi');
   assert.ok(APP.includes('js/ai.min.js?v=7'), 'script ai.min.js');
-  assert.ok(APP.includes('js/app.min.js?v=221'), 'app.min.js v198');
+  assert.ok(APP.includes('js/app.min.js?v=222'), 'app.min.js v222');
 });
 
 test('sw.js: cache v241 + precache ai.min.js', () => {
-  assert.ok(SW.includes("const CACHE = 'taskflow-v270';"), 'cache v243');
+  assert.ok(SW.includes("const CACHE = 'taskflow-v271';"), 'cache v271');
   assert.ok(SW.includes("'./js/ai.min.js',"), 'precache ai.min.js');
 });
 

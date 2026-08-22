@@ -1,8 +1,8 @@
 // TaskFlow — Trợ lý TaskFlow (Gemini Chat, Phase 2 + Phase 3B context).
 // Gửi tin nhắn → POST /api/ai/chat → backend gọi Gemini → trả lời thật.
 // Phase 3B: với câu hỏi về dữ liệu TaskFlow, client gửi taskflowContext
-// (envelope an toàn từ TaskFlowChatContextProvider — READ-ONLY, không
-// reflections/mood). Câu hỏi chung KHÔNG gửi context. Mọi lỗi context đều
+// (envelope an toàn từ TaskFlowChatContextProvider — READ-ONLY; Reflection
+// và Mood chỉ có sau opt-in tường minh). Câu hỏi chung KHÔNG gửi context. Mọi lỗi context đều
 // fallback về chat thường — không bao giờ làm hỏng cuộc trò chuyện.
 // Gateway: Browser → TaskFlow backend → Gemini (KHÔNG BAO GIỜ browser → Gemini trực tiếp).
 // Lazy-loaded — giữ nguyên pattern P1.5, không nằm trong boot path.
@@ -27,6 +27,7 @@
   var _historyMod = null;
   var _accountScope = null;
   var _activeConversationId = null;
+  var _conversationViews = Object.create(null);
 
   function _getHistory() {
     if (!_historyMod) {
@@ -56,13 +57,9 @@
     var scope = _getAccountScope();
     var convId = _activeConversationId;
     if (!convId) {
-      // Get or create active conversation
       var state = mod.load(scope);
       convId = state.activeConversationId;
-      if (!convId || !mod.getConversation(scope, convId)) {
-        var conv = mod.createConversation(scope);
-        convId = conv.id;
-      }
+      if (!convId || !mod.getConversation(scope, convId)) return null;
       _activeConversationId = convId;
     }
     return mod.getConversation(scope, convId);
@@ -77,6 +74,29 @@
     var newConv = mod.createConversation(scope);
     _activeConversationId = newConv.id;
     return newConv;
+  }
+
+  function _conversationViewKey(conversationId) {
+    return _getAccountScope() + ':' + (conversationId || '__new__');
+  }
+
+  function _captureConversationView() {
+    var input = _el('chatInput');
+    var messages = _el('chatMessages');
+    _conversationViews[_conversationViewKey(_activeConversationId)] = {
+      draft: input ? input.value : '',
+      scrollTop: messages ? messages.scrollTop : 0
+    };
+  }
+
+  function _restoreConversationView(conversationId) {
+    var view = _conversationViews[_conversationViewKey(conversationId)] || { draft: '', scrollTop: 0 };
+    var input = _el('chatInput');
+    var messages = _el('chatMessages');
+    if (input) input.value = view.draft;
+    if (messages) messages.scrollTop = view.scrollTop;
+    if (typeof _resizeComposer === 'function') _resizeComposer(input);
+    if (typeof _syncComposerState === 'function') _syncComposerState();
   }
 
   function _persistUserMessage(text, attachment) {
@@ -140,32 +160,43 @@
     if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
     // Re-enable input
     _setInputEnabled(true);
+    _setAttachmentControlsDisabled(false);
     _setSendMode(false);
-    // Optionally show stopped message
     var msgs = _el('chatMessages');
     if (msgs) {
-      _appendText(msgs, _t('chatStopped'), 'chat-msg bot chat-stopped');
+      _appendMessage(msgs, _t('chatStopped'), 'bot chat-stopped');
     }
+    var input = _el('chatInput');
+    _resizeComposer(input);
+    _syncComposerState();
+    _setContextStatus('idle', []);
+    if (input) input.focus();
     return true;
   }
 
   function _setSendMode(isStopping) {
     var sendBtn = document.querySelector('[data-action="chat-send"]');
     if (!sendBtn) return;
+    var marker = sendBtn.querySelector('[data-chat-send-marker]') || sendBtn.firstElementChild;
+    if (marker && !marker.hasAttribute('data-chat-send-marker')) {
+      marker.setAttribute('data-chat-send-marker', '');
+    }
     if (isStopping) {
-      sendBtn.textContent = _t('chatStop');
+      if (marker) marker.textContent = '■';
       sendBtn.setAttribute('aria-label', _t('chatStopAria'));
       sendBtn.classList.add('chat-send--stopping');
+      sendBtn.disabled = false;
     } else {
-      sendBtn.textContent = _t('chatSend');
-      sendBtn.setAttribute('aria-label', _t('chatSend'));
+      if (marker) marker.textContent = '↑';
+      sendBtn.setAttribute('aria-label', _t('chatSendAria'));
       sendBtn.classList.remove('chat-send--stopping');
+      _syncComposerState();
     }
   }
 
   /* ---- i18n helpers ---- */
-  function _t(key) {
-    try { return (window.TaskFlowI18N && window.TaskFlowI18N.t) ? window.TaskFlowI18N.t(key) : key; }
+  function _t(key, vars) {
+    try { return (window.TaskFlowI18N && window.TaskFlowI18N.t) ? window.TaskFlowI18N.t(key, vars) : key; }
     catch (e) { return key; }
   }
   function _esc(s) {
@@ -187,21 +218,35 @@
   /* ---- DOM helpers ---- */
   function _el(id) { return document.getElementById(id); }
 
-  /* ---- Suggestion chips mapping ---- */
+  /* ---- Suggestion chips mapping (replaces legacy study-plan topics) ---- */
   var SUGGESTIONS = {
-    'study-plan': { text: '📚 Lên kế hoạch học tập', prompt: 'Giúp tôi tạo một phương pháp lập kế hoạch học tập hiệu quả.' },
-    'goal-tips':  { text: '🎯 Mẹo đạt mục tiêu', prompt: 'Cho tôi những mẹo thiết thực để đạt được mục tiêu học tập và làm việc.' },
-    'habit-tips': { text: '🔥 Xây thói quen mới', prompt: 'Làm thế nào để xây dựng một thói quen mới và duy trì nó lâu dài?' },
-    'pomodoro-tips': { text: '🍅 Cách dùng Pomodoro', prompt: 'Giải thích kỹ thuật Pomodoro và cách áp dụng hiệu quả trong học tập.' },
+    'plan-today': { labelKey: 'chatSuggestPlanToday', promptKey: 'chatSuggestPlanTodayPrompt' },
+    'priority-work': { labelKey: 'chatSuggestPriority', promptKey: 'chatSuggestPriorityPrompt' },
+    'week-summary': { labelKey: 'chatSuggestWeek', promptKey: 'chatSuggestWeekPrompt' },
   };
 
   /* ---- Safe text rendering ---- */
-  function _appendText(container, text, className) {
-    var div = document.createElement('div');
-    div.className = className;
-    div.textContent = text;
-    container.appendChild(div);
-    container.scrollTop = container.scrollHeight;
+  function _isNearBottom(container) {
+    return !container || container.scrollHeight - container.scrollTop - container.clientHeight <= 72;
+  }
+
+  function _appendMessage(container, text, role, metaKey) {
+    var shouldStick = _isNearBottom(container);
+    var wrap = document.createElement('div');
+    wrap.className = 'chat-msg ' + role;
+    var body = document.createElement('div');
+    body.className = 'chat-msg-body';
+    body.textContent = text;
+    wrap.appendChild(body);
+    if (metaKey) {
+      var meta = document.createElement('div');
+      meta.className = 'chat-msg-meta';
+      meta.textContent = _t(metaKey);
+      wrap.appendChild(meta);
+    }
+    container.appendChild(wrap);
+    if (shouldStick) container.scrollTop = container.scrollHeight;
+    return wrap;
   }
 
   /* ---- Show/hide typing indicator ---- */
@@ -220,11 +265,7 @@
 
   /* ---- Show localized message ---- */
   function _showInfo(container, text) {
-    var el = document.createElement('div');
-    el.className = 'chat-msg bot chat-info';
-    el.textContent = text;
-    container.appendChild(el);
-    container.scrollTop = container.scrollHeight;
+    _appendMessage(container, text, 'bot chat-info');
   }
 
   /* ---- Show guest prompt with login button ---- */
@@ -273,15 +314,114 @@
     if (input) input.disabled = !enabled;
   }
 
-  /* ---- Hide suggestion chips during active chat ---- */
-  function _setChipsVisible(visible) {
-    var chips = document.querySelectorAll('.chat-chip');
-    for (var i = 0; i < chips.length; i++) {
-      chips[i].style.display = visible ? '' : 'none';
+  function _renderSuggestions(mode) {
+    var actions = _el('chatActions');
+    if (!actions) return;
+    while (actions.firstChild) actions.removeChild(actions.firstChild);
+    if (mode === 'initial') {
+      Object.keys(SUGGESTIONS).forEach(function (topic) {
+        var suggestion = SUGGESTIONS[topic];
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chat-chip';
+        btn.setAttribute('data-action', 'chat-suggest');
+        btn.setAttribute('data-topic', topic);
+        btn.setAttribute('data-i18n', suggestion.labelKey);
+        btn.textContent = _t(suggestion.labelKey);
+        actions.appendChild(btn);
+      });
     }
   }
 
-  /* ---- Context badge ---- */
+  /* ---- Hide suggestion chips during active chat ---- */
+  function _setChipsVisible(visible) {
+    _renderSuggestions(visible ? 'initial' : 'hidden');
+  }
+
+  /* ---- Multiline composer ---- */
+  function _shouldSubmitComposer(event) {
+    return !!event && event.key === 'Enter' && !event.shiftKey && !event.isComposing;
+  }
+
+  function _resizeComposer(textarea) {
+    if (!textarea || !textarea.style) return;
+    textarea.style.height = 'auto';
+    // A flex item with height:auto can stretch to the composer's available
+    // height before scrollHeight is read. Collapse it for an intrinsic measure.
+    textarea.style.height = '0px';
+    textarea.style.height = Math.min(textarea.scrollHeight || 0, 112) + 'px';
+  }
+
+  function _syncComposerState() {
+    var input = _el('chatInput');
+    var send = document.querySelector('[data-action="chat-send"]');
+    var hasPayload = !!(input && String(input.value || '').trim()) || _attachedFiles.length > 0;
+    if (send) send.disabled = !_inFlight && !hasPayload;
+    var composer = _el('chatComposer');
+    if (composer) composer.setAttribute('aria-busy', String(_inFlight));
+  }
+
+  var _composerInited = false;
+  function _initComposer() {
+    if (_composerInited) return;
+    var input = _el('chatInput');
+    if (!input) return;
+    input.addEventListener('input', function () {
+      _resizeComposer(input);
+      _syncComposerState();
+    });
+    input.addEventListener('keydown', function (event) {
+      if (!_shouldSubmitComposer(event)) return;
+      event.preventDefault();
+      doChatSend();
+    });
+    _composerInited = true;
+    _resizeComposer(input);
+    _syncComposerState();
+  }
+
+  /* ---- Truthful context-use status ---- */
+  function _contextKeysFromEnvelope(envelope) {
+    var data = envelope && envelope.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
+    var has = function (key) { return Object.prototype.hasOwnProperty.call(data, key); };
+    var keys = [];
+    if (has('tasks')) keys.push('tasks');
+    if (has('projects') || has('milestones')) keys.push('projects');
+    if (has('timeblocks') || has('busy') || has('schedule')) keys.push('schedule');
+    if (has('habits')) keys.push('habits');
+    if (has('reflections')) keys.push('reflections');
+    if (has('mood')) keys.push('mood');
+    return keys;
+  }
+
+  function _setContextStatus(state, keys) {
+    var status = _el('chatContextStatus');
+    var badge = _el('chatContextBadge');
+    var copy = status && status.querySelector ? status.querySelector('[data-chat-context-copy]') : null;
+    var safeKeys = Array.isArray(keys) ? keys.slice() : [];
+    var labels = safeKeys.map(function (key) {
+      var suffix = key.charAt(0).toUpperCase() + key.slice(1);
+      return _t('chatContextCategory' + suffix);
+    });
+    var categories = labels.join(', ');
+    var copyKey = {
+      preparing: 'chatContextPreparing',
+      using: categories ? 'chatContextUsing' : 'chatContextNoData',
+      used: categories ? 'chatContextUsed' : 'chatContextNoData',
+      error: 'chatContextError',
+      idle: 'chatContextIdle',
+    }[state] || 'chatContextIdle';
+    if (status) status.setAttribute('data-context-state', state || 'idle');
+    if (copy) copy.textContent = _t(copyKey, { categories: categories });
+    if (badge) {
+      badge.textContent = categories;
+      badge.hidden = !categories;
+      badge.title = categories ? _t('chatContextBadgeTitle') : '';
+    }
+  }
+
+  /* Legacy public helper retained for compatibility; new requests use envelope categories. */
   function _setContextBadge(scope) {
     var badge = _el('chatContextBadge');
     if (!badge) return;
@@ -326,13 +466,11 @@
     if (token) headers['Authorization'] = 'Bearer ' + token;
 
     var taskflowContext = null;
-    var ctxScope = null;
     try {
       if (window.TaskFlowChatContextProvider && window.TaskFlowChatContextProvider.prepare) {
         var ctxRes = window.TaskFlowChatContextProvider.prepare(message);
         if (ctxRes && ctxRes.ok && ctxRes.envelope) {
           taskflowContext = ctxRes.envelope;
-          ctxScope = ctxRes.scope || taskflowContext.scope || null;
         }
       }
     } catch (e) {
@@ -340,10 +478,9 @@
         console.debug('[chat-context] prepare-failed (' + (e && e.name ? e.name : 'exception') + ')');
       }
     }
-    _setContextBadge(ctxScope);
-
     var body = { message: message, history: history };
     if (taskflowContext) body.taskflowContext = taskflowContext;
+    var contextKeys = _contextKeysFromEnvelope(taskflowContext);
 
     // P10: ?debug=1 safe diagnostics — URL resolution only, never token/body/context.
     var debugLog = typeof location !== 'undefined' && /[?&]debug=1/.test(location.search);
@@ -352,6 +489,7 @@
       console.log('[chat] request=/api/ai/chat');
     }
 
+    _setContextStatus('using', contextKeys);
     var res = await fetch(url, {
       method: 'POST',
       headers: headers,
@@ -363,10 +501,12 @@
     try { json = await res.json(); } catch (e) { json = null; }
 
     if (!res.ok || !json || !json.ok) {
+      _setContextStatus('error', []);
       var errCode = (json && json.error) || 'network';
       throw { code: errCode, status: res.status };
     }
 
+    _setContextStatus('used', contextKeys);
     return json.answer;
   }
 
@@ -401,24 +541,28 @@
     if (!msgs) return;
 
     if (!_isOnline()) {
+      _setContextStatus('error', []);
       _showInfo(msgs, _t('chatOffline'));
       return;
     }
     if (!_hasToken()) {
+      _setContextStatus('error', []);
       _showGuestPrompt(msgs);
       return;
     }
     if (text.length > MAX_MSG_LEN) {
+      _setContextStatus('error', []);
       _showInfo(msgs, _t('chatErrorTooLong'));
       return;
     }
 
+    _setContextStatus('preparing', []);
     _inFlight = true;
     _setInputEnabled(false);
     _setChipsVisible(false);
     _setSendMode(true);
 
-    if (opts.userBubble !== false) _appendText(msgs, text, 'chat-msg user');
+    if (opts.userBubble !== false) _appendMessage(msgs, text, 'user');
 
     // Persist user message to history
     _persistUserMessage(text);
@@ -441,6 +585,7 @@
       var useAgent = false;
       if (intent) {
         if (intent.kind === 'clarify' && intent.candidates && intent.candidates.length > 0) {
+          _setContextStatus('idle', []);
           _removeTyping(typingEl);
           if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.showClarification === 'function') {
             window.TaskFlowAIAgentRuntime.showClarification(msgs, intent, function (selectedUid, selectedTask) {
@@ -448,7 +593,7 @@
               if (_send) _send(text, { userBubble: false, resolutionHint: { taskUid: selectedUid } });
             });
           } else {
-            _appendText(msgs, _t('clarifyFallback'), 'chat-msg bot');
+            _appendMessage(msgs, _t('clarifyFallback'), 'bot');
           }
           return;
         }
@@ -462,6 +607,7 @@
         if (!_isCurrentRequest(req.generation)) return; // stale
         _removeTyping(typingEl);
         if (agentRes && agentRes.handled) {
+          _setContextStatus('idle', []);
           var agentReply = (window.TaskFlowAIAgentRuntime.takeResult ? window.TaskFlowAIAgentRuntime.takeResult() : null) || agentRes.reply || null;
           if (agentReply) _persistAssistantMessage(agentReply);
           return;
@@ -473,14 +619,16 @@
 
       if (!_isCurrentRequest(req.generation)) return; // stale
       _removeTyping(typingEl);
-      _appendText(msgs, answer, 'chat-msg bot');
+      _appendMessage(msgs, answer, 'bot');
       _persistAssistantMessage(answer);
 
     } catch (err) {
       if (err && err.name === 'AbortError') {
         // User stopped — typing already removed by stopActiveResponse
+        _setContextStatus('idle', []);
         return;
       }
+      _setContextStatus('error', []);
       _removeTyping(typingEl);
       var errMsg = _mapError(err);
       if (errMsg) _showRetry(msgs, text, errMsg);
@@ -492,6 +640,8 @@
       _setInputEnabled(true);
       _setSendMode(false);
       var input = _el('chatInput');
+      _resizeComposer(input);
+      _syncComposerState();
       if (input) input.focus();
     }
   }
@@ -509,6 +659,8 @@
     var text = input.value.trim();
     if (!text) return;
     input.value = '';
+    _resizeComposer(input);
+    _syncComposerState();
     _doSend(text);
   }
 
@@ -518,36 +670,40 @@
       return;
     }
     var sug = SUGGESTIONS[topic];
-    if (sug && sug.prompt) {
+    if (sug && sug.promptKey) {
       var input = _el('chatInput');
-      if (input) input.value = '';
-      _doSend(sug.prompt);
+      if (input) {
+        input.value = '';
+        _resizeComposer(input);
+        _syncComposerState();
+      }
+      _doSend(_t(sug.promptKey));
     }
   }
 
   /** Clear conversation — reset to welcome state */
   function doChatClear() {
     stopActiveResponse();
-    _clearFileAttachment();
+    _clearFileAttachments();
     // Don't delete conversation from history — just reset the view
     _renderWelcome();
     _setChipsVisible(true);
-    _setContextBadge(null);
+    _setContextStatus('idle', []);
   }
 
-  /** New conversation — create fresh conversation and clear view */
+  /** New conversation — keep a session-only draft until the first user message */
   function newConversation() {
+    _captureConversationView();
     stopActiveResponse();
-    _clearFileAttachment();
+    _clearFileAttachments();
     _activeConversationId = null;
     var mod = _getHistory();
-    if (mod) {
-      var conv = mod.createConversation(_getAccountScope());
-      _activeConversationId = conv.id;
-    }
+    if (mod) mod.setActiveConversation(_getAccountScope(), '');
     _renderWelcome();
     _setChipsVisible(true);
-    _setContextBadge(null);
+    _setContextStatus('idle', []);
+    _restoreConversationView(null);
+    closeHistory({ focusTrigger: false });
   }
 
   /** Render welcome message */
@@ -566,25 +722,38 @@
 
   /** Open a conversation by ID */
   function openConversation(conversationId) {
+    _captureConversationView();
     stopActiveResponse();
-    _clearFileAttachment();
+    _clearFileAttachments();
     _activeConversationId = conversationId;
     var mod = _getHistory();
     if (!mod) return;
     var scope = _getAccountScope();
     mod.setActiveConversation(scope, conversationId);
     var conv = mod.getConversation(scope, conversationId);
-    if (!conv) { _renderWelcome(); return; }
+    if (!conv) {
+      _activeConversationId = null;
+      _renderWelcome();
+      _setChipsVisible(true);
+      _restoreConversationView(null);
+      return;
+    }
     // Render messages
     var msgs = _el('chatMessages');
     if (!msgs) return;
     msgs.innerHTML = '';
     for (var i = 0; i < conv.messages.length; i++) {
       var m = conv.messages[i];
-      var cls = m.role === 'user' ? 'chat-msg user' : 'chat-msg bot';
-      _appendText(msgs, m.content, cls);
+      var role = m.role === 'user' ? 'user' : 'bot';
+      _appendMessage(msgs, m.content, role);
     }
     _setChipsVisible(false);
+    _restoreConversationView(conversationId);
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) {
+      closeHistory({ focusTrigger: false });
+    } else if (_drawerOpen) {
+      _renderHistoryDrawer();
+    }
   }
 
   /** Delete a conversation */
@@ -592,14 +761,18 @@
     var mod = _getHistory();
     if (!mod) return;
     var scope = _getAccountScope();
-    mod.deleteConversation(scope, conversationId);
+    var state = mod.deleteConversation(scope, conversationId);
     if (_activeConversationId === conversationId) {
-      _activeConversationId = null;
-      _ensureConversation();
-      _renderWelcome();
-      _setChipsVisible(true);
+      var nextConversationId = state && state.activeConversationId ? state.activeConversationId : null;
+      if (nextConversationId) {
+        openConversation(nextConversationId);
+      } else {
+        _activeConversationId = null;
+        _renderWelcome();
+        _setChipsVisible(true);
+        _restoreConversationView(null);
+      }
     }
-    // Refresh history drawer if open
     _renderHistoryDrawer();
   }
 
@@ -609,9 +782,9 @@
     if (!mod) return;
     mod.clearAll(_getAccountScope());
     _activeConversationId = null;
-    _ensureConversation();
     _renderWelcome();
     _setChipsVisible(true);
+    _restoreConversationView(null);
     _renderHistoryDrawer();
   }
 
@@ -619,37 +792,49 @@
   var _drawerOpen = false;
 
   function toggleHistory() {
-    _drawerOpen = !_drawerOpen;
+    _setHistoryOpen(!_drawerOpen);
+  }
+
+  function _setHistoryOpen(open, options) {
+    options = options || {};
     var drawer = _el('chatHistoryDrawer');
-    if (drawer) {
-      drawer.hidden = !_drawerOpen;
-      if (_drawerOpen) _renderHistoryDrawer();
+    var panel = _el('chatPop');
+    var trigger = document.querySelector('[data-action="chat-history"]');
+    _drawerOpen = !!open;
+    if (drawer) drawer.hidden = !_drawerOpen;
+    if (panel) {
+      if (_drawerOpen) panel.setAttribute('data-history-open', 'true');
+      else panel.removeAttribute('data-history-open');
     }
+    if (trigger) trigger.setAttribute('aria-expanded', String(_drawerOpen));
+    if (_drawerOpen) {
+      _renderHistoryDrawer();
+      if (options.focus !== false) {
+        var target = document.querySelector('#chatHistoryDrawer .chat-history-item--active .chat-history-item-btn') ||
+          document.querySelector('[data-action="chat-new"]');
+        if (target && typeof target.focus === 'function') target.focus();
+      }
+    } else if (options.focusTrigger && trigger && typeof trigger.focus === 'function') {
+      trigger.focus();
+    }
+  }
+
+  function closeHistory(options) {
+    _setHistoryOpen(false, options || {});
   }
 
   function _renderHistoryDrawer() {
     var drawer = _el('chatHistoryDrawer');
-    if (!drawer) return;
-    drawer.innerHTML = '';
+    var list = _el('chatHistoryList');
+    var footer = _el('chatHistoryFooter');
+    if (!drawer || !list || !footer) return;
+    list.innerHTML = '';
+    footer.innerHTML = '';
 
     var mod = _getHistory();
     var scope = _getAccountScope();
+    if (!_activeConversationId) _getActiveConversation();
     var conversations = mod ? mod.listConversations(scope) : [];
-
-    // Header
-    var header = document.createElement('div');
-    header.className = 'chat-history-header';
-    var titleEl = document.createElement('strong');
-    titleEl.textContent = _t('chatHistory');
-    header.appendChild(titleEl);
-    var newBtn = document.createElement('button');
-    newBtn.type = 'button';
-    newBtn.className = 'chat-history-new-btn';
-    newBtn.textContent = '+ ' + _t('chatNewConversation');
-    newBtn.setAttribute('aria-label', _t('chatNewConversation'));
-    newBtn.addEventListener('click', function () { newConversation(); _drawerOpen = false; _el('chatHistoryDrawer').hidden = true; });
-    header.appendChild(newBtn);
-    drawer.appendChild(header);
 
     if (conversations.length === 0) {
       var empty = document.createElement('div');
@@ -661,7 +846,7 @@
       emptyNote.className = 'chat-history-empty-note';
       emptyNote.textContent = _t('chatHistoryLocalNote');
       empty.appendChild(emptyNote);
-      drawer.appendChild(empty);
+      list.appendChild(empty);
     } else {
       // Group by date
       var groups = _groupByDate(conversations);
@@ -683,37 +868,63 @@
           itemBtn.type = 'button';
           itemBtn.className = 'chat-history-item-btn';
           itemBtn.textContent = conv.title || 'Cuộc trò chuyện mới';
-          itemBtn.setAttribute('aria-label', conv.title);
+          itemBtn.setAttribute('aria-label', conv.title || _t('chatNewConversation'));
           itemBtn.addEventListener('click', (function (id) {
             return function () {
               openConversation(id);
-              _drawerOpen = false;
-              _el('chatHistoryDrawer').hidden = true;
             };
           })(conv.id));
           itemEl.appendChild(itemBtn);
 
-          var timeEl = document.createElement('span');
+          var timeEl = document.createElement('time');
           timeEl.className = 'chat-history-item-time';
           timeEl.textContent = _formatTime(conv.updatedAt);
+          try { timeEl.dateTime = new Date(conv.updatedAt).toISOString(); } catch (e) { /* invalid timestamp */ }
           itemEl.appendChild(timeEl);
 
-          var delBtn = document.createElement('button');
-          delBtn.type = 'button';
-          delBtn.className = 'chat-history-item-delete';
-          delBtn.textContent = '×';
-          delBtn.setAttribute('aria-label', _t('chatDeleteConversation') + ' ' + (conv.title || ''));
-          delBtn.addEventListener('click', (function (id) {
+          var countEl = document.createElement('span');
+          countEl.className = 'chat-history-message-count';
+          countEl.textContent = _t('chatHistoryMessageCount').replace('{n}', String(conv.messages ? conv.messages.length : 0));
+          itemEl.appendChild(countEl);
+
+          var menuBtn = document.createElement('button');
+          menuBtn.type = 'button';
+          menuBtn.className = 'chat-history-item-menu';
+          menuBtn.textContent = '⋯';
+          menuBtn.setAttribute('aria-label', _t('chatConversationOptions'));
+          menuBtn.setAttribute('aria-haspopup', 'menu');
+          menuBtn.setAttribute('aria-expanded', 'false');
+
+          var actions = document.createElement('div');
+          actions.className = 'chat-history-item-actions';
+          actions.setAttribute('role', 'menu');
+          actions.hidden = true;
+          var deleteBtn = document.createElement('button');
+          deleteBtn.type = 'button';
+          deleteBtn.setAttribute('role', 'menuitem');
+          deleteBtn.textContent = _t('chatDeleteConversation');
+          deleteBtn.addEventListener('click', (function (id) {
             return function (e) {
               e.stopPropagation();
-              deleteConversation(id);
+              if (confirm(_t('chatDeleteConversationConfirm'))) deleteConversation(id);
             };
           })(conv.id));
-          itemEl.appendChild(delBtn);
+          actions.appendChild(deleteBtn);
+          menuBtn.addEventListener('click', (function (menu, actionMenu, deleteControl) {
+            return function (e) {
+              e.stopPropagation();
+              var opening = actionMenu.hidden;
+              actionMenu.hidden = !opening;
+              menu.setAttribute('aria-expanded', String(opening));
+              if (opening && typeof deleteControl.focus === 'function') deleteControl.focus();
+            };
+          })(menuBtn, actions, deleteBtn));
+          itemEl.appendChild(menuBtn);
+          itemEl.appendChild(actions);
 
           groupEl.appendChild(itemEl);
         }
-        drawer.appendChild(groupEl);
+        list.appendChild(groupEl);
       }
 
       // Clear all
@@ -729,7 +940,7 @@
         }
       });
       clearEl.appendChild(clearBtn);
-      drawer.appendChild(clearEl);
+      footer.appendChild(clearEl);
     }
   }
 
@@ -766,12 +977,54 @@
   }
 
   /* ---- Phase 6C: File Attachment ---- */
-  var _attachedFile = null;
-  var _fileObjectURL = null;
+  var _attachedFiles = [];
+  var _fileObjectUrls = new Map();
+  var _attachmentQueueVersion = 0;
+  var _dragDepth = 0;
   var _pendingFileProposal = null;
+  var _FILE_MAX_FILES = 5;
   var _FILE_MAX_BYTES = 15 * 1024 * 1024;
+  var _FILE_MAX_TOTAL_BYTES = 30 * 1024 * 1024;
   var _ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain', 'text/markdown']);
   var _ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.txt', '.md']);
+
+  function _fileKey(file) {
+    return `${file.name}\u0000${file.size}\u0000${file.lastModified || 0}`;
+  }
+
+  function _mergeAttachmentCandidates(current, candidates) {
+    var files = Array.isArray(current) ? current.slice() : [];
+    var incoming = Array.isArray(candidates) ? candidates : Array.from(candidates || []);
+    var rejected = [];
+    var keys = new Set(files.map(_fileKey));
+    var totalBytes = files.reduce(function (sum, file) {
+      return sum + (Number.isFinite(file && file.size) && file.size > 0 ? file.size : 0);
+    }, 0);
+
+    incoming.forEach(function (file) {
+      var name = String(file && file.name || '');
+      var key = file ? _fileKey(file) : '';
+      var supported = !!file && (_ALLOWED_TYPES.has(file.type) || /\.md$/i.test(name));
+      var code = '';
+
+      if (keys.has(key)) code = 'duplicate';
+      else if (!supported) code = 'unsupported-type';
+      else if (!Number.isFinite(file.size) || file.size <= 0) code = 'empty-file';
+      else if (file.size > _FILE_MAX_BYTES) code = 'too-large';
+      else if (files.length >= _FILE_MAX_FILES) code = 'too-many-files';
+      else if (totalBytes + file.size > _FILE_MAX_TOTAL_BYTES) code = 'total-too-large';
+
+      if (code) {
+        rejected.push({ name: name, code: code });
+        return;
+      }
+      files.push(file);
+      keys.add(key);
+      totalBytes += file.size;
+    });
+
+    return { files: files, rejected: rejected };
+  }
 
   var FILE_CHIPS_IMAGE = [
     { key: 'fileChipImageDesc', prompt: 'Mô tả ảnh này' },
@@ -821,56 +1074,68 @@
     return { ok: true };
   }
 
-  function _renderFileCard(file) {
+  function _renderFileCards() {
     var card = _el('chatFileCard');
     if (!card) return;
     card.innerHTML = '';
-    if (!file) return;
+    _attachedFiles.forEach(function (file) {
+      var fileKey = _fileKey(file);
+      var cardEl = document.createElement('div');
+      cardEl.className = 'chat-file-card';
+      cardEl.setAttribute('data-file-key', fileKey);
 
-    var cardEl = document.createElement('div');
-    cardEl.className = 'chat-file-card';
+      var icon = document.createElement('span');
+      icon.className = 'chat-file-card-icon';
+      icon.textContent = _fileIcon(file.type);
+      cardEl.appendChild(icon);
 
-    var icon = document.createElement('span');
-    icon.className = 'chat-file-card-icon';
-    icon.textContent = _fileIcon(file.type);
-    cardEl.appendChild(icon);
+      var objectUrl = _fileObjectUrls.get(fileKey);
+      if (file.type && file.type.startsWith('image/') && objectUrl) {
+        var preview = document.createElement('img');
+        preview.className = 'chat-file-preview';
+        preview.src = objectUrl;
+        preview.alt = file.name;
+        cardEl.appendChild(preview);
+      }
 
-    if (file.type && file.type.startsWith('image/') && _fileObjectURL) {
-      var preview = document.createElement('img');
-      preview.className = 'chat-file-preview';
-      preview.src = _fileObjectURL;
-      preview.alt = file.name;
-      cardEl.appendChild(preview);
-    }
+      var info = document.createElement('div');
+      info.className = 'chat-file-card-info';
+      var name = document.createElement('div');
+      name.className = 'chat-file-card-name';
+      name.textContent = file.name;
+      info.appendChild(name);
+      var size = document.createElement('div');
+      size.className = 'chat-file-card-size';
+      size.textContent = _formatFileSize(file.size);
+      info.appendChild(size);
+      cardEl.appendChild(info);
 
-    var info = document.createElement('div');
-    info.className = 'chat-file-card-info';
-    var name = document.createElement('div');
-    name.className = 'chat-file-card-name';
-    name.textContent = file.name;
-    info.appendChild(name);
-    var size = document.createElement('div');
-    size.className = 'chat-file-card-size';
-    size.textContent = _formatFileSize(file.size);
-    info.appendChild(size);
-    cardEl.appendChild(info);
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'chat-file-card-remove';
+      removeBtn.setAttribute('aria-label', _t('chatRemoveFile', { name: file.name }));
+      removeBtn.textContent = '×';
+      removeBtn.disabled = _inFlight;
+      removeBtn.addEventListener('click', function () { _removeAttachedFile(fileKey, true); });
+      cardEl.appendChild(removeBtn);
+      card.appendChild(cardEl);
+    });
 
-    var removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'chat-file-card-remove';
-    removeBtn.setAttribute('aria-label', _t('fileRemove'));
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', function () { _clearFileAttachment(); });
-    cardEl.appendChild(removeBtn);
+    _renderFileChips(_attachedFiles[0] && _attachedFiles[0].type);
+  }
 
-    card.appendChild(cardEl);
-    _renderFileChips(file.type);
+  function _renderFileCard() {
+    _renderFileCards();
   }
 
   function _renderFileChips(mimeType) {
     var chipsEl = _el('chatFileChips');
     if (!chipsEl) return;
     chipsEl.innerHTML = '';
+    if (!_attachedFiles.length) {
+      chipsEl.hidden = true;
+      return;
+    }
     chipsEl.hidden = false;
     var chips = mimeType && mimeType.startsWith('image/') ? FILE_CHIPS_IMAGE
       : mimeType === 'application/pdf' ? FILE_CHIPS_DOC : FILE_CHIPS_TEXT;
@@ -908,29 +1173,102 @@
     }
   }
 
-  function _clearFileAttachment() {
-    _attachedFile = null;
-    if (_fileObjectURL) { URL.revokeObjectURL(_fileObjectURL); _fileObjectURL = null; }
-    var card = _el('chatFileCard');
-    if (card) card.innerHTML = '';
-    var chips = _el('chatFileChips');
-    if (chips) { chips.innerHTML = ''; chips.hidden = true; }
+  function _setAttachmentControlsDisabled(disabled) {
+    var attachBtn = _el('chatAttachBtn');
     var fileInput = _el('chatFileInput');
-    if (fileInput) fileInput.value = '';
+    if (attachBtn) attachBtn.disabled = !!disabled;
+    if (fileInput) fileInput.disabled = !!disabled;
+    if (typeof document !== 'undefined' && document.querySelectorAll) {
+      document.querySelectorAll('.chat-file-card-remove').forEach(function (button) {
+        button.disabled = !!disabled;
+      });
+    }
   }
 
-  function _handleFileSelect(file) {
-    var validation = _validateFile(file);
-    if (!validation.ok) {
-      var toast = window.TaskFlowUI && TaskFlowUI.toast;
-      if (toast) toast(_t(validation.reason), 'error');
-      return;
+  function _announceRejectedFiles(rejected) {
+    if (!Array.isArray(rejected) || !rejected.length) return;
+    var keyByCode = {
+      duplicate: 'chatFileDuplicate',
+      'unsupported-type': 'chatFileUnsupported',
+      'too-large': 'chatFileTooLarge',
+      'too-many-files': 'chatFileTooMany',
+      'total-too-large': 'chatFilesTotalTooLarge'
+    };
+    var lines = rejected.map(function (item) {
+      if (item.code === 'empty-file') return item.name + ': ' + _t('fileEmpty');
+      return _t(keyByCode[item.code] || 'fileFailed', { name: item.name });
+    });
+    var message = lines.join(' ');
+    var status = _el('chat-drop-status');
+    if (status) status.textContent = message;
+    var toast = window.TaskFlowUI && TaskFlowUI.toast;
+    if (toast) toast(message, 'error');
+  }
+
+  function _announceAcceptedCount() {
+    var status = _el('chat-drop-status');
+    if (status) status.textContent = _attachedFiles.length ? _t('chatAcceptedCount', { count: _attachedFiles.length }) : '';
+  }
+
+  function _removeAttachedFile(fileKey, restoreFocus) {
+    if (_inFlight) return;
+    var index = _attachedFiles.findIndex(function (file) { return _fileKey(file) === fileKey; });
+    if (index < 0) return;
+    var objectUrl = _fileObjectUrls.get(fileKey);
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    _fileObjectUrls.delete(fileKey);
+    _attachedFiles = _attachedFiles.filter(function (file) { return _fileKey(file) !== fileKey; });
+    _attachmentQueueVersion++;
+    _renderFileCards();
+    _announceAcceptedCount();
+    _syncComposerState();
+    if (restoreFocus) {
+      var buttons = document.querySelectorAll('.chat-file-card-remove');
+      var target = buttons[index] || buttons[index - 1] || _el('chatAttachBtn');
+      if (target && typeof target.focus === 'function') target.focus();
     }
-    _attachedFile = file;
-    if (file.type && file.type.startsWith('image/')) {
-      _fileObjectURL = URL.createObjectURL(file);
-    }
-    _renderFileCard(file);
+  }
+
+  function _clearFileAttachments() {
+    _fileObjectUrls.forEach(function (objectUrl) { URL.revokeObjectURL(objectUrl); });
+    _fileObjectUrls.clear();
+    _attachedFiles = [];
+    _attachmentQueueVersion++;
+    var fileInput = _el('chatFileInput');
+    if (fileInput) fileInput.value = '';
+    _renderFileCards();
+    _announceAcceptedCount();
+    _syncComposerState();
+  }
+
+  function _clearFileAttachment() {
+    _clearFileAttachments();
+  }
+
+  function _handleFileSelect(candidates) {
+    if (_inFlight) return;
+    var candidateFiles = candidates && typeof candidates.length === 'number'
+      ? Array.from(candidates)
+      : (candidates ? [candidates] : []);
+    var result = _mergeAttachmentCandidates(_attachedFiles, candidateFiles);
+    result.files.forEach(function (file) {
+      var key = _fileKey(file);
+      if (file.type && file.type.startsWith('image/') && !_fileObjectUrls.has(key)) {
+        _fileObjectUrls.set(key, URL.createObjectURL(file));
+      }
+    });
+    if (result.files.length !== _attachedFiles.length) _attachmentQueueVersion++;
+    _attachedFiles = result.files;
+    _renderFileCards();
+    if (result.rejected.length) _announceRejectedFiles(result.rejected);
+    else _announceAcceptedCount();
+    _syncComposerState();
+  }
+
+  function _resetFileDragState() {
+    _dragDepth = 0;
+    var panel = _el('chatPop');
+    if (panel) panel.removeAttribute('data-drop-active');
   }
 
   /* ---- Phase 6D: File intent detection ---- */
@@ -993,15 +1331,18 @@
     var msgs = _el('chatMessages');
     if (!msgs) return;
     if (!_isOnline()) {
+      _setContextStatus('error', []);
       _showInfo(msgs, _t('chatOffline'));
       return;
     }
     if (!_hasToken()) {
+      _setContextStatus('error', []);
       _showGuestPrompt(msgs);
       return;
     }
     var apiBase = _getApiBase();
     if (!apiBase) {
+      _setContextStatus('error', []);
       _showInfo(msgs, _t('chatErrorApiConfig'));
       return;
     }
@@ -1009,6 +1350,7 @@
     var isFileAgent = _isFileAgentIntent(text);
     var endpoint = isFileAgent ? '/api/ai/file-agent' : '/api/ai/file';
 
+    _setContextStatus('preparing', []);
     _inFlight = true;
     _setInputEnabled(false);
     _setChipsVisible(false);
@@ -1019,7 +1361,7 @@
 
     try {
       var fileLabel = _fileIcon(file.type) + ' ' + file.name + ' (' + _formatFileSize(file.size) + ')';
-      _appendText(msgs, text + '\n' + fileLabel, 'chat-msg user');
+      _appendMessage(msgs, text + '\n' + fileLabel, 'user');
 
       // Persist to history with attachment metadata
       _persistUserMessage(text + '\n' + fileLabel, {
@@ -1034,12 +1376,14 @@
       fd.append('file', file);
       fd.append('message', text);
 
+      var fileContextEnvelope = null;
       if (isFileAgent) {
         try {
           var ctxProvider = window.TaskFlowChatContextProvider;
           if (ctxProvider && typeof ctxProvider.prepare === 'function') {
             var ctxResult = ctxProvider.prepare(text);
             if (ctxResult && ctxResult.ok && ctxResult.envelope) {
+              fileContextEnvelope = ctxResult.envelope;
               fd.append('taskflowContext', JSON.stringify(ctxResult.envelope.data || {}));
             }
           }
@@ -1051,6 +1395,8 @@
       var headers = {};
       if (token) headers['Authorization'] = 'Bearer ' + token;
 
+      var fileContextKeys = _contextKeysFromEnvelope(fileContextEnvelope);
+      _setContextStatus('using', fileContextKeys);
       var resp = await fetch(apiBase + endpoint, {
         method: 'POST',
         headers: headers,
@@ -1066,6 +1412,7 @@
       _setFileLoading(file.name, false);
 
       if (!resp.ok || !json || !json.ok) {
+        _setContextStatus('error', []);
         var errorCode = (json && typeof json.error === 'string') ? json.error : 'ai-file-processing-failed';
         var fileErrMsg;
         try {
@@ -1074,14 +1421,15 @@
             ? Review.friendlyError(errorCode, window.TaskFlowI18n && typeof window.TaskFlowI18n.getLang === 'function' ? window.TaskFlowI18n.getLang() : 'vi')
             : _t('fileFailed');
         } catch (e) { fileErrMsg = _t('fileFailed'); }
-        _appendText(msgs, fileErrMsg, 'chat-msg bot');
+        _appendMessage(msgs, fileErrMsg, 'bot');
         _persistAssistantMessage(fileErrMsg);
         return;
       }
 
+      _setContextStatus('used', fileContextKeys);
       if (isFileAgent && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
         _pendingFileProposal = { proposal: json.proposal, source: json.source || { type: file.type, name: file.name } };
-        _appendText(msgs, json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }), 'chat-msg bot');
+        _appendMessage(msgs, json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }), 'bot');
         _persistAssistantMessage(json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }));
         try {
           if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
@@ -1089,17 +1437,21 @@
           }
         } catch (e) { /* review must never break chat */ }
       } else if (isFileAgent && json.proposal && json.proposal.actions && json.proposal.actions.length === 0) {
-        _appendText(msgs, json.proposal.summary || _t('fileAgentNoActions'), 'chat-msg bot');
+        _appendMessage(msgs, json.proposal.summary || _t('fileAgentNoActions'), 'bot');
         _persistAssistantMessage(json.proposal.summary || _t('fileAgentNoActions'));
       } else {
-        _appendText(msgs, json.answer || '', 'chat-msg bot');
+        _appendMessage(msgs, json.answer || '', 'bot');
         _persistAssistantMessage(json.answer || '');
       }
     } catch (e) {
       _setFileLoading(file.name, false);
-      if (e && e.name === 'AbortError') return;
+      if (e && e.name === 'AbortError') {
+        _setContextStatus('idle', []);
+        return;
+      }
+      _setContextStatus('error', []);
       var errMsg = (e && e.code === 'api-config-missing') ? _t('chatErrorApiConfig') : _t('fileFailed');
-      _appendText(msgs, errMsg, 'chat-msg bot');
+      _appendMessage(msgs, errMsg, 'bot');
     } finally {
       if (_isCurrentRequest(req.generation)) {
         _inFlight = false;
@@ -1109,6 +1461,8 @@
       _setSendMode(false);
       _clearFileAttachment();
       var input = _el('chatInput');
+      _resizeComposer(input);
+      _syncComposerState();
       if (input) input.focus();
     }
   }
@@ -1126,6 +1480,8 @@
     var text = input.value.trim();
     if (!text && !_attachedFile) return;
     input.value = '';
+    _resizeComposer(input);
+    _syncComposerState();
     if (_attachedFile) {
       _sendWithFile(text || _t('fileChipSummary'), _attachedFile);
     } else {
@@ -1166,25 +1522,29 @@
     if (drawer) {
       drawer.addEventListener('click', function (e) {
         if (e.target === drawer) {
-          _drawerOpen = false;
-          drawer.hidden = true;
+          closeHistory({ focusTrigger: false });
         }
       });
     }
   }
   _initHistoryDrawer();
+  _initComposer();
+  _renderSuggestions('initial');
 
   /* ---- Listen for account changes ---- */
   function _onAccountChange() {
+    _captureConversationView();
+    stopActiveResponse();
+    _clearFileAttachments();
     _accountScope = null; // Force re-detection
     _activeConversationId = null;
     var mod = _getHistory();
-    if (mod) {
-      var conv = mod.createConversation(_getAccountScope());
-      _activeConversationId = conv.id;
-    }
+    if (mod) mod.setActiveConversation(_getAccountScope(), '');
     _renderWelcome();
     _setChipsVisible(true);
+    _setContextStatus('idle', []);
+    _restoreConversationView(null);
+    closeHistory({ focusTrigger: false });
   }
 
   return {
@@ -1197,15 +1557,35 @@
     deleteConversation: deleteConversation,
     clearAllHistory: clearAllHistory,
     toggleHistory: toggleHistory,
+    closeHistory: closeHistory,
     stopActiveResponse: stopActiveResponse,
     classifyFileIntent: classifyFileIntent,
     _doSend: _doSend,
     _hasToken: _hasToken,
     _isOnline: _isOnline,
     _setContextBadge: _setContextBadge,
+    _contextKeysFromEnvelope: _contextKeysFromEnvelope,
+    _setContextStatus: _setContextStatus,
     _getApiBase: _getApiBase,
     _callChatAPI: _callChatAPI,
     _mapError: _mapError,
     _onAccountChange: _onAccountChange,
+    _captureConversationView: _captureConversationView,
+    _restoreConversationView: _restoreConversationView,
+    _setHistoryOpen: _setHistoryOpen,
+    _shouldSubmitComposer: _shouldSubmitComposer,
+    _resizeComposer: _resizeComposer,
+    _syncComposerState: _syncComposerState,
+    _initComposer: _initComposer,
+    _isNearBottom: _isNearBottom,
+    _appendMessage: _appendMessage,
+    _renderSuggestions: _renderSuggestions,
+    ATTACHMENT_LIMITS: {
+      maxFiles: _FILE_MAX_FILES,
+      maxFileBytes: _FILE_MAX_BYTES,
+      maxTotalBytes: _FILE_MAX_TOTAL_BYTES,
+    },
+    fileKey: _fileKey,
+    mergeAttachmentCandidates: _mergeAttachmentCandidates,
   };
 });

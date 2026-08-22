@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const RENDER = readFileSync(path.join(ROOT, 'render.yaml'), 'utf8');
+const RENDER = readFileSync(path.join(ROOT, 'render.yaml'), 'utf8').replace(/\r\n/g, '\n');
 
 const PROD_APP_URL = 'https://taskflow-todoist.vercel.app/app';
 const PROD_CALLBACK = 'https://todoist-m3c7.onrender.com/api/calendar/callback';

@@ -171,9 +171,10 @@ describe('Phase 6D — Server File Agent Validation', () => {
     assert.ok(fileAgentRoute.includes('releaseSlot'), 'must release slot');
   });
 
-  it('file-agent route uses Busboy with req.headers', () => {
+  it('file-agent route uses the shared Busboy parser', () => {
     const fileAgentRoute = serverSrc.substring(serverSrc.indexOf("router.post('/file-agent'"));
-    assert.ok(fileAgentRoute.includes('Busboy({ headers: req.headers'), 'must use req.headers');
+    assert.ok(fileAgentRoute.includes('await parseAiFileMultipart(req)'), 'must use shared parser');
+    assert.ok(serverSrc.includes('Busboy({ headers: req.headers'), 'shared parser must use req.headers');
   });
 
   it('file-mode route has fileMode defined', () => {
@@ -467,9 +468,9 @@ describe('Phase 6D — File Agent Route Safety', () => {
 
   it('file-agent route has file validation', () => {
     const route = serverSrc.substring(serverSrc.indexOf("router.post('/file-agent'"));
-    assert.ok(route.includes('detectFileType'), 'must validate magic bytes');
-    assert.ok(route.includes('FILE_ALLOWED_MIMES'), 'must check allowed MIME types');
-    assert.ok(route.includes('AI_FILE_MAX_BYTES'), 'must enforce size limit');
+    assert.ok(route.includes('await parseAiFileMultipart(req)'), 'must use shared validation');
+    assert.ok(serverSrc.includes('validateUploadedFileRecord'), 'must validate each record');
+    assert.ok(serverSrc.includes('AI_FILE_MAX_BYTES'), 'must enforce size limit');
   });
 
   it('file-agent route does not return base64 data to client', () => {
@@ -518,7 +519,7 @@ describe('Phase 6D — No Actions Found', () => {
 
   it('returns ok:true with empty actions when no actions found', () => {
     const route = serverSrc.substring(serverSrc.indexOf("router.post('/file-agent'"));
-    assert.ok(route.includes('no-actions') || route.includes('noActions') || route.includes('allActions.length === 0'), 'must handle no-actions case');
+    assert.ok(route.includes('proposal.actions.length === 0'), 'must handle no-actions case');
   });
 });
 
