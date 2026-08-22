@@ -20,8 +20,11 @@ const PROVIDER_HARD_MAX_BYTES     = 256 * 1024;  // 256 KB hard cap
  * + metadata JSON wrapper, so the extracted text portion is capped
  * well below the gateway limit.
  */
-const DEFAULT_EXTRACT_MAX_BYTES = 50 * 1024;   // ~50 KB effective
+const DEFAULT_EXTRACT_MAX_BYTES = 50 * 1024;   // ~50 KB effective (/file single-request)
 const HARD_EXTRACT_MAX_BYTES    = 200 * 1024;   // ~200 KB when route overrides
+// Phase 6D: Larger extraction budget for /file-agent where content is chunked.
+// 6 chunks × 28 KB/chunk ≈ 168 KB; leave headroom for boundary trimming.
+const FILE_AGENT_EXTRACT_MAX_BYTES = 180 * 1024;  // 180 KB for chunked extraction
 
 /* ---- public API ---- */
 
@@ -104,6 +107,7 @@ module.exports = {
   extractPdfText,
   DEFAULT_EXTRACT_MAX_BYTES,
   HARD_EXTRACT_MAX_BYTES,
+  FILE_AGENT_EXTRACT_MAX_BYTES,
   PROVIDER_DEFAULT_MAX_BYTES,
   PROVIDER_HARD_MAX_BYTES,
 };

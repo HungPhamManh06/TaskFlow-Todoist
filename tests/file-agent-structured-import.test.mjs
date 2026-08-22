@@ -60,11 +60,11 @@ describe('FILE_AGENT_SCHEMA — matches runtime contract', function () {
     assert.ok(routeSection.includes('schema: FILE_AGENT_CHUNK_SCHEMA'), 'Must pass FILE_AGENT_CHUNK_SCHEMA to callAiJson per chunk');
   });
 
-  it('uses chunkResult.parsed for structured output per chunk', function () {
+  it('uses chunkCallResult.parsed for structured output per chunk', function () {
     const routeStart = aiSource.indexOf("router.post('/file-agent'");
     const routeEnd = aiSource.indexOf("router.post('/refine'", routeStart);
     const routeSection = aiSource.slice(routeStart, routeEnd);
-    assert.ok(routeSection.includes('chunkResult.parsed'), 'Must use chunkResult.parsed');
+    assert.ok(routeSection.includes('chunkCallResult.parsed'), 'Must use chunkCallResult.parsed');
   });
 
   it('has chunking function', function () {
@@ -96,20 +96,24 @@ describe('chunkText — text splitting', function () {
     chunkText = mod.chunkText;
   });
 
-  it('short text returns single chunk', function () {
+  it('short text returns single chunk with metadata', function () {
     const result = chunkText('Hello world');
-    assert.equal(result.length, 1);
-    assert.equal(result[0], 'Hello world');
+    assert.equal(result.chunks.length, 1);
+    assert.equal(result.chunks[0], 'Hello world');
+    assert.equal(result.truncated, false);
+    assert.equal(result.totalChunks, 1);
   });
 
-  it('empty text returns empty array', function () {
+  it('empty text returns empty with metadata', function () {
     const result = chunkText('');
-    assert.equal(result.length, 0);
+    assert.equal(result.chunks.length, 0);
+    assert.equal(result.truncated, false);
   });
 
-  it('null text returns empty array', function () {
+  it('null text returns empty with metadata', function () {
     const result = chunkText(null);
-    assert.equal(result.length, 0);
+    assert.equal(result.chunks.length, 0);
+    assert.equal(result.truncated, false);
   });
 
   it('long text without headings splits by byte budget', function () {
@@ -119,8 +123,8 @@ describe('chunkText — text splitting', function () {
     }
     const text = lines.join('\n');
     const result = chunkText(text, 6, 28000);
-    assert.ok(result.length > 1, 'Long text should be chunked');
-    assert.ok(result.length <= 6, 'Should not exceed max chunks');
+    assert.ok(result.chunks.length > 1, 'Long text should be chunked');
+    assert.ok(result.chunks.length <= 6, 'Should not exceed max chunks');
   });
 
   it('text with headings splits at heading boundaries', function () {
@@ -130,10 +134,9 @@ describe('chunkText — text splitting', function () {
       'Week 2: Basics',
       'Line 6', 'Line 7', 'Line 8', 'Line 9', 'Line 10',
     ].join('\n');
-    // Create enough content to trigger chunking
     const padded = text + '\n' + 'y'.repeat(30000);
     const result = chunkText(padded, 6, 28000);
-    assert.ok(result.length >= 1);
+    assert.ok(result.chunks.length >= 1);
   });
 });
 

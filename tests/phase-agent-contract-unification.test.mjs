@@ -97,10 +97,10 @@ test('schema: AGENT_ALL_FIELDS only allows root-level id, type, args', () => {
   assert.deepEqual(fields.sort(), ['args', 'id', 'type']);
 });
 
-test('schema: AGENT schema taskRef nested object requires kind when object', () => {
+test('schema: AGENT schema taskRef nested object requires kind, uid, actionId when object', () => {
   const argsSchema = AGENT_PROPOSAL_SCHEMA.properties.actions.items.properties.args;
   const taskRef = argsSchema.properties.taskRef;
-  assert.deepEqual(taskRef.required, ['kind']);
+  assert.deepEqual(taskRef.required.sort(), ['actionId', 'kind', 'uid']);
   assert.deepEqual(taskRef.properties.kind.enum, ['existing', 'action']);
 });
 
@@ -310,30 +310,34 @@ test('file-agent: schema only allows create_task and schedule_task', () => {
 
 /* ============ CHUNKING: chunkText ============ */
 
-test('chunkText: short text returns single chunk', () => {
+test('chunkText: short text returns single chunk with metadata', () => {
   const text = 'Short document content.';
-  const chunks = chunkText(text, 6);
-  assert.equal(chunks.length, 1);
-  assert.equal(chunks[0], text);
+  const result = chunkText(text, 6);
+  assert.equal(result.chunks.length, 1);
+  assert.equal(result.chunks[0], text);
+  assert.equal(result.truncated, false);
+  assert.equal(result.totalChunks, 1);
+  assert.ok(result.processedBytes > 0);
+  assert.equal(result.reason, null);
 });
 
-test('chunkText: empty text returns empty array', () => {
-  const chunks = chunkText('', 6);
-  assert.equal(chunks.length, 0);
+test('chunkText: empty text returns empty with metadata', () => {
+  const result = chunkText('', 6);
+  assert.equal(result.chunks.length, 0);
+  assert.equal(result.truncated, false);
+  assert.equal(result.totalChunks, 0);
 });
 
 test('chunkText: long text produces multiple bounded chunks', () => {
-  // Generate text ~40KB
   const lines = [];
   for (let i = 0; i < 2000; i++) {
     lines.push('Tuần ' + (i + 1) + ': nội dung kế hoạch học tập cho tuần thứ ' + (i + 1));
   }
   const text = lines.join('\n');
-  const chunks = chunkText(text, 6);
-  assert.ok(chunks.length >= 2, 'Should produce multiple chunks');
-  assert.ok(chunks.length <= 6, 'Should not exceed max chunks');
-  // Each chunk should be under the byte budget
-  for (const c of chunks) {
+  const result = chunkText(text, 6);
+  assert.ok(result.chunks.length >= 2, 'Should produce multiple chunks');
+  assert.ok(result.chunks.length <= 6, 'Should not exceed max chunks');
+  for (const c of result.chunks) {
     assert.ok(Buffer.byteLength(c, 'utf8') <= 29000, 'Chunk should be under budget');
   }
 });
@@ -345,9 +349,36 @@ test('chunkText: respects heading boundaries', () => {
     else lines.push('Day ' + i + ': content ' + i);
   }
   const text = lines.join('\n');
-  const chunks = chunkText(text, 6, 5000);
-  // Chunks should prefer splitting at heading boundaries
-  assert.ok(chunks.length >= 1);
+  const result = chunkText(text, 6, 5000);
+  assert.ok(result.chunks.length >= 1);
+});
+
+test('chunkText: reports truncation when exceeding max chunks', () => {
+  const lines = [];
+  for (let i = 0; i < 5000; i++) {
+    lines.push('Tuần ' + (i + 1) + ': content for week ' + (i + 1) + ' ' + 'x'.repeat(20));
+  }
+  const text = lines.join('\n');
+  const result = chunkText(text, 3, 5000);
+  assert.equal(result.truncated, true);
+  assert.equal(result.reason, 'chunk-count-limit');
+  assert.ok(result.chunks.length <= 3);
+});
+
+test('chunkText: 40-week synthetic coverage sentinel', () => {
+  const lines = [];
+  for (let w = 1; w <= 40; w++) {
+    lines.push('Tuần ' + w + ': Plan for week ' + w);
+    lines.push('TASK_WEEK_' + String(w).padStart(2, '0') + ': sentinel task for week ' + w);
+  }
+  const text = lines.join('\n');
+  const result = chunkText(text, 6);
+  // All 40 sentinels must be in the chunks (even if truncated, content is preserved)
+  const allChunks = result.chunks.join('\n');
+  for (let w = 1; w <= 40; w++) {
+    const sentinel = 'TASK_WEEK_' + String(w).padStart(2, '0');
+    assert.ok(allChunks.includes(sentinel), 'Sentinel ' + sentinel + ' must be present');
+  }
 });
 
 test('chunkText: FILE_AGENT_CHUNK_MAX_ACTIONS is 20', () => {

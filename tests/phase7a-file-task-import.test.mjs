@@ -169,9 +169,9 @@ describe('Phase 7A: File-agent schema', () => {
     assert.equal(parseInt(match[1]), 120, 'must be 120');
   });
 
-  it('file-agent schema maxItems uses FILE_IMPORT_MAX_ITEMS', () => {
-    assert.ok(aiJS.includes('maxItems: FILE_IMPORT_MAX_ITEMS'),
-      'file-agent schema must use FILE_IMPORT_MAX_ITEMS');
+  it('file-agent schema maxItems uses FILE_AGENT_CHUNK_MAX_ACTIONS per chunk', () => {
+    assert.ok(aiJS.includes('maxItems: FILE_AGENT_CHUNK_MAX_ACTIONS'),
+      'file-agent schema must use FILE_AGENT_CHUNK_MAX_ACTIONS per chunk');
   });
 
   it('AGENT_MAX_ACTIONS remains 10 for normal agent', () => {

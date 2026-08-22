@@ -89,7 +89,7 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
       'image payload must include image_url.url field'
     );
     assert.ok(
-      src.includes("'data:' + file.mime + ';base64,'"),
+      src.includes("'data:' + ") && src.includes(".mime + ';base64,'"),
       'image payload must use data URL format with validated file MIME'
     );
   });
@@ -106,10 +106,10 @@ describe('Phase 6C.4 — Provider Error Path Hotfix', () => {
     );
   });
 
-  it('text-only batch content remains a plain string', () => {
+  it('text-only batch content uses buildContent getter', () => {
     assert.ok(
-      src.includes("content: hasImages ? parts : parts.join('\\n\\n')"),
-      'text-only batch must collapse to its bounded text part'
+      src.includes('get content()') && src.includes('buildContent(images)'),
+      'text-only batch must use buildContent getter for backward compatibility'
     );
   });
 
