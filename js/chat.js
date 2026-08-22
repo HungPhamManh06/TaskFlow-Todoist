@@ -99,15 +99,17 @@
     if (typeof _syncComposerState === 'function') _syncComposerState();
   }
 
-  function _persistUserMessage(text, attachment) {
+  function _persistUserMessage(text, attachments) {
     var mod = _getHistory();
     if (!mod) return;
     var conv = _ensureConversation();
     if (!conv) return;
+    var normalized = Array.isArray(attachments) ? attachments.slice(0, 5) : (attachments ? [attachments] : []);
     mod.addMessage(_getAccountScope(), conv.id, {
       role: 'user',
       content: text,
-      attachment: attachment || null
+      attachment: normalized[0] || null,
+      attachments: normalized
     });
   }
 
@@ -1094,7 +1096,7 @@
         var preview = document.createElement('img');
         preview.className = 'chat-file-preview';
         preview.src = objectUrl;
-        preview.alt = file.name;
+        preview.alt = '';
         cardEl.appendChild(preview);
       }
 
@@ -1325,8 +1327,11 @@
     return intent.kind !== 'read';
   }
 
-  async function _sendWithFile(text, file) {
-    if (_inFlight || !file) return;
+  async function _sendWithFile(text) {
+    if (_inFlight || !_attachedFiles.length) return;
+    var requestFiles = _attachedFiles.slice();
+    var requestQueueVersion = _attachmentQueueVersion;
+    var requestSucceeded = false;
 
     var msgs = _el('chatMessages');
     if (!msgs) return;
@@ -1353,6 +1358,7 @@
     _setContextStatus('preparing', []);
     _inFlight = true;
     _setInputEnabled(false);
+    _setAttachmentControlsDisabled(true);
     _setChipsVisible(false);
     _setSendMode(true);
 
@@ -1360,20 +1366,16 @@
     var req = _startRequest(isFileAgent ? 'file-agent' : 'file');
 
     try {
-      var fileLabel = _fileIcon(file.type) + ' ' + file.name + ' (' + _formatFileSize(file.size) + ')';
+      var fileLabel = requestFiles.map(function (file) {
+        return _fileIcon(file.type) + ' ' + file.name + ' (' + _formatFileSize(file.size) + ')';
+      }).join('\n');
       _appendMessage(msgs, text + '\n' + fileLabel, 'user');
-
-      // Persist to history with attachment metadata
-      _persistUserMessage(text + '\n' + fileLabel, {
-        type: file.type,
-        name: file.name,
-        size: file.size
-      });
-
-      _setFileLoading(file.name, true);
+      _setFileLoading(requestFiles[0].name, true);
 
       var fd = new FormData();
-      fd.append('file', file);
+      requestFiles.forEach(function (file) {
+        fd.append('files', file, file.name);
+      });
       fd.append('message', text);
 
       var fileContextEnvelope = null;
@@ -1409,7 +1411,7 @@
       var json;
       try { json = await resp.json(); } catch (e) { json = null; }
 
-      _setFileLoading(file.name, false);
+      _setFileLoading(requestFiles[0].name, false);
 
       if (!resp.ok || !json || !json.ok) {
         _setContextStatus('error', []);
@@ -1427,8 +1429,20 @@
       }
 
       _setContextStatus('used', fileContextKeys);
+      if (Array.isArray(json.rejectedFiles) && json.rejectedFiles.length) {
+        _announceRejectedFiles(json.rejectedFiles);
+      }
+      var acceptedFiles = Array.isArray(json.files) && json.files.length
+        ? json.files.map(function (accepted) {
+          return { type: accepted.type || '', name: accepted.name || '', size: accepted.size || 0 };
+        })
+        : requestFiles.map(function (accepted) {
+          return { type: accepted.type || '', name: accepted.name || '', size: accepted.size || 0 };
+        });
+      _persistUserMessage(text + '\n' + fileLabel, acceptedFiles);
+      requestSucceeded = true;
       if (isFileAgent && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
-        _pendingFileProposal = { proposal: json.proposal, source: json.source || { type: file.type, name: file.name } };
+        _pendingFileProposal = { proposal: json.proposal, source: json.source || acceptedFiles[0] || {} };
         _appendMessage(msgs, json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }), 'bot');
         _persistAssistantMessage(json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }));
         try {
@@ -1444,7 +1458,7 @@
         _persistAssistantMessage(json.answer || '');
       }
     } catch (e) {
-      _setFileLoading(file.name, false);
+      _setFileLoading(requestFiles[0].name, false);
       if (e && e.name === 'AbortError') {
         _setContextStatus('idle', []);
         return;
@@ -1456,14 +1470,17 @@
       if (_isCurrentRequest(req.generation)) {
         _inFlight = false;
         _activeRequest = null;
+        _setInputEnabled(true);
+        _setAttachmentControlsDisabled(false);
+        _setSendMode(false);
+        if (requestSucceeded && requestQueueVersion === _attachmentQueueVersion) {
+          _clearFileAttachments();
+        }
+        var input = _el('chatInput');
+        _resizeComposer(input);
+        _syncComposerState();
+        if (input) input.focus();
       }
-      _setInputEnabled(true);
-      _setSendMode(false);
-      _clearFileAttachment();
-      var input = _el('chatInput');
-      _resizeComposer(input);
-      _syncComposerState();
-      if (input) input.focus();
     }
   }
 
@@ -1478,12 +1495,12 @@
     var input = _el('chatInput');
     if (!input) return;
     var text = input.value.trim();
-    if (!text && !_attachedFile) return;
+    if (!text && !_attachedFiles.length) return;
     input.value = '';
     _resizeComposer(input);
     _syncComposerState();
-    if (_attachedFile) {
-      _sendWithFile(text || _t('fileChipSummary'), _attachedFile);
+    if (_attachedFiles.length) {
+      _sendWithFile(text || _t('fileChipSummary'));
     } else {
       _doSend(text);
     }
@@ -1498,9 +1515,41 @@
     if (!attachBtn || !fileInput) return;
     attachBtn.addEventListener('click', function () { fileInput.click(); });
     fileInput.addEventListener('change', function () {
-      if (fileInput.files && fileInput.files[0]) {
-        _handleFileSelect(fileInput.files[0]);
-      }
+      if (fileInput.files && fileInput.files.length) _handleFileSelect(fileInput.files);
+      fileInput.value = '';
+    });
+    var panel = _el('chatPop');
+    function isFileDrag(event) {
+      var types = event && event.dataTransfer && event.dataTransfer.types;
+      return !!types && Array.from(types).indexOf('Files') >= 0;
+    }
+    if (panel) {
+      panel.addEventListener('dragenter', function (event) {
+        if (!isFileDrag(event) || _inFlight) return;
+        event.preventDefault();
+        _dragDepth++;
+        panel.setAttribute('data-drop-active', 'true');
+      });
+      panel.addEventListener('dragover', function (event) {
+        if (!isFileDrag(event) || _inFlight) return;
+        event.preventDefault();
+      });
+      panel.addEventListener('dragleave', function (event) {
+        if (!isFileDrag(event)) return;
+        _dragDepth = Math.max(0, _dragDepth - 1);
+        if (!_dragDepth) _resetFileDragState();
+      });
+      panel.addEventListener('drop', function (event) {
+        if (!isFileDrag(event) || _inFlight) return;
+        event.preventDefault();
+        _resetFileDragState();
+        _handleFileSelect(event.dataTransfer.files);
+      });
+    }
+    window.addEventListener('blur', _resetFileDragState);
+    document.addEventListener('drop', function (event) {
+      if (!panel || panel.contains(event.target)) return;
+      _resetFileDragState();
     });
     _fileInited = true;
   }
@@ -1570,6 +1619,7 @@
     _callChatAPI: _callChatAPI,
     _mapError: _mapError,
     _onAccountChange: _onAccountChange,
+    resetAttachmentDragState: _resetFileDragState,
     _captureConversationView: _captureConversationView,
     _restoreConversationView: _restoreConversationView,
     _setHistoryOpen: _setHistoryOpen,

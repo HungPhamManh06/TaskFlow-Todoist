@@ -36,7 +36,7 @@ describe('Phase 6C.1: File Attachment Init Hotfix', () => {
   });
 
   it('change handler calls _handleFileSelect', () => {
-    assert.ok(chatSrc.includes('_handleFileSelect(fileInput.files[0])'), 'change event should process selected file');
+    assert.ok(chatSrc.includes('_handleFileSelect(fileInput.files)'), 'change event should process all selected files');
   });
 
   it('does NOT use doChatClear as init trigger', () => {

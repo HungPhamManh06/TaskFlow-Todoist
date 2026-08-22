@@ -160,7 +160,8 @@ test('one file request freezes the queue and appends repeated multipart fields',
   assert.match(body, /requestFiles\.forEach\(function \(file\) \{\s*fd\.append\('files', file, file\.name\);/);
   assert.doesNotMatch(body, /fd\.append\('file', file\)/);
   assert.match(body, /_setAttachmentControlsDisabled\(true\)/);
-  assert.match(body, /if \(requestSucceeded\) _clearFileAttachments\(\)/);
+  assert.match(body, /requestSucceeded && requestQueueVersion === _attachmentQueueVersion/);
+  assert.match(body, /_clearFileAttachments\(\)/);
 });
 
 test('stale file requests cannot clear or re-enable a newer queue', () => {
@@ -188,7 +189,8 @@ test('picker and drag-drop share partial acceptance without hijacking non-file d
   assert.match(initBody, /dragleave/);
   assert.match(initBody, /drop/);
   assert.match(initBody, /dataTransfer\.types/);
-  assert.match(initBody, /_mergeAttachmentCandidates\(_attachedFiles,/);
+  assert.match(initBody, /_handleFileSelect\(fileInput\.files\)/);
+  assert.match(functionBody(CHAT_SOURCE, '_handleFileSelect'), /_mergeAttachmentCandidates\(_attachedFiles,/);
   assert.match(initBody, /fileInput\.value = ''/);
   assert.match(initBody, /window\.addEventListener\('blur', _resetFileDragState\)/);
   assert.match(initBody, /document\.addEventListener\('drop'/);

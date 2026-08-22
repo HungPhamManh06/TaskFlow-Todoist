@@ -252,22 +252,18 @@ describe('Phase 7A: Architecture reuse', () => {
 // ====================================================================
 
 describe('Phase 7A: File route integrity', () => {
-  it('/file route uses PDF text extraction (not Base64)', () => {
+  it('shared batch builder uses PDF text extraction (not Base64)', () => {
+    const builderStart = aiJS.indexOf('async function buildAiFileBatchContent');
     const fileRouteStart = aiJS.indexOf("router.post('/file'");
-    const fileAgentStart = aiJS.indexOf("router.post('/file-agent'");
-    const fileRoute = aiJS.substring(fileRouteStart, fileAgentStart);
-    assert.ok(fileRoute.includes('extractPdfText'), 'must use PDF text extraction');
-    assert.ok(!fileRoute.includes("'data:application/pdf;base64,'"),
+    const builder = aiJS.substring(builderStart, fileRouteStart);
+    assert.ok(builder.includes('extractPdfText'), 'must use PDF text extraction');
+    assert.ok(!builder.includes("'data:application/pdf;base64,'"),
       'must not send raw Base64');
   });
 
-  it('/file-agent route uses PDF text extraction (not Base64)', () => {
-    const fileAgentStart = aiJS.indexOf("router.post('/file-agent'");
-    const refineStart = aiJS.indexOf("router.post('/refine'");
-    const route = aiJS.substring(fileAgentStart, refineStart);
-    assert.ok(route.includes('extractPdfText'), 'file-agent must use PDF text extraction');
-    assert.ok(!route.includes("'data:application/pdf;base64,'"),
-      'file-agent must not send raw Base64');
+  it('/file-agent reuses shared PDF extraction', () => {
+    const uses = aiJS.match(/buildAiFileBatchContent\(parsed\.files/g) || [];
+    assert.equal(uses.length, 2, 'file-agent must reuse shared extraction');
   });
 });
 

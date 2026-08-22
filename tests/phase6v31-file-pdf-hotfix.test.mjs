@@ -109,18 +109,16 @@ describe('v3.0.1: PDF text extraction architecture', () => {
     assert.ok(aiJS.includes('extractPdfText'), 'server/ai.js must import extractPdfText');
   });
 
-  it('/file route uses extractPdfText for PDFs', () => {
+  it('shared file batch builder uses extractPdfText for PDFs', () => {
+    const builderStart = aiJS.indexOf('async function buildAiFileBatchContent');
     const fileRouteStart = aiJS.indexOf("router.post('/file'");
-    const fileAgentStart = aiJS.indexOf("router.post('/file-agent'");
-    const fileRoute = aiJS.substring(fileRouteStart, fileAgentStart > fileRouteStart ? fileAgentStart : fileRouteStart + 3000);
-    assert.ok(fileRoute.includes('extractPdfText'), '/file route must call extractPdfText');
+    const builder = aiJS.substring(builderStart, fileRouteStart);
+    assert.ok(builder.includes('extractPdfText'), 'shared builder must call extractPdfText');
   });
 
-  it('/file-agent route uses extractPdfText for PDFs', () => {
-    const fileAgentStart = aiJS.indexOf("router.post('/file-agent'");
-    const refineStart = aiJS.indexOf("router.post('/refine'");
-    const route = aiJS.substring(fileAgentStart, refineStart > fileAgentStart ? refineStart : fileAgentStart + 3000);
-    assert.ok(route.includes('extractPdfText'), '/file-agent route must call extractPdfText');
+  it('both file routes reuse the shared batch builder', () => {
+    const uses = aiJS.match(/buildAiFileBatchContent\(parsed\.files/g) || [];
+    assert.equal(uses.length, 2, 'both routes must use shared extraction');
   });
 
   it('PDF path does NOT send raw Base64 file_data to provider', () => {
@@ -167,12 +165,9 @@ describe('v3.0.1: Provider error propagation', () => {
     assert.ok(fileRoute.includes("aiResult.status === 503"), '/file must preserve 503');
   });
 
-  it('/file returns 422 for pdfResult errors (no-text, unreadable)', () => {
-    const fileRouteStart = aiJS.indexOf("router.post('/file'");
-    const fileAgentStart = aiJS.indexOf("router.post('/file-agent'");
-    const fileRoute = aiJS.substring(fileRouteStart, fileAgentStart > fileRouteStart ? fileAgentStart : fileRouteStart + 3000);
-    assert.ok(fileRoute.includes('!pdfResult.ok'), 'must check pdfResult.ok');
-    assert.ok(fileRoute.includes("res.status(422)"), 'must return 422 for parser errors');
+  it('/file returns 422 when every extracted candidate is rejected', () => {
+    assert.ok(aiJS.includes('!pdfResult.ok'), 'shared builder must check pdfResult.ok');
+    assert.ok(aiJS.includes("return res.status(422).json({ error: 'ai-file-processing-failed'"), 'routes must return 422 when no content remains');
   });
 });
 
@@ -271,7 +266,7 @@ describe('v3.0.1: PDF extraction security', () => {
     const fileRoute = aiJS.substring(fileRouteStart, fileAgentStart > fileRouteStart ? fileAgentStart : fileRouteStart + 3000);
     assert.ok(fileRoute.includes('FILE_SYSTEM_INSTRUCTION'), 'system instruction must exist');
     assert.ok(fileRoute.includes("role: 'system'"), 'must have system role');
-    assert.ok(fileRoute.includes('PDF content'), 'PDF text must be in user content');
+    assert.ok(aiJS.includes('BEGIN UNTRUSTED DOCUMENT'), 'PDF text must be bounded in user content');
   });
 });
 

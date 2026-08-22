@@ -406,7 +406,7 @@ test('chat presentation semantics distinguish compact popover from mobile sheet'
 });
 
 test('frontend E2E covers the adaptive chat history interaction contract', () => {
-  assert.match(FRONTEND_E2E, /def chat_history_redesign_checks\(page, viewport_name\):/);
+  assert.match(FRONTEND_E2E, /def chat_history_redesign_checks\(page, viewport_name, file_requests\):/);
   for (const selector of [
     '#chatHistoryDrawer',
     '#chatHistoryBack',
