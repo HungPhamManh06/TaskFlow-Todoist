@@ -4456,9 +4456,31 @@ function preloadLazyChat() {
    Đóng popover, cập nhật aria-expanded, trả focus về FAB nếu chat mở từ FAB.
    KHÔNG xoá hội thoại/lịch sử. */
 let _chatOpenedFromFab = false;
+function closeVisibleChatHistory(event) {
+  const panel = document.getElementById('chatPop');
+  const drawer = document.getElementById('chatHistoryDrawer');
+  if (!panel || panel.hidden || !drawer || drawer.hidden) return false;
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
+  if (window.TaskFlowChat && typeof TaskFlowChat.closeHistory === 'function') {
+    TaskFlowChat.closeHistory({ focusTrigger: true });
+  } else {
+    drawer.hidden = true;
+    panel.removeAttribute('data-history-open');
+    const trigger = document.querySelector('[data-action="chat-history"]');
+    if (trigger) {
+      trigger.setAttribute('aria-expanded', 'false');
+      if (typeof trigger.focus === 'function') trigger.focus();
+    }
+  }
+  return true;
+}
+
 function closeChatPanel() {
   const p = document.getElementById('chatPop');
   if (!p || p.hidden) return false;
+  if (window.TaskFlowChat && typeof TaskFlowChat.closeHistory === 'function') {
+    TaskFlowChat.closeHistory({ focusTrigger: false });
+  }
   const menu = document.getElementById('chatMenu');
   const dataPanel = document.getElementById('chatDataPanel');
   const historyDrawer = document.getElementById('chatHistoryDrawer');
@@ -5665,14 +5687,18 @@ document.addEventListener('click', (e) => {
     return;
   }
   else if (act === 'chat-history-close') {
-    const p = document.getElementById('chatPop');
-    const drawer = document.getElementById('chatHistoryDrawer');
-    const historyBtn = document.querySelector('[data-action="chat-history"]');
-    if (drawer) drawer.hidden = true;
-    if (p) p.removeAttribute('data-history-open');
-    if (historyBtn) {
-      historyBtn.setAttribute('aria-expanded', 'false');
-      if (typeof historyBtn.focus === 'function') historyBtn.focus();
+    if (window.TaskFlowChat && typeof TaskFlowChat.closeHistory === 'function') {
+      TaskFlowChat.closeHistory({ focusTrigger: true });
+    } else {
+      const p = document.getElementById('chatPop');
+      const drawer = document.getElementById('chatHistoryDrawer');
+      const historyBtn = document.querySelector('[data-action="chat-history"]');
+      if (drawer) drawer.hidden = true;
+      if (p) p.removeAttribute('data-history-open');
+      if (historyBtn) {
+        historyBtn.setAttribute('aria-expanded', 'false');
+        if (typeof historyBtn.focus === 'function') historyBtn.focus();
+      }
     }
     return;
   }
@@ -7022,7 +7048,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Escape') {
-    // Floating Chat: Escape đóng popover (không xoá hội thoại), trả focus về FAB.
+    // Floating Chat: Escape đóng popover
+    if (closeVisibleChatHistory(e)) return;
     if (closeChatPanel()) return;
     // P0.2D: Escape trong ô text của draft task trống → xoá draft (không undo/toast)
     const edt = document.activeElement;

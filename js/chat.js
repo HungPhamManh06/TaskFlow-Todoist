@@ -27,6 +27,7 @@
   var _historyMod = null;
   var _accountScope = null;
   var _activeConversationId = null;
+  var _conversationViews = Object.create(null);
 
   function _getHistory() {
     if (!_historyMod) {
@@ -56,13 +57,9 @@
     var scope = _getAccountScope();
     var convId = _activeConversationId;
     if (!convId) {
-      // Get or create active conversation
       var state = mod.load(scope);
       convId = state.activeConversationId;
-      if (!convId || !mod.getConversation(scope, convId)) {
-        var conv = mod.createConversation(scope);
-        convId = conv.id;
-      }
+      if (!convId || !mod.getConversation(scope, convId)) return null;
       _activeConversationId = convId;
     }
     return mod.getConversation(scope, convId);
@@ -77,6 +74,29 @@
     var newConv = mod.createConversation(scope);
     _activeConversationId = newConv.id;
     return newConv;
+  }
+
+  function _conversationViewKey(conversationId) {
+    return _getAccountScope() + ':' + (conversationId || '__new__');
+  }
+
+  function _captureConversationView() {
+    var input = _el('chatInput');
+    var messages = _el('chatMessages');
+    _conversationViews[_conversationViewKey(_activeConversationId)] = {
+      draft: input ? input.value : '',
+      scrollTop: messages ? messages.scrollTop : 0
+    };
+  }
+
+  function _restoreConversationView(conversationId) {
+    var view = _conversationViews[_conversationViewKey(conversationId)] || { draft: '', scrollTop: 0 };
+    var input = _el('chatInput');
+    var messages = _el('chatMessages');
+    if (input) input.value = view.draft;
+    if (messages) messages.scrollTop = view.scrollTop;
+    if (typeof _resizeComposer === 'function') _resizeComposer(input);
+    if (typeof _syncComposerState === 'function') _syncComposerState();
   }
 
   function _persistUserMessage(text, attachment) {
@@ -535,19 +555,19 @@
     _setContextBadge(null);
   }
 
-  /** New conversation — create fresh conversation and clear view */
+  /** New conversation — keep a session-only draft until the first user message */
   function newConversation() {
+    _captureConversationView();
     stopActiveResponse();
     _clearFileAttachment();
     _activeConversationId = null;
     var mod = _getHistory();
-    if (mod) {
-      var conv = mod.createConversation(_getAccountScope());
-      _activeConversationId = conv.id;
-    }
+    if (mod) mod.setActiveConversation(_getAccountScope(), '');
     _renderWelcome();
     _setChipsVisible(true);
     _setContextBadge(null);
+    _restoreConversationView(null);
+    closeHistory({ focusTrigger: false });
   }
 
   /** Render welcome message */
@@ -566,6 +586,7 @@
 
   /** Open a conversation by ID */
   function openConversation(conversationId) {
+    _captureConversationView();
     stopActiveResponse();
     _clearFileAttachment();
     _activeConversationId = conversationId;
@@ -574,7 +595,13 @@
     var scope = _getAccountScope();
     mod.setActiveConversation(scope, conversationId);
     var conv = mod.getConversation(scope, conversationId);
-    if (!conv) { _renderWelcome(); return; }
+    if (!conv) {
+      _activeConversationId = null;
+      _renderWelcome();
+      _setChipsVisible(true);
+      _restoreConversationView(null);
+      return;
+    }
     // Render messages
     var msgs = _el('chatMessages');
     if (!msgs) return;
@@ -585,6 +612,12 @@
       _appendText(msgs, m.content, cls);
     }
     _setChipsVisible(false);
+    _restoreConversationView(conversationId);
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) {
+      closeHistory({ focusTrigger: false });
+    } else if (_drawerOpen) {
+      _renderHistoryDrawer();
+    }
   }
 
   /** Delete a conversation */
@@ -592,14 +625,18 @@
     var mod = _getHistory();
     if (!mod) return;
     var scope = _getAccountScope();
-    mod.deleteConversation(scope, conversationId);
+    var state = mod.deleteConversation(scope, conversationId);
     if (_activeConversationId === conversationId) {
-      _activeConversationId = null;
-      _ensureConversation();
-      _renderWelcome();
-      _setChipsVisible(true);
+      var nextConversationId = state && state.activeConversationId ? state.activeConversationId : null;
+      if (nextConversationId) {
+        openConversation(nextConversationId);
+      } else {
+        _activeConversationId = null;
+        _renderWelcome();
+        _setChipsVisible(true);
+        _restoreConversationView(null);
+      }
     }
-    // Refresh history drawer if open
     _renderHistoryDrawer();
   }
 
@@ -609,9 +646,9 @@
     if (!mod) return;
     mod.clearAll(_getAccountScope());
     _activeConversationId = null;
-    _ensureConversation();
     _renderWelcome();
     _setChipsVisible(true);
+    _restoreConversationView(null);
     _renderHistoryDrawer();
   }
 
@@ -619,37 +656,49 @@
   var _drawerOpen = false;
 
   function toggleHistory() {
-    _drawerOpen = !_drawerOpen;
+    _setHistoryOpen(!_drawerOpen);
+  }
+
+  function _setHistoryOpen(open, options) {
+    options = options || {};
     var drawer = _el('chatHistoryDrawer');
-    if (drawer) {
-      drawer.hidden = !_drawerOpen;
-      if (_drawerOpen) _renderHistoryDrawer();
+    var panel = _el('chatPop');
+    var trigger = document.querySelector('[data-action="chat-history"]');
+    _drawerOpen = !!open;
+    if (drawer) drawer.hidden = !_drawerOpen;
+    if (panel) {
+      if (_drawerOpen) panel.setAttribute('data-history-open', 'true');
+      else panel.removeAttribute('data-history-open');
     }
+    if (trigger) trigger.setAttribute('aria-expanded', String(_drawerOpen));
+    if (_drawerOpen) {
+      _renderHistoryDrawer();
+      if (options.focus !== false) {
+        var target = document.querySelector('#chatHistoryDrawer .chat-history-item--active .chat-history-item-btn') ||
+          document.querySelector('[data-action="chat-new"]');
+        if (target && typeof target.focus === 'function') target.focus();
+      }
+    } else if (options.focusTrigger && trigger && typeof trigger.focus === 'function') {
+      trigger.focus();
+    }
+  }
+
+  function closeHistory(options) {
+    _setHistoryOpen(false, options || {});
   }
 
   function _renderHistoryDrawer() {
     var drawer = _el('chatHistoryDrawer');
-    if (!drawer) return;
-    drawer.innerHTML = '';
+    var list = _el('chatHistoryList');
+    var footer = _el('chatHistoryFooter');
+    if (!drawer || !list || !footer) return;
+    list.innerHTML = '';
+    footer.innerHTML = '';
 
     var mod = _getHistory();
     var scope = _getAccountScope();
+    if (!_activeConversationId) _getActiveConversation();
     var conversations = mod ? mod.listConversations(scope) : [];
-
-    // Header
-    var header = document.createElement('div');
-    header.className = 'chat-history-header';
-    var titleEl = document.createElement('strong');
-    titleEl.textContent = _t('chatHistory');
-    header.appendChild(titleEl);
-    var newBtn = document.createElement('button');
-    newBtn.type = 'button';
-    newBtn.className = 'chat-history-new-btn';
-    newBtn.textContent = '+ ' + _t('chatNewConversation');
-    newBtn.setAttribute('aria-label', _t('chatNewConversation'));
-    newBtn.addEventListener('click', function () { newConversation(); _drawerOpen = false; _el('chatHistoryDrawer').hidden = true; });
-    header.appendChild(newBtn);
-    drawer.appendChild(header);
 
     if (conversations.length === 0) {
       var empty = document.createElement('div');
@@ -661,7 +710,7 @@
       emptyNote.className = 'chat-history-empty-note';
       emptyNote.textContent = _t('chatHistoryLocalNote');
       empty.appendChild(emptyNote);
-      drawer.appendChild(empty);
+      list.appendChild(empty);
     } else {
       // Group by date
       var groups = _groupByDate(conversations);
@@ -683,37 +732,63 @@
           itemBtn.type = 'button';
           itemBtn.className = 'chat-history-item-btn';
           itemBtn.textContent = conv.title || 'Cuộc trò chuyện mới';
-          itemBtn.setAttribute('aria-label', conv.title);
+          itemBtn.setAttribute('aria-label', conv.title || _t('chatNewConversation'));
           itemBtn.addEventListener('click', (function (id) {
             return function () {
               openConversation(id);
-              _drawerOpen = false;
-              _el('chatHistoryDrawer').hidden = true;
             };
           })(conv.id));
           itemEl.appendChild(itemBtn);
 
-          var timeEl = document.createElement('span');
+          var timeEl = document.createElement('time');
           timeEl.className = 'chat-history-item-time';
           timeEl.textContent = _formatTime(conv.updatedAt);
+          try { timeEl.dateTime = new Date(conv.updatedAt).toISOString(); } catch (e) { /* invalid timestamp */ }
           itemEl.appendChild(timeEl);
 
-          var delBtn = document.createElement('button');
-          delBtn.type = 'button';
-          delBtn.className = 'chat-history-item-delete';
-          delBtn.textContent = '×';
-          delBtn.setAttribute('aria-label', _t('chatDeleteConversation') + ' ' + (conv.title || ''));
-          delBtn.addEventListener('click', (function (id) {
+          var countEl = document.createElement('span');
+          countEl.className = 'chat-history-message-count';
+          countEl.textContent = _t('chatHistoryMessageCount').replace('{n}', String(conv.messages ? conv.messages.length : 0));
+          itemEl.appendChild(countEl);
+
+          var menuBtn = document.createElement('button');
+          menuBtn.type = 'button';
+          menuBtn.className = 'chat-history-item-menu';
+          menuBtn.textContent = '⋯';
+          menuBtn.setAttribute('aria-label', _t('chatConversationOptions'));
+          menuBtn.setAttribute('aria-haspopup', 'menu');
+          menuBtn.setAttribute('aria-expanded', 'false');
+
+          var actions = document.createElement('div');
+          actions.className = 'chat-history-item-actions';
+          actions.setAttribute('role', 'menu');
+          actions.hidden = true;
+          var deleteBtn = document.createElement('button');
+          deleteBtn.type = 'button';
+          deleteBtn.setAttribute('role', 'menuitem');
+          deleteBtn.textContent = _t('chatDeleteConversation');
+          deleteBtn.addEventListener('click', (function (id) {
             return function (e) {
               e.stopPropagation();
-              deleteConversation(id);
+              if (confirm(_t('chatDeleteConversationConfirm'))) deleteConversation(id);
             };
           })(conv.id));
-          itemEl.appendChild(delBtn);
+          actions.appendChild(deleteBtn);
+          menuBtn.addEventListener('click', (function (menu, actionMenu, deleteControl) {
+            return function (e) {
+              e.stopPropagation();
+              var opening = actionMenu.hidden;
+              actionMenu.hidden = !opening;
+              menu.setAttribute('aria-expanded', String(opening));
+              if (opening && typeof deleteControl.focus === 'function') deleteControl.focus();
+            };
+          })(menuBtn, actions, deleteBtn));
+          itemEl.appendChild(menuBtn);
+          itemEl.appendChild(actions);
 
           groupEl.appendChild(itemEl);
         }
-        drawer.appendChild(groupEl);
+        list.appendChild(groupEl);
       }
 
       // Clear all
@@ -729,7 +804,7 @@
         }
       });
       clearEl.appendChild(clearBtn);
-      drawer.appendChild(clearEl);
+      footer.appendChild(clearEl);
     }
   }
 
@@ -1166,8 +1241,7 @@
     if (drawer) {
       drawer.addEventListener('click', function (e) {
         if (e.target === drawer) {
-          _drawerOpen = false;
-          drawer.hidden = true;
+          closeHistory({ focusTrigger: false });
         }
       });
     }
@@ -1176,15 +1250,18 @@
 
   /* ---- Listen for account changes ---- */
   function _onAccountChange() {
+    _captureConversationView();
+    stopActiveResponse();
+    _clearFileAttachment();
     _accountScope = null; // Force re-detection
     _activeConversationId = null;
     var mod = _getHistory();
-    if (mod) {
-      var conv = mod.createConversation(_getAccountScope());
-      _activeConversationId = conv.id;
-    }
+    if (mod) mod.setActiveConversation(_getAccountScope(), '');
     _renderWelcome();
     _setChipsVisible(true);
+    _setContextBadge(null);
+    _restoreConversationView(null);
+    closeHistory({ focusTrigger: false });
   }
 
   return {
@@ -1197,6 +1274,7 @@
     deleteConversation: deleteConversation,
     clearAllHistory: clearAllHistory,
     toggleHistory: toggleHistory,
+    closeHistory: closeHistory,
     stopActiveResponse: stopActiveResponse,
     classifyFileIntent: classifyFileIntent,
     _doSend: _doSend,
@@ -1207,5 +1285,8 @@
     _callChatAPI: _callChatAPI,
     _mapError: _mapError,
     _onAccountChange: _onAccountChange,
+    _captureConversationView: _captureConversationView,
+    _restoreConversationView: _restoreConversationView,
+    _setHistoryOpen: _setHistoryOpen,
   };
 });
