@@ -273,6 +273,11 @@ async function callAiJson(options) {
   return { ok: true, content: result.content, parsed, latencyMs: result.latencyMs, status: 200, error: null, details: null };
 }
 
+/** Safe build SHA from environment. Used by /health and debug meta. */
+function getBuildSha() {
+  return process.env.TASKFLOW_BUILD_SHA || process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'unknown';
+}
+
 module.exports = {
   callAiText,
   callAiJson,
@@ -283,6 +288,7 @@ module.exports = {
   validateTimeout,
   validateMaxTokens,
   validateMaxMessageBytes,
+  getBuildSha,
   DEFAULT_TIMEOUT_MS,
   MIN_TIMEOUT_MS,
   MAX_TIMEOUT_MS,
