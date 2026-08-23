@@ -1666,21 +1666,27 @@
 
       let executionOrder = [];
       if (dry.dependencyGraph) {
-        const dag = dry.dependencyGraph;
-        const inDegree = new Map();
-        const nodes = Array.from(dag.keys());
-        for (const node of nodes) inDegree.set(node, 0);
-        for (const [node, deps] of dag.entries()) {
-          for (const d of deps) inDegree.set(d, (inDegree.get(d) || 0) + 1);
-        }
-        const queue = nodes.filter((n) => inDegree.get(n) === 0);
-        while (queue.length) {
-          const n = queue.shift();
-          executionOrder.push(n);
-          for (const dep of dag.get(n) || []) {
-            const d = inDegree.get(dep) - 1;
-            inDegree.set(dep, d);
-            if (d === 0) queue.push(dep);
+        // Use the canonical topologicalSort from TaskFlowAIAgent
+        if (window.TaskFlowAIAgent && typeof window.TaskFlowAIAgent.topologicalSort === 'function') {
+          executionOrder = window.TaskFlowAIAgent.topologicalSort(dry.dependencyGraph);
+          if (!executionOrder) executionOrder = [];
+        } else {
+          // Fallback: inline Kahn's algorithm with correct DAG semantics
+          const dag = dry.dependencyGraph;
+          const inDegree = new Map();
+          const nodes = Array.from(dag.keys());
+          for (const node of nodes) inDegree.set(node, (dag.get(node) || new Set()).size);
+          const queue = nodes.filter((n) => inDegree.get(n) === 0);
+          while (queue.length) {
+            const n = queue.shift();
+            executionOrder.push(n);
+            for (const [node, deps] of dag.entries()) {
+              if (deps.has(n)) {
+                const newDeg = inDegree.get(node) - 1;
+                inDegree.set(node, newDeg);
+                if (newDeg === 0) queue.push(node);
+              }
+            }
           }
         }
       }

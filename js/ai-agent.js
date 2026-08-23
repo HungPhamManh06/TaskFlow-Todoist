@@ -272,23 +272,26 @@
   }
 
   /* Topological sort of actions (Kahn's algorithm).
+     dag.get(node) = Set of action IDs that this node DEPENDS ON.
+     Invariant: producer (dependency) always executes before consumer (dependent).
      Returns ordered action IDs, or null if cycle (should not happen if buildDependencyGraph passed). */
   function topologicalSort(dag) {
     const inDegree = new Map();
     const nodes = Array.from(dag.keys());
-    for (const node of nodes) inDegree.set(node, 0);
-    for (const [node, deps] of dag.entries()) {
-      for (const d of deps) inDegree.set(d, (inDegree.get(d) || 0) + 1);
-    }
+    // Each node's in-degree = number of dependencies it has (dag.get(node).size)
+    for (const node of nodes) inDegree.set(node, (dag.get(node) || new Set()).size);
     const queue = nodes.filter((n) => inDegree.get(n) === 0);
     const order = [];
     while (queue.length) {
       const n = queue.shift();
       order.push(n);
-      for (const dep of dag.get(n) || []) {
-        const d = inDegree.get(dep) - 1;
-        inDegree.set(dep, d);
-        if (d === 0) queue.push(dep);
+      // After executing n, find all dependents and decrement their in-degree
+      for (const [node, deps] of dag.entries()) {
+        if (deps.has(n)) {
+          const newDeg = inDegree.get(node) - 1;
+          inDegree.set(node, newDeg);
+          if (newDeg === 0) queue.push(node);
+        }
       }
     }
     return order.length === nodes.length ? order : null;

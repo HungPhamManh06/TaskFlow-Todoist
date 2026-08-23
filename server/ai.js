@@ -1133,10 +1133,13 @@ function agentValidChanges(changes) {
   const keys = Object.keys(changes);
   if (!keys.length) return false;
   for (const k of keys) if (AGENT_CHANGE_FIELDS.indexOf(k) === -1) return false;
-  if (changes.text !== undefined && changes.text !== null && (typeof changes.text !== 'string' || !changes.text.trim() || changes.text.length > AGENT_MAX_TEXT)) return false;
-  if (changes.date !== undefined && changes.date !== null && !validDate(changes.date)) return false;
-  if (changes.priority !== undefined && changes.priority !== null && typeof changes.priority !== 'boolean') return false;
-  if (changes.duration !== undefined && !agentValidDuration(changes.duration, true)) return false;
+  // Strip null/undefined fields — strict schema may send all fields as null
+  const hasNonNull = keys.some((k) => changes[k] != null);
+  if (!hasNonNull) return false; // all-null changes = no-op update, reject
+  if (changes.text != null && (typeof changes.text !== 'string' || !changes.text.trim() || changes.text.length > AGENT_MAX_TEXT)) return false;
+  if (changes.date != null && !validDate(changes.date)) return false;
+  if (changes.priority != null && typeof changes.priority !== 'boolean') return false;
+  if (changes.duration != null && !agentValidDuration(changes.duration, true)) return false;
   return true;
 }
 
