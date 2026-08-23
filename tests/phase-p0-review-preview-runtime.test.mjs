@@ -216,20 +216,39 @@ describe('P0 Review Preview: integration with previewAction', () => {
       'description must include task text "Test", got: ' + result.preview.description);
   });
 
-  it('previewAction for schedule_task with action ref falls back gracefully (unknown-action-reference)', () => {
+  it('previewAction for schedule_task with actionIdSet resolves canonical preview', () => {
     const sandbox = createSandbox();
     const { ClientAgent } = loadModules(sandbox);
 
     const action = CREATE_SCHEDULE.actions[1]; // schedule_task
+    // Populate virtualEntities as dryRun would
     const virtualEntities = new Map();
+    const createAction = CREATE_SCHEDULE.actions[0];
+    virtualEntities.set(createAction.id, { uid: 'virtual:a1', text: 'Test Schedule', kind: 'regular' });
+    // Build actionIdSet from all proposal actions (as the runtime now does)
+    const actionIdSet = new Set(CREATE_SCHEDULE.actions.map(a => a.id));
 
-    // previewAction validates each action in isolation with empty actionIdSet,
-    // so kind:'action' taskRef gets unknown-action-reference.
-    // This is expected — the runtime wraps previewAction in try/catch
-    // and falls back to type-based title.
+    // With actionIdSet, schedule_task resolves successfully
+    const result = ClientAgent.previewAction(action, emptyContext, virtualEntities, actionIdSet);
+    assert.ok(result, 'previewAction returns result');
+    assert.ok(result.ok, 'schedule previewAction.ok: ' + JSON.stringify(result));
+    assert.ok(result.preview, 'schedule returns preview');
+    assert.ok(result.preview.title.includes('Xếp lịch') || result.preview.title.includes('schedule'),
+      'schedule title: ' + result.preview.title);
+    // Description should resolve to 'Test Schedule' via virtualEntities
+    assert.ok(result.preview.description.includes('Test Schedule'),
+      'schedule description must resolve to "Test Schedule", got: ' + result.preview.description);
+  });
+
+  it('without actionIdSet, schedule_task still falls back gracefully', () => {
+    const sandbox = createSandbox();
+    const { ClientAgent } = loadModules(sandbox);
+
+    const action = CREATE_SCHEDULE.actions[1];
+    const virtualEntities = new Map();
     const result = ClientAgent.previewAction(action, emptyContext, virtualEntities);
     assert.ok(result, 'previewAction returns result');
-    assert.strictEqual(result.ok, false, 'schedule fails validation in isolation (expected)');
+    assert.strictEqual(result.ok, false, 'without actionIdSet, fails as before');
     assert.ok(result.errors && result.errors.some(e => e.code === 'unknown-action-reference'),
       'fails with unknown-action-reference: ' + JSON.stringify(result.errors));
   });
@@ -265,7 +284,7 @@ describe('P0 Review Preview: runtime integration', () => {
 
     // Verify NO ReferenceError would occur (TYPE_TITLES, dateLabel, etc. not needed)
     assert.ok(hasPreviewAction, 'previewAction delegation removes need for TYPE_TITLES');
-  });  it('create+schedule: _groupChangesForPreview handles dependent action gracefully', () => {
+  });  it('create+schedule: both actions get canonical preview via actionIdSet', () => {
     const sandbox = createSandbox();
     const { ClientAgent } = loadModules(sandbox);
     sandbox.window.TaskFlowAIAgent = ClientAgent;
@@ -276,26 +295,26 @@ describe('P0 Review Preview: runtime integration', () => {
     assert.ok(dry.valid, 'dryRun: ' + JSON.stringify(dry.errors));
 
     const virtualEntities = dry.virtualEntities || new Map();
+    const actionIdSet = new Set(CREATE_SCHEDULE.actions.map(a => a.id));
 
-    // The runtime's _groupChangesForPreview calls previewAction per-action
-    // with try/catch fallback. Simulate that:
+    // Simulate the runtime's _groupChangesForPreview with actionIdSet
     const results = CREATE_SCHEDULE.actions.map(action => {
       try {
-        const result = ClientAgent.previewAction(action, emptyContext, virtualEntities);
+        const result = ClientAgent.previewAction(action, emptyContext, virtualEntities, actionIdSet);
         if (result && result.ok && result.preview) return result.preview;
       } catch (_e) { /* preview must never break review render */ }
-      // Fallback: type-based title
       return { title: action.type, description: '', meta: '' };
     });
 
-    // a1 (create) succeeds
+    // a1 (create) succeeds with canonical title and task name
     assert.ok(results[0].title.includes('Tạo'), 'create action gets canonical title');
     assert.ok(results[0].description.includes('Test Schedule'), 'create shows task name');
 
-    // a2 (schedule) falls back but still renders — no crash
-    assert.ok(results[1], 'schedule action gets fallback preview (no crash)');
-    assert.ok(results[1].title, 'schedule has a title');
-    // No ReferenceError was thrown — the key invariant
+    // a2 (schedule) now resolves with actionIdSet — no fallback
+    assert.ok(results[1].title.includes('Xếp lịch') || results[1].title.includes('schedule'),
+      'schedule gets canonical title: ' + results[1].title);
+    assert.ok(results[1].description.includes('Test Schedule'),
+      'schedule description resolves to "Test Schedule", not generic: ' + results[1].description);
   });
 
   it('_renderCardFull produces card with correct DOM structure', () => {

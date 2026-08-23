@@ -981,6 +981,9 @@
     const hasPreviewAction = window.TaskFlowAIAgent
       && typeof window.TaskFlowAIAgent.previewAction === 'function';
 
+    // Build proposal-local actionIdSet so dependent actions resolve
+    const actionIdSet = new Set(changes.map((c) => c.id));
+
     return grouped.map((ch) => {
       let title = '';
       let description = '';
@@ -988,7 +991,7 @@
 
       if (hasPreviewAction) {
         try {
-          const result = window.TaskFlowAIAgent.previewAction(ch, context, virtualEntities);
+          const result = window.TaskFlowAIAgent.previewAction(ch, context, virtualEntities, actionIdSet);
           if (result && result.ok && result.preview) {
             title = result.preview.title || '';
             description = result.preview.description || '';

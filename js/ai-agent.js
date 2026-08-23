@@ -685,8 +685,8 @@
     return (context && context.lang === 'en') ? `${min} min` : `${min} phút`;
   }
 
-  function previewAction(action, context, virtualEntities) {
-    const r = validateAction(action, context, new Set()); // actionIdSet not strictly needed for preview
+  function previewAction(action, context, virtualEntities, actionIdSet) {
+    const r = validateAction(action, context, actionIdSet || new Set());
     if (!r.ok) return { ok: false, errors: r.errors };
     const a = r.action;
     const type = a.type;
@@ -743,8 +743,9 @@
     v.actions.filter((a) => a.type === 'create_task').forEach((a) => {
       virtualEntities.set(a.id, createVirtualTask(a, context));
     });
+    const actionIdSet = new Set(v.actions.map((a) => a.id));
     const previews = v.actions.map((a) => {
-      const p = previewAction(a, context, virtualEntities);
+      const p = previewAction(a, context, virtualEntities, actionIdSet);
       return p.preview;
     });
     return { ok: true, previews, virtualEntities };
