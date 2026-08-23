@@ -2260,9 +2260,9 @@ const FILE_AGENT_INSTRUCTION_EN = 'You are TaskFlow\'s task extraction system.\n
   'source.evidence max 160 chars, brief extraction snippet.\n' +
   'summary summarizes count and context.';
 
-const FILE_AGENT_CHUNK_MAX_ACTIONS = 20;
+const FILE_AGENT_CHUNK_MAX_ACTIONS = 10;
 const FILE_AGENT_MAX_CHUNKS = 6;
-const FILE_AGENT_CHUNK_TOKENS = 8192;
+const FILE_AGENT_CHUNK_TOKENS = 2048;
 const FILE_AGENT_TOTAL_TIMEOUT_MS = 180000; // 3 min total budget for all chunks
 
 // Gemini-compatible structured output schema — wide nullable contract
@@ -2305,17 +2305,10 @@ const FILE_AGENT_SCHEMA = {
             required: ['taskRef', 'text', 'date', 'start', 'duration', 'priority', 'projectId', 'milestoneId'],
             additionalProperties: false,
           },
-          source: {
-            type: 'object',
-            properties: {
-              kind: { type: 'string', enum: ['document', 'ai-suggested'] },
-              evidence: { type: 'string' },
-            },
-            required: ['kind', 'evidence'],
-            additionalProperties: false,
-          },
+          // NOTE: source is NOT in the provider schema — Gemini attaches it
+          // server-side after provider returns to reduce schema complexity.
         },
-        required: ['id', 'type', 'args', 'source'],
+        required: ['id', 'type', 'args'],
         additionalProperties: false,
       },
     },
@@ -2596,6 +2589,16 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
           console.log('[ai] route=/api/ai/file-agent requestId=' + requestId + ' status=chunk-validation-failed chunkIndex=' + ci + ' chunkCount=' + chunkCount + ' latencyMs=' + (Date.now() - startTime));
           continue;
         }
+
+        // Attach source provenance server-side (not in provider schema)
+        chunkProposal.actions.forEach((action) => {
+          if (action && !action.source) {
+            action.source = {
+              kind: 'document',
+              evidence: 'Extracted from attached document',
+            };
+          }
+        });
 
         // Deterministic sequential ID remapping: action #0 in chunk → next global aN
         const chunkActions = chunkProposal.actions;

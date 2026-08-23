@@ -381,8 +381,8 @@ test('chunkText: 40-week synthetic coverage sentinel', () => {
   }
 });
 
-test('chunkText: FILE_AGENT_CHUNK_MAX_ACTIONS is 20', () => {
-  assert.equal(FILE_AGENT_CHUNK_MAX_ACTIONS, 20);
+test('chunkText: FILE_AGENT_CHUNK_MAX_ACTIONS is 10', () => {
+  assert.equal(FILE_AGENT_CHUNK_MAX_ACTIONS, 10);
 });
 
 test('chunkText: FILE_AGENT_MAX_CHUNKS is 6', () => {
