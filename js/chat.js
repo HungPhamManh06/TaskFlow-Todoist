@@ -630,6 +630,32 @@
         useAgent = !!(window.TaskFlowAIAgentRuntime && window.TaskFlowAIAgentRuntime.isActionIntent(text));
       }
 
+      // P1: Document Daily Plan follow-up — "tuần tiếp theo" without PDF re-upload
+      if (!useAgent && window.TaskFlowDocumentDailyPlan && /(?:tuần\s+tiếp|next\s+week|tuần\s+tiếp\s+theo|lập\s+tuần\s+tiếp)/i.test(text)) {
+        var activePlan = window.TaskFlowDocumentDailyPlan.getActiveRoadmap();
+        if (activePlan) {
+          var planResult = await window.TaskFlowDocumentDailyPlan.runNextWindow(text, { signal: req.signal });
+          _removeTyping(typingEl);
+          if (planResult && planResult.ok && planResult.proposal && planResult.proposal.actions && planResult.proposal.actions.length > 0) {
+            var planSummary = planResult.proposal.summary || ('Kế hoạch ' + (planResult.meta ? planResult.meta.daysGenerated : 7) + ' ngày — ' + planResult.proposal.actions.length + ' công việc');
+            _appendMessage(msgs, planSummary, 'bot');
+            _persistAssistantMessage(planSummary);
+            window.TaskFlowDocumentDailyPlan.sendProposalToReview(planResult.proposal, { source: 'document-daily-plan', fileName: activePlan.documentName });
+            _setContextStatus('idle', []);
+            return;
+          } else {
+            _appendMessage(msgs, (planResult && planResult.message) || 'Không thể tạo kế hoạch tuần tiếp theo. Vui lòng thử lại.', 'bot');
+            _setContextStatus('idle', []);
+            return;
+          }
+        } else {
+          _removeTyping(typingEl);
+          _appendMessage(msgs, 'Chưa có kế hoạch tài liệu nào. Vui lòng tải lên PDF trước.', 'bot');
+          _setContextStatus('idle', []);
+          return;
+        }
+      }
+
       if (useAgent) {
         var agentRes = await window.TaskFlowAIAgentRuntime.handleAgent(text, _getProviderHistory(), msgs, { signal: req.signal, generation: req.generation });
         if (!_isCurrentRequest(req.generation)) return; // stale
@@ -1343,6 +1369,11 @@
       return { kind: 'create-tasks', confidence: 'medium', reason: 'task-noun-only' };
     }
     if (hasPlanNoun && hasDayPattern) {
+      // P1: Document Daily Plan — daily/weekly planning from attached document
+      // This takes precedence over generic schedule-tasks when day pattern is explicit
+      if (hasDayPattern) {
+        return { kind: 'document-daily-plan', confidence: 'high', reason: 'daily-plan-from-document' };
+      }
       return { kind: 'schedule-tasks', confidence: 'medium', reason: 'plan-with-schedule' };
     }
 
@@ -1379,8 +1410,10 @@
       return;
     }
 
-    var isFileAgent = _isFileAgentIntent(text);
-    var endpoint = isFileAgent ? '/api/ai/file-agent' : '/api/ai/file';
+    var fileIntent = classifyFileIntent(text);
+    var isFileDailyPlan = fileIntent.kind === 'document-daily-plan';
+    var isFileAgent = fileIntent.kind !== 'read' && !isFileDailyPlan;
+    var endpoint = isFileDailyPlan ? '/api/ai/document-daily-plan' : (isFileAgent ? '/api/ai/file-agent' : '/api/ai/file');
 
     _setContextStatus('preparing', []);
     _inFlight = true;
@@ -1468,7 +1501,42 @@
         });
       _persistUserMessage(text + '\n' + fileLabel, acceptedFiles);
       requestSucceeded = true;
-      if (isFileAgent && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
+
+      // P1: Document Daily Plan — persist roadmap and send to Review
+      if (isFileDailyPlan && json.ok && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
+        try {
+          // Persist roadmap to client storage
+          if (window.TaskFlowDocumentDailyPlan && json.roadmap) {
+            window.TaskFlowDocumentDailyPlan.saveRoadmap({
+              id: 'roadmap-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+              accountScope: window.TaskFlowDocumentDailyPlan._getAccountScope(),
+              fingerprint: json.fingerprint || '',
+              documentName: json.documentName || 'document',
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              roadmap: json.roadmap,
+              cursor: {
+                nextWeek: 1,
+                lastStartDate: json.meta ? json.meta.dateRange[0] : new Date().toISOString().slice(0, 10),
+                lastDaysCount: json.meta ? json.meta.daysGenerated : 7,
+              },
+            });
+          }
+          // Send proposal to existing Review system
+          var summaryText = json.proposal.summary || ('Kế hoạch ' + (json.meta ? json.meta.daysGenerated : 7) + ' ngày — ' + json.proposal.actions.length + ' công việc');
+          _appendMessage(msgs, summaryText, 'bot');
+          _persistAssistantMessage(summaryText);
+          if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
+            var _proposalResult = window.TaskFlowAIAgentRuntime.handleExternalProposal(json.proposal, { source: 'document-daily-plan', fileName: json.documentName });
+            if (_proposalResult && !_proposalResult.ok && _proposalResult.code === 'exception') {
+              _appendMessage(msgs, _t('agentErrorReviewFailed') || _t('agentErrorServer'), 'bot');
+            }
+          }
+        } catch (e) { /* review must never break chat */ }
+      } else if (isFileDailyPlan && json.ok && json.proposal && json.proposal.actions && json.proposal.actions.length === 0) {
+        _appendMessage(msgs, 'Không tìm thấy kế hoạch đủ rõ để chia thành lịch hằng ngày.', 'bot');
+        _persistAssistantMessage('Không tìm thấy kế hoạch đủ rõ để chia thành lịch hằng ngày.');
+      } else if (isFileAgent && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
         _pendingFileProposal = { proposal: json.proposal, source: json.source || acceptedFiles[0] || {} };
         _appendMessage(msgs, json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }), 'bot');
         _persistAssistantMessage(json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }));
