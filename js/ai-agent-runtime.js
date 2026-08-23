@@ -931,7 +931,10 @@
     return el;
   }
 
-  /* Group changes by dependency for preview (Phase 4C) */
+  /* Group changes by dependency for preview (Phase 4C).
+     Input must be canonical Agent actions: { id, type, args }.
+     Do NOT pass dryRun().changes here — dry.changes uses a
+     flattened preview shape without args. */
   function _groupChangesForPreview(changes, virtualEntities, context) {
     // Build a map of actionId -> change
     const changeMap = new Map();
@@ -1325,10 +1328,13 @@
     return card;
   }
 
+  /* _groupChangesForPreview contract: input must be canonical Agent actions
+   * { id, type, args }. Do NOT pass dryRun().changes here — dry.changes
+   * uses a flattened preview shape without args. */
   function _renderCard(msgs, proposal, dry, validationPolicy) {
     // Phase 5C: initialize review state on first render
     const virtualEntities = dry.virtualEntities || new Map();
-    const grouped = _groupChangesForPreview(dry.changes, virtualEntities, dry._ctx);
+    const grouped = _groupChangesForPreview(proposal.actions, virtualEntities, dry._ctx);
     _initReviewState(proposal, dry, grouped, validationPolicy);
     const card = _renderCardFull(msgs, proposal);
     if (card) {
