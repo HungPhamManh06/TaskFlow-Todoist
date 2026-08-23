@@ -98,6 +98,27 @@ function mapUpstreamStatus(status) {
 }
 
 /**
+ * Parse Retry-After header value into safe seconds.
+ * Accepts numeric seconds and HTTP-date format.
+ * Bounds: 1..3600. Returns null on invalid/missing.
+ */
+function _parseRetryAfter(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  // Numeric seconds
+  const n = Number(s);
+  if (Number.isFinite(n) && n >= 1 && n <= 3600) return Math.floor(n);
+  // HTTP-date format
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const diffSec = Math.ceil((d.getTime() - Date.now()) / 1000);
+    if (diffSec >= 1 && diffSec <= 3600) return diffSec;
+  }
+  return null;
+}
+
+/**
  * Safe log — only metadata, never content/prompts/keys.
  */
 function logSafe(parts) {
@@ -210,7 +231,7 @@ async function callAiCore(options) {
   if (!upstream.ok) {
     const code = mapUpstreamStatus(upstream.status);
     logSafe(logPrefix + ' provider=' + provider + ' upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
-    return {
+    const result = {
       ok: false,
       content: null,
       latencyMs,
@@ -218,6 +239,16 @@ async function callAiCore(options) {
       error: code,
       details: ['upstream-' + upstream.status],
     };
+    // Parse Retry-After for provider rate limits
+    if (upstream.status === 429) {
+      const retryAfter = _parseRetryAfter(upstream.headers && upstream.headers.get('retry-after'));
+      result.rateLimit = {
+        source: 'provider',
+        retryAfterSeconds: retryAfter,
+      };
+      logSafe(logPrefix + ' provider=' + provider + ' rateLimitSource=provider retryAfterSeconds=' + (retryAfter === null ? 'null' : retryAfter) + ' latencyMs=' + latencyMs);
+    }
+    return result;
   }
 
   // Parse response JSON
@@ -289,6 +320,7 @@ module.exports = {
   validateMaxTokens,
   validateMaxMessageBytes,
   getBuildSha,
+  _parseRetryAfter,
   DEFAULT_TIMEOUT_MS,
   MIN_TIMEOUT_MS,
   MAX_TIMEOUT_MS,

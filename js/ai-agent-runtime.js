@@ -220,17 +220,23 @@
       // Preserve safe error details for debugging (only known TaskFlow error codes)
       const safeDetails = json && Array.isArray(json.details) ? json.details.slice(0, 5) : undefined;
       const requestId = res.headers && typeof res.headers.get === 'function' ? res.headers.get('x-request-id') : undefined;
-      throw { code: errCode, status: res.status, details: safeDetails, requestId: requestId || undefined };
+      const rateLimit = json && json.rateLimit && typeof json.rateLimit === 'object' ? json.rateLimit : undefined;
+      throw { code: errCode, status: res.status, details: safeDetails, requestId: requestId || undefined, rateLimit: rateLimit || undefined };
     }
     return json.proposal;
   }
 
   function _mapError(err) {
     const code = err && err.code ? err.code : 'network';
+    // Distinguish provider vs local rate limit
+    if (code === 'ai-rate-limited') {
+      const rl = err && err.rateLimit;
+      if (rl && rl.source === 'taskflow') return _t('chatErrorLocalRateLimited');
+      return _t('chatErrorRateLimited');
+    }
     switch (code) {
       case 'ai-not-configured': return _t('chatErrorNotConfigured');
       case 'ai-timeout': return _t('chatErrorTimeout');
-      case 'ai-rate-limited': return _t('chatErrorRateLimited');
       case 'ai-provider-auth': return _t('chatErrorProviderAuth');
       case 'ai-provider-forbidden': return _t('chatErrorProviderForbidden');
       case 'ai-provider-bad-request': return _t('chatErrorBadRequest');
@@ -1815,7 +1821,41 @@
         return { handled: true, aborted: true, reply: null };
       }
       const b = _bubble('agent-info');
-      b.textContent = _mapError(err);
+      var errMsg = _mapError(err);
+      b.textContent = errMsg;
+      // For rate-limit errors, add a retry button with optional countdown
+      if (err && err.code === 'ai-rate-limited') {
+        var retrySec = err.rateLimit && err.rateLimit.retryAfterSeconds;
+        b.appendChild(document.createElement('br'));
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chat-retry-btn';
+        btn.setAttribute('data-testid', 'agent-retry-btn');
+        var _doRetry = function () {
+          if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+          try { handleAgent(message, history, msgs, opts); } catch (_e) { /* */ }
+        };
+        var retryTimer = null;
+        if (Number.isFinite(retrySec) && retrySec > 0) {
+          var remaining = Math.ceil(retrySec);
+          btn.disabled = true;
+          btn.textContent = _t('chatRetryIn', { seconds: remaining });
+          retryTimer = setInterval(function () {
+            remaining--;
+            if (remaining <= 0) {
+              if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+              btn.disabled = false;
+              btn.textContent = _t('chatRetry');
+            } else {
+              btn.textContent = _t('chatRetryIn', { seconds: remaining });
+            }
+          }, 1000);
+        } else {
+          btn.textContent = _t('chatRetry');
+        }
+        btn.addEventListener('click', _doRetry);
+        b.appendChild(btn);
+      }
       msgs.appendChild(b);
       msgs.scrollTop = msgs.scrollHeight;
       return { handled: true, reply: null };

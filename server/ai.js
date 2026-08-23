@@ -40,6 +40,18 @@ const { callAiText, callAiJson, getConfig, getBuildSha } = require('./ai-provide
 const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('./ai-roadmap-validator');
 const { extractPdfText, DEFAULT_EXTRACT_MAX_BYTES, HARD_EXTRACT_MAX_BYTES, FILE_AGENT_EXTRACT_MAX_BYTES } = require('./ai-file-parser');
 
+/* ---- Safe rate-limit response helper ---- */
+function _rateLimitResponse(res, aiResult) {
+  const rl = aiResult.rateLimit || null;
+  const retrySec = rl && rl.retryAfterSeconds != null ? rl.retryAfterSeconds : null;
+  if (retrySec != null) {
+    res.setHeader('Retry-After', String(retrySec));
+  }
+  const body = { error: aiResult.error, details: aiResult.details || undefined };
+  if (rl) body.rateLimit = rl;
+  return res.status(429).json(body);
+}
+
 // Generate a short request correlation ID
 function generateRequestId() {
   return crypto.randomBytes(8).toString('hex');
@@ -79,8 +91,8 @@ const aiChatLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => String(req.user.id),
-  message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
-  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
+  message: { error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 60 } },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 60 } }),
 });
 
 const aiAgentLimiter = rateLimit({
@@ -89,8 +101,8 @@ const aiAgentLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => String(req.user.id),
-  message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
-  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
+  message: { error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 60 } },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 60 } }),
 });
 
 const aiPlanLimiter = rateLimit({
@@ -99,16 +111,16 @@ const aiPlanLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => String(req.user.id),
-  message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
-  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
+  message: { error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 60 } },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 60 } }),
 });const aiAgentHourlyLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: AI_AGENT_HOURLY_LIMIT,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => String(req.user.id),
-  message: { error: 'ai-rate-limited', retryAfterSeconds: 3600 },
-  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 3600 }),
+  message: { error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 3600 } },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 3600 } }),
 });
 
 // P81: Plan synthesis rate limiter — shares Agent budget
@@ -118,8 +130,8 @@ const aiPlanSynthLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => String(req.user.id),
-  message: { error: 'ai-rate-limited', retryAfterSeconds: 60 },
-  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }),
+  message: { error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 60 } },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 60 } }),
 });
 const aiPlanSynthHourlyLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -518,8 +530,8 @@ router.post('/plan', aiPlanLimiter, async (req, res) => {
     });
 
     if (!aiResult.ok) {
-      const status = aiResult.status === 429 ? 429 : 502;
-      return res.status(status).json({ error: aiResult.error, details: aiResult.details });
+      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
+      return res.status(502).json({ error: aiResult.error, details: aiResult.details });
     }
 
     const proposal = parseProposalContent(aiResult.content);
@@ -695,8 +707,8 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
     });
 
     if (!aiResult.ok) {
-      const status = aiResult.status === 429 ? 429 : 502;
-      return res.status(status).json({ error: aiResult.error });
+      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
+      return res.status(502).json({ error: aiResult.error });
     }
 
     // P80: Discard chain-of-thought if present
@@ -1077,8 +1089,8 @@ router.post('/chat', aiChatLimiter, async (req, res) => {
     });
 
     if (!aiResult.ok) {
-      const status = aiResult.status === 429 ? 429 : 502;
-      return res.status(status).json({ error: aiResult.error, details: aiResult.details });
+      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
+      return res.status(502).json({ error: aiResult.error, details: aiResult.details });
     }
 
     const resp = { ok: true, answer: aiResult.content };
@@ -1641,8 +1653,8 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
       });
 
       if (!aiResult.ok) {
-        const status = aiResult.status === 429 ? 429 : 502;
-        return res.status(status).json({ error: aiResult.error, details: aiResult.details });
+        if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
+        return res.status(502).json({ error: aiResult.error, details: aiResult.details });
       }
 
       // ── 9. Parse → canonicalize → validate response ──
@@ -2084,8 +2096,8 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
       });
 
       if (!aiResult.ok) {
-        const status = aiResult.status === 429 ? 429
-          : aiResult.status === 413 ? 413
+        if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
+        const status = aiResult.status === 413 ? 413
           : aiResult.status === 503 ? 503
           : 502;
         return res.status(status).json({ error: aiResult.error });
@@ -2524,8 +2536,8 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
           providerFailed = true;
           if (ci === 0 && !mergedProposal) {
             // First chunk failed entirely — propagate error
-            const status = chunkCallResult.status === 429 ? 429
-              : chunkCallResult.status === 413 ? 413
+            if (chunkCallResult.status === 429) return _rateLimitResponse(res, chunkCallResult);
+            const status = chunkCallResult.status === 413 ? 413
               : chunkCallResult.status === 503 ? 503 : 502;
             return res.status(status).json({ error: chunkCallResult.error });
           }
@@ -2784,8 +2796,8 @@ router.post('/refine', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) =>
     });
 
     if (!aiResult.ok) {
-      const status = aiResult.status === 429 ? 429 : 502;
-      return res.status(status).json({ error: aiResult.error });
+      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
+      return res.status(502).json({ error: aiResult.error });
     }
 
     // Parse structured operations from response
@@ -2906,8 +2918,8 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
     });
 
     if (!aiResult.ok) {
-      const status = aiResult.status === 429 ? 429 : 502;
-      return res.status(status).json({ ok: false, error: aiResult.error });
+      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
+      return res.status(502).json({ ok: false, error: aiResult.error });
     }
 
     const roadmap = aiResult.parsed;
