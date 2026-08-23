@@ -1884,7 +1884,7 @@
   function handleExternalProposal(proposal, opts) {
     try {
       const msgs = _el('chatMessages');
-      if (!msgs) return;
+      if (!msgs) return { ok: false, code: 'no-chat-messages' };
 
       // Validate against current TaskFlow state
       const ctx = buildContext();
@@ -1894,7 +1894,7 @@
         b.textContent = _mapValidationError(v.errors);
         msgs.appendChild(b);
         msgs.scrollTop = msgs.scrollHeight;
-        return;
+        return { ok: false, code: 'validation-failed', errors: v.errors };
       }
       const dry = window.TaskFlowAIAgent.dryRun(proposal, ctx);
       if (!dry.valid) {
@@ -1902,30 +1902,32 @@
         b.textContent = _mapValidationError(dry.errors);
         msgs.appendChild(b);
         msgs.scrollTop = msgs.scrollHeight;
-        return;
+        return { ok: false, code: 'dry-run-failed', errors: dry.errors };
       }
       if (!Array.isArray(dry.changes) || !dry.changes.length) {
         const b = _bubble('agent-info');
         b.textContent = _t('agentErrorNoActions');
         msgs.appendChild(b);
         msgs.scrollTop = msgs.scrollHeight;
-        return;
+        return { ok: false, code: 'no-actions' };
       }
       dry._ctx = ctx;
       dry._source = opts && opts.source ? opts.source : 'file';
       dry._fileName = opts && opts.fileName ? opts.fileName : '';
       dry._fileMime = opts && opts.fileMime ? opts.fileMime : '';
       _renderCard(msgs, proposal, dry);
+      return { ok: true };
     } catch (e) {
       try {
         const msgs = _el('chatMessages');
         if (msgs) {
           const b = _bubble('agent-info');
-          b.textContent = _t('agentErrorServer');
+          b.textContent = _t('agentErrorReviewFailed') || _t('agentErrorServer');
           msgs.appendChild(b);
           msgs.scrollTop = msgs.scrollHeight;
         }
       } catch (e2) { /* */ }
+      return { ok: false, code: 'exception', error: e };
     }
   }
 

@@ -1447,7 +1447,10 @@
         _persistAssistantMessage(json.proposal.summary || _t('fileAgentFound', { n: json.proposal.actions.length }));
         try {
           if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
-            window.TaskFlowAIAgentRuntime.handleExternalProposal(json.proposal, { source: 'file', fileName: json.source && json.source.name, fileMime: json.source && json.source.type });
+            var _proposalResult = window.TaskFlowAIAgentRuntime.handleExternalProposal(json.proposal, { source: 'file', fileName: json.source && json.source.name, fileMime: json.source && json.source.type });
+            if (_proposalResult && !_proposalResult.ok && _proposalResult.code === 'exception') {
+              _appendMessage(msgs, _t('agentErrorReviewFailed') || _t('agentErrorServer'), 'bot');
+            }
           }
         } catch (e) { /* review must never break chat */ }
       } else if (isFileAgent && json.proposal && json.proposal.actions && json.proposal.actions.length === 0) {

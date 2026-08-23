@@ -369,8 +369,8 @@
       if (clean.duration !== undefined && !validDuration(clean.duration, true)) errors.push({ code: 'invalid-duration', field: 'duration' });
       if (clean.projectId !== undefined && clean.projectId !== null && !findProject(context, clean.projectId)) errors.push({ code: 'unknown-project', field: 'projectId' });
       if (clean.milestoneId !== undefined && clean.milestoneId !== null && !findMilestone(context, clean.milestoneId)) errors.push({ code: 'unknown-milestone', field: 'milestoneId' });
-      // taskRef is not allowed for create_task
-      if (args.taskRef !== undefined) errors.push({ code: 'forbidden-field', field: 'taskRef' });
+      // taskRef must be null or undefined for create_task (strict schema sends null)
+      if (args.taskRef != null) errors.push({ code: 'forbidden-field', field: 'taskRef' });
       if (errors.length) return { ok: false, errors };
       return { ok: true, action: { type, id: action.id, args: clean } };
     }
@@ -382,9 +382,7 @@
       } else {
         const refResult = validateTaskRef(args.taskRef, actionIdSet, context);
         if (!refResult.ok) errors.push({ code: refResult.code, field: 'taskRef' });
-        else if (refResult.ref.kind === 'action' && !validateProducerType(action.id, refResult.ref.actionId, actionIdSet ? Array.from(actionIdSet).map(id => ({id})) : [])) {
-          errors.push({ code: 'invalid-reference-type', field: 'taskRef' });
-        }
+        // Producer type validation is handled by buildDependencyGraph
       }
       if (errors.length) return { ok: false, errors };
       return { ok: true, action: { type, id: action.id, args: { taskRef: args.taskRef } } };
@@ -396,11 +394,13 @@
       } else {
         const refResult = validateTaskRef(args.taskRef, actionIdSet, context);
         if (!refResult.ok) errors.push({ code: refResult.code, field: 'taskRef' });
-        else if (refResult.ref.kind === 'action' && !validateProducerType(action.id, refResult.ref.actionId, [])) {
-          errors.push({ code: 'invalid-reference-type', field: 'taskRef' });
-        }
+        // Producer type validation is handled by buildDependencyGraph
       }
-      const changes = args.changes;
+      let changes = args.changes;
+      // Strict schema may send changes:null for non-update actions; canonicalize away null
+      if (changes === null || changes === undefined) {
+        changes = {};
+      }
       if (!isPlainObject(changes)) {
         return { ok: false, errors: [{ code: 'changes-invalid', field: 'changes' }] };
       }
@@ -412,7 +412,16 @@
         }
       }
       if (!rawKeys.length) return { ok: false, errors: [{ code: 'changes-invalid', field: 'changes' }] };
+      // Strict schema populates all change fields; strip nulls to keep only real changes
+      const cleanChanges = {};
+      for (const k of rawKeys) {
+        if (changes[k] != null) {
+          cleanChanges[k] = changes[k];
+        }
+      }
+      changes = cleanChanges;
       const clean = pickFields(changes, UPDATE_CHANGE_FIELDS);
+      if (!Object.keys(clean).length) return { ok: false, errors: [{ code: 'changes-invalid', field: 'changes' }] };
       if (clean.text !== undefined && !validText(clean.text)) errors.push({ code: 'text-too-long', field: 'text' });
       if (clean.date !== undefined && !validDate(clean.date, true)) errors.push({ code: 'invalid-date', field: 'date' });
       if (clean.priority !== undefined && !validPriority(clean.priority)) errors.push({ code: 'invalid-priority', field: 'priority' });
@@ -429,9 +438,7 @@
     } else {
       const refResult = validateTaskRef(args.taskRef, actionIdSet, context);
       if (!refResult.ok) errors.push({ code: refResult.code, field: 'taskRef' });
-      else if (refResult.ref.kind === 'action' && !validateProducerType(action.id, refResult.ref.actionId, [])) {
-        errors.push({ code: 'invalid-reference-type', field: 'taskRef' });
-      }
+      // Producer type validation is handled by buildDependencyGraph
     }
     if (!validDate(args.date, false)) errors.push({ code: 'invalid-date', field: 'date' });
     if (typeof args.start !== 'string' || !TIME_RE.test(args.start)) errors.push({ code: 'invalid-start', field: 'start' });
