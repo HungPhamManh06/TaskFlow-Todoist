@@ -254,7 +254,7 @@ test('wiring: app.html có modal habit-sched + xp habitPct delegate + SW v217', 
   assert.match(XPJS, /periodProgress/); // xp habitPct delegate schedule-aware
   assert.match(I18N, /habitSchedWeeklyLabel/);
   assert.match(I18N, /habitSchedMonthlyLabel/);
-  assert.match(SW, /const CACHE = 'taskflow-v274'/);
+  assert.match(SW, /const CACHE = 'taskflow-v275'/);
 });
 
 test('wiring: copyHabitsToNextMonth giữ schedule', () => {

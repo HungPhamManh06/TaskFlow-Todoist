@@ -1435,6 +1435,50 @@ const AGENT_SYSTEM_INSTRUCTION_EN = 'You are TaskFlow\'s safe action agent. The 
   '- Dependencies MUST point to PREVIOUS actions only (a1 → a2, not a2 → a1). NO cycles.\n' +
   '- Max 10 actions, max dependency depth 4. Respond with JSON ONLY matching the schema.';
 
+// ── Safe canonicalization: normalize semantically equivalent provider output ──
+// Runs AFTER JSON schema parsing, BEFORE validateAgentProposal().
+// Conservative: only normalizes representations that are semantically identical.
+// Must NOT repair forbidden actions, invent user intent, or fix broken references.
+function canonicalizeAgentProposal(proposal) {
+  if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) return proposal;
+  const out = Object.assign({}, proposal);
+  // 1. Empty/missing summary → safe deterministic fallback
+  if (typeof out.summary !== 'string' || !out.summary.trim()) {
+    out.summary = 'AI proposal';
+  }
+  // 2. Canonicalize actions array
+  if (Array.isArray(out.actions)) {
+    out.actions = out.actions.map(function (a) {
+      if (!a || typeof a !== 'object' || Array.isArray(a)) return a;
+      const action = Object.assign({}, a);
+      if (typeof action.args !== 'object' || !action.args || Array.isArray(action.args)) return action;
+      const args = Object.assign({}, action.args);
+      if (action.type === 'create_task') {
+        // priority: null → false (null = normal priority in strict wide-union)
+        if (args.priority === null || args.priority === undefined) args.priority = false;
+        // all-null changes → null (changes is unused for create_task)        if (args.changes && typeof args.changes === 'object' && !Array.isArray(args.changes)) {
+          const chKeys = Object.keys(args.changes);
+          if (chKeys.length === 0 || chKeys.every(function (k) { return args.changes[k] == null; })) {
+            args.changes = null;
+          }
+        }
+      }
+      if (action.type !== 'update_task') {
+        // For non-update types: all-null changes → null
+        if (args.changes && typeof args.changes === 'object' && !Array.isArray(args.changes)) {
+          const chKeys = Object.keys(args.changes);
+          if (chKeys.length === 0 || chKeys.every(function (k) { return args.changes[k] == null; })) {
+            args.changes = null;
+          }
+        }
+      }
+      action.args = args;
+      return action;
+    });
+  }
+  return out;
+}
+
 // POST /api/ai/agent (Bearer) { message, history?, taskflowContext?, agentRequestId?, proposalId? } → { ok, proposal }
 // Server returns a SANITIZED proposal ONLY — it never executes actions.
 // Lifecycle: validate cheap → sanitize → idempotency → acquire slot → Gemini → release slot.
@@ -1558,21 +1602,26 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
         return res.status(status).json({ error: aiResult.error, details: aiResult.details });
       }
 
-      // ── 9. Parse + validate response ──
-      const proposal = aiResult.parsed && typeof aiResult.parsed === 'object'
+      // ── 9. Parse → canonicalize → validate response ──
+      const rawProposal = aiResult.parsed && typeof aiResult.parsed === 'object'
         ? aiResult.parsed : parseProposalContent(aiResult.content || '');
-      if (!proposal || typeof proposal !== 'object') {
+      if (!rawProposal || typeof rawProposal !== 'object') {
         return res.status(422).json({ error: 'ai-invalid-response', details: ['parse-failed'] });
       }
+      // Canonicalize: normalize semantically equivalent empty values before semantic validation
+      const proposal = canonicalizeAgentProposal(rawProposal);
       const v = validateAgentProposal(proposal, { taskUids, projectIds, milestoneIds });
       if (!v.ok) {
+        // Safe diagnostics: only error codes, never content
+        const _firstErr = v.errors[0] || 'unknown';
+        console.log('[ai] route=/api/ai/agent requestId=' + requestId + ' status=validation-failed errors=' + v.errors.length + ' firstError=' + _firstErr + ' latencyMs=' + aiResult.latencyMs);
         return res.status(422).json({ error: 'ai-validation-failed', details: v.errors.slice(0, 5) });
       }
 
       // ── 10. Build response ──
       const resp = { ok: true, proposal };
       if (req.query && req.query.debug === '1') {
-        resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs: aiResult.latencyMs };
+        resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs: aiResult.latencyMs, buildSha: process.env.TASKFLOW_BUILD_SHA || process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'unknown' };
       }
       // Store in idempotency cache if agentRequestId provided
       if (agentRequestId && userId) {
@@ -2837,5 +2886,5 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
   }
 });
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS };
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal };
 

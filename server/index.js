@@ -66,7 +66,7 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/signup', authLimiter);
 
-app.get('/health', (req, res) => res.json({ ok: true, service: 'taskflow-backend' }));
+app.get('/health', (req, res) => res.json({ ok: true, service: 'taskflow-backend', version: process.env.TASKFLOW_BUILD_SHA || process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'unknown' }));
 app.use('/api/auth', auth.router);
 app.use('/api/sync', sync);
 app.use('/api/calendar', require('./gcal'));

@@ -383,7 +383,7 @@ test('wiring: app.html load planner-rules + planner-ui trước app.js + v176', 
 test('wiring: sw.js precache planner modules + cache bump v215', () => {
   assert.ok(SW.includes("'./js/planner-rules.min.js'"), 'SW precache planner-rules.min.js');
   assert.ok(SW.includes("'./js/planner-ui.min.js'"), 'SW precache planner-ui.min.js');
-  assert.match(SW, /const CACHE = 'taskflow-v274'/);
+  assert.match(SW, /const CACHE = 'taskflow-v275'/);
 });
 
 test('wiring: app.js dispatcher có planner-open / planner-apply / planner-cancel', () => {

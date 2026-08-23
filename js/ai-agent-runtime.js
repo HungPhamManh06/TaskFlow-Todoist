@@ -217,7 +217,10 @@
     try { json = await res.json(); } catch (e) { json = null; }
     if (!res.ok || !json || !json.ok) {
       const errCode = (json && json.error) || 'network';
-      throw { code: errCode, status: res.status };
+      // Preserve safe error details for debugging (only known TaskFlow error codes)
+      const safeDetails = json && Array.isArray(json.details) ? json.details.slice(0, 5) : undefined;
+      const requestId = res.headers && typeof res.headers.get === 'function' ? res.headers.get('x-request-id') : undefined;
+      throw { code: errCode, status: res.status, details: safeDetails, requestId: requestId || undefined };
     }
     return json.proposal;
   }
