@@ -158,7 +158,7 @@ test('source: _renderCard does NOT pass dry.changes to _groupChangesForPreview',
 
 test('source: _renderCardFull uses proposal.actions (unchanged)', () => {
   const src = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
-  const renderCardFullStart = src.indexOf('function _renderCardFull(msgs, proposal)');
+  const renderCardFullStart = src.indexOf('function _renderCardFull(msgs, proposal, dry)');
   assert.ok(renderCardFullStart > 0);
   const body = src.slice(renderCardFullStart, renderCardFullStart + 300);
   assert.ok(body.includes('_groupChangesForPreview(proposal.actions'));

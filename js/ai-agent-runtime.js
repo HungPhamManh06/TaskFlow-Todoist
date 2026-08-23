@@ -323,6 +323,7 @@
       _fileName: dry && dry._fileName ? dry._fileName : null,
       _fileMime: dry && dry._fileMime ? dry._fileMime : null,
       _validationPolicy: validationPolicy || null,
+      _dry: dry || null,
     };
   }
 
@@ -1023,7 +1024,8 @@
   function _refreshReviewUI(card, proposal) {
     if (!card || !_reviewState) return;
     const parent = card.parentNode;
-    const newCard = _renderCardFull(null, proposal);
+    const dry = _reviewState._dry || null;
+    const newCard = _renderCardFull(null, proposal, dry);
     if (newCard && parent) {
       parent.replaceChild(newCard, card);
       newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1031,7 +1033,7 @@
   }
 
   /** Phase 5C: Full card renderer with selection/edit/summary */
-  function _renderCardFull(msgs, proposal) {
+  function _renderCardFull(msgs, proposal, dry) {
     const virtualEntities = new Map();
     const ctx = buildContext();
     const grouped = _groupChangesForPreview(proposal.actions, virtualEntities, ctx);
@@ -1342,7 +1344,7 @@
     const virtualEntities = dry.virtualEntities || new Map();
     const grouped = _groupChangesForPreview(proposal.actions, virtualEntities, dry._ctx);
     _initReviewState(proposal, dry, grouped, validationPolicy);
-    const card = _renderCardFull(msgs, proposal);
+    const card = _renderCardFull(msgs, proposal, dry);
     if (card) {
       msgs.appendChild(card);
       msgs.scrollTop = msgs.scrollHeight;
