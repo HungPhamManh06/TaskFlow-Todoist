@@ -173,7 +173,8 @@ async function callAiCore(options) {
   const provider = deriveProviderLabel(cfg.apiUrl);
   const startedAt = Date.now();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, effectiveTimeout);
   // Phase: link external abort signal (e.g. client disconnect) to provider abort
   if (options.signal) {
     if (options.signal.aborted) { controller.abort(); clearTimeout(timer); }
@@ -217,13 +218,21 @@ async function callAiCore(options) {
     clearTimeout(timer);
     const latencyMs = Date.now() - startedAt;
     if (e && e.name === 'AbortError') {
-      logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=timeout latencyMs=' + latencyMs);
-      return { ok: false, content: null, latencyMs, status: 504, error: 'ai-timeout', details: null };
+      if (timedOut) {
+        // Internal provider timeout — safe timeout metadata
+        logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=timeout timeoutMs=' + effectiveTimeout + ' latencyMs=' + latencyMs);
+        return {
+          ok: false, content: null, latencyMs, status: 504, error: 'ai-timeout', details: null,
+          timeout: { source: 'provider', timeoutMs: effectiveTimeout, latencyMs },
+        };
+      }
+      // External abort (client disconnect / user Stop) — not a provider error
+      logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=client-abort latencyMs=' + latencyMs);
+      return { ok: false, content: null, latencyMs, status: 499, error: 'ai-client-abort', details: null };
     }
     logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=upstream-error latencyMs=' + latencyMs);
     return { ok: false, content: null, latencyMs, status: 502, error: 'ai-provider-unavailable', details: null };
   }
-
   clearTimeout(timer);
   const latencyMs = Date.now() - startedAt;
 
@@ -304,6 +313,17 @@ async function callAiJson(options) {
   return { ok: true, content: result.content, parsed, latencyMs: result.latencyMs, status: 200, error: null, details: null };
 }
 
+/**
+ * Agent-specific timeout configuration.
+ * AI_AGENT_TIMEOUT_MS overrides AI_TIMEOUT_MS for Agent route only.
+ * Validation bounds: MIN_TIMEOUT_MS .. MAX_TIMEOUT_MS (5000..120000).
+ * Default: 60000 (unchanged from current behavior).
+ */
+function getAgentTimeoutMs() {
+  const raw = process.env.AI_AGENT_TIMEOUT_MS || process.env.AI_TIMEOUT_MS;
+  return validateTimeout(raw);
+}
+
 /** Safe build SHA from environment. Used by /health and debug meta. */
 function getBuildSha() {
   return process.env.TASKFLOW_BUILD_SHA || process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'unknown';
@@ -319,6 +339,7 @@ module.exports = {
   validateTimeout,
   validateMaxTokens,
   validateMaxMessageBytes,
+  getAgentTimeoutMs,
   getBuildSha,
   _parseRetryAfter,
   DEFAULT_TIMEOUT_MS,

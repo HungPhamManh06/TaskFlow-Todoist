@@ -135,7 +135,15 @@ function geminiError(status) {
 
 function geminiTimeout() {
   return new Promise((resolve, reject) => {
-    setTimeout(() => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), 12000);
+    // Wait for the internal timer to fire (signal abort), simulating real provider timeout
+    const check = (opts) => {
+      if (opts && opts.signal) {
+        if (opts.signal.aborted) return reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+        opts.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+      }
+    };
+    // The real fetch signature: fetch(url, opts) — store opts reference
+    geminiTimeout._check = check;
   });
 }
 
@@ -300,11 +308,11 @@ async function main() {
     const token = await signup(base, 'chatter8');
     stubGemini(() => geminiEmpty());
     const res = await chat(token, base, { message: 'test' });
-    // Phase 6U: chat route maps all non-429 provider errors to 502
-    assert.strictEqual(res.status, 502);
+    // Phase P0: sendAiProviderError maps ai-invalid-response → 422
+    assert.strictEqual(res.status, 422);
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-invalid-response');
-    ok('Error mapping: empty content → ai-invalid-response (502)');
+    ok('Error mapping: empty content → ai-invalid-response (422)');
   }
 
   // ---------- TEST 15: Network fail → 502 ----------
@@ -318,15 +326,23 @@ async function main() {
     ok('Network fail → 502 ai-provider-unavailable');
   }
 
-  // ---------- TEST 16: Timeout → 502 (chat route maps non-429 to 502) ----------
+  // ---------- TEST 16: Timeout → 504 (provider internal timeout) ----------
   {
     const token = await signup(base, 'chatter10');
-    stubGemini(() => geminiTimeout());
+    stubGemini((url, opts) => {
+      // Listen to internal abort signal to simulate real provider timeout
+      return new Promise((resolve, reject) => {
+        if (opts && opts.signal) {
+          if (opts.signal.aborted) return reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          opts.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+        }
+      });
+    });
     const res = await chat(token, base, { message: 'test' });
-    assert.strictEqual(res.status, 502);
+    assert.strictEqual(res.status, 504);
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-timeout');
-    ok('Timeout → 502 ai-timeout (chat route)');
+    ok('Timeout → 504 ai-timeout (chat route)');
   }
 
   // ---------- TEST 17: History sent to Gemini is properly formatted ----------
