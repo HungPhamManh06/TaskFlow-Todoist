@@ -139,8 +139,8 @@ const aiPlanSynthHourlyLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => String(req.user.id),
-  message: { error: 'ai-rate-limited', retryAfterSeconds: 3600 },
-  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 3600 }),
+  message: { error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 3600 } },
+  handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', rateLimit: { source: 'taskflow', retryAfterSeconds: 3600 } }),
 });
 
 
