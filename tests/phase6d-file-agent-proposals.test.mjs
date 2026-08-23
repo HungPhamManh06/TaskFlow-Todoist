@@ -222,15 +222,15 @@ describe('Phase 6D — Structured Proposal Schema', () => {
     assert.ok(!typesMatch[0].includes("'delete_task'"), 'must NOT include delete_task');
   });
 
-  it('schema requires source field on each action', () => {
-    // Phase: schema now uses nested args — require id, type, args, source
-    assert.ok(serverSrc.includes("required: ['id', 'type', 'args', 'source']"),
-      'source must be required in nested schema');
+  it('schema requires id, type, args on each action (source attached server-side)', () => {
+    // Phase: source removed from provider schema to reduce Gemini complexity
+    assert.ok(serverSrc.includes("required: ['id', 'type', 'args']"),
+      'schema must require id, type, args');
   });
 
-  it('source.kind limited to document or ai-suggested', () => {
-    assert.ok(serverSrc.includes("'document', 'ai-suggested'") || serverSrc.includes("'ai-suggested', 'document'"),
-      'source.kind must be document or ai-suggested');
+  it('server attaches source provenance after provider returns', () => {
+    assert.ok(serverSrc.includes("action.source = {"),
+      'server must attach source to each action');
   });
 });
 

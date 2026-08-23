@@ -15,7 +15,7 @@ describe('FILE_AGENT_SCHEMA — matches runtime contract', function () {
 
   it('schema declares nested args object', function () {
     // Schema should have args as a nested property
-    assert.ok(aiSource.includes("required: ['id', 'type', 'args', 'source']"), 'Schema must require args nested object');
+    assert.ok(aiSource.includes("required: ['id', 'type', 'args']"), 'Schema must require id, type, args');
   });
 
   it('schema does NOT have flattened taskRef at action level', function () {
