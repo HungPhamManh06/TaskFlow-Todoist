@@ -254,15 +254,15 @@ describe('6U: Server rate limits (source)', () => {
   const aiJS = readFileSync('server/ai.js', 'utf8');
 
   it('chat has rate limiter', () => {
-    assert.ok(aiJS.includes("router.post('/chat', aiChatLimiter"), 'chat must have rate limiter');
+    assert.ok(aiJS.includes("router.post('/chat', maybeRateLimit(aiChatLimiter)"), 'chat must have rate limiter');
   });
 
   it('plan has rate limiter', () => {
-    assert.ok(aiJS.includes("router.post('/plan', aiPlanLimiter"), 'plan must have rate limiter');
+    assert.ok(aiJS.includes("router.post('/plan', maybeRateLimit(aiPlanLimiter)"), 'plan must have rate limiter');
   });
 
   it('agent has minute + hourly rate limiters', () => {
-    assert.ok(aiJS.includes("router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter"), 'agent must have both limiters');
+    assert.ok(aiJS.includes("router.post('/agent', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHourlyLimiter)"), 'agent must have both limiters');
   });
 });
 

@@ -114,11 +114,21 @@ function readBoundedPositiveIntEnv(raw, def, max) {
   return Math.min(Math.floor(n), max || 1000);
 }
 
+// Single-user mode: disables TaskFlow-local AI frequency rate limits.
+// Authentication, concurrency, file limits, timeouts and provider quotas remain active.
+const AI_SINGLE_USER_MODE = process.env.AI_SINGLE_USER_MODE === 'true';
+
 // Rate limiters for AI endpoints
 const AI_CHAT_RATE_LIMIT = readBoundedPositiveIntEnv(process.env.AI_CHAT_RATE_LIMIT_PER_MIN, 15, 120);
 const AI_AGENT_RATE_LIMIT = readBoundedPositiveIntEnv(process.env.AI_AGENT_RATE_LIMIT_PER_MIN, 6, 60);
 const AI_PLAN_RATE_LIMIT = readBoundedPositiveIntEnv(process.env.AI_PLAN_RATE_LIMIT_PER_MIN, 6, 60);
 const AI_AGENT_HOURLY_LIMIT = readBoundedPositiveIntEnv(process.env.AI_AGENT_RATE_LIMIT_PER_HOUR, 30, 500);
+
+/** Wraps an express-rate-limit middleware; skips it when AI_SINGLE_USER_MODE is enabled. */
+function maybeRateLimit(limiter) {
+  if (!AI_SINGLE_USER_MODE) return limiter;
+  return function bypassRateLimit(req, res, next) { next(); };
+}
 
 const aiChatLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -528,7 +538,7 @@ function buildPrompt(ctx) {
 }
 
 // ---- POST /api/ai/plan (Bearer) {kind, context, userText?} → {ok, proposal} ----
-router.post('/plan', aiPlanLimiter, async (req, res) => {
+router.post('/plan', maybeRateLimit(aiPlanLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
@@ -630,7 +640,7 @@ const PLAN_SYNTHESIS_SCHEMA = {
   }
 };
 
-router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, async (req, res) => {
+router.post('/plan-synthesis', maybeRateLimit(aiPlanSynthLimiter), maybeRateLimit(aiPlanSynthHourlyLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
@@ -784,7 +794,7 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
 // P40: Optional endpoint for AI-assisted health explanation.
 // Input: { healthReport, message, mode? }
 // Output: { ok, explanation, mitigationSummary? }
-router.post('/plan-health', aiAgentLimiter, async (req, res) => {
+router.post('/plan-health', maybeRateLimit(aiAgentLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   try {
     const body = req.body || {};
@@ -1071,7 +1081,7 @@ function sanitizeChatHistory(raw) {
 }
 
 // POST /api/ai/chat (Bearer) { message, history? } → { ok, answer }
-router.post('/chat', aiChatLimiter, async (req, res) => {
+router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   // Phase: link client disconnect to provider abort
   const clientAbort = new AbortController();
@@ -1569,7 +1579,7 @@ function canonicalizeAgentProposal(proposal) {
 // POST /api/ai/agent (Bearer) { message, history?, taskflowContext?, agentRequestId?, proposalId? } → { ok, proposal }
 // Server returns a SANITIZED proposal ONLY — it never executes actions.
 // Lifecycle: validate cheap → sanitize → idempotency → acquire slot → Gemini → release slot.
-router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => {
+router.post('/agent', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHourlyLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   const clientAbort = new AbortController();
   const onClientClose = () => clientAbort.abort();
@@ -2049,7 +2059,7 @@ const aiFileHourlyLimiter = rateLimit({
 // File analysis concurrency: max 1 per user
 const _fileInFlight = new Map();
 
-router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
+router.post('/file', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileHourlyLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   const clientAbort = new AbortController();
   const onClientClose = () => clientAbort.abort();
@@ -2387,7 +2397,7 @@ function validateFileAgentProposal(proposal, refs) {
 
 // POST /api/ai/file-agent (Bearer) multipart: file + message + optional taskflowContext
 // Phase 6D: structured extraction → server validate → browser review → user confirm → apply
-router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
+router.post('/file-agent', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileHourlyLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   const clientAbort = new AbortController();
   const onClientClose = () => clientAbort.abort();
@@ -2773,7 +2783,7 @@ function validateRefineRequest(body) {
 // POST /api/ai/refine (Bearer) { message, proposal, revision, taskflowContext? }
 // Returns structured operations for client to apply to review state.
 // NO direct TaskFlow writes. NO autonomous execution.
-router.post('/refine', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => {
+router.post('/refine', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHourlyLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
@@ -2886,7 +2896,7 @@ function _classifyLocalOps(message) {
 // P31: Dedicated endpoint for roadmap generation.
 const ROADMAP_LIMITER = rateLimit({ windowMs: 60000, max: 3, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => String(req.user.id), message: { error: 'ai-rate-limited', retryAfterSeconds: 60 }, handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 60 }) });
 const ROADMAP_HOURLY = rateLimit({ windowMs: 3600000, max: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (req) => String(req.user.id), message: { error: 'ai-rate-limited', retryAfterSeconds: 3600 }, handler: (req, res) => res.status(429).json({ error: 'ai-rate-limited', retryAfterSeconds: 3600 }) });
-router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
+router.post('/roadmap', maybeRateLimit(ROADMAP_LIMITER), maybeRateLimit(ROADMAP_HOURLY), async (req, res) => {
   const requestId = req.aiRequestId;
   const startMs = Date.now();
   try {
