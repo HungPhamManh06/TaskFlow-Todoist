@@ -31,14 +31,14 @@ describe('6U.1: Provider-backed route inventory', () => {
   });
 
   it('every provider-backed route has a rate limiter', () => {
-    assert.ok(aiJS.includes("router.post('/plan', aiPlanLimiter"), 'plan must have limiter');
-    assert.ok(aiJS.includes("router.post('/plan-synthesis', aiPlanSynthLimiter"), 'plan-synthesis must have limiter');
-    assert.ok(aiJS.includes("router.post('/plan-health', aiAgentLimiter"), 'plan-health must have limiter');
-    assert.ok(aiJS.includes("router.post('/chat', aiChatLimiter"), 'chat must have limiter');
-    assert.ok(aiJS.includes("router.post('/agent', aiAgentLimiter"), 'agent must have minute limiter');
-    assert.ok(aiJS.includes("aiAgentHourlyLimiter"), 'agent must have hourly limiter');
-    assert.ok(aiJS.includes("router.post('/file', aiFileLimiter"), 'file must have limiter');
-    assert.ok(aiJS.includes("router.post('/roadmap', ROADMAP_LIMITER"), 'roadmap must have limiter');
+    assert.ok(aiJS.includes("router.post('/plan', maybeRateLimit(aiPlanLimiter)"), 'plan must have limiter');
+    assert.ok(aiJS.includes("router.post('/plan-synthesis', maybeRateLimit(aiPlanSynthLimiter)"), 'plan-synthesis must have limiter');
+    assert.ok(aiJS.includes("router.post('/plan-health', maybeRateLimit(aiAgentLimiter)"), 'plan-health must have limiter');
+    assert.ok(aiJS.includes("router.post('/chat', maybeRateLimit(aiChatLimiter)"), 'chat must have limiter');
+    assert.ok(aiJS.includes("router.post('/agent', maybeRateLimit(aiAgentLimiter)"), 'agent must have minute limiter');
+    assert.ok(aiJS.includes('aiAgentHourlyLimiter'), 'agent must have hourly limiter');
+    assert.ok(aiJS.includes("router.post('/file', maybeRateLimit(aiFileLimiter)"), 'file must have limiter');
+    assert.ok(aiJS.includes("router.post('/roadmap', maybeRateLimit(ROADMAP_LIMITER)"), 'roadmap must have limiter');
   });
 });
 

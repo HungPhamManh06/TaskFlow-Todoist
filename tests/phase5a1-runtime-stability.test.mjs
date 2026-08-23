@@ -250,9 +250,9 @@ test('P9: idempotency cache has size bound (500) and TTL cleanup', () => {
    P11: Rate limiters preserved
    ================================================================ */
 test('P11: rate limiters still applied to correct routes', () => {
-  assert.match(src, /router\.post\('\/chat', aiChatLimiter/, 'chat uses chat limiter');
-  assert.match(src, /router\.post\('\/plan', aiPlanLimiter/, 'plan uses plan limiter');
-  assert.match(src, /router\.post\('\/agent', aiAgentLimiter, aiAgentHourlyLimiter/,
+  assert.match(src, /router\.post\('\/chat', maybeRateLimit\(aiChatLimiter\)/, 'chat uses chat limiter');
+  assert.match(src, /router\.post\('\/plan', maybeRateLimit\(aiPlanLimiter\)/, 'plan uses plan limiter');
+  assert.match(src, /router\.post\('\/agent', maybeRateLimit\(aiAgentLimiter\), maybeRateLimit\(aiAgentHourlyLimiter\)/,
     'agent uses minute + hourly limiters');
 });
 
