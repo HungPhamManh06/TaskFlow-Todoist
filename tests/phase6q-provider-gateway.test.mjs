@@ -100,16 +100,41 @@ describe('Phase 6Q — callAiText (mock fetch)', () => {
     assert.ok(providerSrc.includes('function getConfig'), 'has getConfig function');
   });
 
-  it('handles timeout (AbortError) correctly', async () => {
-    globalThis.fetch = async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }); };
+  it('handles internal provider timeout (AbortError from timer) correctly', async () => {
+    // Mock fetch to wait long enough for the internal timer to fire
+    globalThis.fetch = async (url, opts) => {
+      return new Promise((resolve, reject) => {
+        const onAbort = () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+        if (opts && opts.signal) {
+          if (opts.signal.aborted) return onAbort();
+          opts.signal.addEventListener('abort', onAbort, { once: true });
+        }
+        // Never resolves — timer will abort via signal
+      });
+    };
     const mod = require('../server/ai-provider.js');
     const result = await mod.callAiText({
       messages: [{ role: 'user', content: 'test' }],
-      timeoutMs: 1
+      timeoutMs: 10
     });
     assert.equal(result.ok, false);
     assert.equal(result.error, 'ai-timeout');
     assert.equal(result.status, 504);
+    assert.ok(result.timeout, 'timeout metadata present');
+    assert.equal(result.timeout.source, 'provider');
+  });
+
+  it('handles external abort (client disconnect) correctly', async () => {
+    // Mock fetch to throw immediately (simulates client abort before timer fires)
+    globalThis.fetch = async () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }); };
+    const mod = require('../server/ai-provider.js');
+    const result = await mod.callAiText({
+      messages: [{ role: 'user', content: 'test' }],
+      timeoutMs: 60000
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'ai-client-abort');
+    assert.equal(result.status, 499);
   });
 
   it('handles network failure correctly', async () => {

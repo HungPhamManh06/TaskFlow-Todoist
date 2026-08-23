@@ -145,10 +145,11 @@ describe('v3.0.1: PDF text extraction architecture', () => {
 
 describe('v3.0.1: Provider error propagation', () => {
   it('/file maps 413 status correctly', () => {
+    // 413 is now handled by sendAiProviderError shared helper
     const fileRouteStart = aiJS.indexOf("router.post('/file'");
     const fileAgentStart = aiJS.indexOf("router.post('/file-agent'");
     const fileRoute = aiJS.substring(fileRouteStart, fileAgentStart > fileRouteStart ? fileAgentStart : fileRouteStart + 3000);
-    assert.ok(fileRoute.includes("aiResult.status === 413"), '/file must preserve 413');
+    assert.ok(fileRoute.includes('sendAiProviderError'), '/file uses shared helper for 413');
   });
 
   it('/file-agent maps 413 status correctly', () => {
@@ -159,10 +160,11 @@ describe('v3.0.1: Provider error propagation', () => {
   });
 
   it('/file preserves 503 status', () => {
+    // 503 is now handled by sendAiProviderError shared helper
     const fileRouteStart = aiJS.indexOf("router.post('/file'");
     const fileAgentStart = aiJS.indexOf("router.post('/file-agent'");
     const fileRoute = aiJS.substring(fileRouteStart, fileAgentStart > fileRouteStart ? fileAgentStart : fileRouteStart + 3000);
-    assert.ok(fileRoute.includes("aiResult.status === 503"), '/file must preserve 503');
+    assert.ok(fileRoute.includes('sendAiProviderError'), '/file uses shared helper for 503');
   });
 
   it('/file returns 422 when every extracted candidate is rejected', () => {

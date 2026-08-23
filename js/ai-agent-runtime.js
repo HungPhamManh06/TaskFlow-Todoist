@@ -221,7 +221,8 @@
       const safeDetails = json && Array.isArray(json.details) ? json.details.slice(0, 5) : undefined;
       const requestId = res.headers && typeof res.headers.get === 'function' ? res.headers.get('x-request-id') : undefined;
       const rateLimit = json && json.rateLimit && typeof json.rateLimit === 'object' ? json.rateLimit : undefined;
-      throw { code: errCode, status: res.status, details: safeDetails, requestId: requestId || undefined, rateLimit: rateLimit || undefined };
+      const timeout = json && json.timeout && typeof json.timeout === 'object' ? json.timeout : undefined;
+      throw { code: errCode, status: res.status, details: safeDetails, requestId: requestId || undefined, rateLimit: rateLimit || undefined, timeout: timeout || undefined };
     }
     return json.proposal;
   }

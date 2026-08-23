@@ -11,10 +11,10 @@
      oneOf/anyOf vì ngoài subset JSON Schema của Gemini; wide-union + server
      validateProposal là ranh giới cuối cùng.
    - Gemini 3.x deprecated sampling params (temperature/top_p/top_k) — KHÔNG gửi.
-   - reasoning_effort="low" (OpenAI-compat) → thinking_level LOW của Gemini 3.6
-     (1024 thinking tokens thay vì default MEDIUM/8192) — đủ cho planning có ràng
-     buộc, giảm latency. KHÔNG dùng chung với google.thinking_config.
+   - reasoning_effort KHÔNG được gửi — provider gateway chỉ gửi model/max_tokens/messages/response_format.
+     Nếu provider hỗ trợ reasoning_effort, cần xác nhận trước khi thêm vào (xem P0 audit).
    - AI_TIMEOUT_MS = 60000 là trần cứng (AbortController); không retry tự động.
+   - AI_AGENT_TIMEOUT_MS cho Agent route riêng, khác với AI_TIMEOUT_MS global.
    - Latency log chỉ gồm provider/model/status/latencyMs — KHÔNG bao giờ log
      prompt/context/task text/reflection/mood/auth/key.
    - meta (provider/model/latencyMs) chỉ trả về khi request có ?debug=1.
@@ -36,7 +36,7 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const path = require('path');
 const { authMiddleware } = require('./auth');
-const { callAiText, callAiJson, getConfig, getBuildSha } = require('./ai-provider');
+const { callAiText, callAiJson, getConfig, getBuildSha, getAgentTimeoutMs } = require('./ai-provider');
 const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('./ai-roadmap-validator');
 const { extractPdfText, DEFAULT_EXTRACT_MAX_BYTES, HARD_EXTRACT_MAX_BYTES, FILE_AGENT_EXTRACT_MAX_BYTES } = require('./ai-file-parser');
 
@@ -50,6 +50,41 @@ function _rateLimitResponse(res, aiResult) {
   const body = { error: aiResult.error, details: aiResult.details || undefined };
   if (rl) body.rateLimit = rl;
   return res.status(429).json(body);
+}
+
+/* ---- Shared safe AI provider error response helper (Phase P0) ----
+   Maps provider result error codes to truthful HTTP status.
+   Only explicitly approved semantic statuses are preserved.
+   Never exposes provider raw response body. ---- */
+function sendAiProviderError(res, aiResult) {
+  // 429 rate-limited → preserve 429 with Retry-After
+  if (aiResult.status === 429) {
+    return _rateLimitResponse(res, aiResult);
+  }
+  // 504 provider timeout → preserve 504
+  if (aiResult.error === 'ai-timeout') {
+    const body = { error: 'ai-timeout', details: aiResult.details || null };
+    if (aiResult.timeout) body.timeout = aiResult.timeout;
+    return res.status(504).json(body);
+  }
+  // 499 client abort → not an error to surface to user
+  if (aiResult.error === 'ai-client-abort') {
+    return null; // caller should abort response
+  }
+  // 503 not-configured
+  if (aiResult.error === 'ai-not-configured') {
+    return res.status(503).json({ error: 'ai-not-configured', details: aiResult.details || undefined });
+  }
+  // 413 payload too large
+  if (aiResult.status === 413 || aiResult.error === 'payload-too-large') {
+    return res.status(413).json({ error: aiResult.error || 'payload-too-large', details: aiResult.details || undefined });
+  }
+  // 422 invalid response
+  if (aiResult.status === 422) {
+    return res.status(422).json({ error: aiResult.error || 'ai-invalid-response', details: aiResult.details || undefined });
+  }
+  // Default: 502 safe fallback (never expose upstream details)
+  return res.status(502).json({ error: aiResult.error || 'ai-provider-unavailable', details: aiResult.details || undefined });
 }
 
 // Generate a short request correlation ID
@@ -530,8 +565,7 @@ router.post('/plan', aiPlanLimiter, async (req, res) => {
     });
 
     if (!aiResult.ok) {
-      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
-      return res.status(502).json({ error: aiResult.error, details: aiResult.details });
+      return sendAiProviderError(res, aiResult);
     }
 
     const proposal = parseProposalContent(aiResult.content);
@@ -707,8 +741,7 @@ router.post('/plan-synthesis', aiPlanSynthLimiter, aiPlanSynthHourlyLimiter, asy
     });
 
     if (!aiResult.ok) {
-      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
-      return res.status(502).json({ error: aiResult.error });
+      return sendAiProviderError(res, aiResult);
     }
 
     // P80: Discard chain-of-thought if present
@@ -788,7 +821,7 @@ router.post('/plan-health', aiAgentLimiter, async (req, res) => {
 
     if (!aiResult.ok) {
       console.log('[ai] route=/api/ai/plan-health mode=' + mode + ' status=' + (aiResult.error || 'provider-error'));
-      return res.status(aiResult.status === 429 ? 429 : 502).json({ error: aiResult.error || 'ai-provider-unavailable' });
+      return sendAiProviderError(res, aiResult);
     }
 
     // P80: Discard any chain-of-thought
@@ -1089,8 +1122,7 @@ router.post('/chat', aiChatLimiter, async (req, res) => {
     });
 
     if (!aiResult.ok) {
-      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
-      return res.status(502).json({ error: aiResult.error, details: aiResult.details });
+      return sendAiProviderError(res, aiResult);
     }
 
     const resp = { ok: true, answer: aiResult.content };
@@ -1647,14 +1679,14 @@ router.post('/agent', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) => 
         messages,
         schema: AGENT_PROPOSAL_SCHEMA,
         maxTokens: 1200,
+        timeoutMs: getAgentTimeoutMs(),
         requestId,
         routeName: '/api/ai/agent',
         signal: clientAbort.signal
       });
 
       if (!aiResult.ok) {
-        if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
-        return res.status(502).json({ error: aiResult.error, details: aiResult.details });
+        return sendAiProviderError(res, aiResult);
       }
 
       // ── 9. Parse → canonicalize → validate response ──
@@ -2096,11 +2128,7 @@ router.post('/file', aiFileLimiter, aiFileHourlyLimiter, async (req, res) => {
       });
 
       if (!aiResult.ok) {
-        if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
-        const status = aiResult.status === 413 ? 413
-          : aiResult.status === 503 ? 503
-          : 502;
-        return res.status(status).json({ error: aiResult.error });
+        return sendAiProviderError(res, aiResult);
       }
 
       return res.json({
@@ -2536,10 +2564,7 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
           providerFailed = true;
           if (ci === 0 && !mergedProposal) {
             // First chunk failed entirely — propagate error
-            if (chunkCallResult.status === 429) return _rateLimitResponse(res, chunkCallResult);
-            const status = chunkCallResult.status === 413 ? 413
-              : chunkCallResult.status === 503 ? 503 : 502;
-            return res.status(status).json({ error: chunkCallResult.error });
+            return sendAiProviderError(res, chunkCallResult);
           }
           // Subsequent chunk failed — stop, use partial results
           truncationReasons.push('chunk-provider-failure');
@@ -2796,8 +2821,7 @@ router.post('/refine', aiAgentLimiter, aiAgentHourlyLimiter, async (req, res) =>
     });
 
     if (!aiResult.ok) {
-      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
-      return res.status(502).json({ error: aiResult.error });
+      return sendAiProviderError(res, aiResult);
     }
 
     // Parse structured operations from response
@@ -2918,8 +2942,7 @@ router.post('/roadmap', ROADMAP_LIMITER, ROADMAP_HOURLY, async (req, res) => {
     });
 
     if (!aiResult.ok) {
-      if (aiResult.status === 429) return _rateLimitResponse(res, aiResult);
-      return res.status(502).json({ ok: false, error: aiResult.error });
+      return sendAiProviderError(res, aiResult);
     }
 
     const roadmap = aiResult.parsed;

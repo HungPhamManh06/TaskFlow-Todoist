@@ -279,13 +279,13 @@ async function main() {
     };
     const res = await plan(token, base);
     globalThis.fetch = realFetch;
-    // Phase 6U: /plan route maps all non-429 provider errors to 502
-    assert.strictEqual(res.status, 502, 'JSON hỏng → 502');
+    // Phase P0: sendAiProviderError maps ai-invalid-response → 422
+    assert.strictEqual(res.status, 422, 'JSON hỏng → 422');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-invalid-response');
     assert.ok(Array.isArray(j.details) && j.details.includes('parse-failed'), 'details nêu parse-failed');
     assert.ok(!JSON.stringify(j).includes('{not'), 'không echo nội dung upstream');
-    console.log('TEST 7 OK — output không parse được → 502 ai-invalid-response [parse-failed]');
+    console.log('TEST 7 OK — output không parse được → 422 ai-invalid-response [parse-failed]');
   }
 
   // ---------- TEST 8: upstream trả content rỗng → 422 ai-invalid-response + details ----------
@@ -300,8 +300,8 @@ async function main() {
     };
     const res = await plan(token, base);
     globalThis.fetch = realFetch;
-    // Phase 6U: /plan route maps all non-429 provider errors to 502
-    assert.strictEqual(res.status, 502, 'content rỗng → 502');
+    // Phase P0: sendAiProviderError maps ai-invalid-response → 422
+    assert.strictEqual(res.status, 422, 'content rỗng → 422');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-invalid-response');
     assert.ok(Array.isArray(j.details) && j.details.includes('empty-content'), 'details nêu empty-content');
@@ -444,13 +444,13 @@ async function main() {
     const t0 = Date.now();
     const res = await plan(token, base);
     globalThis.fetch = realFetch;
-    // Phase 6U: /plan route maps all non-429 provider errors to 502
-    assert.strictEqual(res.status, 502, 'quá hạn timeout → 502');
+    // Phase P0: provider timeout → 504 (not 502)
+    assert.strictEqual(res.status, 504, 'quá hạn timeout → 504');
     // Phase 6U: MIN_TIMEOUT_MS = 5000, so 500 gets clamped to 5000
     assert.ok(Date.now() - t0 < 12000, 'timeout phải nhanh (MIN_TIMEOUT_MS=5000)');
     const j = await res.json();
     assert.strictEqual(j.error, 'ai-timeout');
-    console.log('TEST 13 OK (TEST C) — upstream vượt timeout → 502 ai-timeout (AbortController)');
+    console.log('TEST 13 OK (TEST C) — upstream vượt timeout → 504 ai-timeout (AbortController)');
   }
 
   console.log('\nALL SERVER AI TESTS PASS');
