@@ -942,26 +942,29 @@
   /* Group changes by dependency for preview (Phase 4C).
      Input must be canonical Agent actions: { id, type, args }.
      Do NOT pass dryRun().changes here — dry.changes uses a
-     flattened preview shape without args. */
+     flattened preview shape without args.
+     Phase P0: delegates to TaskFlowAIAgent.previewAction() for
+     canonical preview text (TYPE_TITLES, dateLabel, minutesLabel,
+     taskLabel live in ai-agent.js — NOT duplicated here). */
   function _groupChangesForPreview(changes, virtualEntities, context) {
-    // Build a map of actionId -> change
-    const changeMap = new Map();
+    // Build a map of actionId -> action
+    const actionMap = new Map();
     changes.forEach((ch) => {
-      if (ch.id) changeMap.set(ch.id, ch);
+      if (ch.id) actionMap.set(ch.id, ch);
     });
 
     // Group: for each change, show its dependencies first
     const grouped = [];
     const processed = new Set();
 
-    // Find root changes (those with no deps or deps already processed)
     function processChange(actionId) {
       if (processed.has(actionId)) return;
-      const ch = changeMap.get(actionId);
+      const ch = actionMap.get(actionId);
       if (!ch) return;
-      // Process dependencies first
-      if (ch.taskRef && ch.taskRef.kind === 'action') {
-        processChange(ch.taskRef.actionId);
+      // Process dependencies first — dependency lives in args.taskRef
+      const ref = ch.args && ch.args.taskRef ? ch.args.taskRef : null;
+      if (ref && ref.kind === 'action') {
+        processChange(ref.actionId);
       }
       grouped.push(ch);
       processed.add(actionId);
@@ -974,59 +977,50 @@
       if (!processed.has(ch.id)) grouped.push(ch);
     });
 
+    // Delegate preview text to canonical TaskFlowAIAgent.previewAction()
+    const hasPreviewAction = window.TaskFlowAIAgent
+      && typeof window.TaskFlowAIAgent.previewAction === 'function';
+
     return grouped.map((ch) => {
-      const type = ch.type;
-      const lang = context && context.lang === 'en' ? 'en' : 'vi';
-      const title = TYPE_TITLES[type][lang];
-      const args = ch.args || {};
+      let title = '';
       let description = '';
       let meta = '';
-      let isDependent = false;
 
-      if (type === 'create_task') {
-        const parts = [];
-        const dl = dateLabel(args.date, context);
-        if (dl) parts.push(dl);
-        const ml = minutesLabel(args.duration, context);
-        if (ml) parts.push(ml);
-        description = args.text.trim();
-        meta = parts.join(' · ');
-      } else if (type === 'complete_task') {
-        const virtualEntity = virtualEntities?.get(args.taskRef?.actionId);
-        description = virtualEntity?.text || taskLabel(context, args.taskRef?.uid) || 'công việc';
-        meta = '';
-      } else if (type === 'update_task') {
-        const virtualEntity = virtualEntities?.get(args.taskRef?.actionId);
-        const parts = [];
-        if (args.changes?.duration !== undefined && args.changes.duration !== null) {
-          const ml = minutesLabel(args.changes.duration, context);
-          if (ml) parts.push(ml);
-        }
-        description = virtualEntity?.text || taskLabel(context, args.taskRef?.uid) || 'công việc';
-        meta = parts.join(' · ');
-      } else { // schedule_task / reschedule_task
-        const virtualEntity = virtualEntities?.get(args.taskRef?.actionId);
-        const parts = [];
-        const dl = dateLabel(args.date, context);
-        if (dl) parts.push(dl);
-        if (args.start) parts.push(args.start);
-        const ml = minutesLabel(args.duration, context);
-        if (ml) parts.push(ml);
-        description = virtualEntity?.text || taskLabel(context, args.taskRef?.uid) || 'công việc';
-        meta = parts.join(' · ');
-        if (args.taskRef?.kind === 'action') isDependent = true;
+      if (hasPreviewAction) {
+        try {
+          const result = window.TaskFlowAIAgent.previewAction(ch, context, virtualEntities);
+          if (result && result.ok && result.preview) {
+            title = result.preview.title || '';
+            description = result.preview.description || '';
+            meta = result.preview.meta || '';
+          }
+        } catch (_e) { /* preview must never break review render */ }
       }
+
+      // Fallback if previewAction unavailable or failed
+      if (!title) {
+        const lang = context && context.lang === 'en' ? 'en' : 'vi';
+        title = lang === 'en' ? ch.type : ch.type;
+        description = '';
+        meta = '';
+      }
+
+      const ref = ch.args && ch.args.taskRef ? ch.args.taskRef : null;
+      const isDependent = !!(ref && ref.kind === 'action');
 
       return { title, description, meta, isDependent, actionId: ch.id };
     });
   }
 
-  /** Phase 5C: Re-render card for review state changes */
+  /** Phase 5C: Re-render card for review state changes.
+      Pass the real chat message container (card.parentNode) as msgs
+      so Confirm/Cancel handlers capture a valid appendChild target. */
   function _refreshReviewUI(card, proposal) {
     if (!card || !_reviewState) return;
     const parent = card.parentNode;
     const dry = _reviewState._dry || null;
-    const newCard = _renderCardFull(null, proposal, dry);
+    // Phase P0: pass parent (chat container) as msgs, not null
+    const newCard = _renderCardFull(parent, proposal, dry);
     if (newCard && parent) {
       parent.replaceChild(newCard, card);
       newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1035,7 +1029,8 @@
 
   /** Phase 5C: Full card renderer with selection/edit/summary */
   function _renderCardFull(msgs, proposal, dry) {
-    const virtualEntities = new Map();
+    // Phase P0: preserve dry.virtualEntities from dryRun (not a fresh Map)
+    const virtualEntities = dry && dry.virtualEntities ? dry.virtualEntities : new Map();
     const ctx = buildContext();
     const grouped = _groupChangesForPreview(proposal.actions, virtualEntities, ctx);
     const card = _bubble('agent-card');
