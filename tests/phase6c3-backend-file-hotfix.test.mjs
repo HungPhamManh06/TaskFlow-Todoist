@@ -147,7 +147,7 @@ describe('Phase 6C.3 — Backend File Processing Hotfix', () => {
   });
 
   it('both file endpoints use the shared multipart parser', () => {
-    assert.equal((src.match(/await parseAiFileMultipart\(req\)/g) || []).length, 2);
+    assert.ok((src.match(/await parseAiFileMultipart\(req\)/g) || []).length >= 2, 'at least 2 endpoints use shared multipart parser');
   });
 
   it('file route concurrency slot must be released in finally', () => {

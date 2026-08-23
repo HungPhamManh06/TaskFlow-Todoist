@@ -2978,6 +2978,48 @@ router.post('/roadmap', maybeRateLimit(ROADMAP_LIMITER), maybeRateLimit(ROADMAP_
   }
 });
 
+/* ============ P1: Document Daily Planner — Server-side Validators ============ */
+/**
+ * Validate a daily-plan proposal (create_task only, >10 actions allowed).
+ * Does NOT depend on browser buildContext().
+ */
+function validateDailyPlanProposal(proposal) {
+  const errors = [];
+  if (!proposal || typeof proposal !== 'object') { errors.push('proposal-not-object'); return { ok: false, errors };
+  }
+  if (typeof proposal.summary !== 'string' || proposal.summary.length > 400) { errors.push('summary-invalid'); }
+  if (!Array.isArray(proposal.actions)) { errors.push('actions-not-array'); return { ok: false, errors };
+  }
+  // Support up to 14 days * 6 tasks/day = 84 actions
+  if (proposal.actions.length > 84) { errors.push('actions-too-many'); }
+  if (proposal.actions.length === 0) { errors.push('actions-empty'); return { ok: false, errors };
+  }
+
+  const seenIds = new Set();
+  const today = new Date().toISOString().slice(0, 10);
+
+  proposal.actions.forEach((a, i) => {
+    if (!a || typeof a !== 'object') { errors.push('action-' + i + '-not-object'); return; }
+    if (a.type !== 'create_task') { errors.push('action-' + i + '-type-not-create-task'); return; }
+    if (!validActionId(a.id)) { errors.push('action-' + i + '-invalid-id'); return; }
+    if (seenIds.has(a.id)) { errors.push('action-' + i + '-duplicate-id'); }
+    seenIds.add(a.id);
+
+    const args = a.args || {};
+    if (typeof args.text !== 'string' || !args.text.trim() || args.text.length > 300) { errors.push('action-' + i + '-text-invalid'); }
+    if (typeof args.date !== 'string' || !validDate(args.date)) { errors.push('action-' + i + '-invalid-date'); }
+    if (typeof args.duration !== 'number' || args.duration < 20 || args.duration > 120) { errors.push('action-' + i + '-invalid-duration'); }
+    if (args.priority !== false && args.priority !== true) { errors.push('action-' + i + '-invalid-priority'); }
+    if (args.start !== null) { errors.push('action-' + i + '-start-not-null'); }
+    if (args.projectId !== null) { errors.push('action-' + i + '-projectId-not-null'); }
+    if (args.milestoneId !== null) { errors.push('action-' + i + '-milestoneId-not-null'); }
+    if (args.taskRef !== null) { errors.push('action-' + i + '-taskRef-not-null'); }
+    if (args.changes !== null) { errors.push('action-' + i + '-changes-not-null'); }
+  });
+
+  return { ok: errors.length === 0, errors };
+}
+
 /* ============ P1: Document Daily Planner — Stage A: Roadmap Extraction ============ */
 // Extract a compact roadmap from a PDF document (phases/weeks/goals/deliverables).
 const DOCUMENT_ROADMAP_SCHEMA = {
@@ -3237,9 +3279,8 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
       actions,
     };
 
-    // Validate using existing agent validation
-    const ctx = buildContext();
-    const v = validateAgentProposal(proposal, { taskUids: new Set(), projectIds: new Set(ctx.projects.map(p => p.id)), milestoneIds: new Set() });
+    // Validate using daily-plan-specific validator (no browser buildContext dependency)
+    const v = validateDailyPlanProposal(proposal);
     if (!v.ok) {
       return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: v.errors.slice(0, 5) });
     }
@@ -3261,5 +3302,175 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
   }
 });
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA };
+/* ============ P1: Document Daily Planner — Combined Upload Route ============ */
+// Accepts PDF upload + user message, runs Stage A (roadmap) + Stage B (daily plan) in one call.
+router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileHourlyLimiter), async (req, res) => {
+  const requestId = req.aiRequestId;
+  const startMs = Date.now();
+  try {
+    if (!AI_API_KEY) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
+
+    // Parse multipart upload (reuse existing parser)
+    const parsed = await parseAiFileMultipart(req);
+    const { acceptedFiles, rejectedFiles, userMessage } = parsed;
+
+    if (!acceptedFiles.length) {
+      return res.status(400).json({ ok: false, error: 'ai-no-files', rejectedFiles });
+    }
+
+    // Build batch content from uploaded files
+    const batchContent = await buildAiFileBatchContent(acceptedFiles);
+    const { textDocuments } = batchContent;
+    const fullText = textDocuments.map(d => d.text).join('\n\n').slice(0, AI_FILE_MAX_TEXT_CHARS);
+
+    if (!fullText.trim()) {
+      return res.status(422).json({ ok: false, error: 'ai-document-no-text' });
+    }
+
+    // Stage A: Extract roadmap from document
+    const roadmapSystemPrompt = 'You are a document roadmap extractor. Read the provided document text and extract a compact structured roadmap.\n\nRules:\n- Extract ONLY information explicitly present in the document\n- Do NOT invent technologies, deadlines, or requirements\n- Use phases and weeks structure\n- Keep goals and deliverables concise\n- Return strict JSON only, no markdown';
+
+    const roadmapResult = await callAiJson({
+      messages: [
+        { role: 'system', content: roadmapSystemPrompt },
+        { role: 'user', content: 'Extract the roadmap from this document:\n\n' + fullText },
+      ],
+      schema: DOCUMENT_ROADMAP_SCHEMA,
+      maxTokens: 4096,
+      timeoutMs: AI_FILE_TIMEOUT_MS,
+      requestId,
+      routeName: '/api/ai/document-daily-plan/roadmap',
+    });
+
+    if (!roadmapResult.ok) {
+      return sendAiProviderError(res, roadmapResult);
+    }
+
+    const roadmap = roadmapResult.parsed;
+    if (!roadmap || !Array.isArray(roadmap.phases) || roadmap.phases.length === 0) {
+      return res.status(422).json({ ok: false, error: 'ai-roadmap-empty', details: ['no-phases-extracted'] });
+    }
+
+    console.log('[ai] route=/api/ai/document-daily-plan requestId=' + requestId + ' status=success stage=roadmap phases=' + roadmap.phases.length + ' latencyMs=' + roadmapResult.latencyMs);
+
+    // Stage B: Generate daily plan from roadmap
+    const today = new Date().toISOString().slice(0, 10);
+    const daysCount = 7;
+    const dates = [];
+    for (let i = 0; i < daysCount; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      dates.push(d.toISOString().slice(0, 10));
+    }
+
+    const roadmapStr = JSON.stringify(roadmap).slice(0, 8000);
+    const dateRangeStr = dates.join(', ');
+
+    const planSystemPrompt = 'You are TaskFlow Daily Planner. Generate small actionable daily tasks from a roadmap. Rules:\n- 2-4 tasks per day, 20-120 minutes each\n- Use create_task actions only (no schedule_task)\n- Assign dates from the provided range\n- Never duplicate existing tasks\n- Ground tasks in roadmap goals\n- Return strict JSON only';
+
+    const planResult = await callAiJson({
+      messages: [
+        { role: 'system', content: planSystemPrompt },
+        { role: 'user', content: 'Roadmap data:\n' + roadmapStr + '\n\nTarget dates: ' + dateRangeStr },
+      ],
+      schema: DAILY_PLAN_SCHEMA,
+      maxTokens: 4096,
+      timeoutMs: AI_FILE_TIMEOUT_MS,
+      requestId,
+      routeName: '/api/ai/document-daily-plan/daily',
+    });
+
+    if (!planResult.ok) {
+      return sendAiProviderError(res, planResult);
+    }
+
+    const plan = planResult.parsed;
+    if (!plan || !Array.isArray(plan.days) || plan.days.length === 0) {
+      return res.status(422).json({ ok: false, error: 'ai-daily-plan-empty' });
+    }
+
+    // Build proposal from plan
+    const actionIds = new Set();
+    let actionIndex = 0;
+    let totalMinutes = 0;
+    const actions = [];
+
+    for (const day of plan.days) {
+      if (!dates.includes(day.date) || day.date < today) continue;
+      for (const task of (day.tasks || [])) {
+        actionIndex++;
+        const id = 'a' + actionIndex;
+        if (actionIds.has(id)) continue;
+        actionIds.add(id);
+        const duration = Math.min(Math.max(parseInt(task.duration) || 45, 20), 120);
+        totalMinutes += duration;
+        actions.push({
+          id,
+          type: 'create_task',
+          args: {
+            taskRef: null,
+            text: String(task.text || '').slice(0, 300),
+            date: day.date,
+            start: null,
+            duration,
+            priority: false,
+            projectId: null,
+            milestoneId: null,
+            changes: null,
+          },
+          source: {
+            kind: 'document-daily-plan',
+            evidence: (task.roadmapGoal || '').slice(0, 200),
+          },
+        });
+      }
+    }
+
+    const proposal = {
+      summary: plan.summary || ('Kế hoạch ' + dates.length + ' ngày — ' + actions.length + ' công việc'),
+      actions,
+    };
+
+    // Validate
+    const v = validateDailyPlanProposal(proposal);
+    if (!v.ok) {
+      return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: v.errors.slice(0, 5) });
+    }
+
+    // Build document fingerprint
+    const crypto = require('crypto');
+    const documentName = acceptedFiles[0] ? acceptedFiles[0].name : 'document';
+    const fingerprint = crypto.createHash('sha256').update(documentName + '|' + String(fullText.length)).digest('hex').slice(0, 16);
+
+    console.log('[ai] route=/api/ai/document-daily-plan requestId=' + requestId + ' status=success stage=daily-plan actions=' + actions.length + ' latencyMs=' + planResult.latencyMs);
+
+    res.json({
+      ok: true,
+      proposal: canonicalizeAgentProposal(proposal),
+      roadmap: {
+        title: roadmap.title,
+        summary: roadmap.summary,
+        totalWeeks: roadmap.totalWeeks || 0,
+        phases: roadmap.phases,
+      },
+      fingerprint,
+      documentName,
+      meta: {
+        daysGenerated: dates.length,
+        totalActions: actions.length,
+        estimatedMinutes: totalMinutes,
+        dateRange: [dates[0], dates[dates.length - 1]],
+        roadmapLatencyMs: roadmapResult.latencyMs,
+        planLatencyMs: planResult.latencyMs,
+      },
+      latencyMs: Date.now() - startMs,
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'ai-provider-unavailable' });
+  }
+});
+
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal };
+
+
 
