@@ -2486,14 +2486,19 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
       const fullText = fullTextParts.join('\n\n');
       const fullTextBytes = Buffer.byteLength(fullText, 'utf8');
 
-      // Determine chunking
-      const needsChunking = fullTextBytes > MAX_CHUNK_CONTENT_BYTES;
-      const chunkResult = needsChunking ? chunkText(fullText, FILE_AGENT_MAX_CHUNKS) : [fullText];
-      const textChunks = chunkResult.chunks || [];
+      // Determine chunking — always use chunkText() for consistent object shape
+      const chunkResult = chunkText(fullText, FILE_AGENT_MAX_CHUNKS);
+      const textChunks = Array.isArray(chunkResult.chunks) ? chunkResult.chunks : [];
       const chunkTruncated = chunkResult.truncated === true;
       const chunkReason = chunkResult.reason || null;
       const totalChunksDetected = chunkResult.totalChunks || textChunks.length;
       const chunkCount = textChunks.length;
+
+      // Invariant: accepted text document must produce >= 1 chunk
+      if (textDocuments.length > 0 && fullText.trim().length > 0 && chunkCount === 0) {
+        console.error('[ai] route=/api/ai/file-agent requestId=' + requestId + ' status=no-text-chunks');
+        return res.status(500).json({ error: 'ai-file-processing-failed', details: ['no-text-chunks'] });
+      }
 
       // Merge all chunk proposals into one
       let mergedProposal = null;
@@ -2520,14 +2525,10 @@ router.post('/file-agent', aiFileLimiter, aiFileHourlyLimiter, async (req, res) 
           return res.status(499).json({ error: 'ai-request-aborted' });
         }
 
-        // Build chunk user message with document labels
-        let chunkUserMsg;
-        if (chunkCount === 1) {
-          chunkUserMsg = fullText;
-        } else {
-          const docLabel = textDocuments.length > 1 ? 'Documents combined. ' : '';
-          chunkUserMsg = docLabel + 'Chunk ' + (ci + 1) + ' of ' + chunkCount + '. ' + userMessage + '\n\n' + textChunks[ci];
-        }
+        // Build chunk user message — always include user request + document data
+        const docLabel = textDocuments.length > 1 ? 'Documents combined. ' : '';
+        const chunkLabel = chunkCount > 1 ? docLabel + 'Chunk ' + (ci + 1) + ' of ' + chunkCount + '. ' : '';
+        const chunkUserMsg = chunkLabel + userMessage + '\n\n' + textChunks[ci];
 
         // First chunk gets images (multimodal); subsequent chunks are text-only
         const chunkMessages = [
