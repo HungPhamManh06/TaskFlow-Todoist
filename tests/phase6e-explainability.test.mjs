@@ -486,8 +486,8 @@ describe('Phase 6E — Phase 5C Regression', () => {
 
   it('runtime still has confirm-time revalidation', () => {
     const src = read('js/ai-agent-runtime.js');
-    assert.ok(src.includes('validateProposal(selectedProposal, ctx)'));
-    assert.ok(src.includes('dryRun(selectedProposal, ctx)'));
+    assert.ok(src.includes('validateProposal(selectedProposal, ctx'));
+    assert.ok(src.includes('dryRun(selectedProposal, ctx'));
   });
 
   it('no new write capabilities added', () => {

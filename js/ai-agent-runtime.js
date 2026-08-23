@@ -187,7 +187,7 @@
   }
 
   /* ---- API call ---- */
-  async function _callAgentAPI(message, history) {
+  async function _callAgentAPI(message, history, signal) {
     const apiBase = _getApiBase();
     if (!apiBase) throw { code: 'api-config-missing' };
     const url = apiBase + '/api/ai/agent';
@@ -211,6 +211,7 @@
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      signal: signal || undefined,
     });
     let json;
     try { json = await res.json(); } catch (e) { json = null; }
@@ -289,7 +290,7 @@
    * Creates ephemeral review state for ONE proposal.
    * Each action entry: { id, selected: true, editedArgs: null, originalArgs }
    */
-  function _initReviewState(proposal, dry, grouped) {
+  function _initReviewState(proposal, dry, grouped, validationPolicy) {
     const actions = grouped.map(function (g) {
       const action = proposal.actions.find(function (a) { return a.id === g.actionId; });
       const originalArgs = action ? JSON.parse(JSON.stringify(action.args || {})) : {};
@@ -312,6 +313,7 @@
       _source: dry && dry._source ? dry._source : null,
       _fileName: dry && dry._fileName ? dry._fileName : null,
       _fileMime: dry && dry._fileMime ? dry._fileMime : null,
+      _validationPolicy: validationPolicy || null,
     };
   }
 
@@ -1320,11 +1322,11 @@
     return card;
   }
 
-  function _renderCard(msgs, proposal, dry) {
+  function _renderCard(msgs, proposal, dry, validationPolicy) {
     // Phase 5C: initialize review state on first render
     const virtualEntities = dry.virtualEntities || new Map();
     const grouped = _groupChangesForPreview(dry.changes, virtualEntities, dry._ctx);
-    _initReviewState(proposal, dry, grouped);
+    _initReviewState(proposal, dry, grouped, validationPolicy);
     const card = _renderCardFull(msgs, proposal);
     if (card) {
       msgs.appendChild(card);
@@ -1635,8 +1637,10 @@
       });
 
       // P22: revalidate selected subgraph against CURRENT state
+      // Use the stored validation policy (e.g. fileImport for File-Agent proposals)
+      const savedPolicy = _reviewState && _reviewState._validationPolicy ? _reviewState._validationPolicy : null;
       const ctx = buildContext();
-      const v = window.TaskFlowAIAgent.validateProposal(selectedProposal, ctx);
+      const v = window.TaskFlowAIAgent.validateProposal(selectedProposal, ctx, savedPolicy);
       if (!v.ok) {
         const errBubble = _bubble('agent-info');
         errBubble.textContent = _t('agentStaleConfirm');
@@ -1646,7 +1650,7 @@
         if (card.parentNode) card.parentNode.removeChild(card);
         return;
       }
-      const dry = window.TaskFlowAIAgent.dryRun(selectedProposal, ctx);
+      const dry = window.TaskFlowAIAgent.dryRun(selectedProposal, ctx, savedPolicy);
       if (!dry.valid) {
         const errBubble = _bubble('agent-info');
         errBubble.textContent = _mapValidationError(dry.errors);
@@ -1741,7 +1745,7 @@
   }
 
   /* ---- P1/P6/P24: main entry — returns { handled, reply? } ---- */
-  async function handleAgent(message, history, msgs) {
+  async function handleAgent(message, history, msgs, opts) {
     try {
       if (!_isOnline()) {
         const b = _bubble('agent-info');
@@ -1765,7 +1769,8 @@
         return { handled: true, reply: null };
       }
 
-      const proposal = await _callAgentAPI(message, history);
+      const signal = opts && opts.signal ? opts.signal : undefined;
+      const proposal = await _callAgentAPI(message, history, signal);
 
       // P6: browser is the final authority.
       const ctx = buildContext();
@@ -1796,6 +1801,10 @@
       _renderCard(msgs, proposal, dry);
       return { handled: true, reply: null };
     } catch (err) {
+      // AbortError = user pressed Stop — silent cancellation, no error bubble
+      if (err && err.name === 'AbortError') {
+        return { handled: true, aborted: true, reply: null };
+      }
       const b = _bubble('agent-info');
       b.textContent = _mapError(err);
       msgs.appendChild(b);
@@ -1892,9 +1901,14 @@
       const msgs = _el('chatMessages');
       if (!msgs) return { ok: false, code: 'no-chat-messages' };
 
+      // File-Agent proposals use the fileImport policy (max 120, create+schedule only)
+      const policy = window.TaskFlowAIAgent && window.TaskFlowAIAgent.VALIDATION_POLICIES
+        ? window.TaskFlowAIAgent.VALIDATION_POLICIES.fileImport
+        : null;
+
       // Validate against current TaskFlow state
       const ctx = buildContext();
-      const v = window.TaskFlowAIAgent.validateProposal(proposal, ctx);
+      const v = window.TaskFlowAIAgent.validateProposal(proposal, ctx, policy);
       if (!v.ok) {
         const b = _bubble('agent-info');
         b.textContent = _mapValidationError(v.errors);
@@ -1902,7 +1916,7 @@
         msgs.scrollTop = msgs.scrollHeight;
         return { ok: false, code: 'validation-failed', errors: v.errors };
       }
-      const dry = window.TaskFlowAIAgent.dryRun(proposal, ctx);
+      const dry = window.TaskFlowAIAgent.dryRun(proposal, ctx, policy);
       if (!dry.valid) {
         const b = _bubble('agent-info');
         b.textContent = _mapValidationError(dry.errors);
@@ -1921,7 +1935,7 @@
       dry._source = opts && opts.source ? opts.source : 'file';
       dry._fileName = opts && opts.fileName ? opts.fileName : '';
       dry._fileMime = opts && opts.fileMime ? opts.fileMime : '';
-      _renderCard(msgs, proposal, dry);
+      _renderCard(msgs, proposal, dry, policy);
       return { ok: true };
     } catch (e) {
       try {

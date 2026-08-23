@@ -34,6 +34,21 @@
   const MAX_DEPENDENCY_DEPTH = 4;
   const ACTION_ID_RE = /^a\d+$/; // a1, a2, a3, ...
 
+  /* ---- Scoped validation policies ----
+     Normal Agent: max 10 actions, all 5 types allowed.
+     File-Agent bulk import: max 120 actions, only create_task + schedule_task.
+     Policies are frozen to prevent runtime mutation. */
+  const VALIDATION_POLICIES = Object.freeze({
+    normal: Object.freeze({
+      maxActions: MAX_ACTIONS,
+      allowedTypes: Object.freeze(SUPPORTED_TYPES.slice()),
+    }),
+    fileImport: Object.freeze({
+      maxActions: 120,
+      allowedTypes: Object.freeze(['create_task', 'schedule_task']),
+    }),
+  });
+
   /* ---- Field allowlists ----
      create_task / update_task accept ONLY these fields. Everything else is
      stripped (unknown) or rejected (forbidden/secret). */
@@ -338,7 +353,8 @@
 
   /* Validate one action. Returns { ok:true, action: <allowlisted> } or
      { ok:false, errors: [{ code, field? }] }. Never echoes args in errors. */
-  function validateAction(action, context, actionIdSet) {
+  function validateAction(action, context, actionIdSet, policy) {
+    const p = policy || VALIDATION_POLICIES.normal;
     if (!isPlainObject(action)) {
       return { ok: false, errors: [{ code: 'action-not-object' }] };
     }
@@ -347,7 +363,7 @@
       return { ok: false, errors: [{ code: 'invalid-action-id', field: 'id' }] };
     }
     const type = action.type;
-    if (SUPPORTED_TYPES.indexOf(type) === -1) {
+    if (p.allowedTypes.indexOf(type) === -1) {
       return { ok: false, errors: [{ code: 'unsupported-action' }] };
     }
     const args = action.args;
@@ -452,7 +468,8 @@
 
   /* ---- Proposal validation ---- */
 
-  function validateProposal(proposal, context) {
+  function validateProposal(proposal, context, policy) {
+    const p = policy || VALIDATION_POLICIES.normal;
     if (!isPlainObject(proposal)) {
       return { ok: false, errors: [{ index: -1, code: 'proposal-not-object' }] };
     }
@@ -462,7 +479,7 @@
     if (!Array.isArray(proposal.actions)) {
       return { ok: false, errors: [{ index: -1, code: 'actions-invalid' }] };
     }
-    if (proposal.actions.length > MAX_ACTIONS) {
+    if (proposal.actions.length > p.maxActions) {
       return { ok: false, errors: [{ index: -1, code: 'proposal-too-large' }] };
     }
 
@@ -475,7 +492,7 @@
     const errors = [];
     const actions = [];
     proposal.actions.forEach((a, i) => {
-      const r = validateAction(a, context, actionIdSet);
+      const r = validateAction(a, context, actionIdSet, p);
       if (r.ok) actions.push(r.action);
       else r.errors.forEach((e) => errors.push(Object.assign({ index: i }, e)));
     });
@@ -572,8 +589,8 @@
 
   /* ---- Dry run: deterministic, zero mutation ----
      Now supports dependent actions via virtual entity mapping. */
-  function dryRun(proposal, context) {
-    const v = validateProposal(proposal, context);
+  function dryRun(proposal, context, policy) {
+    const v = validateProposal(proposal, context, policy);
     if (!v.ok) return { valid: false, errors: v.errors, dependencyGraph: null };
 
     const actions = v.actions;
@@ -743,6 +760,7 @@
     MAX_TEXT: MAX_TEXT,
     MAX_DURATION: MAX_DURATION,
     ENTITY_PRODUCERS: ENTITY_PRODUCERS,
+    VALIDATION_POLICIES: VALIDATION_POLICIES,
     validateAction: validateAction,
     validateProposal: validateProposal,
     previewAction: previewAction,
