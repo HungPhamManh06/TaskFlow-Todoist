@@ -168,3 +168,5 @@ jobs:
           name: phase6-2-final-commit-metadata
           path: final-commit.json
           if-no-files-found: error
+
+# trigger: write-enabled push materializer
