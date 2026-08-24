@@ -3,6 +3,8 @@ name: Phase 6.2 materialize final commit
 on:
   push:
     branches: [hotfix/phase6-2-direct-chat]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
@@ -114,7 +116,6 @@ jobs:
               p = line[3:]
               if ' -> ' in p:
                   p = p.split(' -> ', 1)[1]
-              # Never ship helper-only verifier/materializer files or patch runners.
               if p in {
                   'scripts/phase6-2-direct-hotfix.py',
                   'scripts/run-phase6-2-hotfix.py',
