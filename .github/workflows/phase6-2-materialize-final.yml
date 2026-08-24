@@ -1,0 +1,91 @@
+name: Phase 6.2 materialize final commit
+
+on:
+  push:
+    branches: [hotfix/phase6-2-direct-chat]
+
+permissions:
+  contents: write
+
+env:
+  EXPECTED_MAIN: 74fe78acf7975f0eeb5e6ad46e67847b5a0ebcd9
+  MATERIALIZED_BRANCH: hotfix/phase6-2-materialized-main-v2
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout helper branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Prepare clean main baseline
+        run: |
+          set -euo pipefail
+          cp scripts/phase6-2-direct-hotfix.py /tmp/phase6-2-direct-hotfix.py
+          cp scripts/run-phase6-2-hotfix.py /tmp/run-phase6-2-hotfix.py
+          git fetch origin main
+          ACTUAL_MAIN="$(git rev-parse origin/main)"
+          echo "expected_main=$EXPECTED_MAIN"
+          echo "actual_main=$ACTUAL_MAIN"
+          test "$ACTUAL_MAIN" = "$EXPECTED_MAIN"
+          git checkout -B phase6-2-materialized "$EXPECTED_MAIN"
+
+      - name: Install server deps
+        run: cd server && npm ci
+
+      - name: Apply verified direct hotfix patch
+        run: python /tmp/run-phase6-2-hotfix.py
+
+      - name: Generate canonical browser contracts
+        run: |
+          node scripts/generate-ai-tool-contracts.mjs
+          node scripts/generate-ai-tool-contracts.mjs --check
+
+      - name: Regenerate minified assets
+        run: |
+          npx --yes terser@5 --version >/dev/null 2>&1
+          npx --yes csso-cli@4 --version >/dev/null 2>&1
+          python scripts/minify.py --only js
+          python scripts/minify.py --check --only js
+
+      - name: Syntax checks
+        run: |
+          node --check js/ai-tools.js
+          node --check js/ai-brain-client.js
+          node --check js/ai-document-daily-plan.js
+          node --check js/ai-agent-runtime.js
+          node --check server/ai.js
+          node --check server/ai-tool-contracts.js
+
+      - name: Full unit tests
+        run: node --test tests/*.test.mjs
+
+      - name: Sync tests
+        run: node test-sync.js
+
+      - name: Security tests
+        run: node test-server-security.js
+
+      - name: Canonical contracts gate
+        run: node scripts/generate-ai-tool-contracts.mjs --check
+
+      - name: Commit verified production hotfix
+        run: |
+          set -euo pipefail
+          git status --short
+          test -n "$(git status --porcelain)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m 'fix(ai): close Phase 6.2 regressions on main'
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_MAIN"
+          git push origin "HEAD:refs/heads/$MATERIALIZED_BRANCH"

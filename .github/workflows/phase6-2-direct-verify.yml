@@ -1,0 +1,103 @@
+name: Phase 6.2 direct hotfix verify
+
+on:
+  push:
+    branches: [hotfix/phase6-2-direct-chat]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server deps
+        run: cd server && npm ci
+
+      - name: Apply direct hotfix patch
+        run: python scripts/run-phase6-2-hotfix.py
+
+      - name: Generate canonical browser contracts
+        run: |
+          node scripts/generate-ai-tool-contracts.mjs
+          node scripts/generate-ai-tool-contracts.mjs --check
+
+      - name: Regenerate minified assets
+        run: |
+          npx --yes terser@5 --version >/dev/null 2>&1
+          npx --yes csso-cli@4 --version >/dev/null 2>&1
+          python scripts/minify.py --only js
+          python scripts/minify.py --check --only js
+
+      - name: Syntax checks
+        run: |
+          node --check js/ai-tools.js
+          node --check js/ai-brain-client.js
+          node --check js/ai-document-daily-plan.js
+          node --check js/ai-agent-runtime.js
+          node --check server/ai.js
+          node --check server/ai-tool-contracts.js
+
+      - name: Unit tests
+        run: node --test tests/*.test.mjs
+
+      - name: Sync tests
+        run: node test-sync.js
+
+      - name: Security tests
+        run: node test-server-security.js
+
+      - name: Show changed files
+        run: git status --short
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase6-2-direct-hotfix-tree
+          path: |
+            .github/workflows/ci.yml
+            app.html
+            sw.js
+            shared/ai-tool-contracts.json
+            server/ai.js
+            server/ai-tool-contracts.js
+            js/ai-tool-contracts.generated.js
+            js/ai-tool-contracts.generated.min.js
+            js/ai-brain-client.js
+            js/ai-brain-client.min.js
+            js/ai-tools.js
+            js/ai-tools.min.js
+            js/ai-document-daily-plan.js
+            js/ai-document-daily-plan.min.js
+            js/ai-agent-runtime.js
+            js/ai-agent-runtime.min.js
+            tests/phase6-2-hotfix-regressions.test.mjs
+            tests/phase9-frontend.test.mjs
+            tests/phase15-daily-alignment.test.mjs
+            tests/phase16-weekly-review.test.mjs
+            tests/phase17-monthly-review.test.mjs
+            tests/phase18-month-carryover.test.mjs
+            tests/phase19-reports-integration.test.mjs
+            tests/phase21-projects.test.mjs
+            tests/phase23-planning-meta.test.mjs
+            tests/phase24-planner.test.mjs
+            tests/phase27-habits-schedules.test.mjs
+            tests/phase28-quick-capture.test.mjs
+            tests/phase29-insights.test.mjs
+            tests/phase31-ai.test.mjs
+            tests/phase-agent-dep-order-cache-rollout.test.mjs
+            tests/phase-file-agent-bulk-policy-agent-abort.test.mjs
+          if-no-files-found: error
+
+# Verification workflow only; it never pushes or mutates repository refs.
