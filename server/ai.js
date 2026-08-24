@@ -3619,4 +3619,214 @@ async function handleDocumentDailyPlan(req, res, overrides) {
 
 router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileHourlyLimiter), handleDocumentDailyPlan);
 
+
+/* ============ AI Brain: POST /api/ai/brain — Tool-Selection Agent ============ */
+// Gemini selects tools from a defined registry. Server enforces safety.
+// Multi-step loop: Gemini → tool call → execute → Gemini → ... → final answer.
+const BRAIN_MAX_STEPS = 8;
+const BRAIN_STEP_TIMEOUT_MS = parseInt(process.env.AI_BRAIN_STEP_TIMEOUT_MS || '30000', 10);
+const BRAIN_TOTAL_TIMEOUT_MS = parseInt(process.env.AI_BRAIN_TOTAL_TIMEOUT_MS || '120000', 10);
+
+const BRAIN_TOOL_DEFINITIONS = [
+  { name: 'get_today', description: 'Get today\'s date.', category: 'read' },
+  { name: 'get_tasks', description: 'Get current tasks with optional filter (all/active/completed/today/upcoming/overdue).', category: 'read' },
+  { name: 'get_projects', description: 'Get projects and milestones.', category: 'read' },
+  { name: 'get_active_roadmap', description: 'Get active document daily plan roadmap.', category: 'read' },
+  { name: 'get_plan_progress', description: 'Get document plan progress stats.', category: 'read' },
+  { name: 'get_free_time', description: 'Get busy/free time for a date range.', category: 'read' },
+  { name: 'generate_daily_plan', description: 'Generate daily tasks from roadmap.', category: 'planning' },
+  { name: 'propose_create_task', description: 'Propose creating a new task.', category: 'mutation_proposal' },
+  { name: 'propose_complete_task', description: 'Propose completing a task.', category: 'mutation_proposal' },
+  { name: 'propose_reschedule_task', description: 'Propose rescheduling a task.', category: 'mutation_proposal' },
+  { name: 'propose_delete_task', description: 'Propose deleting a task (destructive, always Review).', category: 'mutation_proposal' },
+];
+
+const BRAIN_SYSTEM_VI = 'Bạn là AI Brain của TaskFlow. Bạn chọn tool phù hợp để trả lời câu hỏi hoặc thực hiện yêu cầu.\n' +
+  'Luật:\n' +
+  '- PHẢI trả về JSON với dạng:\n' +
+  '  { "type": "tool_call", "tool": "tên-tool", "args": {...} }\n' +
+  '  hoặc { "type": "final", "answer": "câu trả lời" }\n' +
+  '- Tool name PHẢI nằm trong danh sách cho phép.\n' +
+  '- Args PHẢI đúng schema của tool.\n' +
+  '- Nếu cần nhiều bước, trả tool_call cho bước đầu. Server sẽ gọi lại bạn với kết quả.\n' +
+  '- Tối đa ' + BRAIN_MAX_STEPS + ' bước.\n' +
+  '- KHÔNG bao giờ gọi tool trực tiếp thay vì trả JSON.\n' +
+  '- Tool invoke KHÔNG được ghi trực tiếp vào database/localStorage.\n' +
+  '- Phản hồi CHỈ bằng JSON hợp lệ.';
+
+const BRAIN_SYSTEM_EN = 'You are TaskFlow\'s AI Brain. You select appropriate tools to answer questions or fulfill requests.\n' +
+  'Rules:\n' +
+  '- MUST return JSON in the form:\n' +
+  '  { "type": "tool_call", "tool": "tool-name", "args": {...} }\n' +
+  '  or { "type": "final", "answer": "response text" }\n' +
+  '- Tool name MUST be in the allowed list.\n' +
+  '- Args MUST match the tool\'s schema.\n' +
+  '- If multiple steps needed, return tool_call for the first step. Server will call you back with results.\n' +
+  '- Max ' + BRAIN_MAX_STEPS + ' steps.\n' +
+  '- NEVER invoke tools directly instead of returning JSON.\n' +
+  '- Tool invocations MUST NOT write directly to database/localStorage.\n' +
+  '- Respond with valid JSON only.';
+
+const BRAIN_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    type: { type: 'string', enum: ['tool_call', 'final'] },
+    tool: { type: 'string' },
+    args: { type: 'object' },
+    answer: { type: 'string' },
+  },
+  required: ['type'],
+};
+
+router.post('/brain', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHourlyLimiter), async (req, res) => {
+  const requestId = req.aiRequestId;
+  const clientAbort = new AbortController();
+  const onClientClose = () => clientAbort.abort();
+  req.on('aborted', onClientClose);
+  res.on('close', () => { req.removeListener('aborted', onClientClose); });
+
+  try {
+    if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
+
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+    if (!message || message.length > MAX_MESSAGE_LEN) {
+      return res.status(400).json({ error: 'invalid-message' });
+    }
+
+    const rawLen = Buffer.byteLength(JSON.stringify(body), 'utf8');
+    if (rawLen > 128 * 1024) {
+      return res.status(413).json({ error: 'payload-too-large' });
+    }
+
+    const userId = req.user?.id;
+    const history = sanitizeChatHistory(body.history);
+    const lang = /[a-zA-Z]/.test(message) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(message)
+      ? 'en' : 'vi';
+    const sysInstruction = lang === 'en' ? BRAIN_SYSTEM_EN : BRAIN_SYSTEM_VI;
+    const toolDefs = JSON.stringify(BRAIN_TOOL_DEFINITIONS);
+
+    // Acquire concurrency slot
+    let slotAcquired = false;
+    if (userId) {
+      const current = agentInFlight.get(userId) || 0;
+      if (current >= MAX_AGENT_CONCURRENT) {
+        return res.status(429).json({ error: 'ai-agent-busy' });
+      }
+      agentInFlight.set(userId, current + 1);
+      slotAcquired = true;
+    }
+
+    const releaseSlot = () => {
+      if (slotAcquired && userId) {
+        const current = agentInFlight.get(userId) || 0;
+        if (current > 1) agentInFlight.set(userId, current - 1);
+        else if (current > 0) agentInFlight.delete(userId);
+      }
+    };
+
+    try {
+      // Multi-step agent loop
+      const toolResults = [];
+      let lastAnswer = null;
+      const startTime = Date.now();
+
+      for (let step = 0; step < BRAIN_MAX_STEPS; step++) {
+        if (Date.now() - startTime > BRAIN_TOTAL_TIMEOUT_MS) {
+          console.log('[ai] route=/api/ai/brain requestId=' + requestId + ' status=timeout step=' + step + ' latencyMs=' + (Date.now() - startTime));
+          break;
+        }
+        if (clientAbort.signal.aborted) break;
+
+        const contextMsg = toolResults.length > 0
+          ? '<TOOL_RESULTS>' + JSON.stringify(toolResults) + '</TOOL_RESULTS>\n' + message
+          : message;
+
+        const messages = [
+          { role: 'system', content: sysInstruction + '\nAvailable tools: ' + toolDefs },
+          ...history.map((m) => ({ role: m.role, content: m.content })),
+          { role: 'user', content: contextMsg },
+        ];
+
+        const aiResult = await callAiJson({
+          messages,
+          schema: BRAIN_RESPONSE_SCHEMA,
+          maxTokens: 1200,
+          timeoutMs: BRAIN_STEP_TIMEOUT_MS,
+          requestId,
+          routeName: '/api/ai/brain',
+          signal: clientAbort.signal,
+        });
+
+        if (!aiResult.ok) {
+          return sendAiProviderError(res, aiResult);
+        }
+
+        const parsed = aiResult.parsed && typeof aiResult.parsed === 'object' ? aiResult.parsed : null;
+        if (!parsed || !parsed.type) {
+          return res.status(422).json({ error: 'ai-invalid-response' });
+        }
+
+        if (parsed.type === 'final') {
+          lastAnswer = typeof parsed.answer === 'string' ? parsed.answer : '';
+          break;
+        }
+
+        if (parsed.type === 'tool_call') {
+          const toolName = parsed.tool;
+          const toolArgs = parsed.args || {};
+
+          // Validate tool name
+          if (!toolName || typeof toolName !== 'string') {
+            return res.status(422).json({ error: 'invalid-tool-name' });
+          }
+          const knownTool = BRAIN_TOOL_DEFINITIONS.find((t) => t.name === toolName);
+          if (!knownTool) {
+            // Unknown tool — reject, don't execute
+            toolResults.push({ tool: toolName, error: 'unknown-tool' });
+            continue;
+          }
+
+          // Execute read tools server-side, mutation proposals return as-is
+          if (knownTool.category === 'read') {
+            // Read tools are safe to execute on server
+            try {
+              let toolResult = null;
+              if (toolName === 'get_today') {
+                const now = new Date();
+                toolResult = { today: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') };
+              }
+              // Other read tools need client-side execution (tasks, projects, etc.)
+              // Return tool_call to client for execution
+              toolResults.push({ tool: toolName, result: toolResult || { _needsClient: true, tool: toolName, args: toolArgs } });
+            } catch (e) {
+              toolResults.push({ tool: toolName, error: 'execution-failed' });
+            }
+          } else {
+            // Mutation proposals — return to client for Review/Apply
+            toolResults.push({ tool: toolName, args: toolArgs, _proposal: true });
+          }
+        }
+      }
+
+      const respBody = {
+        ok: true,
+        answer: lastAnswer,
+        toolResults: toolResults,
+        steps: toolResults.length,
+      };
+
+      console.log('[ai] route=/api/ai/brain requestId=' + requestId + ' status=ok steps=' + toolResults.length + ' latencyMs=' + (Date.now() - startTime));
+
+      return res.json(respBody);
+    } finally {
+      releaseSlot();
+    }
+  } catch (e) {
+    const safeType = e && typeof e.code === 'string' ? e.code : (e && e.name ? e.name : 'unknown');
+    console.log('[ai] route=/api/ai/brain requestId=' + requestId + ' status=error errorType=' + safeType + ' latencyMs=0');
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
 module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal, normalizeTimeZone, dateStringInTimeZone, addDaysToDateString, handleDailyPlan, handleDocumentDailyPlan };

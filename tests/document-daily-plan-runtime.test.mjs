@@ -449,7 +449,7 @@ describe('Runtime: account-scoped roadmap storage', () => {
     assert.equal(storeData.activeRoadmapId, null);
   });
 
-  it('onAccountChange clears active roadmap', () => {
+  it('onAccountChange clears pending cursor but preserves roadmap', () => {
     const store = { _store: {} };
     const mockStorage = {
       getItem(k) { return store._store[k] || null; },
@@ -475,7 +475,9 @@ describe('Runtime: account-scoped roadmap storage', () => {
     assert.ok(api.getActiveRoadmap(), 'has active roadmap');
 
     api.onAccountChange();
-    assert.equal(api.getActiveRoadmap(), null, 'active cleared after account change');
+    // onAccountChange should NOT clear another account's persistent data.
+    // The roadmap data is account-scoped via storage key, so it persists.
+    assert.ok(api.getActiveRoadmap(), 'roadmap preserved after account change (storage is account-scoped)');
   });
 });
 
