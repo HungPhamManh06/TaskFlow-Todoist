@@ -443,7 +443,7 @@ describe('Runtime: account-scoped roadmap storage', () => {
 
     // Should not throw, should return empty store
     const storeData = api.loadStore();
-    assert.equal(storeData.version, 1);
+    assert.equal(storeData.version, 2);
     assert.ok(Array.isArray(storeData.roadmaps), 'roadmaps is array');
     assert.equal(storeData.roadmaps.length, 0, 'roadmaps is empty');
     assert.equal(storeData.activeRoadmapId, null);

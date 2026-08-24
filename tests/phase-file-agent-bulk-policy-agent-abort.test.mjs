@@ -356,7 +356,7 @@ test('File Import large bulk (80 actions) dryRun works', () => {
 
 test('SW: cache version is v274', () => {
   const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
-  assert.match(sw, /const CACHE = 'taskflow-v291'/);
+  assert.match(sw, /const CACHE = 'taskflow-v292'/);
   assert.ok(!sw.includes('taskflow-v273'), 'should not contain old v273');
 });
 

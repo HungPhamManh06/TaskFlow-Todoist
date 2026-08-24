@@ -193,11 +193,13 @@
               if (!d || !Array.isArray(d.tasks)) return;
               d.tasks.forEach(function (tk) {
                 if (!tk) return;
+                var scheduledDate = _gridDate(w.week, d.day);
                 allTasks.push({
                   uid: tk.uid,
                   text: tk.text || '',
                   done: !!tk.done,
                   deadline: tk.deadline || null,
+                  scheduledDate: scheduledDate,
                   duration: tk.duration || tk.estimatedMinutes || null,
                   week: w.week,
                   day: d.day,
@@ -362,12 +364,25 @@
         }
       } catch (e) { /* offline */ }
 
-      var timeblocks = null;
+      // Normalize TaskFlow timeblocks into busy entries
       try {
-        if (typeof loadTimeBlocksStore === 'function') timeblocks = loadTimeBlocksStore();
+        if (typeof loadTimeBlocksStore === 'function') {
+          var tbStore = loadTimeBlocksStore();
+          if (tbStore && typeof tbStore === 'object') {
+            // timeblocks keyed by date: { 'YYYY-MM-DD': [{ startMs, endMs, ... }] }
+            Object.keys(tbStore).forEach(function (dateKey) {
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+              var entries = Array.isArray(tbStore[dateKey]) ? tbStore[dateKey] : [];
+              entries.forEach(function (tb) {
+                if (!tb) return;
+                busy.push({ date: dateKey, startMs: tb.startMs || 0, endMs: tb.endMs || 0, source: 'taskflow' });
+              });
+            });
+          }
+        }
       } catch (e) { /* */ }
 
-      return { busy: busy, timeblocks: timeblocks, startDate: startDate, daysCount: daysCount };
+      return { busy: busy, startDate: startDate, daysCount: daysCount };
     },
   });
 

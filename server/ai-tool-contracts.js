@@ -4,7 +4,13 @@
 // Client: registers tools, executes client-side, sends sanitized results.
 'use strict';
 
-const TOOL_CONTRACTS = [
+// Load canonical contracts from shared source of truth
+const fs = require('fs');
+const path = require('path');
+const TOOL_CONTRACTS = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'shared', 'ai-tool-contracts.json'), 'utf8'));
+
+// Serve as reference (original inline definitions removed, loaded from shared/ai-tool-contracts.json)
+const _unused = [
   // ── READ TOOLS ──────────────────────────────────────
   {
     name: 'get_today',
@@ -43,7 +49,22 @@ const TOOL_CONTRACTS = [
     outputSchema: {
       type: 'object',
       properties: {
-        tasks: { type: 'array', maxItems: 60 },
+        tasks: {
+          type: 'array',
+          maxItems: 60,
+          items: {
+            type: 'object',
+            properties: {
+              uid: { type: 'string' },
+              text: { type: 'string', maxLength: 300 },
+              done: { type: 'boolean' },
+              deadline: { type: 'string' },
+              scheduledDate: { type: 'string' },
+              duration: { type: 'number' },
+            },
+            additionalProperties: false,
+          },
+        },
         total: { type: 'number' },
       },
       required: ['tasks', 'total'],
@@ -101,7 +122,14 @@ const TOOL_CONTRACTS = [
     },
     outputSchema: {
       type: 'object',
-      properties: { hasActivePlan: { type: 'boolean' } },
+      properties: {
+        hasActivePlan: { type: 'boolean' },
+        documentName: { type: 'string', maxLength: 200 },
+        roadmapTitle: { type: 'string', maxLength: 200 },
+        totalWeeks: { type: 'number', minimum: 0, maximum: 500 },
+        cursor: { type: 'object' },
+      },
+      required: ['hasActivePlan'],
       additionalProperties: false,
     },
   },
@@ -287,23 +315,91 @@ function getContract(toolName) {
   return TOOL_CONTRACTS.find((t) => t.name === toolName) || null;
 }
 
+const MAX_SCHEMA_DEPTH = 8;
+const MAX_TOTAL_RESULT_BYTES = 256 * 1024;
+
+function _validateSchema(value, schema, path, depth, errors) {
+  if (depth > MAX_SCHEMA_DEPTH) { errors.push('too-deep: ' + path); return; }
+  if (!schema) return; // no constraint
+
+  // Handle union types (e.g. ['string', 'null'])
+  if (Array.isArray(schema.type)) {
+    if (!schema.type.some((t) => t === null && value === null || t === _jsType(value))) {
+      errors.push('invalid-type: ' + path + ' (expected ' + schema.type.join('|') + ')');
+    }
+    return;
+  }
+
+  if (schema.type) {
+    const expected = schema.type;
+    if (expected === 'null') {
+      if (value !== null) errors.push('invalid-type: ' + path + ' (expected null)');
+      return;
+    }
+    if (_jsType(value) !== expected) {
+      errors.push('invalid-type: ' + path + ' (expected ' + expected + ', got ' + _jsType(value) + ')');
+      return;
+    }
+  }
+
+  if (typeof value === 'string') {
+    if (schema.maxLength && value.length > schema.maxLength) errors.push('too-long: ' + path);
+    if (schema.minLength && value.length < schema.minLength) errors.push('too-short: ' + path);
+    if (schema.format === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) errors.push('invalid-date: ' + path);
+    if (schema.enum && !schema.enum.includes(value)) errors.push('invalid-enum: ' + path);
+  }
+
+  if (typeof value === 'number') {
+    if (schema.minimum != null && value < schema.minimum) errors.push('too-small: ' + path);
+    if (schema.maximum != null && value > schema.maximum) errors.push('too-large: ' + path);
+  }
+
+  if (Array.isArray(value)) {
+    if (schema.maxItems && value.length > schema.maxItems) errors.push('too-many-items: ' + path);
+    if (schema.items) {
+      value.forEach((item, i) => _validateSchema(item, schema.items, path + '[' + i + ']', depth + 1, errors));
+    }
+  }
+
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    if (schema.required && Array.isArray(schema.required)) {
+      schema.required.forEach((key) => {
+        if (value[key] === undefined || value[key] === null) errors.push('missing: ' + path + '.' + key);
+      });
+    }
+    if (schema.properties) {
+      Object.keys(value).forEach((key) => {
+        if (schema.properties[key]) {
+          _validateSchema(value[key], schema.properties[key], path + '.' + key, depth + 1, errors);
+        }
+      });
+    }
+    if (schema.additionalProperties === false && schema.properties) {
+      Object.keys(value).forEach((key) => {
+        if (!schema.properties[key]) errors.push('unexpected: ' + path + '.' + key);
+      });
+    }
+  }
+}
+
+function _jsType(v) {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return 'array';
+  return typeof v;
+}
+
 function validateToolResult(toolName, result) {
   const contract = TOOL_CONTRACTS.find((t) => t.name === toolName);
   if (!contract) return { ok: false, errors: ['unknown-tool: ' + toolName] };
-  if (!contract.outputSchema) return { ok: true, errors: [] }; // no schema = accept
+  if (!contract.outputSchema) return { ok: true, errors: [] };
   if (!result || typeof result !== 'object') return { ok: false, errors: ['result-not-object'] };
-  const schema = contract.outputSchema;
+  // Size check
+  try {
+    const byteLen = Buffer.byteLength(JSON.stringify(result), 'utf8');
+    if (byteLen > MAX_TOTAL_RESULT_BYTES) return { ok: false, errors: ['brain-tool-result-too-large'] };
+  } catch (e) { /* proceed */ }
   const errors = [];
-  if (schema.required && Array.isArray(schema.required)) {
-    schema.required.forEach((key) => {
-      if (result[key] === undefined || result[key] === null) errors.push('missing: ' + key);
-    });
-  }
-  if (schema.additionalProperties === false && schema.properties) {
-    Object.keys(result).forEach((key) => {
-      if (!schema.properties[key]) errors.push('unexpected: ' + key);
-    });
-  }
+  _validateSchema(result, contract.outputSchema, 'result', 0, errors);
   return { ok: errors.length === 0, errors };
 }
 

@@ -36,14 +36,25 @@
   function loadStore() {
     try {
       var raw = localStorage.getItem(_storageKey());
-      if (!raw) return { version: 1, activeRoadmapId: null, roadmaps: [] };
+      if (!raw) return { version: 2, activeRoadmapId: null, roadmaps: [] };
       var parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.roadmaps)) {
-        return { version: 1, activeRoadmapId: null, roadmaps: [] };
+        return { version: 2, activeRoadmapId: null, roadmaps: [] };
+      }
+      // Persist migration: migrate any v1 records and save if changed
+      var changed = false;
+      parsed.roadmaps = parsed.roadmaps.map(function (r) {
+        var migrated = _migrateRecord(r);
+        if (migrated !== r || (migrated && !migrated.baseDate)) changed = true;
+        return migrated;
+      });
+      parsed.version = 2;
+      if (changed) {
+        try { localStorage.setItem(_storageKey(), JSON.stringify(parsed)); } catch (e) { /* degrade */ }
       }
       return parsed;
     } catch (e) {
-      return { version: 1, activeRoadmapId: null, roadmaps: [] };
+      return { version: 2, activeRoadmapId: null, roadmaps: [] };
     }
   }
 
@@ -60,15 +71,30 @@
   /* ---- Migration: v1 records → v2 with baseDate + appliedCursor ---- */
   function _migrateRecord(record) {
     if (!record || typeof record !== 'object') return record;
-    // Already v2 if baseDate exists
+    // Already v2 if baseDate exists — idempotent
     if (record.baseDate) return record;
     var cursor = record.cursor || {};
-    // Migrate legacy fields
-    record.baseDate = cursor.lastStartDate || record.createdAt ? new Date(record.createdAt || Date.now()).toISOString().slice(0, 10) : _today();
+    var nextWk = cursor.nextWeek || 0;
+    var legacyWindowSize = cursor.lastDaysCount || 7;
+    // Derive baseDate: lastStartDate - (nextWeek - 1) * windowSize
+    // because lastStartDate is where the last completed window started
+    var lastStart = cursor.lastStartDate || null;
+    if (lastStart && nextWk > 0) {
+      // baseDate = first window start = lastStart - (nextWeek-1) * windowSize
+      record.baseDate = _addDays(lastStart, -((nextWk - 1) * legacyWindowSize));
+    } else if (lastStart) {
+      record.baseDate = lastStart;
+    } else if (record.createdAt) {
+      record.baseDate = new Date(record.createdAt).toISOString().slice(0, 10);
+    } else {
+      record.baseDate = _today();
+    }
+    // Compute cumulative days from baseDate to lastStartDate
+    var cumulativeDays = nextWk * legacyWindowSize;
     record.cursor = {
-      nextWeek: cursor.nextWeek || 0,
-      lastAppliedStartDate: cursor.lastStartDate || null,
-      lastAppliedDaysCount: cursor.lastDaysCount || 0,
+      nextWeek: nextWk,
+      lastAppliedStartDate: lastStart || record.baseDate,
+      lastAppliedDaysCount: cumulativeDays,
     };
     record.updatedAt = Date.now();
     return record;
@@ -292,8 +318,9 @@
 
     // Persist roadmap
     // baseDate = curriculum start date (immutable). Used to derive all windows.
+    var roadmapId = null;
+    var baseDate = (json.meta && Array.isArray(json.meta.dateRange) && json.meta.dateRange[0]) || _today();
     if (json.roadmap) {
-      var baseDate = (json.meta && Array.isArray(json.meta.dateRange) && json.meta.dateRange[0]) || _today();
       var record = {
         id: 'roadmap-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
         accountScope: _getAccountScope(),
@@ -309,8 +336,29 @@
           lastAppliedDaysCount: 0,
         },
       };
+      roadmapId = record.id;
       saveRoadmap(record);
     }
+
+    // Create pending cursor for initial proposal — Apply must advance cursor.
+    var initialDaysCount = (json.meta && typeof json.meta.daysGenerated === 'number') ? json.meta.daysGenerated : 7;
+    var proposalId = 'proposal_doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    if (json.proposal && typeof json.proposal === 'object') {
+      json.proposal.id = proposalId;
+    }
+    _pendingCursor = {
+      proposalId: proposalId,
+      source: 'document-daily-plan',
+      roadmapId: roadmapId,
+      fromCursor: { nextWeek: 0, lastAppliedStartDate: null, lastAppliedDaysCount: 0 },
+      toCursor: {
+        nextWeek: 1,
+        lastAppliedStartDate: baseDate,
+        lastAppliedDaysCount: initialDaysCount,
+      },
+      createdAt: Date.now(),
+    };
+    _pendingCursorProposalId = proposalId;
 
     return {
       ok: true,

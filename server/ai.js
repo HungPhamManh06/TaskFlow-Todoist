@@ -3721,6 +3721,7 @@ function _sanitizeToolResultForBrain(toolName, result) {
     const tasks = result.tasks.slice(0, 60).map((t) => ({
       uid: t.uid || '', text: typeof t.text === 'string' ? t.text.slice(0, 300) : '',
       done: !!t.done, deadline: t.deadline || null,
+      scheduledDate: t.scheduledDate || null,
       duration: typeof t.duration === 'number' ? t.duration : null,
     }));
     return { tasks, total: typeof result.total === 'number' ? result.total : tasks.length };
@@ -3744,7 +3745,7 @@ function _sanitizeToolResultForBrain(toolName, result) {
   }
   if (toolName === 'get_free_time') {
     return {
-      busy: Array.isArray(result.busy) ? result.busy.slice(0, 100).map((b) => ({ date: b.date || '', startMs: b.startMs || 0, endMs: b.endMs || 0, title: typeof b.title === 'string' ? b.title.slice(0, 100) : '' })) : [],
+      busy: Array.isArray(result.busy) ? result.busy.slice(0, 100).map((b) => ({ date: b.date || '', startMs: b.startMs || 0, endMs: b.endMs || 0, source: b.source || 'gcal' })) : [],
       startDate: result.startDate || '',
       daysCount: typeof result.daysCount === 'number' ? result.daysCount : 0,
     };
@@ -3971,28 +3972,29 @@ router.post('/brain/continue', maybeRateLimit(aiAgentLimiter), maybeRateLimit(ai
       session.toolTrace.push({ tool: pendingCall.tool, toolCallId: pendingCall.id, step: session.step, status: 'executed-client' });
       _touchBrainSession(session);
 
-      // Check if tool returned a proposal
-      if (toolResult && typeof toolResult === 'object' && toolResult.ok && toolResult.proposal) {
-        // Server-validate proposal using session.refs (trusted read results only)
-        const v = validateAgentProposal(toolResult.proposal, session.refs);
-        if (!v.ok) {
-          _failBrainSession(session, 'brain-proposal-invalid');
-          return res.status(422).json({ error: 'brain-proposal-invalid', details: v.errors.slice(0, 5) });
-        }
-        _completeBrainSession(session);
-        console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=proposal steps=' + session.step + ' latencyMs=' + (Date.now() - startTime));
-        return res.json(_brainFormatResponse(session, 'proposal', { proposal: toolResult.proposal }));
-      }
-
-      // Validate client tool result against outputSchema BEFORE any processing
+      // FIRST: Validate client tool result against outputSchema
       const toolVal = validateToolResult(pendingCall.tool, toolResult);
       if (!toolVal.ok) {
         _failBrainSession(session, 'brain-tool-result-invalid');
         return res.status(422).json({ error: 'brain-tool-result-invalid', details: toolVal.errors.slice(0, 5) });
       }
 
-      // Sanitize client tool result
+      // SECOND: Sanitize client tool result
       const sanitizedResult = _sanitizeToolResultForBrain(pendingCall.tool, toolResult);
+
+      // THIRD: Check if sanitized result is a proposal tool output
+      const contract = getContract(pendingCall.tool);
+      if (contract && contract.returnsProposal && sanitizedResult && sanitizedResult.ok && sanitizedResult.proposal) {
+        // Server-validate proposal using session.refs (trusted read results only)
+        const v = validateAgentProposal(sanitizedResult.proposal, session.refs);
+        if (!v.ok) {
+          _failBrainSession(session, 'brain-proposal-invalid');
+          return res.status(422).json({ error: 'brain-proposal-invalid', details: v.errors.slice(0, 5) });
+        }
+        _completeBrainSession(session);
+        console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=proposal steps=' + session.step + ' latencyMs=' + (Date.now() - startTime));
+        return res.json(_brainFormatResponse(session, 'proposal', { proposal: sanitizedResult.proposal }));
+      }
 
       // Update session refs from trusted read tool results
       _updateBrainRefsFromToolResult(session, pendingCall.tool, sanitizedResult);
