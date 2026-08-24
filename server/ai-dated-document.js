@@ -59,6 +59,29 @@ function cleanTaskText(value) {
     .slice(0, MAX_TASK_TEXT);
 }
 
+function normalizeTaskIdentity(value) {
+  let text = String(value || '');
+  try { text = text.normalize('NFKC'); } catch (_) { /* older runtimes */ }
+  return text.toLocaleLowerCase('vi').replace(/\s+/g, ' ').trim();
+}
+
+function collectRowDateMatches(segment, tableHeaderIndex) {
+  // Prefer dates at the start of a table row. A task description may itself
+  // mention another date (for example "chuẩn bị deadline 26/08"); treating the
+  // last date in the whole segment as the row date corrupts both date and text.
+  const rowDateMatches = Array.from(segment.matchAll(
+    /^[ \t]*(?:(?:T[2-7]|CN)[ \t]*(?:\r?\n[ \t]*)?)?(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/gim,
+  )).filter((match) => {
+    const afterMatch = segment.slice((match.index || 0) + match[0].length, (match.index || 0) + match[0].length + 32);
+    return !/^\s*[-–—]\s*\d{1,2}\/\d{1,2}/.test(afterMatch);
+  });
+  const allDateMatches = Array.from(segment.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/g));
+  const preferred = rowDateMatches.length ? rowDateMatches : allDateMatches;
+  return tableHeaderIndex >= 0
+    ? preferred.filter((match) => (match.index || 0) > tableHeaderIndex)
+    : preferred;
+}
+
 function inferDuration(text) {
   const match = String(text || '').match(/\b(\d{1,3})\s*phút\b/i);
   if (!match) return DEFAULT_DURATION_MINUTES;
@@ -84,8 +107,9 @@ function extractDatedDocumentTasks(text) {
   const segments = source.split(/\[\s*\]/);
 
   function appendTask(date, taskText, week) {
+    if (tasks.length >= MAX_DATED_TASKS) return false;
     if (!date || !taskText || taskText.length < 2) return false;
-    const key = date + '|' + taskText.toLocaleLowerCase('vi');
+    const key = date + '|' + normalizeTaskIdentity(taskText);
     if (seen.has(key)) return false;
     seen.add(key);
     previousDate = date;
@@ -102,16 +126,15 @@ function extractDatedDocumentTasks(text) {
     const weekMatches = Array.from(segment.matchAll(/\bTuần\s+(\d{1,3})\s*:/gi));
     if (weekMatches.length) currentWeek = Number(weekMatches[weekMatches.length - 1][1]);
 
-    const allDateMatches = Array.from(segment.matchAll(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/g));
     const tableHeaderIndex = segment.lastIndexOf('Done');
-    const dateMatches = tableHeaderIndex >= 0
-      ? allDateMatches.filter((match) => (match.index || 0) > tableHeaderIndex)
-      : allDateMatches;
+    const dateMatches = collectRowDateMatches(segment, tableHeaderIndex);
     if (!dateMatches.length) {
       const pendingSource = tableHeaderIndex >= 0 ? segment.slice(tableHeaderIndex + 4) : segment;
       const pendingText = cleanTaskText(pendingSource);
       if (pendingText && pendingText.length >= 2) {
-        pendingTask = { text: pendingText, week: currentWeek };
+        pendingTask = pendingTask
+          ? { text: cleanTaskText(pendingTask.text + ' ' + pendingText), week: pendingTask.week || currentWeek }
+          : { text: pendingText, week: currentWeek };
       }
       continue;
     }
@@ -119,14 +142,20 @@ function extractDatedDocumentTasks(text) {
     // Some PDF tables put a row's content at the bottom of one page and its
     // date at the top of the next page. When the next segment contains both
     // that orphan date and the following row's date, recover the pending row.
-    if (pendingTask && dateMatches.length > 1) {
+    let currentDateIndex = 0;
+    if (pendingTask) {
       const firstDateMatch = dateMatches[0];
       const pendingDate = resolveDateInRange(firstDateMatch[1], firstDateMatch[2], firstDateMatch[3], range, previousDate);
       appendTask(pendingDate, pendingTask.text, pendingTask.week);
       pendingTask = null;
+      currentDateIndex = 1;
     }
 
-    const dateMatch = dateMatches[dateMatches.length - 1];
+    // Use the first remaining row date, never a later date mentioned inside the
+    // task description. The first match may already have been consumed above
+    // to recover a row split across PDF pages.
+    const dateMatch = dateMatches[currentDateIndex];
+    if (!dateMatch) continue;
     const date = resolveDateInRange(dateMatch[1], dateMatch[2], dateMatch[3], range, previousDate);
     if (!date) continue;
 
@@ -188,12 +217,32 @@ function buildDatedDocumentRoadmap(text, fallbackName) {
   };
 }
 
-function buildDatedDocumentProposal(roadmap, targetDates) {
+function buildDatedDocumentProposal(roadmap, targetDates, opts) {
   const dates = Array.isArray(targetDates) ? targetDates.filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)) : [];
   const dateSet = new Set(dates);
   const datedTasks = roadmap && Array.isArray(roadmap.datedTasks) ? roadmap.datedTasks : [];
-  const matching = datedTasks.filter((task) => task && dateSet.has(task.date) && typeof task.text === 'string' && task.text.trim());
-  if (!matching.length) return null;
+  if (!datedTasks.length) return null;
+
+  const candidates = datedTasks.filter((task) => task && dateSet.has(task.date) && typeof task.text === 'string' && task.text.trim());
+  const existingDated = new Set();
+  const existingUndated = new Set();
+  const existingTasks = opts && Array.isArray(opts.existingTasks) ? opts.existingTasks.slice(0, 100) : [];
+  for (const existing of existingTasks) {
+    const text = normalizeTaskIdentity(typeof existing === 'string' ? existing : existing && existing.text);
+    if (!text) continue;
+    const rawDate = existing && typeof existing === 'object' ? (existing.date || existing.deadline) : '';
+    if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+      existingDated.add(rawDate + '|' + text);
+    } else {
+      existingUndated.add(text);
+    }
+  }
+
+  const matching = candidates.filter((task) => {
+    const text = normalizeTaskIdentity(task.text);
+    return !existingDated.has(task.date + '|' + text) && !existingUndated.has(text);
+  });
+  const skippedDuplicates = candidates.length - matching.length;
 
   let totalMinutes = 0;
   const actions = matching.slice(0, 84).map((task, index) => {
@@ -220,13 +269,26 @@ function buildDatedDocumentProposal(roadmap, targetDates) {
     };
   });
 
+  const matchedDates = Array.from(new Set(candidates.map((task) => task.date))).sort();
+  const generatedDates = Array.from(new Set(actions.map((action) => action.args.date))).sort();
+  let summary = 'Không có công việc trong khoảng ngày đã chọn.';
+  if (actions.length) {
+    summary = 'Kế hoạch theo lịch ngày trong tài liệu — ' + actions.length + ' công việc';
+    if (skippedDuplicates) summary += ', bỏ qua ' + skippedDuplicates + ' công việc đã tồn tại';
+  } else if (skippedDuplicates) {
+    summary = 'Không có công việc mới — ' + skippedDuplicates + ' công việc đã tồn tại.';
+  }
+
   return {
     proposal: {
-      summary: 'Kế hoạch theo lịch ngày trong tài liệu — ' + actions.length + ' công việc',
+      summary,
       actions,
     },
     totalMinutes,
-    matchedDates: Array.from(new Set(actions.map((action) => action.args.date))).sort(),
+    matchedDates,
+    generatedDates,
+    candidateCount: candidates.length,
+    skippedDuplicates,
   };
 }
 

@@ -11,7 +11,7 @@ const {
   buildDatedDocumentRoadmap,
   buildDatedDocumentProposal,
 } = require('../server/ai-dated-document.js');
-const { handleDocumentDailyPlan } = require('../server/ai.js');
+const { handleDailyPlan, handleDocumentDailyPlan } = require('../server/ai.js');
 
 const FORTY_WEEK_TEXT = `
 KẾ HOẠCH HỌC 40 TUẦN
@@ -109,6 +109,26 @@ T4
     ]);
   });
 
+  it('keeps the row date when the task text mentions another date', () => {
+    const text = `
+Kế hoạch một tuần
+24/08/2026 - 30/08/2026
+Tuần 1: Deadline
+Ngày Nội dung học / thực hành Done
+T2
+24/08 Chuẩn bị cho deadline 26/08 của module A. [ ]
+T3
+25/08 Hoàn thiện module B. [ ]
+T4
+26/08 Kiểm thử module A. [ ]
+`;
+    assert.deepEqual(extractDatedDocumentTasks(text).map((task) => ({ date: task.date, text: task.text })), [
+      { date: '2026-08-24', text: 'Chuẩn bị cho deadline 26/08 của module A.' },
+      { date: '2026-08-25', text: 'Hoàn thiện module B.' },
+      { date: '2026-08-26', text: 'Kiểm thử module A.' },
+    ]);
+  });
+
   it('does not claim an undated roadmap is a dated schedule', () => {
     const text = '12-Week Roadmap\nWeeks 1-2: HTML and CSS\nDeliverable: Build a landing page';
     assert.deepEqual(extractDatedDocumentTasks(text), []);
@@ -156,5 +176,122 @@ describe('Combined document planner dated fallback', () => {
     assert.equal(result.body.meta.daysGenerated, 7);
     assert.equal(result.body.roadmap.totalWeeks, 40);
     assert.equal(result.body.roadmap.datedTasks.length, 7);
+  });
+
+  it('uses the deterministic path for a valid two-day schedule', async () => {
+    const sparseText = `
+Kế hoạch cuối tuần
+05/09/2026 - 06/09/2026
+Tuần 1: Ôn tập
+05/09 Ôn lý thuyết. [ ]
+06/09 Làm bài thực hành. [ ]
+`;
+    const fileBuffer = Buffer.from('sparse-dated-roadmap');
+    let providerCalls = 0;
+    const recorder = responseRecorder();
+
+    await handleDocumentDailyPlan(
+      { aiRequestId: 'sparse-dated-fallback-test' },
+      recorder.res,
+      {
+        apiKey: '',
+        now: new Date('2026-09-05T03:00:00.000Z'),
+        parseAiFileMultipart: async () => ({
+          files: [{ name: 'weekend.pdf', size: fileBuffer.length, buffer: fileBuffer }],
+          rejectedFiles: [],
+          message: 'Lập kế hoạch học từ tài liệu này',
+          timeZone: 'Asia/Bangkok',
+        }),
+        buildAiFileBatchContent: async () => ({
+          textDocuments: [{ name: 'weekend.pdf', text: sparseText }],
+          acceptedFiles: [{ name: 'weekend.pdf', size: fileBuffer.length }],
+          rejectedFiles: [],
+        }),
+        callAiJson: async () => {
+          providerCalls++;
+          throw new Error('provider must not be called for a sparse dated schedule');
+        },
+      },
+    );
+
+    const result = recorder.read();
+    assert.equal(result.statusCode, 200);
+    assert.equal(providerCalls, 0);
+    assert.equal(result.body.proposal.actions.length, 2);
+    assert.deepEqual(result.body.proposal.actions.map((action) => action.args.date), ['2026-09-05', '2026-09-06']);
+    assert.equal(result.body.meta.source, 'document-dates');
+  });
+});
+
+describe('Persisted dated roadmap follow-up', () => {
+  it('filters existing tasks before returning Review actions', async () => {
+    const roadmap = buildDatedDocumentRoadmap(FORTY_WEEK_TEXT, 'roadmap.pdf');
+    const recorder = responseRecorder();
+    let providerCalls = 0;
+
+    await handleDailyPlan(
+      {
+        aiRequestId: 'dated-dedup-test',
+        body: {
+          roadmap,
+          startDate: '2026-08-24',
+          daysCount: 2,
+          existingTasks: [{
+            text: 'Function, parameter, return value.',
+            status: 'todo',
+          }],
+          timeZone: 'Asia/Bangkok',
+        },
+      },
+      recorder.res,
+      {
+        apiKey: '',
+        now: new Date('2026-08-24T03:00:00.000Z'),
+        callAiJson: async () => {
+          providerCalls++;
+          throw new Error('provider must not be called for persisted dated tasks');
+        },
+      },
+    );
+
+    const result = recorder.read();
+    assert.equal(result.statusCode, 200);
+    assert.equal(providerCalls, 0);
+    assert.equal(result.body.proposal.actions.length, 1);
+    assert.equal(result.body.proposal.actions[0].args.text, 'Scope, local/global variable.');
+    assert.equal(result.body.meta.candidateActions, 2);
+    assert.equal(result.body.meta.skippedDuplicates, 1);
+  });
+
+  it('does not call AI or invent tasks when the requested window has no dated rows', async () => {
+    const roadmap = buildDatedDocumentRoadmap(FORTY_WEEK_TEXT, 'roadmap.pdf');
+    const recorder = responseRecorder();
+    let providerCalls = 0;
+
+    await handleDailyPlan(
+      {
+        aiRequestId: 'dated-empty-window-test',
+        body: {
+          roadmap,
+          startDate: '2026-12-01',
+          daysCount: 2,
+          existingTasks: [],
+          timeZone: 'Asia/Bangkok',
+        },
+      },
+      recorder.res,
+      {
+        apiKey: '',
+        now: new Date('2026-08-24T03:00:00.000Z'),
+        callAiJson: async () => { providerCalls++; },
+      },
+    );
+
+    const result = recorder.read();
+    assert.equal(result.statusCode, 200);
+    assert.equal(providerCalls, 0);
+    assert.equal(result.body.proposal.actions.length, 0);
+    assert.equal(result.body.meta.source, 'document-dates');
+    assert.equal(result.body.meta.candidateActions, 0);
   });
 });

@@ -3205,7 +3205,11 @@ const DAILY_PLAN_SCHEMA = {
   additionalProperties: false,
 };
 
-router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileHourlyLimiter), async (req, res) => {
+async function handleDailyPlan(req, res, overrides) {
+  const deps = overrides && typeof overrides === 'object' ? overrides : {};
+  const apiKey = Object.prototype.hasOwnProperty.call(deps, 'apiKey') ? deps.apiKey : AI_API_KEY;
+  const callJson = deps.callAiJson || callAiJson;
+  const now = typeof deps.now === 'function' ? deps.now() : (deps.now || new Date());
   const requestId = req.aiRequestId;
   const startMs = Date.now();
   try {
@@ -3231,7 +3235,7 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
     }
 
     // Clamp dates: never schedule in the past
-    const today = dateStringInTimeZone(new Date(), timeZone);
+    const today = dateStringInTimeZone(now, timeZone);
     const clampedDates = dates.filter(d => d >= today);
     if (clampedDates.length === 0) {
       return res.status(400).json({ ok: false, error: 'ai-daily-plan-all-past-dates' });
@@ -3239,29 +3243,37 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
 
     // Explicit calendar rows are already authoritative. Reuse them without an
     // LLM call so follow-up windows stay faithful to the original document.
-    const datedPlan = buildDatedDocumentProposal(roadmap, clampedDates);
+    const datedPlan = buildDatedDocumentProposal(roadmap, clampedDates, { existingTasks });
     if (datedPlan) {
-      const datedValidation = validateDailyPlanProposal(datedPlan.proposal, { today });
-      if (!datedValidation.ok) {
-        return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: datedValidation.errors.slice(0, 5) });
+      if (datedPlan.proposal.actions.length) {
+        const datedValidation = validateDailyPlanProposal(datedPlan.proposal, { today });
+        if (!datedValidation.ok) {
+          return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: datedValidation.errors.slice(0, 5) });
+        }
       }
-      console.log('[ai] route=/api/ai/daily-plan requestId=' + requestId + ' status=success source=document-dates actions=' + datedPlan.proposal.actions.length + ' latencyMs=' + (Date.now() - startMs));
+      const datedRange = datedPlan.matchedDates.length
+        ? [datedPlan.matchedDates[0], datedPlan.matchedDates[datedPlan.matchedDates.length - 1]]
+        : [clampedDates[0], clampedDates[clampedDates.length - 1]];
+      console.log('[ai] route=/api/ai/daily-plan requestId=' + requestId + ' status=success source=document-dates actions=' + datedPlan.proposal.actions.length + ' skippedDuplicates=' + datedPlan.skippedDuplicates + ' latencyMs=' + (Date.now() - startMs));
       return res.json({
         ok: true,
         proposal: canonicalizeAgentProposal(datedPlan.proposal),
+        message: datedPlan.proposal.summary,
         meta: {
-          daysGenerated: datedPlan.matchedDates.length,
+          daysGenerated: datedPlan.generatedDates.length,
           totalActions: datedPlan.proposal.actions.length,
           estimatedMinutes: datedPlan.totalMinutes,
-          dateRange: [datedPlan.matchedDates[0], datedPlan.matchedDates[datedPlan.matchedDates.length - 1]],
+          dateRange: datedRange,
           hasPastDate: false,
           source: 'document-dates',
+          candidateActions: datedPlan.candidateCount,
+          skippedDuplicates: datedPlan.skippedDuplicates,
         },
         latencyMs: Date.now() - startMs,
       });
     }
 
-    if (!AI_API_KEY) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
+    if (!apiKey) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
 
     // Existing tasks context (for deduplication)
     const existingCtx = existingTasks.length > 0
@@ -3277,7 +3289,7 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
 
     const userPrompt = 'Roadmap data:\n' + roadmapStr + '\n\nTarget dates: ' + dateRangeStr + existingCtx;
 
-    const aiResult = await callAiJson({
+    const aiResult = await callJson({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -3368,7 +3380,9 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
   } catch (err) {
     return res.status(500).json({ ok: false, error: 'ai-provider-unavailable' });
   }
-});
+}
+
+router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileHourlyLimiter), (req, res) => handleDailyPlan(req, res));
 
 /* ============ P1: Document Daily Planner — Combined Upload Route ============ */
 // Accepts PDF upload + user message, runs Stage A (roadmap) + Stage B (daily plan) in one call.
@@ -3389,6 +3403,9 @@ async function handleDocumentDailyPlan(req, res, overrides) {
     const rejectedFiles = Array.isArray(parsed.rejectedFiles) ? parsed.rejectedFiles : [];
     const userMessage = typeof parsed.message === 'string' ? parsed.message : '';
     const timeZone = normalizeTimeZone(parsed.timeZone);
+    const existingTasks = parsed.taskflowContext && Array.isArray(parsed.taskflowContext.tasks)
+      ? parsed.taskflowContext.tasks.slice(0, 30)
+      : [];
 
     if (!acceptedFiles.length) {
       return res.status(400).json({ ok: false, error: 'ai-no-files', rejectedFiles });
@@ -3415,11 +3432,13 @@ async function handleDocumentDailyPlan(req, res, overrides) {
     // dated schedule. This avoids hallucination and provider schema failures.
     const documentName = acceptedFiles[0] ? acceptedFiles[0].name : 'document';
     const datedRoadmap = buildDatedDocumentRoadmap(fullText, documentName);
-    const datedPlan = buildDatedDocumentProposal(datedRoadmap, dates);
-    if (datedRoadmap && datedPlan && datedPlan.matchedDates.length >= Math.min(3, dates.length)) {
-      const datedValidation = validateDailyPlanProposal(datedPlan.proposal, { today });
-      if (!datedValidation.ok) {
-        return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: datedValidation.errors.slice(0, 5) });
+    const datedPlan = buildDatedDocumentProposal(datedRoadmap, dates, { existingTasks });
+    if (datedRoadmap && datedPlan) {
+      if (datedPlan.proposal.actions.length) {
+        const datedValidation = validateDailyPlanProposal(datedPlan.proposal, { today });
+        if (!datedValidation.ok) {
+          return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: datedValidation.errors.slice(0, 5) });
+        }
       }
 
       const fingerprintHash = crypto.createHash('sha256');
@@ -3429,23 +3448,29 @@ async function handleDocumentDailyPlan(req, res, overrides) {
       });
       const fingerprint = fingerprintHash.digest('hex').slice(0, 16);
 
-      console.log('[ai] route=/api/ai/document-daily-plan requestId=' + requestId + ' status=success source=document-dates actions=' + datedPlan.proposal.actions.length + ' latencyMs=' + (Date.now() - startMs));
+      const datedRange = datedPlan.matchedDates.length
+        ? [datedPlan.matchedDates[0], datedPlan.matchedDates[datedPlan.matchedDates.length - 1]]
+        : [dates[0], dates[dates.length - 1]];
+      console.log('[ai] route=/api/ai/document-daily-plan requestId=' + requestId + ' status=success source=document-dates actions=' + datedPlan.proposal.actions.length + ' skippedDuplicates=' + datedPlan.skippedDuplicates + ' latencyMs=' + (Date.now() - startMs));
       return res.json({
         ok: true,
         proposal: canonicalizeAgentProposal(datedPlan.proposal),
+        message: datedPlan.proposal.summary,
         roadmap: datedRoadmap,
         fingerprint,
         documentName,
         files: Array.isArray(batchContent.acceptedFiles) ? batchContent.acceptedFiles : [],
         rejectedFiles: allRejectedFiles,
         meta: {
-          daysGenerated: datedPlan.matchedDates.length,
+          daysGenerated: datedPlan.generatedDates.length,
           totalActions: datedPlan.proposal.actions.length,
           estimatedMinutes: datedPlan.totalMinutes,
-          dateRange: [datedPlan.matchedDates[0], datedPlan.matchedDates[datedPlan.matchedDates.length - 1]],
+          dateRange: datedRange,
           roadmapLatencyMs: 0,
           planLatencyMs: 0,
           source: 'document-dates',
+          candidateActions: datedPlan.candidateCount,
+          skippedDuplicates: datedPlan.skippedDuplicates,
         },
         latencyMs: Date.now() - startMs,
       });
@@ -3594,4 +3619,4 @@ async function handleDocumentDailyPlan(req, res, overrides) {
 
 router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileHourlyLimiter), handleDocumentDailyPlan);
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal, normalizeTimeZone, dateStringInTimeZone, addDaysToDateString, handleDocumentDailyPlan };
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal, normalizeTimeZone, dateStringInTimeZone, addDaysToDateString, handleDailyPlan, handleDocumentDailyPlan };
