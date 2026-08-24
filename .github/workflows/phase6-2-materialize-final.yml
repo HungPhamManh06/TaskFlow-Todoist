@@ -1,21 +1,20 @@
-name: Phase 6.2 materialize final commit
+name: Phase 6.2 production materializer
 
 on:
   push:
-    branches: [hotfix/phase6-2-direct-chat]
+    branches: [main]
 
 permissions:
   contents: write
 
 env:
-  EXPECTED_MAIN: 74fe78acf7975f0eeb5e6ad46e67847b5a0ebcd9
-  MATERIALIZED_BRANCH: hotfix/phase6-2-materialized-main-v2
+  MATERIALIZED_BRANCH: hotfix/phase6-2-production-main
 
 jobs:
   materialize:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout helper branch
+      - name: Checkout current main
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -27,22 +26,19 @@ jobs:
           cache: npm
           cache-dependency-path: server/package-lock.json
 
-      - name: Prepare clean main baseline
+      - name: Lock exact main baseline
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
           cp scripts/phase6-2-direct-hotfix.py /tmp/phase6-2-direct-hotfix.py
           cp scripts/run-phase6-2-hotfix.py /tmp/run-phase6-2-hotfix.py
-          git fetch origin main
-          ACTUAL_MAIN="$(git rev-parse origin/main)"
-          echo "expected_main=$EXPECTED_MAIN"
-          echo "actual_main=$ACTUAL_MAIN"
-          test "$ACTUAL_MAIN" = "$EXPECTED_MAIN"
-          git checkout -B phase6-2-materialized "$EXPECTED_MAIN"
 
       - name: Install server deps
         run: cd server && npm ci
 
-      - name: Apply verified direct hotfix patch
+      - name: Apply verified Phase 6.2 hotfix
         run: python /tmp/run-phase6-2-hotfix.py
 
       - name: Generate canonical browser contracts
@@ -78,7 +74,14 @@ jobs:
       - name: Canonical contracts gate
         run: node scripts/generate-ai-tool-contracts.mjs --check
 
-      - name: Commit verified production hotfix
+      - name: Remove temporary helper files
+        run: |
+          rm -f .github/workflows/phase6-2-direct-verify.yml
+          rm -f .github/workflows/phase6-2-materialize-final.yml
+          rm -f scripts/phase6-2-direct-hotfix.py
+          rm -f scripts/run-phase6-2-hotfix.py
+
+      - name: Commit verified production tree to staging branch
         run: |
           set -euo pipefail
           git status --short
@@ -87,5 +90,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m 'fix(ai): close Phase 6.2 regressions on main'
-          test "$(git rev-parse HEAD^)" = "$EXPECTED_MAIN"
+          test "$(git rev-parse HEAD^)" = "$GITHUB_SHA"
           git push origin "HEAD:refs/heads/$MATERIALIZED_BRANCH"
