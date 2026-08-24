@@ -483,15 +483,24 @@
           summary: 'Di chuyển task sang ' + newDate,
           actions: [{
             id: 'a1',
-            type: 'reschedule_task',
-            args: { taskRef: { kind: 'existing', uid: uid }, date: newDate, source: { kind: 'ai-brain', tool: 'propose_reschedule_task' } },
+            type: 'update_task',
+            args: {
+              taskRef: { kind: 'existing', uid: uid },
+              text: null, date: null, start: null, duration: null,
+              priority: null, projectId: null, milestoneId: null,
+              changes: { date: newDate },
+              source: { kind: 'ai-brain', tool: 'propose_reschedule_task' },
+            },
           }],
         },
       };
     },
   });
 
-  register({
+  /* propose_delete_task: DISABLED (Option A) — not exposed to Gemini.
+     Server contracts don't include it. If needed later, implement
+     full delete_task in Agent contract with Review/Apply/Undo first. */
+  /* register({
     name: 'propose_delete_task',
     description: 'Create a proposal to delete a task. Destructive — always requires Review.',
     category: 'mutation_proposal',
@@ -520,7 +529,7 @@
         },
       };
     },
-  });
+  }); */
 
   /* ---- Public API ---- */
   return {

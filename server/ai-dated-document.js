@@ -83,9 +83,29 @@ function collectRowDateMatches(segment, tableHeaderIndex) {
 }
 
 function inferDuration(text) {
-  const match = String(text || '').match(/\b(\d{1,3})\s*phút\b/i);
-  if (!match) return DEFAULT_DURATION_MINUTES;
-  return Math.min(Math.max(Number(match[1]) || DEFAULT_DURATION_MINUTES, 20), 120);
+  const s = String(text || '').toLowerCase();
+  let totalMinutes = 0;
+
+  // Hours: "2 giờ", "2 hours", "1 hour"
+  const hoursMatch = s.match(/(\d+(?:\.\d+)?)\s*(?:giờ|hours?|hrs?|h(?!\d))\b/);
+  if (hoursMatch) totalMinutes += Math.round(parseFloat(hoursMatch[1]) * 60);
+
+  // Compact hours: "1h30", "1h 30"
+  const hCompact = s.match(/(\d+)\s*h\s*(\d{1,2})\b/);
+  if (hCompact && !hoursMatch) totalMinutes += parseInt(hCompact[1]) * 60 + parseInt(hCompact[2]);
+
+  // Minutes: "90 phút", "45 min", "30 minutes"
+  const minMatch = s.match(/(\d+(?:\.\d+)?)\s*(?:phút|min(?:utes?)?)\b/);
+  if (minMatch) totalMinutes += Math.round(parseFloat(minMatch[1]));
+
+  // Plain number fallback: "90" assumed minutes
+  if (totalMinutes === 0) {
+    const plainNum = s.match(/^(\d+(?:\.\d+)?)\s*$/);
+    if (plainNum) totalMinutes = Math.round(parseFloat(plainNum[1]));
+  }
+
+  if (totalMinutes <= 0) return DEFAULT_DURATION_MINUTES;
+  return Math.min(Math.max(totalMinutes, 20), 120);
 }
 
 function extractTitle(text, fallbackName) {

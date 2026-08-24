@@ -456,9 +456,9 @@ describe('AI Brain: Chat.js integration', () => {
     assert.ok(chatSrc.includes('handleMessage'), 'chat.js calls handleMessage');
   });
 
-  it('chat.js has _isSimpleChat helper', () => {
+  it('chat.js has _shouldUseBrain routing helper', () => {
     const chatSrc = readFileSync(join(ROOT, 'js', 'chat.js'), 'utf8');
-    assert.ok(chatSrc.includes('_isSimpleChat'), 'has _isSimpleChat');
+    assert.ok(chatSrc.includes('_shouldUseBrain'), 'has _shouldUseBrain');
   });
 
   it('chat.js falls back to legacy agent if brain fails', () => {
@@ -511,12 +511,14 @@ describe('AI Brain: Canonical proposal action IDs', () => {
     assert.equal(JSON.stringify(result.proposal.actions[0].args.taskRef), JSON.stringify({ kind: 'existing', uid: 'uid-123' }));
   });
 
-  it('propose_reschedule_task uses typed taskRef', () => {
+  it('propose_reschedule_task creates canonical update_task', () => {
     const tools = makeTools();
     const result = tools.getTool('propose_reschedule_task').execute({ taskUid: 'uid-456', newDate: '2026-10-01' });
     assert.ok(result.ok);
     assert.equal(result.proposal.actions[0].id, 'a1');
+    assert.equal(result.proposal.actions[0].type, 'update_task', 'reschedule creates update_task');
     assert.equal(JSON.stringify(result.proposal.actions[0].args.taskRef), JSON.stringify({ kind: 'existing', uid: 'uid-456' }));
-    assert.equal(result.proposal.actions[0].args.date, '2026-10-01');
+    assert.ok(result.proposal.actions[0].args.changes, 'has changes');
+    assert.equal(result.proposal.actions[0].args.changes.date, '2026-10-01');
   });
 });
