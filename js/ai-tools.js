@@ -244,7 +244,14 @@
         });
       } else if (filter === 'upcoming') {
         allTasks = allTasks.filter(function (t) {
-          return !t.done && t.deadline && t.deadline > today;
+          if (t.done) return false;
+          if (t.deadline && t.deadline > today) return true;
+          // Include grid-scheduled future tasks
+          if (!t.deadline && t.day && typeof t.day === 'number' && t.week) {
+            var gDate = _gridDate(t.week, t.day);
+            if (gDate && gDate > today) return true;
+          }
+          return false;
         });
       } else if (filter === 'overdue') {
         allTasks = allTasks.filter(function (t) {

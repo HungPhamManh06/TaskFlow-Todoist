@@ -503,7 +503,7 @@ describe('E2E FINAL: "tuần tiếp theo" no-reread', () => {
       id: 'rm-test', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'roadmap.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test Roadmap', phases: [{ id: 'p1', title: 'Phase 1', weeks: [{ week: 1, title: 'W1', goals: ['G1'] }] }] },
-      cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
+      baseDate: futureCursorStart(), cursor: { nextWeek: 1, lastAppliedStartDate: futureCursorStart(), lastAppliedDaysCount: 7 },
     });
 
     // Call runNextWindow
@@ -557,7 +557,7 @@ describe('E2E FINAL: "tuần tiếp theo" no-reread', () => {
     api.saveRoadmap({
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'roadmap.pdf', createdAt: Date.now(), updatedAt: Date.now(),
-      roadmap, cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
+      roadmap, baseDate: futureCursorStart(), cursor: { nextWeek: 1, lastAppliedStartDate: futureCursorStart(), lastAppliedDaysCount: 7 },
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
@@ -604,7 +604,7 @@ describe('E2E FINAL: "tuần tiếp theo" no-reread', () => {
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'roadmap.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
+      baseDate: futureCursorStart(), cursor: { nextWeek: 1, lastAppliedStartDate: futureCursorStart(), lastAppliedDaysCount: 7 },
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
@@ -655,23 +655,23 @@ describe('E2E FINAL: Cursor advance logic', () => {
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 },
+      baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 },
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
     // Cursor is PENDING — not yet committed to localStorage
     const pending = api.getPendingCursor();
     assert.ok(pending, 'pending cursor set after runNextWindow');
-    assert.equal(pending.toCursor.lastStartDate, addDays(startDate, 7), 'pending cursor target is correct');
+    assert.equal(pending.toCursor.lastAppliedStartDate, addDays(startDate, 7), 'pending cursor target is correct');
     // localStorage cursor unchanged
     const active = api.getActiveRoadmap();
-    assert.equal(active.cursor.lastStartDate, startDate, 'cursor not yet advanced in storage');
+    assert.equal(active.cursor.lastAppliedStartDate, startDate, 'cursor not yet advanced in storage');
     assert.equal(active.cursor.nextWeek, 1, 'nextWeek not yet incremented in storage');
 
     // Now commit the cursor (simulates successful Apply)
     api.commitPendingCursor(pending.proposalId);
     const afterCommit = api.getActiveRoadmap();
-    assert.equal(afterCommit.cursor.lastStartDate, addDays(startDate, 7), 'cursor advanced by 7 days');
+    assert.equal(afterCommit.cursor.lastAppliedStartDate, addDays(startDate, 7), 'cursor advanced by 7 days');
     assert.equal(afterCommit.cursor.nextWeek, 2, 'nextWeek incremented to 2');
   });
 
@@ -682,7 +682,7 @@ describe('E2E FINAL: Cursor advance logic', () => {
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 },
+      baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 },
     });
 
     // Week 1: generate + commit
@@ -696,7 +696,7 @@ describe('E2E FINAL: Cursor advance logic', () => {
     api.commitPendingCursor(p2.proposalId);
 
     const active = api.getActiveRoadmap();
-    assert.equal(active.cursor.lastStartDate, addDays(startDate, 14), 'cursor advanced by 14 days');
+    assert.equal(active.cursor.lastAppliedStartDate, addDays(startDate, 14), 'cursor advanced by 14 days');
     assert.equal(active.cursor.nextWeek, 3, 'nextWeek is 3');
   });
 
@@ -709,12 +709,12 @@ describe('E2E FINAL: Cursor advance logic', () => {
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 },
+      baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 },
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
     const active = api.getActiveRoadmap();
-    assert.equal(active.cursor.lastStartDate, startDate, 'cursor NOT advanced after failure');
+    assert.equal(active.cursor.lastAppliedStartDate, startDate, 'cursor NOT advanced after failure');
     assert.equal(active.cursor.nextWeek, 1, 'nextWeek NOT incremented');
   });
 
@@ -730,7 +730,7 @@ describe('E2E FINAL: Cursor advance logic', () => {
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
+      baseDate: futureCursorStart(), cursor: { nextWeek: 1, lastAppliedStartDate: futureCursorStart(), lastAppliedDaysCount: 7 },
     });
 
     await api.runNextWindow('tạo kế hoạch 14 ngày tới', {});
@@ -768,7 +768,7 @@ describe('E2E FINAL: Account A/B/A roadmap isolation', () => {
       id: 'rm-a', accountScope: 'user-a', fingerprint: 'fp-a',
       documentName: 'roadmap-a.pdf', createdAt: 1000, updatedAt: 1000,
       roadmap: { title: 'Roadmap A', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
+      baseDate: futureCursorStart(), cursor: { nextWeek: 1, lastAppliedStartDate: futureCursorStart(), lastAppliedDaysCount: 7 },
     });
 
     // User B logs in

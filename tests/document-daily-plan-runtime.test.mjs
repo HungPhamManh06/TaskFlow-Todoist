@@ -570,15 +570,15 @@ describe('Runtime: cursor advance logic', () => {
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'f1',
       documentName: 'Test', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: '2026-08-24', lastDaysCount: 7 },
+      baseDate: '2026-08-24', cursor: { nextWeek: 1, lastAppliedStartDate: '2026-08-24', lastAppliedDaysCount: 7 },
     });
 
-    api.updateCursor('rm-1', { nextWeek: 2, lastStartDate: '2026-08-31', lastDaysCount: 7 });
+    api.updateCursor('rm-1', { nextWeek: 2, lastAppliedStartDate: '2026-08-31', lastAppliedDaysCount: 7 });
 
     const active = api.getActiveRoadmap();
     assert.equal(active.cursor.nextWeek, 2, 'nextWeek advanced');
-    assert.equal(active.cursor.lastStartDate, '2026-08-31', 'lastStartDate updated');
-    assert.equal(active.cursor.lastDaysCount, 7, 'lastDaysCount preserved');
+    assert.equal(active.cursor.lastAppliedStartDate, '2026-08-31', 'lastAppliedStartDate updated');
+    assert.equal(active.cursor.lastAppliedDaysCount, 7, 'lastAppliedDaysCount preserved');
   });
 
   it('clearActiveRoadmap does NOT delete stored data', () => {

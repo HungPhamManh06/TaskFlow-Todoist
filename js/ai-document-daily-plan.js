@@ -57,8 +57,26 @@
     } catch (e) { /* storage full — silently degrade */ }
   }
 
+  /* ---- Migration: v1 records → v2 with baseDate + appliedCursor ---- */
+  function _migrateRecord(record) {
+    if (!record || typeof record !== 'object') return record;
+    // Already v2 if baseDate exists
+    if (record.baseDate) return record;
+    var cursor = record.cursor || {};
+    // Migrate legacy fields
+    record.baseDate = cursor.lastStartDate || record.createdAt ? new Date(record.createdAt || Date.now()).toISOString().slice(0, 10) : _today();
+    record.cursor = {
+      nextWeek: cursor.nextWeek || 0,
+      lastAppliedStartDate: cursor.lastStartDate || null,
+      lastAppliedDaysCount: cursor.lastDaysCount || 0,
+    };
+    record.updatedAt = Date.now();
+    return record;
+  }
+
   function saveRoadmap(record) {
     var store = loadStore();
+    record = _migrateRecord(record);
     // Check for duplicate fingerprint
     var existingIdx = store.roadmaps.findIndex(function (r) { return r.fingerprint === record.fingerprint; });
     if (existingIdx >= 0) {
@@ -73,7 +91,9 @@
   function getActiveRoadmap() {
     var store = loadStore();
     if (!store.activeRoadmapId) return null;
-    return store.roadmaps.find(function (r) { return r.id === store.activeRoadmapId; }) || null;
+    var record = store.roadmaps.find(function (r) { return r.id === store.activeRoadmapId; }) || null;
+    if (record) record = _migrateRecord(record);
+    return record;
   }
 
   function updateCursor(roadmapId, cursor) {
@@ -211,6 +231,19 @@
     return year + '-' + month + '-' + day;
   }
 
+  /* Derive next unapplied window start date from roadmap record.
+     Uses baseDate + total days applied so far. */
+  function _deriveNextStartDate(roadmapRecord) {
+    var cursor = roadmapRecord.cursor || {};
+    var baseDate = roadmapRecord.baseDate || null;
+    if (baseDate) {
+      var totalDays = (cursor.lastAppliedDaysCount || 0);
+      return _addDays(baseDate, totalDays);
+    }
+    // Fallback for legacy records without baseDate
+    return cursor.lastAppliedStartDate || _today();
+  }
+
   /* ---- Stage A: Extract roadmap from uploaded files ---- */
   async function runInitialDocumentPlan(files, message, opts) {
     opts = opts || {};
@@ -258,7 +291,9 @@
     }
 
     // Persist roadmap
+    // baseDate = curriculum start date (immutable). Used to derive all windows.
     if (json.roadmap) {
+      var baseDate = (json.meta && Array.isArray(json.meta.dateRange) && json.meta.dateRange[0]) || _today();
       var record = {
         id: 'roadmap-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
         accountScope: _getAccountScope(),
@@ -267,10 +302,11 @@
         createdAt: Date.now(),
         updatedAt: Date.now(),
         roadmap: json.roadmap,
+        baseDate: baseDate,
         cursor: {
-          nextWeek: 1,
-          lastStartDate: json.meta && Array.isArray(json.meta.dateRange) ? json.meta.dateRange[0] : _today(),
-          lastDaysCount: json.meta ? json.meta.daysGenerated : 7,
+          nextWeek: 0,
+          lastAppliedStartDate: null,
+          lastAppliedDaysCount: 0,
         },
       };
       saveRoadmap(record);
@@ -301,10 +337,9 @@
     var apiBase = _getApiBase();
     if (!apiBase) return { ok: false, code: 'api-config-missing' };
 
-    // Use structured params — no string parsing
-    var cursor = roadmapRecord.cursor || {};
-    var startDate = params.startDate || cursor.lastStartDate || _today();
-    var daysCount = typeof params.daysCount === 'number' ? Math.min(Math.max(params.daysCount, 1), 14) : (cursor.lastDaysCount || 7);
+    // Use structured params — derive next window from baseDate
+    var startDate = params.startDate || _deriveNextStartDate(roadmapRecord);
+    var daysCount = typeof params.daysCount === 'number' ? Math.min(Math.max(params.daysCount, 1), 14) : 7;
 
     // Clamp: never schedule in the past
     var today = _today();
@@ -321,9 +356,9 @@
       return { ok: false, code: 'no-active-roadmap', message: 'Không tìm thấy kế hoạch tài liệu. Vui lòng tải lên PDF trước.' };
     }
 
-    var cursor = roadmapRecord.cursor || {};
-    var startDate = cursor.lastStartDate || _today();
-    var daysCount = cursor.lastDaysCount || 7;
+    // Derive next window start from baseDate + applied cursor
+    var startDate = _deriveNextStartDate(roadmapRecord);
+    var daysCount = 7;
 
     // Parse user request for day count override
     var dayMatch = (message || '').match(/(\d+)\s*(?:ngày|day)/i);
@@ -331,7 +366,6 @@
       daysCount = Math.min(Math.max(parseInt(dayMatch[1]) || 7, 1), 14);
     }
     if (/tuần\s+tiếp|next\s+week/i.test(message || '')) {
-      startDate = _addDays(startDate, daysCount);
       daysCount = 7;
     }
 
@@ -394,15 +428,17 @@
     if (json.proposal && typeof json.proposal === 'object') {
       json.proposal.id = proposalId;
     }
+    var cursor = roadmapRecord.cursor || {};
+    var prevDays = cursor.lastAppliedDaysCount || 0;
     _pendingCursor = {
       proposalId: proposalId,
       source: 'document-daily-plan',
       roadmapId: roadmapRecord.id,
-      fromCursor: { nextWeek: roadmapRecord.cursor && roadmapRecord.cursor.nextWeek, lastStartDate: roadmapRecord.cursor && roadmapRecord.cursor.lastStartDate, lastDaysCount: roadmapRecord.cursor && roadmapRecord.cursor.lastDaysCount },
+      fromCursor: { nextWeek: cursor.nextWeek || 0, lastAppliedStartDate: cursor.lastAppliedStartDate || null, lastAppliedDaysCount: prevDays },
       toCursor: {
-        nextWeek: ((roadmapRecord.cursor && roadmapRecord.cursor.nextWeek) || 1) + 1,
-        lastStartDate: startDate,
-        lastDaysCount: daysCount,
+        nextWeek: (cursor.nextWeek || 0) + 1,
+        lastAppliedStartDate: startDate,
+        lastAppliedDaysCount: prevDays + daysCount,
       },
       createdAt: Date.now(),
     };

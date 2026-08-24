@@ -18,6 +18,12 @@ const TOOL_CONTRACTS = [
       properties: {},
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      properties: { today: { type: 'string' } },
+      required: ['today'],
+      additionalProperties: false,
+    },
   },
   {
     name: 'get_tasks',
@@ -34,6 +40,15 @@ const TOOL_CONTRACTS = [
       },
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        tasks: { type: 'array', maxItems: 60 },
+        total: { type: 'number' },
+      },
+      required: ['tasks', 'total'],
+      additionalProperties: false,
+    },
   },
   {
     name: 'get_projects',
@@ -45,6 +60,12 @@ const TOOL_CONTRACTS = [
     inputSchema: {
       type: 'object',
       properties: {},
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { projects: { type: 'array', maxItems: 20 } },
+      required: ['projects'],
       additionalProperties: false,
     },
   },
@@ -60,6 +81,11 @@ const TOOL_CONTRACTS = [
       properties: {},
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      properties: { roadmap: {}, cursor: {}, documentName: { type: 'string' } },
+      additionalProperties: false,
+    },
   },
   {
     name: 'get_plan_progress',
@@ -71,6 +97,11 @@ const TOOL_CONTRACTS = [
     inputSchema: {
       type: 'object',
       properties: {},
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { hasActivePlan: { type: 'boolean' } },
       additionalProperties: false,
     },
   },
@@ -86,6 +117,15 @@ const TOOL_CONTRACTS = [
       properties: {
         startDate: { type: 'string', format: 'date' },
         daysCount: { type: 'number', minimum: 1, maximum: 14 },
+      },
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        busy: { type: 'array', maxItems: 100 },
+        startDate: { type: 'string' },
+        daysCount: { type: 'number' },
       },
       additionalProperties: false,
     },
@@ -106,6 +146,12 @@ const TOOL_CONTRACTS = [
         daysCount: { type: 'number', minimum: 1, maximum: 14 },
       },
       required: ['startDate'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { ok: { type: 'boolean' }, proposal: {}, meta: {} },
+      required: ['ok'],
       additionalProperties: false,
     },
   },
@@ -131,6 +177,12 @@ const TOOL_CONTRACTS = [
       required: ['text'],
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      properties: { ok: { type: 'boolean' }, proposal: {} },
+      required: ['ok', 'proposal'],
+      additionalProperties: false,
+    },
   },
   {
     name: 'propose_complete_task',
@@ -145,6 +197,12 @@ const TOOL_CONTRACTS = [
         taskUid: { type: 'string', minLength: 1 },
       },
       required: ['taskUid'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { ok: { type: 'boolean' }, proposal: {} },
+      required: ['ok', 'proposal'],
       additionalProperties: false,
     },
   },
@@ -162,6 +220,12 @@ const TOOL_CONTRACTS = [
         newDate: { type: 'string', format: 'date' },
       },
       required: ['taskUid', 'newDate'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { ok: { type: 'boolean' }, proposal: {} },
+      required: ['ok', 'proposal'],
       additionalProperties: false,
     },
   },
@@ -223,6 +287,26 @@ function getContract(toolName) {
   return TOOL_CONTRACTS.find((t) => t.name === toolName) || null;
 }
 
+function validateToolResult(toolName, result) {
+  const contract = TOOL_CONTRACTS.find((t) => t.name === toolName);
+  if (!contract) return { ok: false, errors: ['unknown-tool: ' + toolName] };
+  if (!contract.outputSchema) return { ok: true, errors: [] }; // no schema = accept
+  if (!result || typeof result !== 'object') return { ok: false, errors: ['result-not-object'] };
+  const schema = contract.outputSchema;
+  const errors = [];
+  if (schema.required && Array.isArray(schema.required)) {
+    schema.required.forEach((key) => {
+      if (result[key] === undefined || result[key] === null) errors.push('missing: ' + key);
+    });
+  }
+  if (schema.additionalProperties === false && schema.properties) {
+    Object.keys(result).forEach((key) => {
+      if (!schema.properties[key]) errors.push('unexpected: ' + key);
+    });
+  }
+  return { ok: errors.length === 0, errors };
+}
+
 function getToolDefinitions() {
   return TOOL_CONTRACTS.map((t) => ({
     name: t.name,
@@ -248,6 +332,7 @@ function getToolDefinitionsForLLM() {
 module.exports = {
   TOOL_CONTRACTS,
   validateToolArgs,
+  validateToolResult,
   getContract,
   getToolDefinitions,
   getToolDefinitionsForLLM,

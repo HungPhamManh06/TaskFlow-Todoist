@@ -137,7 +137,7 @@ describe('AI Brain: Cursor Transaction (proposal-scoped)', () => {
   it('pending cursor has proposalId and source', async () => {
     const api = makeApi();
     const startDate = futureCursorStart();
-    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 } });
+    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 } });
     await api.runNextWindow('tuần tiếp theo', {});
     const pending = api.getPendingCursor();
     assert.ok(pending, 'pending cursor exists');
@@ -150,33 +150,33 @@ describe('AI Brain: Cursor Transaction (proposal-scoped)', () => {
   it('commit with wrong proposalId does not advance cursor', async () => {
     const api = makeApi();
     const startDate = futureCursorStart();
-    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 } });
+    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 } });
     await api.runNextWindow('tuần tiếp theo', {});
     const pending = api.getPendingCursor();
     // Commit with wrong proposalId
     const result = api.commitPendingCursor('wrong-id');
     assert.equal(result, false, 'commit with wrong id returns false');
     const active = api.getActiveRoadmap();
-    assert.equal(active.cursor.lastStartDate, startDate, 'cursor not advanced');
+    assert.equal(active.cursor.lastAppliedStartDate, startDate, 'cursor not advanced');
   });
 
   it('commit with correct proposalId advances cursor', async () => {
     const api = makeApi();
     const startDate = futureCursorStart();
-    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 } });
+    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 } });
     await api.runNextWindow('tuần tiếp theo', {});
     const pending = api.getPendingCursor();
     const result = api.commitPendingCursor(pending.proposalId);
     assert.ok(result, 'commit with correct id succeeds');
     const active = api.getActiveRoadmap();
-    assert.equal(active.cursor.lastStartDate, addDays(startDate, 7), 'cursor advanced');
+    assert.equal(active.cursor.lastAppliedStartDate, addDays(startDate, 7), 'cursor advanced');
     assert.equal(active.cursor.nextWeek, 2, 'nextWeek incremented');
   });
 
   it('cancel with wrong proposalId does not clear pending cursor', async () => {
     const api = makeApi();
     const startDate = futureCursorStart();
-    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 } });
+    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 } });
     await api.runNextWindow('tuần tiếp theo', {});
     api.cancelPendingCursor('wrong-id');
     assert.ok(api.getPendingCursor(), 'pending cursor still exists');
@@ -185,7 +185,7 @@ describe('AI Brain: Cursor Transaction (proposal-scoped)', () => {
   it('cancel with correct proposalId clears pending cursor', async () => {
     const api = makeApi();
     const startDate = futureCursorStart();
-    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 } });
+    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 } });
     await api.runNextWindow('tuần tiếp theo', {});
     const pending = api.getPendingCursor();
     api.cancelPendingCursor(pending.proposalId);
@@ -237,7 +237,7 @@ describe('AI Brain: runWindow structured API', () => {
   it('runWindow calls /daily-plan with structured params', async () => {
     const api = makeApi();
     const startDate = futureDate();
-    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 } });
+    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 } });
 
     let capturedBody = null;
     const api2 = makeApi({
@@ -246,7 +246,7 @@ describe('AI Brain: runWindow structured API', () => {
         return { ok: true, status: 200, json: async () => ({ ok: true, proposal: { summary: 'P', actions: [] }, meta: { daysGenerated: 5 } }) };
       },
     });
-    api2.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 } });
+    api2.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 } });
 
     await api2.runWindow({ startDate: '2026-09-10', daysCount: 5 }, {});
     assert.ok(capturedBody, 'body captured');
@@ -256,7 +256,7 @@ describe('AI Brain: runWindow structured API', () => {
 
   it('runWindow clamps past startDate to today', async () => {
     const api = makeApi();
-    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, cursor: { nextWeek: 1, lastStartDate: '2020-01-01', lastDaysCount: 7 } });
+    api.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: '2020-01-01', cursor: { nextWeek: 1, lastAppliedStartDate: '2020-01-01', lastAppliedDaysCount: 7 } });
 
     let capturedBody = null;
     const api2 = makeApi({
@@ -265,7 +265,7 @@ describe('AI Brain: runWindow structured API', () => {
         return { ok: true, status: 200, json: async () => ({ ok: true, proposal: { summary: 'P', actions: [] }, meta: { daysGenerated: 7 } }) };
       },
     });
-    api2.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, cursor: { nextWeek: 1, lastStartDate: '2020-01-01', lastDaysCount: 7 } });
+    api2.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: '2020-01-01', cursor: { nextWeek: 1, lastAppliedStartDate: '2020-01-01', lastAppliedDaysCount: 7 } });
 
     const today = new Date();
     const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
