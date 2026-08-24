@@ -3627,7 +3627,7 @@ router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimi
 //   POST /brain/continue → tool result     → tool_request | final | proposal
 // State machine: awaiting_model → awaiting_client_tool → awaiting_model → ... → completed/failed
 // Server tool calls are executed inline (no round-trip).
-const { TOOL_CONTRACTS, validateToolArgs, getContract, getToolDefinitionsForLLM } = require('./ai-tool-contracts');
+const { TOOL_CONTRACTS, validateToolArgs, validateToolResult, getContract, getToolDefinitionsForLLM } = require('./ai-tool-contracts');
 
 const BRAIN_MAX_STEPS = 8;
 const BRAIN_STEP_TIMEOUT_MS = parseInt(process.env.AI_BRAIN_STEP_TIMEOUT_MS || '30000', 10);
@@ -3732,7 +3732,29 @@ function _sanitizeToolResultForBrain(toolName, result) {
       milestones: Array.isArray(p.milestones) ? p.milestones.slice(0, 20).map((m) => ({ id: m.id || '', title: typeof m.title === 'string' ? m.title.slice(0, 200) : '' })) : [],
     })) };
   }
-  return result;
+  if (toolName === 'get_active_roadmap') {
+    return {
+      roadmap: result.roadmap || null,
+      cursor: result.cursor || null,
+      documentName: typeof result.documentName === 'string' ? result.documentName.slice(0, 200) : '',
+    };
+  }
+  if (toolName === 'get_plan_progress') {
+    return { hasActivePlan: !!result.hasActivePlan, documentName: typeof result.documentName === 'string' ? result.documentName.slice(0, 200) : '', roadmapTitle: typeof result.roadmapTitle === 'string' ? result.roadmapTitle.slice(0, 200) : '', totalWeeks: typeof result.totalWeeks === 'number' ? result.totalWeeks : 0, cursor: result.cursor || {} };
+  }
+  if (toolName === 'get_free_time') {
+    return {
+      busy: Array.isArray(result.busy) ? result.busy.slice(0, 100).map((b) => ({ date: b.date || '', startMs: b.startMs || 0, endMs: b.endMs || 0, title: typeof b.title === 'string' ? b.title.slice(0, 100) : '' })) : [],
+      startDate: result.startDate || '',
+      daysCount: typeof result.daysCount === 'number' ? result.daysCount : 0,
+    };
+  }
+  if (toolName === 'generate_daily_plan') {
+    // Only pass through ok, proposal (if present), meta — strip internal fields
+    return { ok: !!result.ok, proposal: result.proposal || null, meta: result.meta || null };
+  }
+  // Unknown tool: return minimal safe copy
+  return { ok: !!result.ok };
 }
 
 // ── System prompts ───────────────────────────────────────
@@ -3812,9 +3834,8 @@ function _routeGeminiResponse(session, parsed, requestId, startTime) {
     session.pendingToolCall = { id: callId, tool: toolName, args: toolArgs, step: session.step };
 
     if (contract.executionLocation === 'server') {
-      // Execute inline — no round-trip
+      // Execute inline — no round-trip. Trace is pushed by _advanceBrainSession.
       const result = _executeServerBrainTool(toolName);
-      session.toolTrace.push({ tool: toolName, toolCallId: callId, step: session.step, status: 'executed-server' });
       session.pendingToolCall = null;
       return { action: 'server_tool_result', toolName, callId, result };
     }
@@ -3963,7 +3984,14 @@ router.post('/brain/continue', maybeRateLimit(aiAgentLimiter), maybeRateLimit(ai
         return res.json(_brainFormatResponse(session, 'proposal', { proposal: toolResult.proposal }));
       }
 
-      // Sanitize client tool result BEFORE any processing
+      // Validate client tool result against outputSchema BEFORE any processing
+      const toolVal = validateToolResult(pendingCall.tool, toolResult);
+      if (!toolVal.ok) {
+        _failBrainSession(session, 'brain-tool-result-invalid');
+        return res.status(422).json({ error: 'brain-tool-result-invalid', details: toolVal.errors.slice(0, 5) });
+      }
+
+      // Sanitize client tool result
       const sanitizedResult = _sanitizeToolResultForBrain(pendingCall.tool, toolResult);
 
       // Update session refs from trusted read tool results
