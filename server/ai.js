@@ -3658,6 +3658,7 @@ function _createBrainSession(userId, message, history) {
     history: Array.isArray(history) ? history.slice(-10) : [],
     step: 0, startedAt: Date.now(), createdAt: Date.now(), updatedAt: Date.now(),
     status: 'awaiting_model', pendingToolCall: null, toolTrace: [],
+    refs: { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set() },
   };
   _brainSessions.set(id, session);
   return session;
@@ -3692,19 +3693,44 @@ function _executeServerBrainTool(toolName) {
   return null;
 }
 
-// ── Sanitize client tool results server-side ─────────────
+// ── Update session refs from trusted read tool results ──
+const _MAX_REFS = 100;
+function _updateBrainRefsFromToolResult(session, toolName, result) {
+  if (!session || !session.refs || !result || typeof result !== 'object') return;
+  const { taskUids, projectIds, milestoneIds } = session.refs;
+  if (toolName === 'get_tasks' && Array.isArray(result.tasks)) {
+    result.tasks.forEach((t) => {
+      if (taskUids.size < _MAX_REFS && typeof t.uid === 'string' && t.uid.length <= 128) taskUids.add(t.uid);
+    });
+  }
+  if (toolName === 'get_projects' && Array.isArray(result.projects)) {
+    result.projects.forEach((p) => {
+      if (projectIds.size < _MAX_REFS && typeof p.id === 'string' && p.id.length <= 128) projectIds.add(p.id);
+      if (Array.isArray(p.milestones)) p.milestones.forEach((m) => {
+        if (milestoneIds.size < _MAX_REFS && typeof m.id === 'string' && m.id.length <= 128) milestoneIds.add(m.id);
+      });
+    });
+  }
+}
+
+// ── Sanitize client tool results server-side (non-mutating) ──────────
 function _sanitizeToolResultForBrain(toolName, result) {
   if (!result || typeof result !== 'object') return result;
-  if (toolName === 'get_tasks' && result.tasks && Array.isArray(result.tasks)) {
-    result.tasks = result.tasks.slice(0, 60).map((t) => ({
+  // Return fresh object — never mutate input
+  if (toolName === 'get_tasks' && Array.isArray(result.tasks)) {
+    const tasks = result.tasks.slice(0, 60).map((t) => ({
       uid: t.uid || '', text: typeof t.text === 'string' ? t.text.slice(0, 300) : '',
       done: !!t.done, deadline: t.deadline || null,
       duration: typeof t.duration === 'number' ? t.duration : null,
     }));
-    result.total = typeof result.total === 'number' ? result.total : result.tasks.length;
+    return { tasks, total: typeof result.total === 'number' ? result.total : tasks.length };
   }
-  if (toolName === 'get_projects' && result.projects && Array.isArray(result.projects)) {
-    result.projects = result.projects.slice(0, 20);
+  if (toolName === 'get_projects' && Array.isArray(result.projects)) {
+    return { projects: result.projects.slice(0, 20).map((p) => ({
+      id: p.id || '', title: typeof p.title === 'string' ? p.title.slice(0, 200) : '',
+      status: p.status || null,
+      milestones: Array.isArray(p.milestones) ? p.milestones.slice(0, 20).map((m) => ({ id: m.id || '', title: typeof m.title === 'string' ? m.title.slice(0, 200) : '' })) : [],
+    })) };
   }
   return result;
 }
@@ -3811,7 +3837,7 @@ async function _advanceBrainSession(session, toolResults, requestId, signal, sta
     if (limitErr) {
       console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=' + limitErr + ' latencyMs=' + (Date.now() - startTime));
       const msg = limitErr === 'brain-max-steps' ? 'AI đã thực hiện quá nhiều bước.' : (limitErr === 'brain-timeout' ? 'Yêu cầu AI quá lâu.' : 'Trạng thái AI không hợp lệ.');
-      return { type: 'error', error: limitErr, friendlyMessage: msg };
+      return { type: 'error', payload: { error: limitErr, friendlyMessage: msg } };
     }
 
     session.status = 'awaiting_model';
@@ -3829,6 +3855,8 @@ async function _advanceBrainSession(session, toolResults, requestId, signal, sta
     if (routed.action === 'server_tool_result') {
       session.step++;
       session.toolTrace.push({ tool: routed.toolName, toolCallId: routed.callId, step: session.step, status: 'executed-server' });
+      // Update refs from server tool results
+      _updateBrainRefsFromToolResult(session, routed.toolName, routed.result);
       currentToolResults = [{ tool: routed.toolName, callId: routed.callId, result: routed.result }];
       // Loop again
       continue;
@@ -3842,8 +3870,9 @@ async function _advanceBrainSession(session, toolResults, requestId, signal, sta
 router.post('/brain', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHourlyLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   const clientAbort = new AbortController();
-  req.on('aborted', () => clientAbort.abort());
-  res.on('close', () => { req.removeListener('aborted', () => clientAbort.abort()); });
+  const onClientAbort = () => clientAbort.abort();
+  req.on('aborted', onClientAbort);
+  res.on('close', () => { req.removeListener('aborted', onClientAbort); });
 
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
@@ -3884,8 +3913,9 @@ router.post('/brain', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHour
 router.post('/brain/continue', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHourlyLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   const clientAbort = new AbortController();
-  req.on('aborted', () => clientAbort.abort());
-  res.on('close', () => { req.removeListener('aborted', () => clientAbort.abort()); });
+  const onClientAbort = () => clientAbort.abort();
+  req.on('aborted', onClientAbort);
+  res.on('close', () => { req.removeListener('aborted', onClientAbort); });
 
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
@@ -3922,15 +3952,8 @@ router.post('/brain/continue', maybeRateLimit(aiAgentLimiter), maybeRateLimit(ai
 
       // Check if tool returned a proposal
       if (toolResult && typeof toolResult === 'object' && toolResult.ok && toolResult.proposal) {
-        // Server-validate proposal before returning
-        const ctx = { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set() };
-        try {
-          const env = sanitizeChatContextEnvelope({ data: {} });
-          if (env.ok && env.envelope && env.envelope.data) {
-            (env.envelope.data.tasks || []).forEach((t) => { if (t && t.uid) ctx.taskUids.add(t.uid); });
-          }
-        } catch (e) { /* best effort */ }
-        const v = validateAgentProposal(toolResult.proposal, ctx);
+        // Server-validate proposal using session.refs (trusted read results only)
+        const v = validateAgentProposal(toolResult.proposal, session.refs);
         if (!v.ok) {
           _failBrainSession(session, 'brain-proposal-invalid');
           return res.status(422).json({ error: 'brain-proposal-invalid', details: v.errors.slice(0, 5) });
@@ -3940,8 +3963,11 @@ router.post('/brain/continue', maybeRateLimit(aiAgentLimiter), maybeRateLimit(ai
         return res.json(_brainFormatResponse(session, 'proposal', { proposal: toolResult.proposal }));
       }
 
-      // Sanitize client tool result before sending to Gemini
+      // Sanitize client tool result BEFORE any processing
       const sanitizedResult = _sanitizeToolResultForBrain(pendingCall.tool, toolResult);
+
+      // Update session refs from trusted read tool results
+      _updateBrainRefsFromToolResult(session, pendingCall.tool, sanitizedResult);
 
       // Continue brain loop with correct tool identity
       const result = await _advanceBrainSession(session, [{ tool: pendingCall.tool, callId: pendingCall.id, result: sanitizedResult }], requestId, clientAbort.signal, startTime);

@@ -32,6 +32,19 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
+  /* Derive actual date string from planner week/day grid position */
+  function _gridDate(week, day) {
+    try {
+      if (typeof PLAN_START === 'undefined' || !PLAN_START) return null;
+      if (typeof week !== 'number' || typeof day !== 'number') return null;
+      // day is 1-indexed within the week, week is 1-indexed
+      // PLAN_START is the grid start (may be before month start for alignment)
+      var dayIdx = (week - 1) * 7 + (day - 1);
+      var dt = new Date(PLAN_START.getTime() + dayIdx * 86400000);
+      return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+    } catch (e) { return null; }
+  }
+
   /* ---- Tool Registry ---- */
   var _tools = {};
 
@@ -218,12 +231,15 @@
       } else if (filter === 'completed') {
         allTasks = allTasks.filter(function (t) { return !!t.done; });
       } else if (filter === 'today') {
-        // Tasks with deadline === today, OR tasks scheduled today without deadline
+        // Tasks with deadline === today, OR scheduledDate === today
         allTasks = allTasks.filter(function (t) {
           if (t.done) return false;
           if (t.deadline === today) return true;
-          // Tasks in the current week/day grid without explicit deadline
-          if (!t.deadline && t.day && typeof t.day === 'number' && t.week) return true;
+          // Derive actual date from planner grid
+          if (!t.deadline && t.day && typeof t.day === 'number' && t.week) {
+            var gridDate = _gridDate(t.week, t.day);
+            return gridDate === today;
+          }
           return false;
         });
       } else if (filter === 'upcoming') {
