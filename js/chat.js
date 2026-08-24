@@ -558,6 +558,19 @@
     }
   }
 
+  function _isDocumentPlanRequest(text) {
+    if (/(?:tuần\s+tiếp|next\s+week|tuần\s+tiếp\s+theo|lập\s+tuần\s+tiếp)/i.test(text || '')) return true;
+    try {
+      if (window.TaskFlowAIIntent && typeof window.TaskFlowAIIntent.isDocumentPlanIntent === 'function') {
+        return window.TaskFlowAIIntent.isDocumentPlanIntent(text);
+      }
+      if (window.TaskFlowAIIntent && typeof window.TaskFlowAIIntent.classifyFileIntent === 'function') {
+        return window.TaskFlowAIIntent.classifyFileIntent(text, true).kind === 'document-daily-plan';
+      }
+    } catch (e) { /* deterministic fallback below */ }
+    return /(?:lập|tạo|chia).{0,80}(?:kế\s+hoạch\s+học|từng\s+ngày|mỗi\s+ngày|7\s+ngày).{0,80}(?:tài\s+liệu|pdf)|(?:tài\s+liệu|pdf).{0,80}(?:kế\s+hoạch\s+học|từng\s+ngày|mỗi\s+ngày|7\s+ngày)/i.test(text || '');
+  }
+
   /* ---- Core send flow ---- */
   async function _doSend(text, opts) {
     if (_inFlight) return;
@@ -630,27 +643,42 @@
         useAgent = !!(window.TaskFlowAIAgentRuntime && window.TaskFlowAIAgentRuntime.isActionIntent(text));
       }
 
-      // P1: Document Daily Plan follow-up — "tuần tiếp theo" without PDF re-upload
-      if (!useAgent && window.TaskFlowDocumentDailyPlan && /(?:tuần\s+tiếp|next\s+week|tuần\s+tiếp\s+theo|lập\s+tuần\s+tiếp)/i.test(text)) {
-        var activePlan = window.TaskFlowDocumentDailyPlan.getActiveRoadmap();
+      // Document-plan request without an attached file: reuse the saved
+      // roadmap when possible; otherwise ask for the PDF instead of routing
+      // the request to the generic task agent.
+      if (_isDocumentPlanRequest(text)) {
+        var planner = window.TaskFlowDocumentDailyPlan;
+        var activePlan = planner && typeof planner.getActiveRoadmap === 'function'
+          ? planner.getActiveRoadmap()
+          : null;
         if (activePlan) {
-          var planResult = await window.TaskFlowDocumentDailyPlan.runNextWindow(text, { signal: req.signal });
+          var planResult = await planner.runNextWindow(text, { signal: req.signal });
           _removeTyping(typingEl);
           if (planResult && planResult.ok && planResult.proposal && planResult.proposal.actions && planResult.proposal.actions.length > 0) {
             var planSummary = planResult.proposal.summary || ('Kế hoạch ' + (planResult.meta ? planResult.meta.daysGenerated : 7) + ' ngày — ' + planResult.proposal.actions.length + ' công việc');
             _appendMessage(msgs, planSummary, 'bot');
             _persistAssistantMessage(planSummary);
-            window.TaskFlowDocumentDailyPlan.sendProposalToReview(planResult.proposal, { source: 'document-daily-plan', fileName: activePlan.documentName });
+            planner.sendProposalToReview(planResult.proposal, { source: 'document-daily-plan', fileName: activePlan.documentName });
+            _setContextStatus('idle', []);
+            return;
+          } else if (planResult && planResult.ok && planResult.proposal && Array.isArray(planResult.proposal.actions)) {
+            var emptyPlanSummary = planResult.proposal.summary || _t('documentPlanNoNewTasks');
+            _appendMessage(msgs, emptyPlanSummary, 'bot');
+            _persistAssistantMessage(emptyPlanSummary);
             _setContextStatus('idle', []);
             return;
           } else {
-            _appendMessage(msgs, (planResult && planResult.message) || 'Không thể tạo kế hoạch tuần tiếp theo. Vui lòng thử lại.', 'bot');
-            _setContextStatus('idle', []);
+            var failedPlanMessage = (planResult && planResult.message) || _t('documentPlanFailed');
+            _appendMessage(msgs, failedPlanMessage, 'bot');
+            _persistAssistantMessage(failedPlanMessage);
+            _setContextStatus('error', []);
             return;
           }
         } else {
           _removeTyping(typingEl);
-          _appendMessage(msgs, 'Chưa có kế hoạch tài liệu nào. Vui lòng tải lên PDF trước.', 'bot');
+          var attachRequiredMessage = _t('documentPlanAttachRequired');
+          _appendMessage(msgs, attachRequiredMessage, 'bot');
+          _persistAssistantMessage(attachRequiredMessage);
           _setContextStatus('idle', []);
           return;
         }
@@ -1773,6 +1801,7 @@
     _getApiBase: _getApiBase,
     _callChatAPI: _callChatAPI,
     _mapError: _mapError,
+    _isDocumentPlanRequest: _isDocumentPlanRequest,
     _onAccountChange: _onAccountChange,
     resetAttachmentDragState: _resetFileDragState,
     _captureConversationView: _captureConversationView,

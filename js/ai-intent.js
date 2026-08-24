@@ -204,6 +204,15 @@
   var FILE_HYPOTHETICAL_RE = /(?:nếu(?:\s+(?:tôi|ta)\s+)?|giả\s+sử|giả\s+như|\bsuppose\b|\bassume\b|\bwhat\s+(?:if|happens\s+if)\b|\bimagine\b|thì\s+sao|\bhow\s+(?:would|could|can)\s+you|\bcó\s+thể\s+(?:tạo|làm|xóa))/i;
   // Ambiguous — no clear action or read intent
   var FILE_AMBIGUOUS_RE = /^(?:làm|xử\s+lý|handle|deal\s+with|take\s+care|help|giúp)(?:\s+[^\n]*)?\s*[.!?]*\s*$/i;
+  var DOCUMENT_DAILY_PLAN_RE = /(?:tạo|lập|chia|làm|generate|create|make|build)(?:\s+[\p{L}\p{N}]+){0,6}(?:\s+(?:từng\s+ngày|hằng\s+ngày|mỗi\s+ngày|daily|per\s+day|each\s+day|every\s+day|tuần|week|7\s+ngày|14\s+ngày|7\s+days|14\s+days|tuần\s+tiếp|next\s+week))/iu;
+  var DOCUMENT_STUDY_PLAN_RE = /(?:lập|tạo|lên|generate|create|make|build)(?:\s+[\p{L}\p{N}]+){0,4}\s+(?:kế\s+hoạch\s+học|lộ\s+trình\s+học|study\s+plan|learning\s+plan)/iu;
+
+  function isDocumentPlanIntent(message) {
+    var s = String(message || '').trim();
+    if (!s) return false;
+    if (FILE_NEGATION_RE.test(s) || FILE_HYPOTHETICAL_RE.test(s) || FILE_AMBIGUOUS_RE.test(s)) return false;
+    return DOCUMENT_DAILY_PLAN_RE.test(s) || DOCUMENT_STUDY_PLAN_RE.test(s);
+  }
 
   function classifyFileIntent(message, hasFile) {
     var s = String(message || '').trim();
@@ -223,9 +232,7 @@
     var hasFileContext = FILE_CONTEXT_RE.test(s);
 
     // P11: Document Daily Plan — roadmap-like requests with daily planning intent
-    var DAILY_PLAN_RE = /(?:tạo|lập|chia|làm|generate|create|make|build)(?:\s+[\p{L}\p{N}]+){0,6}(?:\s+(?:từng\s+ngày|hằng\s+ngày|mỗi\s+ngày|daily|per\s+day|each\s+day|every\s+day|tuần|week|7\s+ngày|14\s+ngày|7\s+days|14\s+days|tuần\s+tiếp|next\s+week))/iu;
-    var STUDY_PLAN_RE = /(?:lập|tạo|lên|generate|create|make|build)(?:\s+[\p{L}\p{N}]+){0,4}\s+(?:kế\s+hoạch\s+học|lộ\s+trình\s+học|study\s+plan|learning\s+plan)/iu;
-    if (DAILY_PLAN_RE.test(s) || STUDY_PLAN_RE.test(s)) return { kind: 'document-daily-plan', confidence: 'high', reason: 'file-daily-plan-intent' };
+    if (isDocumentPlanIntent(s)) return { kind: 'document-daily-plan', confidence: 'high', reason: 'file-daily-plan-intent' };
 
     if (hasActionVerb && hasFileContext) {
       return { kind: 'agent', confidence: 'high', reason: 'file-action-with-context' };
@@ -600,5 +607,5 @@
     return null;
   }
 
-  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, classifyGoalIntent: classifyGoalIntent, classifyFocusIntent: classifyFocusIntent, classifyEstimateIntent: classifyEstimateIntent, classifyGoalTrackingIntent: classifyGoalTrackingIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
+  return { classifyIntent: classifyIntent, resolveTaskReference: resolveTaskReference, isActionIntent: isActionIntent, classifyFileIntent: classifyFileIntent, isDocumentPlanIntent: isDocumentPlanIntent, classifyProposalMessage: classifyProposalMessage, classifyPlanningIntent: classifyPlanningIntent, classifyPlanHealthIntent: classifyPlanHealthIntent, classifyWatchSettingsIntent: classifyWatchSettingsIntent, classifyBriefIntent: classifyBriefIntent, classifyGoalIntent: classifyGoalIntent, classifyFocusIntent: classifyFocusIntent, classifyEstimateIntent: classifyEstimateIntent, classifyGoalTrackingIntent: classifyGoalTrackingIntent, _normalize: _normalize, _candidateLabel: _candidateLabel, _extractTaskName: _extractTaskName };
 });

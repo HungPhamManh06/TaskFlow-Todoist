@@ -116,6 +116,15 @@ describe('P1 Document Daily Planner: intent detection', () => {
     const r = aiIntent.classifyFileIntent('tạo task từng ngày', false);
     assert.notEqual(r.kind, 'document-daily-plan');
   });
+  it('detects an unattached document-plan request for the chat routing guard', () => {
+    assert.equal(
+      aiIntent.isDocumentPlanIntent('Lập kế hoạch học từ tài liệu này theo đúng từng ngày ghi trong PDF. Tạo task cho 7 ngày bắt đầu từ hôm nay.'),
+      true,
+    );
+  });
+  it('does not treat a regular task command as an unattached document-plan request', () => {
+    assert.equal(aiIntent.isDocumentPlanIntent('Tạo task mua sách hôm nay'), false);
+  });
   it('does NOT trigger on questions', () => {
     const r = aiIntent.classifyFileIntent('Tài liệu này có kế hoạch theo ngày không?', true);
     assert.notEqual(r.kind, 'document-daily-plan');

@@ -647,6 +647,16 @@ describe('Runtime: chat.js wires document-daily-plan correctly', () => {
     assert.ok(chatSource.includes('window.TaskFlowDocumentDailyPlan.sendProposalToReview'),
       'initial plan delegates to module sendProposalToReview');
   });
+
+  it('missing attachment is intercepted before the generic task agent', () => {
+    assert.ok(chatSource.includes('function _isDocumentPlanRequest'), 'has no-file document plan guard');
+    assert.ok(chatSource.includes('if (_isDocumentPlanRequest(text))'), 'checks guard before generic agent');
+    assert.ok(chatSource.includes("_t('documentPlanAttachRequired')"), 'shows an actionable attach-PDF message');
+    assert.ok(
+      chatSource.indexOf('if (_isDocumentPlanRequest(text))') < chatSource.indexOf('if (useAgent)'),
+      'document plan guard runs before generic agent routing',
+    );
+  });
 });
 
 /* ===========================================================
