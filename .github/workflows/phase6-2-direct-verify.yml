@@ -3,6 +3,8 @@ name: Phase 6.2 direct hotfix verify
 on:
   push:
     branches: [hotfix/phase6-2-direct-chat]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
