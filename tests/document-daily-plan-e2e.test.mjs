@@ -38,8 +38,9 @@ describe('E2E: chat.js intent routing', () => {
     assert.ok(chatSource.includes("'document-daily-plan'"), 'chat.js has document-daily-plan kind');
   });
 
-  it('document-daily-plan routes to /document-daily-plan endpoint', () => {
-    assert.ok(chatSource.includes("/api/ai/document-daily-plan'"), 'routes to document-daily-plan endpoint');
+  it('document-daily-plan delegates initial upload to its orchestrator', () => {
+    assert.ok(chatSource.includes('dailyPlanner.runInitialDocumentPlan'), 'delegates to document planner orchestrator');
+    assert.ok(planSource.includes("/api/ai/document-daily-plan'"), 'orchestrator owns the endpoint');
   });
 
   it('tuần tiếp theo detection exists in _doSend', () => {

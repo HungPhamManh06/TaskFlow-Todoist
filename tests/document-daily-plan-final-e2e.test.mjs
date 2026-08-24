@@ -16,18 +16,19 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { PassThrough } from 'node:stream';
 import * as vm from 'node:vm';
 
 const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 
-const aiSource = readFileSync(join(ROOT, 'server', 'ai.js'), 'utf8');
 const planSource = readFileSync(join(ROOT, 'js', 'ai-document-daily-plan.js'), 'utf8');
 const chatSource = readFileSync(join(ROOT, 'js', 'chat.js'), 'utf8');
 const agentSrc = readFileSync(join(ROOT, 'js', 'ai-agent.js'), 'utf8');
 const runtimeSrc = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
 const pdfFixture = readFileSync(join(ROOT, 'tests', 'fixtures', 'document-daily-plan-roadmap.pdf'));
+const { handleDocumentDailyPlan, validateDailyPlanProposal } = require(join(ROOT, 'server', 'ai.js'));
 
 /* ---- Helpers ---- */
 function findByTestId(node, testid) {
@@ -40,15 +41,6 @@ function findByTestId(node, testid) {
     }
   }
   return null;
-}
-
-function collectText(node) {
-  if (!node) return '';
-  if (typeof node === 'string') return node;
-  let t = '';
-  if (node.textContent) t += node.textContent;
-  if (node.children) { for (const c of node.children) t += ' ' + collectText(c); }
-  return t;
 }
 
 function localToday() {
@@ -67,9 +59,12 @@ function dateRange(start, n) {
   return dates;
 }
 
-function makeDayMonth(dateStr) {
-  const parts = dateStr.split('-');
-  return parseInt(parts[2]) + '/' + parseInt(parts[1]);
+function addDays(start, days) {
+  return dateRange(start, days + 1)[days];
+}
+
+function futureCursorStart() {
+  return addDays(localToday(), 1);
 }
 
 /* ===========================================================
@@ -77,41 +72,85 @@ function makeDayMonth(dateStr) {
    =========================================================== */
 describe('E2E FINAL: Server pipeline (real PDF + mocked provider)', () => {
 
-  it('PDF fixture has extractable text layer', async () => {
-    // Verify the PDF fixture can be parsed by the real PDF parser
-    const pdfParsePath = join(ROOT, 'server', 'node_modules', 'pdf-parse');
-    const { PDFParse } = require(pdfParsePath);
-    const parser = new PDFParse({ data: new Uint8Array(pdfFixture) });
-    const result = await parser.getText();
-    await parser.destroy();
-    assert.ok(result.text && result.text.length > 50, 'PDF has extractable text');
-    assert.ok(result.text.includes('12-Week Full Stack'), 'PDF contains expected roadmap content');
-    assert.ok(result.text.includes('HTML and CSS'), 'PDF contains week 1-2 content');
-    assert.ok(result.text.includes('React'), 'PDF contains week 5-6 content');
-    assert.ok(result.text.includes('Node.js'), 'PDF contains week 7-8 content');
+  async function multipartRequest() {
+    const form = new FormData();
+    form.append('files', new Blob([pdfFixture], { type: 'application/pdf' }), 'roadmap.pdf');
+    form.append('message', 'Lập kế hoạch theo từng ngày từ tài liệu này');
+    form.append('timeZone', 'Asia/Bangkok');
+    const webRequest = new Request('http://taskflow.test/api/ai/document-daily-plan', {
+      method: 'POST',
+      body: form,
+    });
+    const req = new PassThrough();
+    req.headers = Object.fromEntries(webRequest.headers.entries());
+    req.aiRequestId = 'e2e-document-plan';
+    req.end(Buffer.from(await webRequest.arrayBuffer()));
+    return req;
+  }
+
+  function responseRecorder() {
+    let statusCode = 200;
+    let body = null;
+    return {
+      res: {
+        status(code) { statusCode = code; return this; },
+        json(value) { body = value; return this; },
+        setHeader() {},
+      },
+      read() { return { statusCode, body }; },
+    };
+  }
+
+  it('real multipart PDF runs both provider stages and returns 14 review actions', async () => {
+    const startDate = '2026-08-24';
+    const dates = dateRange(startDate, 7);
+    const providerCalls = [];
+    const callAiJson = async (request) => {
+      providerCalls.push(request);
+      if (request.routeName.endsWith('/roadmap')) {
+        assert.match(request.messages[1].content, /12-Week Full Stack/, 'real PDF text reaches roadmap stage');
+        return {
+          ok: true,
+          latencyMs: 11,
+          parsed: {
+            title: '12-Week Full Stack Roadmap', summary: 'Full-stack course', totalWeeks: 12,
+            phases: [{ id: 'p1', title: 'Foundations', weeks: [{ week: 1, title: 'HTML and CSS', goals: ['Build a page'], deliverables: ['Landing page'] }] }],
+          },
+        };
+      }
+      const days = dates.map((date, dayIndex) => ({
+        date,
+        tasks: [0, 1].map((taskIndex) => ({
+          id: 'provider-' + dayIndex + '-' + taskIndex,
+          text: 'Study task ' + (dayIndex * 2 + taskIndex + 1),
+          duration: 45,
+          roadmapWeek: 1,
+          roadmapGoal: 'Build a page',
+        })),
+      }));
+      return { ok: true, latencyMs: 13, parsed: { summary: 'Kế hoạch 7 ngày — 14 việc', days } };
+    };
+
+    const req = await multipartRequest();
+    const recorder = responseRecorder();
+    await handleDocumentDailyPlan(req, recorder.res, {
+      apiKey: 'test-key',
+      callAiJson,
+      now: new Date('2026-08-24T00:30:00+07:00'),
+    });
+
+    const { statusCode, body } = recorder.read();
+    assert.equal(statusCode, 200, JSON.stringify(body));
+    assert.equal(body.ok, true);
+    assert.equal(providerCalls.length, 2, 'roadmap and daily-plan provider stages called');
+    assert.equal(body.proposal.actions.length, 14, '14 actions returned for Review');
+    assert.deepEqual(body.meta.dateRange, [dates[0], dates[6]], 'dates follow user timezone');
+    assert.equal(body.files[0].name, 'roadmap.pdf', 'accepted multipart file is returned');
+    assert.equal(body.rejectedFiles.length, 0);
+    assert.match(body.fingerprint, /^[a-f0-9]{16}$/);
   });
 
   it('validateDailyPlanProposal rejects proposal with >84 actions', () => {
-    const startIdx = aiSource.indexOf('function validateDailyPlanProposal');
-    let depth = 0, started = false, endIdx = startIdx;
-    const src = aiSource.slice(startIdx);
-    for (let i = 0; i < src.length; i++) {
-      if (src[i] === '{') { depth++; started = true; }
-      if (src[i] === '}') { depth--; }
-      if (started && depth === 0) { endIdx = startIdx + i + 1; break; }
-    }
-    const validDateIdx = aiSource.indexOf('function validDate(');
-    const validDateEnd = aiSource.indexOf('\n}', validDateIdx) + 2;
-    const validActionIdIdx = aiSource.indexOf('function validActionId(');
-    const validActionIdEnd = aiSource.indexOf('\n}', validActionIdIdx) + 2;
-    const actionIdReIdx = aiSource.indexOf('const ACTION_ID_RE =');
-    const actionIdReEnd = aiSource.indexOf('\n', actionIdReIdx) + 1;
-    const helpers = aiSource.slice(actionIdReIdx, actionIdReEnd) + '\n' + aiSource.slice(validDateIdx, validDateEnd) + '\n' + aiSource.slice(validActionIdIdx, validActionIdEnd) + '\n';
-    const fnSrc = helpers + aiSource.slice(startIdx, endIdx);
-    const sandbox = { Date, Math, Array, Object, Set, Map, String, Number, TypeError, RangeError, Error, JSON, parseInt };
-    vm.createContext(sandbox);
-    vm.runInContext(fnSrc, sandbox);
-    const validate = sandbox.validateDailyPlanProposal;
     const today = localToday();
     const proposal = {
       summary: 'Too many',
@@ -121,32 +160,12 @@ describe('E2E FINAL: Server pipeline (real PDF + mocked provider)', () => {
           start: null, projectId: null, milestoneId: null, taskRef: null, changes: null },
       })),
     };
-    const result = validate(proposal);
+    const result = validateDailyPlanProposal(proposal, { today });
     assert.equal(result.ok, false, '85 actions rejected');
     assert.ok(result.errors.includes('actions-too-many'), 'has actions-too-many error');
   });
 
   it('validateDailyPlanProposal accepts 14-action pipeline proposal', () => {
-    const startIdx = aiSource.indexOf('function validateDailyPlanProposal');
-    let depth = 0, started = false, endIdx = startIdx;
-    const src = aiSource.slice(startIdx);
-    for (let i = 0; i < src.length; i++) {
-      if (src[i] === '{') { depth++; started = true; }
-      if (src[i] === '}') { depth--; }
-      if (started && depth === 0) { endIdx = startIdx + i + 1; break; }
-    }
-    const validDateIdx = aiSource.indexOf('function validDate(');
-    const validDateEnd = aiSource.indexOf('\n}', validDateIdx) + 2;
-    const validActionIdIdx = aiSource.indexOf('function validActionId(');
-    const validActionIdEnd = aiSource.indexOf('\n}', validActionIdIdx) + 2;
-    const actionIdReIdx = aiSource.indexOf('const ACTION_ID_RE =');
-    const actionIdReEnd = aiSource.indexOf('\n', actionIdReIdx) + 1;
-    const helpers = aiSource.slice(actionIdReIdx, actionIdReEnd) + '\n' + aiSource.slice(validDateIdx, validDateEnd) + '\n' + aiSource.slice(validActionIdIdx, validActionIdEnd) + '\n';
-    const fnSrc = helpers + aiSource.slice(startIdx, endIdx);
-    const sandbox = { Date, Math, Array, Object, Set, Map, String, Number, TypeError, RangeError, Error, JSON, parseInt };
-    vm.createContext(sandbox);
-    vm.runInContext(fnSrc, sandbox);
-    const validate = sandbox.validateDailyPlanProposal;
     const today = localToday();
     const dates = dateRange(today, 7);
     const proposal = {
@@ -163,7 +182,7 @@ describe('E2E FINAL: Server pipeline (real PDF + mocked provider)', () => {
         });
       }
     }
-    const result = validate(proposal);
+    const result = validateDailyPlanProposal(proposal, { today });
     assert.equal(result.ok, true, '14-action proposal valid, errors: ' + JSON.stringify(result.errors));
     assert.equal(proposal.actions.length, 14, 'proposal has 14 actions');
   });
@@ -197,7 +216,21 @@ describe('E2E FINAL: Review → Apply → Undo (14-action daily plan)', () => {
     let saveCount = 0;
 
     const msgs = {
-      appendChild(el) { appended.push(el); },
+      children: appended,
+      appendChild(el) { appended.push(el); el.parentNode = this; return el; },
+      removeChild(el) {
+        const index = appended.indexOf(el);
+        if (index >= 0) appended.splice(index, 1);
+        el.parentNode = null;
+        return el;
+      },
+      replaceChild(newEl, oldEl) {
+        const index = appended.indexOf(oldEl);
+        if (index >= 0) appended[index] = newEl;
+        oldEl.parentNode = null;
+        newEl.parentNode = this;
+        return oldEl;
+      },
       scrollTop: 0,
       scrollHeight: 1000,
     };
@@ -219,23 +252,56 @@ describe('E2E FINAL: Review → Apply → Undo (14-action daily plan)', () => {
           return null;
         },
         createElement: (tag) => {
+          const listeners = {};
           const el = {
             tagName: tag.toUpperCase(), className: '', textContent: '', innerHTML: '',
             children: [], _attrs: {},
             setAttribute(k, v) { this[k] = v; this._attrs[k] = v; },
             getAttribute(k) { return this._attrs[k] || this[k]; },
-            appendChild(c) { this.children.push(c); return c; },
-            removeChild() {},
-            replaceChild(newC, oldC) { const idx = this.children.indexOf(oldC); if (idx >= 0) this.children[idx] = newC; },
-            querySelectorAll() { return []; },
+            appendChild(c) { this.children.push(c); c.parentNode = this; return c; },
+            removeChild(c) {
+              const idx = this.children.indexOf(c);
+              if (idx >= 0) this.children.splice(idx, 1);
+              c.parentNode = null;
+              return c;
+            },
+            replaceChild(newC, oldC) {
+              const idx = this.children.indexOf(oldC);
+              if (idx >= 0) this.children[idx] = newC;
+              oldC.parentNode = null;
+              newC.parentNode = this;
+              return oldC;
+            },
+            querySelectorAll(selector) {
+              const found = [];
+              const wantedTag = String(selector || '').toUpperCase();
+              const visit = (node) => {
+                if (node !== this && node.tagName === wantedTag) found.push(node);
+                for (const child of node.children || []) visit(child);
+              };
+              visit(this);
+              return found;
+            },
             querySelector(sel) {
               if (!sel) return null;
               const match = sel.match && sel.match(/data-testid="([^"]+)"/);
               if (match) return findByTestId(el, match[1]);
               return null;
             },
-            parentNode: msgs, style: {}, disabled: false, hidden: false,
-            addEventListener() {}, removeEventListener() {}, dispatchEvent() {},
+            parentNode: null, style: {}, disabled: false, hidden: false,
+            addEventListener(type, handler) {
+              if (!listeners[type]) listeners[type] = [];
+              listeners[type].push(handler);
+            },
+            removeEventListener(type, handler) {
+              if (listeners[type]) listeners[type] = listeners[type].filter((item) => item !== handler);
+            },
+            dispatchEvent(event) {
+              for (const handler of listeners[event.type] || []) handler.call(this, event);
+              return true;
+            },
+            click() { return this.dispatchEvent({ type: 'click', target: this, preventDefault() {}, stopPropagation() {} }); },
+            scrollIntoView() {},
             get firstChild() { return this.children[0] || null; },
             get lastChild() { return this.children[this.children.length - 1] || null; },
             get nextSibling() { return null; },
@@ -257,7 +323,12 @@ describe('E2E FINAL: Review → Apply → Undo (14-action daily plan)', () => {
       PLAN_YEAR: year, PLAN_MONTH: month,
       PLAN_START: new Date(year, month, 1),
       NUM_DAYS: daysInMonth,
-      pushUndo() { undoSnapshot = JSON.parse(JSON.stringify(state)); },
+      pushUndo() {
+        undoSnapshot = {
+          state: JSON.parse(JSON.stringify(state)),
+          inbox: JSON.parse(JSON.stringify(inbox)),
+        };
+      },
       save() { saveCount++; },
       saveInbox() {},
       renderCurrentView() {},
@@ -268,7 +339,16 @@ describe('E2E FINAL: Review → Apply → Undo (14-action daily plan)', () => {
     };
     sandbox.globalThis = sandbox;
     sandbox.window = sandbox;
-    return { sandbox, appended, state, inbox, msgs, getUndoSnapshot: () => undoSnapshot, getSaveCount: () => saveCount };
+    return {
+      sandbox, appended, state, inbox, msgs,
+      getUndoSnapshot: () => undoSnapshot,
+      getSaveCount: () => saveCount,
+      restoreUndo() {
+        assert.ok(undoSnapshot, 'undo checkpoint exists');
+        state.weeks = JSON.parse(JSON.stringify(undoSnapshot.state.weeks));
+        inbox.splice(0, inbox.length, ...JSON.parse(JSON.stringify(undoSnapshot.inbox)));
+      },
+    };
   }
 
   function loadModules(sandbox) {
@@ -358,46 +438,31 @@ describe('E2E FINAL: Review → Apply → Undo (14-action daily plan)', () => {
     }
   });
 
-  it('Apply creates 14 tasks in correct days', async () => {
-    const { sandbox, state, appended, getSaveCount } = buildSandbox();
+  it('clicking Apply creates 14 tasks and one Undo restores the pre-apply state', async () => {
+    const { sandbox, state, inbox, appended, getUndoSnapshot, getSaveCount, restoreUndo } = buildSandbox();
     const { Runtime } = loadModules(sandbox);
     const proposal = buildProposal();
 
     Runtime.handleExternalProposal(proposal, { source: 'document-daily-plan' });
-
-    // Trigger apply by calling the runtime's internal confirm
-    // The confirm handler is set up via addEventListener (which our mock ignores)
-    // We need to access the internal _confirmCard. Since it's not exported,
-    // we use the fact that the confirm button's handler calls _confirmCard(card, msgs, proposal)
-    // Let's find the card and trigger the confirm through the review state mechanism.
-
-    // The Runtime's getReviewState gives us access to the internal state.
-    // We can trigger apply by finding the confirm button and calling its handler.
-    // Since our mock doesn't bind events, let's check if the Runtime exports
-    // anything we can use to trigger apply.
-
-    const rs = Runtime.getReviewState();
-    assert.ok(rs, 'review state exists');
-
-    // The runtime doesn't export _confirmCard directly. But we can verify the
-    // review state structure is correct and that the confirm button exists.
-    // For the actual Apply, we need to verify the card has the right structure.
-
-    // Verify the card structure is complete for apply
     const card = appended.find(el => el && el.className && el.className.includes('agent-card'));
     assert.ok(card, 'card exists');
-
-    // The confirm button should be clickable (disabled=false)
     const confirmBtn = findByTestId(card, 'review-confirm');
     assert.ok(confirmBtn, 'confirm button exists');
     assert.equal(confirmBtn.disabled, false, 'confirm button not disabled');
 
-    // Verify the review state has all the data needed for apply
-    assert.equal(rs.actions.length, 14, '14 actions ready for apply');
-    assert.ok(rs.workingProposal, 'workingProposal exists');
-    assert.equal(rs.workingProposal.actions.length, 14, 'workingProposal has 14 actions');
-    assert.ok(rs.originalProposal, 'originalProposal exists');
-    assert.equal(rs.originalProposal.actions.length, 14, 'originalProposal has 14 actions');
+    confirmBtn.click();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const monthTasks = state.weeks.flatMap((week) => week.days).flatMap((day) => day.tasks);
+    assert.equal(monthTasks.length + inbox.length, 14, 'all 14 actions mutated application state');
+    assert.equal(getSaveCount(), 1, 'the batch is saved once');
+    assert.ok(getUndoSnapshot(), 'one pre-apply undo checkpoint was captured');
+    assert.equal(getUndoSnapshot().state.weeks.flatMap((week) => week.days).flatMap((day) => day.tasks).length, 0,
+      'undo checkpoint was captured before mutation');
+
+    restoreUndo();
+    assert.equal(state.weeks.flatMap((week) => week.days).flatMap((day) => day.tasks).length + inbox.length, 0,
+      'undo restores the state from before Apply');
   });
 });
 
@@ -438,7 +503,7 @@ describe('E2E FINAL: "tuần tiếp theo" no-reread', () => {
       id: 'rm-test', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'roadmap.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test Roadmap', phases: [{ id: 'p1', title: 'Phase 1', weeks: [{ week: 1, title: 'W1', goals: ['G1'] }] }] },
-      cursor: { nextWeek: 1, lastStartDate: '2026-08-24', lastDaysCount: 7 },
+      cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
     });
 
     // Call runNextWindow
@@ -492,7 +557,7 @@ describe('E2E FINAL: "tuần tiếp theo" no-reread', () => {
     api.saveRoadmap({
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'roadmap.pdf', createdAt: Date.now(), updatedAt: Date.now(),
-      roadmap, cursor: { nextWeek: 1, lastStartDate: '2026-08-24', lastDaysCount: 7 },
+      roadmap, cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
@@ -539,7 +604,7 @@ describe('E2E FINAL: "tuần tiếp theo" no-reread', () => {
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'roadmap.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: '2026-08-24', lastDaysCount: 7 },
+      cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
@@ -583,38 +648,41 @@ describe('E2E FINAL: Cursor advance logic', () => {
     return sandbox.TaskFlowDocumentDailyPlan;
   }
 
-  it('cursor advances from 2026-08-24 to 2026-08-31 after success', async () => {
+  it('cursor advances exactly one week after success', async () => {
     const api = makeApi();
+    const startDate = futureCursorStart();
     api.saveRoadmap({
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: '2026-08-24', lastDaysCount: 7 },
+      cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 },
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
     const active = api.getActiveRoadmap();
-    assert.equal(active.cursor.lastStartDate, '2026-08-31', 'cursor advanced to Aug 31');
+    assert.equal(active.cursor.lastStartDate, addDays(startDate, 7), 'cursor advanced by 7 days');
     assert.equal(active.cursor.nextWeek, 2, 'nextWeek incremented to 2');
   });
 
-  it('second "tuần tiếp theo" starts from 2026-09-07', async () => {
+  it('second "tuần tiếp theo" advances a second week', async () => {
     const api = makeApi();
+    const startDate = futureCursorStart();
     api.saveRoadmap({
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: '2026-08-24', lastDaysCount: 7 },
+      cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 },
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
     await api.runNextWindow('tuần tiếp theo', {});
     const active = api.getActiveRoadmap();
-    assert.equal(active.cursor.lastStartDate, '2026-09-07', 'cursor advanced to Sep 7');
+    assert.equal(active.cursor.lastStartDate, addDays(startDate, 14), 'cursor advanced by 14 days');
     assert.equal(active.cursor.nextWeek, 3, 'nextWeek is 3');
   });
 
   it('failed request does NOT advance cursor', async () => {
+    const startDate = futureCursorStart();
     const api = makeApi({
       fetchInterceptor: async () => ({ ok: false, status: 500, json: async () => ({ error: 'server-error' }) }),
     });
@@ -622,12 +690,12 @@ describe('E2E FINAL: Cursor advance logic', () => {
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: '2026-08-24', lastDaysCount: 7 },
+      cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 },
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
     const active = api.getActiveRoadmap();
-    assert.equal(active.cursor.lastStartDate, '2026-08-24', 'cursor NOT advanced after failure');
+    assert.equal(active.cursor.lastStartDate, startDate, 'cursor NOT advanced after failure');
     assert.equal(active.cursor.nextWeek, 1, 'nextWeek NOT incremented');
   });
 
@@ -643,7 +711,7 @@ describe('E2E FINAL: Cursor advance logic', () => {
       id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1',
       documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(),
       roadmap: { title: 'Test', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: '2026-08-24', lastDaysCount: 7 },
+      cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
     });
 
     await api.runNextWindow('tạo kế hoạch 14 ngày tới', {});
@@ -681,7 +749,7 @@ describe('E2E FINAL: Account A/B/A roadmap isolation', () => {
       id: 'rm-a', accountScope: 'user-a', fingerprint: 'fp-a',
       documentName: 'roadmap-a.pdf', createdAt: 1000, updatedAt: 1000,
       roadmap: { title: 'Roadmap A', phases: [] },
-      cursor: { nextWeek: 1, lastStartDate: '2026-08-24', lastDaysCount: 7 },
+      cursor: { nextWeek: 1, lastStartDate: futureCursorStart(), lastDaysCount: 7 },
     });
 
     // User B logs in
@@ -730,8 +798,11 @@ describe('E2E FINAL: Account A/B/A roadmap isolation', () => {
    =========================================================== */
 describe('E2E FINAL: Chat.js orchestration dedup', () => {
   it('chat.js delegates to module runInitialDocumentPlan for initial upload', () => {
-    // After refactoring, chat.js should NOT duplicate saveRoadmap logic.
-    // Check that the module's runInitialDocumentPlan handles the full flow.
+    const sendStart = chatSource.indexOf('async function _sendWithFile');
+    const sendEnd = chatSource.indexOf('/* Override doChatSend', sendStart);
+    const sendBody = chatSource.slice(sendStart, sendEnd);
+    assert.ok(sendBody.includes('dailyPlanner.runInitialDocumentPlan'), 'chat calls the canonical upload orchestrator');
+    assert.ok(!sendBody.includes('TaskFlowDocumentDailyPlan.saveRoadmap'), 'chat does not persist the roadmap itself');
     assert.ok(planSource.includes('function runInitialDocumentPlan'), 'module has runInitialDocumentPlan');
     assert.ok(planSource.includes('saveRoadmap(record)'), 'module calls saveRoadmap internally');
     assert.ok(planSource.includes('/api/ai/document-daily-plan'), 'module calls correct endpoint');
