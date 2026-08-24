@@ -3,7 +3,10 @@ from pathlib import Path
 import json
 import re
 
-ROOT = Path(__file__).resolve().parents[1]
+# This helper is copied to /tmp by the materializer workflow.  Resolve the
+# repository from the workflow working directory instead of __file__, which
+# would otherwise point at /tmp and incorrectly make ROOT '/'.
+ROOT = Path.cwd()
 
 
 def read(path):
