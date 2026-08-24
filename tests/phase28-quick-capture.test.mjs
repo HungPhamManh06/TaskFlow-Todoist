@@ -58,7 +58,7 @@ test('captureFromUrl: reads title/text/url, null when empty', () => {
 test('wiring: script tag + SW precache + manifest share_target + deeplink carries params', () => {
   assert.ok(APP.includes('js/quickcapture.min.js?v=1'), 'app.html loads quickcapture.min.js');
   assert.ok(APP.includes('js/deeplink.min.js?v=7'), 'deeplink bumped to v7');
-  assert.ok(SW.includes('taskflow-v288'), 'SW cache bumped');
+  assert.ok(SW.includes('taskflow-v289'), 'SW cache bumped');
   assert.ok(SW.includes('./js/quickcapture.min.js'), 'SW precaches quickcapture');
   const st = JSON.parse(MANIFEST).share_target;
   assert.ok(st && st.action === './app' && st.method === 'GET', 'manifest declares GET share_target');

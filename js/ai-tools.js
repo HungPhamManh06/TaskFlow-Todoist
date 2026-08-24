@@ -213,11 +213,18 @@
 
       var today = _localTodayIso();
 
-      if (filter === 'active') allTasks = allTasks.filter(function (t) { return !t.done; });
-      else if (filter === 'completed') allTasks = allTasks.filter(function (t) { return !!t.done; });
-      else if (filter === 'today') {
+      if (filter === 'active') {
+        allTasks = allTasks.filter(function (t) { return !t.done; });
+      } else if (filter === 'completed') {
+        allTasks = allTasks.filter(function (t) { return !!t.done; });
+      } else if (filter === 'today') {
+        // Tasks with deadline === today, OR tasks scheduled today without deadline
         allTasks = allTasks.filter(function (t) {
-          return !t.done && t.deadline && t.deadline <= today;
+          if (t.done) return false;
+          if (t.deadline === today) return true;
+          // Tasks in the current week/day grid without explicit deadline
+          if (!t.deadline && t.day && typeof t.day === 'number' && t.week) return true;
+          return false;
         });
       } else if (filter === 'upcoming') {
         allTasks = allTasks.filter(function (t) {
@@ -361,9 +368,10 @@
     execute: async function (args) {
       var planner = window.TaskFlowDocumentDailyPlan;
       if (!planner) return { ok: false, code: 'runtime-not-loaded' };
-      var daysCount = (args && typeof args.daysCount === 'number') ? Math.min(Math.max(args.daysCount, 1), 14) : 7;
-      var message = 'Tạo kế hoạch ' + daysCount + ' ngày từ ' + (args.startDate || 'hôm nay');
-      return await planner.runNextWindow(message, {});
+      var startDate = (args && args.startDate) || undefined;
+      var daysCount = (args && typeof args.daysCount === 'number') ? args.daysCount : 7;
+      // Use structured runWindow API — no string parsing
+      return await planner.runWindow({ startDate: startDate, daysCount: daysCount }, {});
     },
   });
 
@@ -392,24 +400,26 @@
       var today = _localTodayIso();
       if (date < today) date = today;
 
+      var projectId = (args && args.projectId) || null;
+      var milestoneId = (args && args.milestoneId) || null;
       return {
         ok: true,
         proposal: {
           summary: 'Tạo task: ' + text,
           actions: [{
-            id: 'tool-create-' + Date.now(),
+            id: 'a1',
             type: 'create_task',
             args: {
               text: text,
               date: date,
               duration: duration,
               priority: !!(args && args.priority),
-              projectId: null,
-              milestoneId: null,
+              projectId: projectId,
+              milestoneId: milestoneId,
               taskRef: null,
               start: null,
               changes: null,
-              source: { kind: 'ai-tool', tool: 'propose_create_task' },
+              source: { kind: 'ai-brain', tool: 'propose_create_task' },
             },
           }],
         },
@@ -439,9 +449,9 @@
         proposal: {
           summary: 'Đánh dấu hoàn thành task',
           actions: [{
-            id: 'tool-complete-' + Date.now(),
+            id: 'a1',
             type: 'complete_task',
-            args: { taskRef: uid, source: { kind: 'ai-tool', tool: 'propose_complete_task' } },
+            args: { taskRef: { kind: 'existing', uid: uid }, source: { kind: 'ai-brain', tool: 'propose_complete_task' } },
           }],
         },
       };
@@ -472,9 +482,9 @@
         proposal: {
           summary: 'Di chuyển task sang ' + newDate,
           actions: [{
-            id: 'tool-reschedule-' + Date.now(),
+            id: 'a1',
             type: 'reschedule_task',
-            args: { taskRef: uid, date: newDate, source: { kind: 'ai-tool', tool: 'propose_reschedule_task' } },
+            args: { taskRef: { kind: 'existing', uid: uid }, date: newDate, source: { kind: 'ai-brain', tool: 'propose_reschedule_task' } },
           }],
         },
       };
@@ -503,9 +513,9 @@
         proposal: {
           summary: 'Xóa task',
           actions: [{
-            id: 'tool-delete-' + Date.now(),
+            id: 'a1',
             type: 'delete_task',
-            args: { taskRef: uid, source: { kind: 'ai-tool', tool: 'propose_delete_task' } },
+            args: { taskRef: { kind: 'existing', uid: uid }, source: { kind: 'ai-brain', tool: 'propose_delete_task' } },
           }],
         },
       };

@@ -13,7 +13,10 @@
   /* Pending cursor: cursor is only committed after Review → Apply succeeds.
      If user cancels Review, pending cursor is discarded and next-week still
      uses the original cursor. */
+  /* Pending cursor: proposal-scoped so unrelated Review Apply/Cancel
+     doesn't accidentally commit or cancel document cursor. */
   var _pendingCursor = null;
+  var _pendingCursorProposalId = null;
 
   /* ---- Account scope ---- */
   function _getAccountScope() {
@@ -273,8 +276,10 @@
   }
 
   /* ---- Stage B: Generate daily plan from stored roadmap ---- */
-  async function runNextWindow(message, opts) {
+  /* Internal structured API — no string parsing */
+  async function runWindow(params, opts) {
     opts = opts || {};
+    params = params || {};
     var roadmapRecord = getActiveRoadmap();
     if (!roadmapRecord) {
       return { ok: false, code: 'no-active-roadmap', message: 'Không tìm thấy kế hoạch tài liệu. Vui lòng tải lên PDF trước.' };
@@ -283,17 +288,36 @@
     var apiBase = _getApiBase();
     if (!apiBase) return { ok: false, code: 'api-config-missing' };
 
-    // Determine next start date
+    // Use structured params — no string parsing
+    var cursor = roadmapRecord.cursor || {};
+    var startDate = params.startDate || cursor.lastStartDate || _today();
+    var daysCount = typeof params.daysCount === 'number' ? Math.min(Math.max(params.daysCount, 1), 14) : (cursor.lastDaysCount || 7);
+
+    // Clamp: never schedule in the past
+    var today = _today();
+    if (startDate < today) startDate = today;
+
+    return _executeWindow(roadmapRecord, startDate, daysCount, opts);
+  }
+
+  /* UI-compatible wrapper — parses natural language */
+  async function runNextWindow(message, opts) {
+    opts = opts || {};
+    var roadmapRecord = getActiveRoadmap();
+    if (!roadmapRecord) {
+      return { ok: false, code: 'no-active-roadmap', message: 'Không tìm thấy kế hoạch tài liệu. Vui lòng tải lên PDF trước.' };
+    }
+
     var cursor = roadmapRecord.cursor || {};
     var startDate = cursor.lastStartDate || _today();
     var daysCount = cursor.lastDaysCount || 7;
 
     // Parse user request for day count override
-    var dayMatch = message.match(/(\d+)\s*(?:ngày|day)/i);
+    var dayMatch = (message || '').match(/(\d+)\s*(?:ngày|day)/i);
     if (dayMatch) {
       daysCount = Math.min(Math.max(parseInt(dayMatch[1]) || 7, 1), 14);
     }
-    if (/tuần\s+tiếp|next\s+week/i.test(message)) {
+    if (/tuần\s+tiếp|next\s+week/i.test(message || '')) {
       startDate = _addDays(startDate, daysCount);
       daysCount = 7;
     }
@@ -301,6 +325,14 @@
     // Clamp: never schedule in the past
     var today = _today();
     if (startDate < today) startDate = today;
+
+    return _executeWindow(roadmapRecord, startDate, daysCount, opts);
+  }
+
+  /* Shared execution for both APIs */
+  async function _executeWindow(roadmapRecord, startDate, daysCount, opts) {
+    var apiBase = _getApiBase();
+    if (!apiBase) return { ok: false, code: 'api-config-missing' };
 
     // Get existing tasks for deduplication
     var existingTasks = [];
@@ -343,15 +375,22 @@
       return { ok: false, code: errorCode, status: resp.status };
     }
 
-    // Store pending cursor — will only be committed after Apply succeeds
+    // Store pending cursor — will only be committed after Apply succeeds.
+    // Generate a proposal-scoped ID so unrelated proposals don't affect cursor.
+    var proposalId = 'docplan-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
     _pendingCursor = {
+      proposalId: proposalId,
+      source: 'document-daily-plan',
       roadmapId: roadmapRecord.id,
-      cursor: {
-        nextWeek: (cursor.nextWeek || 1) + 1,
+      fromCursor: { nextWeek: roadmapRecord.cursor && roadmapRecord.cursor.nextWeek, lastStartDate: roadmapRecord.cursor && roadmapRecord.cursor.lastStartDate, lastDaysCount: roadmapRecord.cursor && roadmapRecord.cursor.lastDaysCount },
+      toCursor: {
+        nextWeek: ((roadmapRecord.cursor && roadmapRecord.cursor.nextWeek) || 1) + 1,
         lastStartDate: startDate,
         lastDaysCount: daysCount,
       },
+      createdAt: Date.now(),
     };
+    _pendingCursorProposalId = proposalId;
 
     return {
       ok: true,
@@ -373,17 +412,25 @@
     });
   }
 
-  /* ---- Cursor transaction ---- */
-  function commitPendingCursor() {
+  /* ---- Cursor transaction (proposal-scoped) ---- */
+  function commitPendingCursor(proposalId) {
+    // Only commit if proposalId matches (or no proposalId given for backward compat)
     if (!_pendingCursor) return false;
-    updateCursor(_pendingCursor.roadmapId, _pendingCursor.cursor);
+    if (proposalId && _pendingCursor.proposalId !== proposalId) return false;
+    if (_pendingCursor.source !== 'document-daily-plan') return false;
+    updateCursor(_pendingCursor.roadmapId, _pendingCursor.toCursor);
     var committed = _pendingCursor;
     _pendingCursor = null;
+    _pendingCursorProposalId = null;
     return committed;
   }
 
-  function cancelPendingCursor() {
+  function cancelPendingCursor(proposalId) {
+    // Only cancel if proposalId matches
+    if (!_pendingCursor) return;
+    if (proposalId && _pendingCursor.proposalId !== proposalId) return;
     _pendingCursor = null;
+    _pendingCursorProposalId = null;
   }
 
   function getPendingCursor() {
@@ -444,6 +491,7 @@
     clearActiveRoadmap: clearActiveRoadmap,
     clearAll: clearAll,
     runInitialDocumentPlan: runInitialDocumentPlan,
+    runWindow: runWindow,
     runNextWindow: runNextWindow,
     sendProposalToReview: sendProposalToReview,
     commitPendingCursor: commitPendingCursor,
