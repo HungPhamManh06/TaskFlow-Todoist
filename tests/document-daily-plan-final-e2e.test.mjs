@@ -662,7 +662,7 @@ describe('E2E FINAL: Cursor advance logic', () => {
     // Cursor is PENDING — not yet committed to localStorage
     const pending = api.getPendingCursor();
     assert.ok(pending, 'pending cursor set after runNextWindow');
-    assert.equal(pending.cursor.lastStartDate, addDays(startDate, 7), 'pending cursor target is correct');
+    assert.equal(pending.toCursor.lastStartDate, addDays(startDate, 7), 'pending cursor target is correct');
     // localStorage cursor unchanged
     const active = api.getActiveRoadmap();
     assert.equal(active.cursor.lastStartDate, startDate, 'cursor not yet advanced in storage');
