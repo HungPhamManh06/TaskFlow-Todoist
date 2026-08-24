@@ -306,7 +306,7 @@ test('server + client: both accept update with real change + nulls', () => {
 
 test('SW: cache version is v273', () => {
   const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
-  assert.match(sw, /const CACHE = 'taskflow-v283'/, 'SW cache should be v273');
+  assert.match(sw, /const CACHE = 'taskflow-v284'/, 'SW cache should be v273');
   assert.ok(!sw.includes('taskflow-v272'), 'should not contain old v272');
 });
 

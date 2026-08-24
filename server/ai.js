@@ -2996,7 +2996,9 @@ function validateDailyPlanProposal(proposal) {
   }
 
   const seenIds = new Set();
-  const today = new Date().toISOString().slice(0, 10);
+  // Safe local date (avoids UTC offset issues)
+  const _now = new Date();
+  const today = _now.getFullYear() + '-' + String(_now.getMonth() + 1).padStart(2, '0') + '-' + String(_now.getDate()).padStart(2, '0');
 
   proposal.actions.forEach((a, i) => {
     if (!a || typeof a !== 'object') { errors.push('action-' + i + '-not-object'); return; }
@@ -3008,6 +3010,7 @@ function validateDailyPlanProposal(proposal) {
     const args = a.args || {};
     if (typeof args.text !== 'string' || !args.text.trim() || args.text.length > 300) { errors.push('action-' + i + '-text-invalid'); }
     if (typeof args.date !== 'string' || !validDate(args.date)) { errors.push('action-' + i + '-invalid-date'); }
+    if (typeof args.date === 'string' && validDate(args.date) && args.date < today) { errors.push('action-' + i + '-past-date'); }
     if (typeof args.duration !== 'number' || args.duration < 20 || args.duration > 120) { errors.push('action-' + i + '-invalid-duration'); }
     if (args.priority !== false && args.priority !== true) { errors.push('action-' + i + '-invalid-priority'); }
     if (args.start !== null) { errors.push('action-' + i + '-start-not-null'); }

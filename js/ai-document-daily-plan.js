@@ -14,8 +14,8 @@
   /* ---- Account scope ---- */
   function _getAccountScope() {
     try {
-      if (typeof TaskFlowSync !== 'undefined' && TaskFlowSync.getUserId) {
-        return TaskFlowSync.getUserId() || 'anon';
+      if (typeof window !== 'undefined' && window.Sync && typeof window.Sync.getUserId === 'function') {
+        return window.Sync.getUserId() || 'anon';
       }
     } catch (e) { /* */ }
     return 'anon';
