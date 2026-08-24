@@ -413,6 +413,42 @@ function validDate(s) {
   return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
 }
 
+function normalizeTimeZone(value) {
+  const candidate = typeof value === 'string' && value.trim()
+    ? value.trim().slice(0, 100)
+    : 'UTC';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: candidate }).format(new Date(0));
+    return candidate;
+  } catch (error) {
+    return 'UTC';
+  }
+}
+
+function dateStringInTimeZone(value, timeZone) {
+  const date = value instanceof Date ? value : new Date(value);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: normalizeTimeZone(timeZone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = {};
+  parts.forEach((part) => {
+    if (part.type !== 'literal') values[part.type] = part.value;
+  });
+  return values.year + '-' + values.month + '-' + values.day;
+}
+
+function addDaysToDateString(dateString, days) {
+  if (!validDate(dateString)) return null;
+  const [year, month, day] = dateString.split('-').map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day + days));
+  return next.getUTCFullYear() + '-'
+    + String(next.getUTCMonth() + 1).padStart(2, '0') + '-'
+    + String(next.getUTCDate()).padStart(2, '0');
+}
+
 function validTime(s) {
   return typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 }
@@ -1865,6 +1901,7 @@ async function parseAiFileMultipart(req) {
     const rejectedFiles = [];
     let message = '';
     let taskflowContext = null;
+    let timeZone = 'UTC';
     let aggregateBytes = 0;
     let partIndex = 0;
 
@@ -1915,11 +1952,12 @@ async function parseAiFileMultipart(req) {
       if (name === 'taskflowContext' && typeof value === 'string') {
         try { taskflowContext = JSON.parse(value); } catch (error) { taskflowContext = null; }
       }
+      if (name === 'timeZone' && typeof value === 'string') timeZone = normalizeTimeZone(value);
     });
     bb.on('finish', () => {
       const files = records.sort((a, b) => a.index - b.index).map(({ index, ...file }) => file);
       const rejections = rejectedFiles.sort((a, b) => a.index - b.index).map(({ index, ...rejection }) => rejection);
-      resolve({ message, taskflowContext, files, rejectedFiles: rejections });
+      resolve({ message, taskflowContext, timeZone, files, rejectedFiles: rejections });
     });
     bb.on('error', reject);
     req.pipe(bb);
@@ -2983,7 +3021,7 @@ router.post('/roadmap', maybeRateLimit(ROADMAP_LIMITER), maybeRateLimit(ROADMAP_
  * Validate a daily-plan proposal (create_task only, >10 actions allowed).
  * Does NOT depend on browser buildContext().
  */
-function validateDailyPlanProposal(proposal) {
+function validateDailyPlanProposal(proposal, opts) {
   const errors = [];
   if (!proposal || typeof proposal !== 'object') { errors.push('proposal-not-object'); return { ok: false, errors };
   }
@@ -2996,9 +3034,11 @@ function validateDailyPlanProposal(proposal) {
   }
 
   const seenIds = new Set();
-  // Safe local date (avoids UTC offset issues)
-  const _now = new Date();
-  const today = _now.getFullYear() + '-' + String(_now.getMonth() + 1).padStart(2, '0') + '-' + String(_now.getDate()).padStart(2, '0');
+  const requestedToday = opts && typeof opts.today === 'string' ? opts.today : '';
+  const now = new Date();
+  const today = validDate(requestedToday)
+    ? requestedToday
+    : now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
   proposal.actions.forEach((a, i) => {
     if (!a || typeof a !== 'object') { errors.push('action-' + i + '-not-object'); return; }
@@ -3175,6 +3215,7 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
     const daysCount = Math.min(Math.max(parseInt(body.daysCount) || 7, 1), 14);
     const existingTasks = Array.isArray(body.existingTasks) ? body.existingTasks.slice(0, 30) : [];
     const lang = body.lang || 'vi';
+    const timeZone = normalizeTimeZone(body.timeZone);
 
     if (!roadmap || typeof roadmap !== 'object') {
       return res.status(400).json({ ok: false, error: 'ai-daily-plan-no-roadmap' });
@@ -3186,13 +3227,11 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
     // Build date range
     const dates = [];
     for (let i = 0; i < daysCount; i++) {
-      const d = new Date(startDate);
-      d.setDate(d.getDate() + i);
-      dates.push(d.toISOString().slice(0, 10));
+      dates.push(addDaysToDateString(startDate, i));
     }
 
     // Clamp dates: never schedule in the past
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dateStringInTimeZone(new Date(), timeZone);
     const clampedDates = dates.filter(d => d >= today);
     if (clampedDates.length === 0) {
       return res.status(400).json({ ok: false, error: 'ai-daily-plan-all-past-dates' });
@@ -3250,7 +3289,7 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
         const id = 'a' + actionIndex;
         if (actionIds.has(id)) continue;
         actionIds.add(id);
-        const duration = Math.min(Math.max(parseInt(task.duration) || 45, 15), 180);
+        const duration = Math.min(Math.max(parseInt(task.duration) || 45, 20), 120);
         totalMinutes += duration;
         actions.push({
           id,
@@ -3283,7 +3322,7 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
     };
 
     // Validate using daily-plan-specific validator (no browser buildContext dependency)
-    const v = validateDailyPlanProposal(proposal);
+    const v = validateDailyPlanProposal(proposal, { today });
     if (!v.ok) {
       return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: v.errors.slice(0, 5) });
     }
@@ -3307,24 +3346,35 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
 
 /* ============ P1: Document Daily Planner — Combined Upload Route ============ */
 // Accepts PDF upload + user message, runs Stage A (roadmap) + Stage B (daily plan) in one call.
-router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileHourlyLimiter), async (req, res) => {
+// Dependencies can be overridden by integration tests without bypassing the multipart parser.
+async function handleDocumentDailyPlan(req, res, overrides) {
+  const deps = overrides || {};
+  const apiKey = Object.prototype.hasOwnProperty.call(deps, 'apiKey') ? deps.apiKey : AI_API_KEY;
+  const parseMultipart = deps.parseAiFileMultipart || parseAiFileMultipart;
+  const buildBatchContent = deps.buildAiFileBatchContent || buildAiFileBatchContent;
+  const callJson = deps.callAiJson || callAiJson;
+  const now = typeof deps.now === 'function' ? deps.now() : (deps.now || new Date());
   const requestId = req.aiRequestId;
   const startMs = Date.now();
   try {
-    if (!AI_API_KEY) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
+    if (!apiKey) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
 
     // Parse multipart upload (reuse existing parser)
-    const parsed = await parseAiFileMultipart(req);
-    const { acceptedFiles, rejectedFiles, userMessage } = parsed;
+    const parsed = await parseMultipart(req);
+    const acceptedFiles = Array.isArray(parsed.files) ? parsed.files : [];
+    const rejectedFiles = Array.isArray(parsed.rejectedFiles) ? parsed.rejectedFiles : [];
+    const userMessage = typeof parsed.message === 'string' ? parsed.message : '';
+    const timeZone = normalizeTimeZone(parsed.timeZone);
 
     if (!acceptedFiles.length) {
       return res.status(400).json({ ok: false, error: 'ai-no-files', rejectedFiles });
     }
 
     // Build batch content from uploaded files
-    const batchContent = await buildAiFileBatchContent(acceptedFiles);
+    const batchContent = await buildBatchContent(acceptedFiles, userMessage);
     const { textDocuments } = batchContent;
     const fullText = textDocuments.map(d => d.text).join('\n\n').slice(0, AI_FILE_MAX_TEXT_CHARS);
+    const allRejectedFiles = rejectedFiles.concat(Array.isArray(batchContent.rejectedFiles) ? batchContent.rejectedFiles : []);
 
     if (!fullText.trim()) {
       return res.status(422).json({ ok: false, error: 'ai-document-no-text' });
@@ -3333,7 +3383,7 @@ router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimi
     // Stage A: Extract roadmap from document
     const roadmapSystemPrompt = 'You are a document roadmap extractor. Read the provided document text and extract a compact structured roadmap.\n\nRules:\n- Extract ONLY information explicitly present in the document\n- Do NOT invent technologies, deadlines, or requirements\n- Use phases and weeks structure\n- Keep goals and deliverables concise\n- Return strict JSON only, no markdown';
 
-    const roadmapResult = await callAiJson({
+    const roadmapResult = await callJson({
       messages: [
         { role: 'system', content: roadmapSystemPrompt },
         { role: 'user', content: 'Extract the roadmap from this document:\n\n' + fullText },
@@ -3357,13 +3407,11 @@ router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimi
     console.log('[ai] route=/api/ai/document-daily-plan requestId=' + requestId + ' status=success stage=roadmap phases=' + roadmap.phases.length + ' latencyMs=' + roadmapResult.latencyMs);
 
     // Stage B: Generate daily plan from roadmap
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dateStringInTimeZone(now, timeZone);
     const daysCount = 7;
     const dates = [];
     for (let i = 0; i < daysCount; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i);
-      dates.push(d.toISOString().slice(0, 10));
+      dates.push(addDaysToDateString(today, i));
     }
 
     const roadmapStr = JSON.stringify(roadmap).slice(0, 8000);
@@ -3371,7 +3419,7 @@ router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimi
 
     const planSystemPrompt = 'You are TaskFlow Daily Planner. Generate small actionable daily tasks from a roadmap. Rules:\n- 2-4 tasks per day, 20-120 minutes each\n- Use create_task actions only (no schedule_task)\n- Assign dates from the provided range\n- Never duplicate existing tasks\n- Ground tasks in roadmap goals\n- Return strict JSON only';
 
-    const planResult = await callAiJson({
+    const planResult = await callJson({
       messages: [
         { role: 'system', content: planSystemPrompt },
         { role: 'user', content: 'Roadmap data:\n' + roadmapStr + '\n\nTarget dates: ' + dateRangeStr },
@@ -3435,15 +3483,19 @@ router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimi
     };
 
     // Validate
-    const v = validateDailyPlanProposal(proposal);
+    const v = validateDailyPlanProposal(proposal, { today });
     if (!v.ok) {
       return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: v.errors.slice(0, 5) });
     }
 
     // Build document fingerprint
-    const crypto = require('crypto');
     const documentName = acceptedFiles[0] ? acceptedFiles[0].name : 'document';
-    const fingerprint = crypto.createHash('sha256').update(documentName + '|' + String(fullText.length)).digest('hex').slice(0, 16);
+    const fingerprintHash = crypto.createHash('sha256');
+    acceptedFiles.forEach((file) => {
+      fingerprintHash.update(file.name + ':' + file.size + '|');
+      fingerprintHash.update(file.buffer);
+    });
+    const fingerprint = fingerprintHash.digest('hex').slice(0, 16);
 
     console.log('[ai] route=/api/ai/document-daily-plan requestId=' + requestId + ' status=success stage=daily-plan actions=' + actions.length + ' latencyMs=' + planResult.latencyMs);
 
@@ -3458,6 +3510,8 @@ router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimi
       },
       fingerprint,
       documentName,
+      files: Array.isArray(batchContent.acceptedFiles) ? batchContent.acceptedFiles : [],
+      rejectedFiles: allRejectedFiles,
       meta: {
         daysGenerated: dates.length,
         totalActions: actions.length,
@@ -3471,9 +3525,8 @@ router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimi
   } catch (err) {
     return res.status(500).json({ ok: false, error: 'ai-provider-unavailable' });
   }
-});
+}
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal };
+router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileHourlyLimiter), handleDocumentDailyPlan);
 
-
-
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal, normalizeTimeZone, dateStringInTimeZone, addDaysToDateString, handleDocumentDailyPlan };

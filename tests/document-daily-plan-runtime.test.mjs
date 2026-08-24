@@ -625,8 +625,9 @@ describe('Runtime: cursor advance logic', () => {
    7. CHAT.JS INTEGRATION — wiring checks
    =========================================================== */
 describe('Runtime: chat.js wires document-daily-plan correctly', () => {
-  it('document-daily-plan endpoint is used for daily plan intent', () => {
-    assert.ok(chatSource.includes('/api/ai/document-daily-plan'), 'endpoint exists');
+  it('document-daily-plan upload is delegated to the canonical orchestrator', () => {
+    assert.ok(chatSource.includes('dailyPlanner.runInitialDocumentPlan'), 'chat delegates initial upload');
+    assert.ok(planSource.includes('/api/ai/document-daily-plan'), 'orchestrator owns the endpoint');
   });
 
   it('follow-up "tuần tiếp theo" checks TaskFlowDocumentDailyPlan', () => {

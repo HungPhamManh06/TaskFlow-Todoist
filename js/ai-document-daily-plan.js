@@ -103,6 +103,13 @@
     try { return localStorage.getItem('planner-token'); } catch (e) { return null; }
   }
 
+  function _getTimeZone() {
+    try {
+      var zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      return zone || 'UTC';
+    } catch (e) { return 'UTC'; }
+  }
+
   /* ---- Date helpers ---- */
   function _today() {
     // Safe local date (avoids UTC offset issues)
@@ -132,6 +139,7 @@
     var fd = new FormData();
     files.forEach(function (file) { fd.append('files', file, file.name); });
     fd.append('message', message);
+    fd.append('timeZone', _getTimeZone());
 
     var token = _getToken();
     var headers = {};
@@ -166,7 +174,7 @@
         roadmap: json.roadmap,
         cursor: {
           nextWeek: 1,
-          lastStartDate: json.meta ? json.meta.dateRange[0] : _today(),
+          lastStartDate: json.meta && Array.isArray(json.meta.dateRange) ? json.meta.dateRange[0] : _today(),
           lastDaysCount: json.meta ? json.meta.daysGenerated : 7,
         },
       };
@@ -178,6 +186,10 @@
       proposal: json.proposal,
       meta: json.meta,
       roadmap: json.roadmap,
+      fingerprint: json.fingerprint || '',
+      documentName: json.documentName || 'document',
+      files: Array.isArray(json.files) ? json.files : [],
+      rejectedFiles: Array.isArray(json.rejectedFiles) ? json.rejectedFiles : [],
     };
   }
 
@@ -230,6 +242,7 @@
       daysCount: daysCount,
       existingTasks: existingTasks,
       lang: (typeof TaskFlowI18N !== 'undefined' && TaskFlowI18N.getLang) ? TaskFlowI18N.getLang() : 'vi',
+      timeZone: _getTimeZone(),
     };
 
     var token = _getToken();
@@ -309,6 +322,7 @@
     getStatus: getStatus,
     onAccountChange: onAccountChange,
     _getAccountScope: _getAccountScope,
+    _getTimeZone: _getTimeZone,
     _today: _today,
     _addDays: _addDays,
   };

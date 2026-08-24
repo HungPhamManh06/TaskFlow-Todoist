@@ -1328,6 +1328,11 @@
 
   /* ---- Phase 6D: File intent detection ---- */
   function classifyFileIntent(text) {
+    try {
+      if (window.TaskFlowAIIntent && typeof window.TaskFlowAIIntent.classifyFileIntent === 'function') {
+        return window.TaskFlowAIIntent.classifyFileIntent(text, true);
+      }
+    } catch (e) { /* deterministic fallback below */ }
     if (!text) return { kind: 'read', confidence: 'high', reason: 'empty' };
     var t = text.toLowerCase();
 
@@ -1353,6 +1358,9 @@
     if (hasFlowVerb) {
       return { kind: 'import-plan', confidence: 'high', reason: 'import-to-taskflow' };
     }
+    if (hasDayPattern && (hasCreateVerb || hasPlanNoun)) {
+      return { kind: 'document-daily-plan', confidence: 'high', reason: 'daily-plan-from-document' };
+    }
     if (hasCreateVerb && hasDayPattern) {
       return { kind: 'schedule-tasks', confidence: 'high', reason: 'create-with-schedule' };
     }
@@ -1368,15 +1376,6 @@
     if (hasTaskNoun) {
       return { kind: 'create-tasks', confidence: 'medium', reason: 'task-noun-only' };
     }
-    if (hasPlanNoun && hasDayPattern) {
-      // P1: Document Daily Plan — daily/weekly planning from attached document
-      // This takes precedence over generic schedule-tasks when day pattern is explicit
-      if (hasDayPattern) {
-        return { kind: 'document-daily-plan', confidence: 'high', reason: 'daily-plan-from-document' };
-      }
-      return { kind: 'schedule-tasks', confidence: 'medium', reason: 'plan-with-schedule' };
-    }
-
     return { kind: 'read', confidence: 'high', reason: 'no-action-signal' };
   }
 
@@ -1413,7 +1412,7 @@
     var fileIntent = classifyFileIntent(text);
     var isFileDailyPlan = fileIntent.kind === 'document-daily-plan';
     var isFileAgent = fileIntent.kind !== 'read' && !isFileDailyPlan;
-    var endpoint = isFileDailyPlan ? '/api/ai/document-daily-plan' : (isFileAgent ? '/api/ai/file-agent' : '/api/ai/file');
+    var endpoint = isFileAgent ? '/api/ai/file-agent' : '/api/ai/file';
 
     _setContextStatus('preparing', []);
     _inFlight = true;
@@ -1423,7 +1422,7 @@
     _setSendMode(true);
 
     // Start request lifecycle
-    var req = _startRequest(isFileAgent ? 'file-agent' : 'file');
+    var req = _startRequest(isFileDailyPlan ? 'document-daily-plan' : (isFileAgent ? 'file-agent' : 'file'));
 
     try {
       var fileLabel = requestFiles.map(function (file) {
@@ -1432,50 +1431,64 @@
       _appendMessage(msgs, text + '\n' + fileLabel, 'user');
       _setFileLoading(requestFiles[0].name, true);
 
-      var fd = new FormData();
-      requestFiles.forEach(function (file) {
-        fd.append('files', file, file.name);
-      });
-      fd.append('message', text);
-
       var fileContextEnvelope = null;
-      if (isFileAgent) {
-        try {
-          var ctxProvider = window.TaskFlowChatContextProvider;
-          if (ctxProvider && typeof ctxProvider.prepare === 'function') {
-            var ctxResult = ctxProvider.prepare(text);
-            if (ctxResult && ctxResult.ok && ctxResult.envelope) {
-              fileContextEnvelope = ctxResult.envelope;
-              fd.append('taskflowContext', JSON.stringify(ctxResult.envelope.data || {}));
+      var fileContextKeys = [];
+      var json = null;
+      var responseOk = false;
+
+      if (isFileDailyPlan) {
+        var dailyPlanner = window.TaskFlowDocumentDailyPlan;
+        if (!dailyPlanner || typeof dailyPlanner.runInitialDocumentPlan !== 'function') {
+          json = { ok: false, error: 'ai-document-plan-module-missing' };
+        } else {
+          _setContextStatus('using', []);
+          json = await dailyPlanner.runInitialDocumentPlan(requestFiles, text, { signal: req.signal });
+        }
+        responseOk = !!(json && json.ok);
+      } else {
+        var fd = new FormData();
+        requestFiles.forEach(function (file) {
+          fd.append('files', file, file.name);
+        });
+        fd.append('message', text);
+
+        if (isFileAgent) {
+          try {
+            var ctxProvider = window.TaskFlowChatContextProvider;
+            if (ctxProvider && typeof ctxProvider.prepare === 'function') {
+              var ctxResult = ctxProvider.prepare(text);
+              if (ctxResult && ctxResult.ok && ctxResult.envelope) {
+                fileContextEnvelope = ctxResult.envelope;
+                fd.append('taskflowContext', JSON.stringify(ctxResult.envelope.data || {}));
+              }
             }
-          }
-        } catch (e) { /* context must never break file send */ }
+          } catch (e) { /* context must never break file send */ }
+        }
+
+        var token = null;
+        try { token = localStorage.getItem('planner-token'); } catch (e) { /* */ }
+        var headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+
+        fileContextKeys = _contextKeysFromEnvelope(fileContextEnvelope);
+        _setContextStatus('using', fileContextKeys);
+        var resp = await fetch(apiBase + endpoint, {
+          method: 'POST',
+          headers: headers,
+          body: fd,
+          signal: req.signal,
+        });
+        try { json = await resp.json(); } catch (e) { json = null; }
+        responseOk = !!(resp.ok && json && json.ok);
       }
-
-      var token = null;
-      try { token = localStorage.getItem('planner-token'); } catch (e) { /* */ }
-      var headers = {};
-      if (token) headers['Authorization'] = 'Bearer ' + token;
-
-      var fileContextKeys = _contextKeysFromEnvelope(fileContextEnvelope);
-      _setContextStatus('using', fileContextKeys);
-      var resp = await fetch(apiBase + endpoint, {
-        method: 'POST',
-        headers: headers,
-        body: fd,
-        signal: req.signal,
-      });
 
       if (!_isCurrentRequest(req.generation)) return;
 
-      var json;
-      try { json = await resp.json(); } catch (e) { json = null; }
-
       _setFileLoading(requestFiles[0].name, false);
 
-      if (!resp.ok || !json || !json.ok) {
+      if (!responseOk) {
         _setContextStatus('error', []);
-        var errorCode = (json && typeof json.error === 'string') ? json.error : 'ai-file-processing-failed';
+        var errorCode = (json && typeof (json.error || json.code) === 'string') ? (json.error || json.code) : 'ai-file-processing-failed';
         var fileErrMsg;
         try {
           var Review = window.TaskFlowAIReview;
@@ -1500,34 +1513,15 @@
           return { type: accepted.type || '', name: accepted.name || '', size: accepted.size || 0 };
         });
       _persistUserMessage(text + '\n' + fileLabel, acceptedFiles);
-      requestSucceeded = true;          // P1: Document Daily Plan — delegate persistence + Review to module
-          if (isFileDailyPlan && json.ok && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
-            try {
-              // Persist roadmap via module (single source of truth)
-              if (window.TaskFlowDocumentDailyPlan && json.roadmap) {
-                window.TaskFlowDocumentDailyPlan.saveRoadmap({
-                  id: 'roadmap-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-                  accountScope: window.TaskFlowDocumentDailyPlan._getAccountScope(),
-                  fingerprint: json.fingerprint || '',
-                  documentName: json.documentName || 'document',
-                  createdAt: Date.now(),
-                  updatedAt: Date.now(),
-                  roadmap: json.roadmap,
-                  cursor: {
-                    nextWeek: 1,
-                    lastStartDate: json.meta && json.meta.dateRange ? json.meta.dateRange[0] : window.TaskFlowDocumentDailyPlan._today(),
-                    lastDaysCount: json.meta ? json.meta.daysGenerated : 7,
-                  },
-                });
-              }
-              // Send proposal to existing Review system via module
-              var summaryText = json.proposal.summary || ('Kế hoạch ' + (json.meta ? json.meta.daysGenerated : 7) + ' ngày — ' + json.proposal.actions.length + ' công việc');
-              _appendMessage(msgs, summaryText, 'bot');
-              _persistAssistantMessage(summaryText);
-              if (window.TaskFlowDocumentDailyPlan) {
-                window.TaskFlowDocumentDailyPlan.sendProposalToReview(json.proposal, { source: 'document-daily-plan', fileName: json.documentName });
-              }
-            } catch (e) { /* review must never break chat */ }
+      requestSucceeded = true;
+      // P1: roadmap persistence lives in runInitialDocumentPlan; chat only renders and opens Review.
+      if (isFileDailyPlan && json.ok && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
+        try {
+          var summaryText = json.proposal.summary || ('Kế hoạch ' + (json.meta ? json.meta.daysGenerated : 7) + ' ngày — ' + json.proposal.actions.length + ' công việc');
+          _appendMessage(msgs, summaryText, 'bot');
+          _persistAssistantMessage(summaryText);
+          window.TaskFlowDocumentDailyPlan.sendProposalToReview(json.proposal, { source: 'document-daily-plan', fileName: json.documentName });
+        } catch (e) { /* review must never break chat */ }
       } else if (isFileDailyPlan && json.ok && json.proposal && json.proposal.actions && json.proposal.actions.length === 0) {
         _appendMessage(msgs, 'Không tìm thấy kế hoạch đủ rõ để chia thành lịch hằng ngày.', 'bot');
         _persistAssistantMessage('Không tìm thấy kế hoạch đủ rõ để chia thành lịch hằng ngày.');
