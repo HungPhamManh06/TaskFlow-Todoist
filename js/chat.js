@@ -668,7 +668,11 @@
             _setContextStatus('idle', []);
             return;
           } else {
-            var failedPlanMessage = (planResult && planResult.message) || _t('documentPlanFailed');
+            var failedPlanMessage = (planResult && planResult.code)
+              ? (window.TaskFlowDocumentDailyPlan && window.TaskFlowDocumentDailyPlan.friendlyError
+                ? window.TaskFlowDocumentDailyPlan.friendlyError(planResult.code)
+                : (planResult.message || _t('documentPlanFailed')))
+              : (planResult && planResult.message || _t('documentPlanFailed'));
             _appendMessage(msgs, failedPlanMessage, 'bot');
             _persistAssistantMessage(failedPlanMessage);
             _setContextStatus('error', []);

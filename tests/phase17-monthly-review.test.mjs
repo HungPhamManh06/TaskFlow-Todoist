@@ -211,7 +211,7 @@ test('Monthly Review production assets load before report/app and cache offline'
   assert.ok(monthlyIndex >= 0 && reportIndex > monthlyIndex && appIndex > reportIndex);
   assert.match(APP_HTML, /js\/i18n\.min\.js\?v=60/);
   assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=\d+/g) || []).length, 2);
-  assert.match(SW, /const CACHE = 'taskflow-v287'/);
+  assert.match(SW, /const CACHE = 'taskflow-v288'/);
   assert.match(SW, /'\.\/js\/monthly-review\.min\.js'/);
 });
 

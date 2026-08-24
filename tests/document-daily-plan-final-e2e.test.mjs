@@ -648,7 +648,7 @@ describe('E2E FINAL: Cursor advance logic', () => {
     return sandbox.TaskFlowDocumentDailyPlan;
   }
 
-  it('cursor advances exactly one week after success', async () => {
+  it('cursor advances exactly one week after success + Apply', async () => {
     const api = makeApi();
     const startDate = futureCursorStart();
     api.saveRoadmap({
@@ -659,12 +659,23 @@ describe('E2E FINAL: Cursor advance logic', () => {
     });
 
     await api.runNextWindow('tuần tiếp theo', {});
+    // Cursor is PENDING — not yet committed to localStorage
+    const pending = api.getPendingCursor();
+    assert.ok(pending, 'pending cursor set after runNextWindow');
+    assert.equal(pending.cursor.lastStartDate, addDays(startDate, 7), 'pending cursor target is correct');
+    // localStorage cursor unchanged
     const active = api.getActiveRoadmap();
-    assert.equal(active.cursor.lastStartDate, addDays(startDate, 7), 'cursor advanced by 7 days');
-    assert.equal(active.cursor.nextWeek, 2, 'nextWeek incremented to 2');
+    assert.equal(active.cursor.lastStartDate, startDate, 'cursor not yet advanced in storage');
+    assert.equal(active.cursor.nextWeek, 1, 'nextWeek not yet incremented in storage');
+
+    // Now commit the cursor (simulates successful Apply)
+    api.commitPendingCursor();
+    const afterCommit = api.getActiveRoadmap();
+    assert.equal(afterCommit.cursor.lastStartDate, addDays(startDate, 7), 'cursor advanced by 7 days');
+    assert.equal(afterCommit.cursor.nextWeek, 2, 'nextWeek incremented to 2');
   });
 
-  it('second "tuần tiếp theo" advances a second week', async () => {
+  it('second "tuần tiếp theo" advances a second week (after Apply)', async () => {
     const api = makeApi();
     const startDate = futureCursorStart();
     api.saveRoadmap({
@@ -674,8 +685,14 @@ describe('E2E FINAL: Cursor advance logic', () => {
       cursor: { nextWeek: 1, lastStartDate: startDate, lastDaysCount: 7 },
     });
 
+    // Week 1: generate + commit
     await api.runNextWindow('tuần tiếp theo', {});
+    api.commitPendingCursor();
+
+    // Week 2: generate + commit
     await api.runNextWindow('tuần tiếp theo', {});
+    api.commitPendingCursor();
+
     const active = api.getActiveRoadmap();
     assert.equal(active.cursor.lastStartDate, addDays(startDate, 14), 'cursor advanced by 14 days');
     assert.equal(active.cursor.nextWeek, 3, 'nextWeek is 3');

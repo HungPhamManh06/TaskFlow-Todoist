@@ -1355,6 +1355,12 @@
 
   function _cancelCard(card, msgs) {
     _clearReviewState();
+    // Discard pending document-daily-plan cursor on cancel
+    try {
+      if (window.TaskFlowDocumentDailyPlan && typeof window.TaskFlowDocumentDailyPlan.cancelPendingCursor === 'function') {
+        window.TaskFlowDocumentDailyPlan.cancelPendingCursor();
+      }
+    } catch (e) { /* cancel must never break */ }
     if (!card || !card.parentNode) return;
     card.parentNode.removeChild(card);
     const input = _el('chatInput');
@@ -1741,6 +1747,12 @@
 
       _clearReviewState();
       if (card.parentNode) card.parentNode.removeChild(card);
+      // Commit pending document-daily-plan cursor after successful Apply
+      try {
+        if (window.TaskFlowDocumentDailyPlan && typeof window.TaskFlowDocumentDailyPlan.commitPendingCursor === 'function') {
+          window.TaskFlowDocumentDailyPlan.commitPendingCursor();
+        }
+      } catch (e) { /* cursor commit must never break Apply */ }
       const reply = _resultText(applied.length, skipped.length, failed.length, ctx, virtualEntities);
       _lastResult = reply;
       const resBubble = _bubble('agent-info');

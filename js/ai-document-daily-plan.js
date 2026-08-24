@@ -10,6 +10,10 @@
 
   var STORAGE_KEY_PREFIX = 'taskflow-document-roadmaps:';
   var MAX_STORED_ROADMAPS = 10;
+  /* Pending cursor: cursor is only committed after Review → Apply succeeds.
+     If user cancels Review, pending cursor is discarded and next-week still
+     uses the original cursor. */
+  var _pendingCursor = null;
 
   /* ---- Account scope ---- */
   function _getAccountScope() {
@@ -87,6 +91,81 @@
 
   function clearAll() {
     try { localStorage.removeItem(_storageKey()); } catch (e) { /* */ }
+  }
+
+  /* ---- Duration parser ---- */
+  /* Parses Vietnamese/English duration strings to minutes.
+     Returns null if unparseable. Clamps to TaskFlow limits [20, 120]. */
+  function parseDuration(text) {
+    if (!text || typeof text !== 'string') return null;
+    var s = text.trim().toLowerCase();
+    var totalMinutes = 0;
+
+    // Hours: "2 giờ", "2h", "1.5 hours", "1 hour"
+    var hoursMatch = s.match(/(\d+(?:\.\d+)?)\s*(?:giờ|hours?|hrs?|h(?!\d))\b/);
+    if (hoursMatch) {
+      totalMinutes += Math.round(parseFloat(hoursMatch[1]) * 60);
+    }
+
+    // Hours compact: "1h30", "1h 30"
+    var hCompactMatch = s.match(/(\d+)\s*h\s*(\d{1,2})\b/);
+    if (hCompactMatch && !hoursMatch) {
+      totalMinutes += parseInt(hCompactMatch[1]) * 60 + parseInt(hCompactMatch[2]);
+    }
+
+    // Minutes: "90 phút", "45 min", "30 minutes"
+    var minMatch = s.match(/(\d+(?:\.\d+)?)\s*(?:phút|min(?:utes?)?)\b/);
+    if (minMatch) {
+      totalMinutes += Math.round(parseFloat(minMatch[1]));
+    }
+
+    // Plain number fallback: "90" assumed minutes if > 0
+    if (totalMinutes === 0) {
+      var plainNum = s.match(/^(\d+(?:\.\d+)?)\s*$/);
+      if (plainNum) totalMinutes = Math.round(parseFloat(plainNum[1]));
+    }
+
+    if (totalMinutes <= 0) return null;
+
+    // Clamp to TaskFlow limits
+    if (totalMinutes < 20) totalMinutes = 20;
+    if (totalMinutes > 120) totalMinutes = 120;
+    return totalMinutes;
+  }
+
+  /* ---- Text normalization for dedup ---- */
+  function _normalizeText(s) {
+    if (!s || typeof s !== 'string') return '';
+    return s.toLowerCase()
+      .replace(/[àáảãạăắằẳẵặâấầẩẫậ]/g, 'a')
+      .replace(/[èéẻẽẹêếềểễệ]/g, 'e')
+      .replace(/[ìíỉĩị]/g, 'i')
+      .replace(/[òóỏõọôốồổỗộơớờởỡợ]/g, 'o')
+      .replace(/[ùúủũụưứừửữự]/g, 'u')
+      .replace(/[ỳýỷỹỵ]/g, 'y')
+      .replace(/đ/g, 'd')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  /* Check if a proposed task duplicates an existing one */
+  function isDuplicateTask(proposed, existingTasks) {
+    if (!proposed || !Array.isArray(existingTasks)) return false;
+    var normText = _normalizeText(proposed.text || '');
+    if (!normText) return false;
+    for (var i = 0; i < existingTasks.length; i++) {
+      var ex = existingTasks[i];
+      if (!ex) continue;
+      var exNorm = _normalizeText(ex.text || '');
+      if (!exNorm) continue;
+      // Exact normalized match
+      if (normText === exNorm) return true;
+      // One contains the other (fuzzy)
+      if (normText.length >= 8 && exNorm.length >= 8) {
+        if (normText.indexOf(exNorm) >= 0 || exNorm.indexOf(normText) >= 0) return true;
+      }
+    }
+    return false;
   }
 
   /* ---- API base ---- */
@@ -264,17 +343,21 @@
       return { ok: false, code: errorCode, status: resp.status };
     }
 
-    // Update cursor
-    updateCursor(roadmapRecord.id, {
-      nextWeek: (cursor.nextWeek || 1) + 1,
-      lastStartDate: startDate,
-      lastDaysCount: daysCount,
-    });
+    // Store pending cursor — will only be committed after Apply succeeds
+    _pendingCursor = {
+      roadmapId: roadmapRecord.id,
+      cursor: {
+        nextWeek: (cursor.nextWeek || 1) + 1,
+        lastStartDate: startDate,
+        lastDaysCount: daysCount,
+      },
+    };
 
     return {
       ok: true,
       proposal: json.proposal,
       meta: json.meta,
+      _pendingCursor: _pendingCursor,
     };
   }
 
@@ -288,6 +371,48 @@
       source: opts.source || 'document-daily-plan',
       fileName: opts.fileName || '',
     });
+  }
+
+  /* ---- Cursor transaction ---- */
+  function commitPendingCursor() {
+    if (!_pendingCursor) return false;
+    updateCursor(_pendingCursor.roadmapId, _pendingCursor.cursor);
+    var committed = _pendingCursor;
+    _pendingCursor = null;
+    return committed;
+  }
+
+  function cancelPendingCursor() {
+    _pendingCursor = null;
+  }
+
+  function getPendingCursor() {
+    return _pendingCursor;
+  }
+
+  /* ---- Error mapping ---- */
+  var ERROR_MESSAGES = {
+    'ai-document-no-text': 'Không thể trích xuất văn bản từ tài liệu này.\nVui lòng tải lại file PDF.',
+    'ai-roadmap-empty': 'Không tìm thấy kế hoạch đủ rõ trong tài liệu để chia thành lịch hằng ngày.',
+    'ai-daily-plan-empty': 'Không thể tạo kế hoạch cho khoảng ngày này.\nVui lòng thử lại với phạm vi ngắn hơn.',
+    'ai-daily-plan-invalid': 'Kế hoạch tạo ra không hợp lệ.\nVui lòng thử lại.',
+    'ai-daily-plan-no-roadmap': 'Không tìm thấy bản đồ lộ trình.\nVui lòng tải lên PDF trước.',
+    'ai-daily-plan-invalid-date': 'Ngày trong kế hoạch không hợp lệ.\nVui lòng thử lại.',
+    'ai-daily-plan-all-past-dates': 'Tất cả ngày trong kế hoạch đều đã qua.\nVui lòng yêu cầu kế hoạch mới.',
+    'ai-provider-unavailable': 'Dịch vụ AI tạm thời không khả dụng.\nVui lòng thử lại sau.',
+    'ai-not-configured': 'AI chưa được cấu hình.\nVui lòng liên hệ quản trị viên.',
+    'ai-timeout': 'Yêu cầu AI quá lâu.\nVui lòng thử lại.',
+    'ai-rate-limited': 'Đang gửi quá nhiều yêu cầu.\nVui lòng chờ một chút.',
+    'ai-document-plan-failed': 'Không thể tạo kế hoạch tài liệu.\nVui lòng thử lại.',
+    'ai-daily-plan-failed': 'Không thể tạo kế hoạch hàng ngày.\nVui lòng thử lại.',
+    'ai-document-plan-module-missing': 'Module lập kế hoạch tài liệu chưa được tải.\nVui lòng tải lại trang.',
+    'no-active-roadmap': 'Không tìm thấy kế hoạch tài liệu.\nVui lòng tải lên PDF trước.',
+    'api-config-missing': 'Cấu hình API bị thiếu.\nVui lòng kiểm tra kết nối.',
+    'runtime-not-loaded': 'Module AI Runtime chưa được tải.\nVui lòng tải lại trang.',
+  };
+
+  function friendlyError(code) {
+    return ERROR_MESSAGES[code] || 'Đã xảy ra lỗi.\nVui lòng thử lại.';
   }
 
   /* ---- Status ---- */
@@ -305,8 +430,10 @@
 
   /* ---- Account change cleanup ---- */
   function onAccountChange() {
-    // Clear in-memory references when account changes
-    clearActiveRoadmap();
+    // Clear in-memory references and pending cursor when account changes.
+    // Do NOT call clearAll() — each account's storage is already scoped
+    // via the storage key, so account A's roadmaps remain intact.
+    _pendingCursor = null;
   }
 
   return {
@@ -319,11 +446,18 @@
     runInitialDocumentPlan: runInitialDocumentPlan,
     runNextWindow: runNextWindow,
     sendProposalToReview: sendProposalToReview,
+    commitPendingCursor: commitPendingCursor,
+    cancelPendingCursor: cancelPendingCursor,
+    getPendingCursor: getPendingCursor,
     getStatus: getStatus,
     onAccountChange: onAccountChange,
+    friendlyError: friendlyError,
+    parseDuration: parseDuration,
+    isDuplicateTask: isDuplicateTask,
     _getAccountScope: _getAccountScope,
     _getTimeZone: _getTimeZone,
     _today: _today,
     _addDays: _addDays,
+    _normalizeText: _normalizeText,
   };
 });
