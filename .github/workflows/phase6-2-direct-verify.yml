@@ -27,7 +27,7 @@ jobs:
         run: cd server && npm ci
 
       - name: Apply direct hotfix patch
-        run: python scripts/phase6-2-direct-hotfix.py
+        run: python scripts/run-phase6-2-hotfix.py
 
       - name: Generate canonical browser contracts
         run: |
