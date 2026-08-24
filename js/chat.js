@@ -558,15 +558,22 @@
     }
   }
 
-  /* ---- Simple chat detection: skip Brain for trivial messages ---- */
-  function _isSimpleChat(text) {
-    if (!text) return true;
-    var t = text.trim().toLowerCase();
-    // Very short messages, greetings, single-word
-    if (t.length < 5) return true;
-    if (/^(hi|hello|chào|xin chào|hey|yo|ok|thanks|cảm ơn|tạm biệt|bye)\b/i.test(t)) return true;
-    // Simple questions without action intent
-    if (t.length < 30 && !/(?:tạo|thêm|xóa|sửa|hoàn thành|chuyển|dời|lập lịch|xếp|lên lịch)/i.test(t)) return true;
+  /* ---- Routing: should this message go to AI Brain? ---- */
+  function _shouldUseBrain(text, intent) {
+    if (!text) return false;
+    // Greetings and social chat → normal chat API
+    var t = text.trim();
+    if (/^(hi|hello|chào|xin chào|hey|yo|ok|thanks|cảm ơn|tạm biệt|bye)\b/i.test(t)) return false;
+    // Clarify → deterministic path (not Brain)
+    if (intent && intent.kind === 'clarify') return false;
+    // Document plan requests → deterministic path
+    if (_isDocumentPlanRequest(text)) return false;
+    // Action intents (create/complete/reschedule) → Brain
+    if (intent && intent.kind === 'agent') return true;
+    // Read-only TaskFlow queries → Brain
+    if (/(?:task|công việc|việc|roadmap|lộ trình|kế hoạch|tuần|ngày|hôm nay|tuần này|bao nhiêu|rảnh|deadline|đến hạn)/i.test(t)) return true;
+    // Action verbs → Brain
+    if (/(?:tạo|thêm|xóa|sửa|hoàn thành|chuyển|dời|lập lịch|xếp|lên lịch)/i.test(t)) return true;
     return false;
   }
 
@@ -700,9 +707,9 @@
         }
       }
 
-      // Try AI Brain for complex requests (action intents, planning, queries)
+      // Try AI Brain for TaskFlow-specific queries and action intents
       var brainClient = window.TaskFlowAIBrainClient;
-      if (brainClient && typeof brainClient.handleMessage === 'function' && (useAgent || !_isSimpleChat(text))) {
+      if (brainClient && typeof brainClient.handleMessage === 'function' && _shouldUseBrain(text, intent)) {
         try {
           var brainResult = await brainClient.handleMessage(text, {
             signal: req.signal,
@@ -723,11 +730,15 @@
               var brainSummary = brainResult.proposal.summary || ('Kế hoạch — ' + (brainResult.proposal.actions ? brainResult.proposal.actions.length : 0) + ' hành động');
               _appendMessage(msgs, brainSummary, 'bot');
               _persistAssistantMessage(brainSummary);
+              var _reviewResult = null;
               try {
                 if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
-                  window.TaskFlowAIAgentRuntime.handleExternalProposal(brainResult.proposal, { source: 'ai-brain' });
+                  _reviewResult = window.TaskFlowAIAgentRuntime.handleExternalProposal(brainResult.proposal, { source: 'ai-brain' });
                 }
               } catch (e) { /* review must never break chat */ }
+              if (_reviewResult && !_reviewResult.ok) {
+                _appendMessage(msgs, _t('agentErrorReviewFailed') || _t('agentErrorServer'), 'bot');
+              }
               _setContextStatus('idle', []);
               return;
             }

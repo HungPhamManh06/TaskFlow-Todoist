@@ -3622,34 +3622,31 @@ router.post('/document-daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimi
 
 /* ============ AI Brain: POST /api/ai/brain — Tool-Selection Agent ============ */
 // Gemini selects tools from a canonical registry. Server enforces safety.
-// Two-phase protocol:
-//   POST /brain          → initial message → returns tool_request or final
-//   POST /brain/continue → tool result → continues loop → returns next tool_request or final
-// Client runs multi-step loop; server is stateless per-request but keeps bounded session cache.
+// Protocol:
+//   POST /brain          → initial message → tool_request | final | proposal
+//   POST /brain/continue → tool result     → tool_request | final | proposal
+// State machine: awaiting_model → awaiting_client_tool → awaiting_model → ... → completed/failed
+// Server tool calls are executed inline (no round-trip).
 const { TOOL_CONTRACTS, validateToolArgs, getContract, getToolDefinitionsForLLM } = require('./ai-tool-contracts');
 
 const BRAIN_MAX_STEPS = 8;
 const BRAIN_STEP_TIMEOUT_MS = parseInt(process.env.AI_BRAIN_STEP_TIMEOUT_MS || '30000', 10);
 const BRAIN_TOTAL_TIMEOUT_MS = parseInt(process.env.AI_BRAIN_TOTAL_TIMEOUT_MS || '120000', 10);
-const BRAIN_SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const BRAIN_SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes idle TTL
 const BRAIN_MAX_SESSIONS = 500;
 
-// ── Bounded in-memory session cache ─────────────────────
+// ── Brain session state machine ──────────────────────────
+// States: awaiting_model | awaiting_client_tool | completed | failed | cancelled
 const _brainSessions = new Map();
 
 function _cleanupBrainSessions() {
   const now = Date.now();
-  for (const [id, session] of _brainSessions) {
-    if (now - session.updatedAt > BRAIN_SESSION_TTL_MS) {
-      _brainSessions.delete(id);
-    }
+  for (const [id, s] of _brainSessions) {
+    if (now - s.updatedAt > BRAIN_SESSION_TTL_MS) _brainSessions.delete(id);
   }
-  // Hard cap
   if (_brainSessions.size > BRAIN_MAX_SESSIONS) {
-    const entries = Array.from(_brainSessions.entries());
-    entries.sort((a, b) => a[1].createdAt - b[1].createdAt);
-    const toDelete = entries.slice(0, entries.length - BRAIN_MAX_SESSIONS);
-    toDelete.forEach(([id]) => _brainSessions.delete(id));
+    const entries = Array.from(_brainSessions.entries()).sort((a, b) => a[1].createdAt - b[1].createdAt);
+    entries.slice(0, entries.length - BRAIN_MAX_SESSIONS).forEach(([id]) => _brainSessions.delete(id));
   }
 }
 
@@ -3657,62 +3654,75 @@ function _createBrainSession(userId, message, history) {
   _cleanupBrainSessions();
   const id = 'brain-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
   const session = {
-    id,
-    userId: userId || 'anon',
-    message,
+    id, userId: userId || 'anon', originalMessage: message,
     history: Array.isArray(history) ? history.slice(-10) : [],
-    step: 0,
-    toolTrace: [],
-    pendingToolCall: null,
-    status: 'awaiting_model',
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    step: 0, startedAt: Date.now(), createdAt: Date.now(), updatedAt: Date.now(),
+    status: 'awaiting_model', pendingToolCall: null, toolTrace: [],
   };
   _brainSessions.set(id, session);
   return session;
 }
 
 function _getBrainSession(id, userId) {
-  const session = _brainSessions.get(id);
-  if (!session) return null;
-  if (session.userId !== (userId || 'anon')) return null; // account isolation
-  if (Date.now() - session.updatedAt > BRAIN_SESSION_TTL_MS) {
-    _brainSessions.delete(id);
-    return null;
-  }
-  return session;
+  const s = _brainSessions.get(id);
+  if (!s) return null;
+  if (s.userId !== (userId || 'anon')) return null;
+  if (Date.now() - s.updatedAt > BRAIN_SESSION_TTL_MS) { _brainSessions.delete(id); return null; }
+  return s;
 }
 
-function _touchBrainSession(session) {
-  session.updatedAt = Date.now();
+function _touchBrainSession(s) { s.updatedAt = Date.now(); }
+
+function _failBrainSession(s, reason) { s.status = 'failed'; _touchBrainSession(s); return reason; }
+function _completeBrainSession(s) { s.status = 'completed'; _touchBrainSession(s); }
+
+function _assertBrainSessionCanContinue(s) {
+  if (s.step >= BRAIN_MAX_STEPS) return _failBrainSession(s, 'brain-max-steps');
+  if (Date.now() - s.startedAt > BRAIN_TOTAL_TIMEOUT_MS) return _failBrainSession(s, 'brain-timeout');
+  if (s.status !== 'awaiting_model') return _failBrainSession(s, 'brain-invalid-state:' + s.status);
+  return null;
+}
+
+// ── Execute a server-side brain tool ─────────────────────
+function _executeServerBrainTool(toolName) {
+  if (toolName === 'get_today') {
+    const now = new Date();
+    return { today: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') };
+  }
+  return null;
+}
+
+// ── Sanitize client tool results server-side ─────────────
+function _sanitizeToolResultForBrain(toolName, result) {
+  if (!result || typeof result !== 'object') return result;
+  if (toolName === 'get_tasks' && result.tasks && Array.isArray(result.tasks)) {
+    result.tasks = result.tasks.slice(0, 60).map((t) => ({
+      uid: t.uid || '', text: typeof t.text === 'string' ? t.text.slice(0, 300) : '',
+      done: !!t.done, deadline: t.deadline || null,
+      duration: typeof t.duration === 'number' ? t.duration : null,
+    }));
+    result.total = typeof result.total === 'number' ? result.total : result.tasks.length;
+  }
+  if (toolName === 'get_projects' && result.projects && Array.isArray(result.projects)) {
+    result.projects = result.projects.slice(0, 20);
+  }
+  return result;
 }
 
 // ── System prompts ───────────────────────────────────────
 const BRAIN_SYSTEM_VI = 'Bạn là AI Brain của TaskFlow. Bạn chọn tool phù hợp để trả lời câu hỏi hoặc thực hiện yêu cầu.\n' +
   'Luật:\n' +
-  '- PHẢI trả về JSON với dạng:\n' +
-  '  { "type": "tool_call", "tool": "tên-tool", "args": {...} }\n' +
-  '  hoặc { "type": "final", "answer": "câu trả lời" }\n' +
-  '- Tool name PHẢI nằm trong danh sách cho phép.\n' +
-  '- Args PHẢI đúng schema của tool.\n' +
+  '- PHẢI trả về JSON: { "type": "tool_call", "tool": "tên-tool", "args": {...} } hoặc { "type": "final", "answer": "..." }\n' +
+  '- Tool name PHẢI nằm trong danh sách cho phép. Args PHẢI đúng schema.\n' +
   '- Nếu cần nhiều bước, trả tool_call cho bước đầu. Client sẽ gọi lại bạn với kết quả.\n' +
-  '- Tối đa ' + BRAIN_MAX_STEPS + ' bước.\n' +
-  '- KHÔNG bao giờ gọi tool trực tiếp thay vì trả JSON.\n' +
-  '- Tool invoke KHÔNG được ghi trực tiếp vào database/localStorage.\n' +
-  '- Phản hồi CHỈ bằng JSON hợp lệ.';
+  '- Tối đa ' + BRAIN_MAX_STEPS + ' bước. KHÔNG bao giờ gọi tool trực tiếp. Phản hồi CHỈ bằng JSON hợp lệ.';
 
 const BRAIN_SYSTEM_EN = 'You are TaskFlow\'s AI Brain. You select appropriate tools to answer questions or fulfill requests.\n' +
   'Rules:\n' +
-  '- MUST return JSON in the form:\n' +
-  '  { "type": "tool_call", "tool": "tool-name", "args": {...} }\n' +
-  '  or { "type": "final", "answer": "response text" }\n' +
-  '- Tool name MUST be in the allowed list.\n' +
-  '- Args MUST match the tool\'s schema.\n' +
+  '- MUST return JSON: { "type": "tool_call", "tool": "tool-name", "args": {...} } or { "type": "final", "answer": "..." }\n' +
+  '- Tool name MUST be in the allowed list. Args MUST match the tool\'s schema.\n' +
   '- If multiple steps needed, return tool_call for the first step. Client will call you back with results.\n' +
-  '- Max ' + BRAIN_MAX_STEPS + ' steps.\n' +
-  '- NEVER invoke tools directly instead of returning JSON.\n' +
-  '- Tool invocations MUST NOT write directly to database/localStorage.\n' +
-  '- Respond with valid JSON only.';
+  '- Max ' + BRAIN_MAX_STEPS + ' steps. NEVER invoke tools directly. Respond with valid JSON only.';
 
 const BRAIN_RESPONSE_SCHEMA = {
   type: 'object',
@@ -3725,177 +3735,144 @@ const BRAIN_RESPONSE_SCHEMA = {
   required: ['type'],
 };
 
-// ── Helper: call Gemini and parse response ────────────────
-async function _brainCallGemini(session, extraContext, requestId, signal) {
+// ── Helper: call Gemini ──────────────────────────────────
+async function _brainCallGemini(session, toolResults, requestId, signal) {
   const toolDefs = getToolDefinitionsForLLM();
-  const lang = /[a-zA-Z]/.test(session.message) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(session.message)
-    ? 'en' : 'vi';
-  const sysInstruction = lang === 'en' ? BRAIN_SYSTEM_EN : BRAIN_SYSTEM_VI;
-
-  const contextParts = [];
-  if (extraContext) contextParts.push('<TOOL_RESULTS>' + JSON.stringify(extraContext) + '</TOOL_RESULTS>');
-  contextParts.push(session.message);
-  const userContent = contextParts.join('\n');
-
+  const lang = /[a-zA-Z]/.test(session.originalMessage) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(session.originalMessage) ? 'en' : 'vi';
+  const sys = (lang === 'en' ? BRAIN_SYSTEM_EN : BRAIN_SYSTEM_VI) + '\nAvailable tools: ' + JSON.stringify(toolDefs);
+  const parts = [];
+  if (toolResults && toolResults.length) parts.push('<TOOL_RESULTS>' + JSON.stringify(toolResults) + '</TOOL_RESULTS>');
+  parts.push(session.originalMessage);
   const messages = [
-    { role: 'system', content: sysInstruction + '\nAvailable tools: ' + JSON.stringify(toolDefs) },
+    { role: 'system', content: sys },
     ...session.history.map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: userContent },
+    { role: 'user', content: parts.join('\n') },
   ];
-
-  return callAiJson({
-    messages,
-    schema: BRAIN_RESPONSE_SCHEMA,
-    maxTokens: 1200,
-    timeoutMs: BRAIN_STEP_TIMEOUT_MS,
-    requestId,
-    routeName: '/api/ai/brain',
-    signal,
-  });
+  return callAiJson({ messages, schema: BRAIN_RESPONSE_SCHEMA, maxTokens: 1200, timeoutMs: BRAIN_STEP_TIMEOUT_MS, requestId, routeName: '/api/ai/brain', signal });
 }
 
 // ── Helper: format response ──────────────────────────────
 function _brainFormatResponse(session, type, data) {
   const resp = { ok: true, type, brainSessionId: session.id, step: session.step };
-  if (type === 'tool_request') {
-    resp.toolCall = data.toolCall;
-  } else if (type === 'final') {
-    resp.answer = data.answer || '';
-  } else if (type === 'proposal') {
-    resp.proposal = data.proposal;
-  }
-  resp.toolTrace = session.toolTrace.map((t) => ({ tool: t.tool, step: t.step, status: t.status }));
+  if (type === 'tool_request') resp.toolCall = data.toolCall;
+  else if (type === 'final') resp.answer = data.answer || '';
+  else if (type === 'proposal') resp.proposal = data.proposal;
+  else if (type === 'error') { resp.ok = false; resp.error = data.error; resp.friendlyMessage = data.friendlyMessage || ''; }
+  resp.toolTrace = session.toolTrace.map((t) => ({ tool: t.tool, toolCallId: t.toolCallId, step: t.step, status: t.status }));
   return resp;
+}
+
+// ── Validate & route Gemini's parsed response ────────────
+// Returns: { action: 'final'|'tool_request'|'proposal'|'error', payload }
+function _routeGeminiResponse(session, parsed, requestId, startTime) {
+  if (!parsed || !parsed.type) return { action: 'error', payload: { error: 'ai-invalid-response' } };
+
+  if (parsed.type === 'final') {
+    _completeBrainSession(session);
+    console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=final steps=' + session.step + ' latencyMs=' + (Date.now() - startTime));
+    return { action: 'final', payload: { answer: parsed.answer } };
+  }
+
+  if (parsed.type === 'tool_call') {
+    const toolName = parsed.tool;
+    const toolArgs = parsed.args || {};
+    if (!toolName || typeof toolName !== 'string') return { action: 'error', payload: { error: 'invalid-tool-name' } };
+    const contract = getContract(toolName);
+    if (!contract) return { action: 'error', payload: { error: 'unknown-tool', tool: toolName } };
+    const argVal = validateToolArgs(toolName, toolArgs);
+    if (!argVal.ok) return { action: 'error', payload: { error: 'invalid-tool-args', details: argVal.errors } };
+
+    const callId = 'tc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    session.pendingToolCall = { id: callId, tool: toolName, args: toolArgs, step: session.step };
+
+    if (contract.executionLocation === 'server') {
+      // Execute inline — no round-trip
+      const result = _executeServerBrainTool(toolName);
+      session.toolTrace.push({ tool: toolName, toolCallId: callId, step: session.step, status: 'executed-server' });
+      session.pendingToolCall = null;
+      return { action: 'server_tool_result', toolName, callId, result };
+    }
+
+    // Client tool — return tool_request
+    session.status = 'awaiting_client_tool';
+    _touchBrainSession(session);
+    console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=tool_request tool=' + toolName + ' step=' + session.step + ' latencyMs=' + (Date.now() - startTime));
+    return { action: 'tool_request', payload: { toolCall: { id: callId, tool: toolName, args: toolArgs } } };
+  }
+
+  return { action: 'error', payload: { error: 'ai-invalid-response' } };
+}
+
+// ── Core brain loop: call Gemini, handle response, loop on server tools ──
+async function _advanceBrainSession(session, toolResults, requestId, signal, startTime) {
+  let currentToolResults = toolResults;
+  while (true) {
+    const limitErr = _assertBrainSessionCanContinue(session);
+    if (limitErr) {
+      console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=' + limitErr + ' latencyMs=' + (Date.now() - startTime));
+      const msg = limitErr === 'brain-max-steps' ? 'AI đã thực hiện quá nhiều bước.' : (limitErr === 'brain-timeout' ? 'Yêu cầu AI quá lâu.' : 'Trạng thái AI không hợp lệ.');
+      return { type: 'error', error: limitErr, friendlyMessage: msg };
+    }
+
+    session.status = 'awaiting_model';
+    _touchBrainSession(session);
+    const aiResult = await _brainCallGemini(session, currentToolResults, requestId, signal);
+    if (!aiResult.ok) return { type: 'provider_error', result: aiResult };
+
+    const parsed = aiResult.parsed && typeof aiResult.parsed === 'object' ? aiResult.parsed : null;
+    const routed = _routeGeminiResponse(session, parsed, requestId, startTime);
+
+    if (routed.action === 'final' || routed.action === 'error') return { type: routed.action, payload: routed.payload };
+    if (routed.action === 'tool_request') return { type: 'tool_request', payload: routed.payload };
+    if (routed.action === 'proposal') return { type: 'proposal', payload: routed.payload };
+
+    if (routed.action === 'server_tool_result') {
+      session.step++;
+      session.toolTrace.push({ tool: routed.toolName, toolCallId: routed.callId, step: session.step, status: 'executed-server' });
+      currentToolResults = [{ tool: routed.toolName, callId: routed.callId, result: routed.result }];
+      // Loop again
+      continue;
+    }
+
+    return { type: 'error', payload: { error: 'ai-invalid-response' } };
+  }
 }
 
 // ── POST /brain — initial message ────────────────────────
 router.post('/brain', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHourlyLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   const clientAbort = new AbortController();
-  const onClientClose = () => clientAbort.abort();
-  req.on('aborted', onClientClose);
-  res.on('close', () => { req.removeListener('aborted', onClientClose); });
+  req.on('aborted', () => clientAbort.abort());
+  res.on('close', () => { req.removeListener('aborted', () => clientAbort.abort()); });
 
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
-
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const message = typeof body.message === 'string' ? body.message.trim() : '';
-    if (!message || message.length > MAX_MESSAGE_LEN) {
-      return res.status(400).json({ error: 'invalid-message' });
-    }
-    const rawLen = Buffer.byteLength(JSON.stringify(body), 'utf8');
-    if (rawLen > 128 * 1024) return res.status(413).json({ error: 'payload-too-large' });
+    if (!message || message.length > MAX_MESSAGE_LEN) return res.status(400).json({ error: 'invalid-message' });
+    if (Buffer.byteLength(JSON.stringify(body), 'utf8') > 128 * 1024) return res.status(413).json({ error: 'payload-too-large' });
 
     const userId = req.user?.id;
     const history = sanitizeChatHistory(body.history);
 
-    // Concurrency slot
     let slotAcquired = false;
     if (userId) {
-      const current = agentInFlight.get(userId) || 0;
-      if (current >= MAX_AGENT_CONCURRENT) return res.status(429).json({ error: 'ai-agent-busy' });
-      agentInFlight.set(userId, current + 1);
-      slotAcquired = true;
+      const cur = agentInFlight.get(userId) || 0;
+      if (cur >= MAX_AGENT_CONCURRENT) return res.status(429).json({ error: 'ai-agent-busy' });
+      agentInFlight.set(userId, cur + 1); slotAcquired = true;
     }
-    const releaseSlot = () => {
-      if (slotAcquired && userId) {
-        const current = agentInFlight.get(userId) || 0;
-        if (current > 1) agentInFlight.set(userId, current - 1);
-        else if (current > 0) agentInFlight.delete(userId);
-      }
-    };
+    const releaseSlot = () => { if (slotAcquired && userId) { const c = agentInFlight.get(userId) || 0; if (c > 1) agentInFlight.set(userId, c - 1); else if (c > 0) agentInFlight.delete(userId); } };
 
     try {
       const session = _createBrainSession(userId, message, history);
       const startTime = Date.now();
-
-      // Call Gemini for first decision
-      const aiResult = await _brainCallGemini(session, null, requestId, clientAbort.signal);
-      if (!aiResult.ok) return sendAiProviderError(res, aiResult);
-
-      const parsed = aiResult.parsed && typeof aiResult.parsed === 'object' ? aiResult.parsed : null;
-      if (!parsed || !parsed.type) return res.status(422).json({ error: 'ai-invalid-response' });
-
       session.step = 1;
 
-      if (parsed.type === 'final') {
-        session.status = 'completed';
-        _touchBrainSession(session);
-        console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=final steps=1 latencyMs=' + (Date.now() - startTime));
-        return res.json(_brainFormatResponse(session, 'final', { answer: parsed.answer }));
-      }
-
-      if (parsed.type === 'tool_call') {
-        const toolName = parsed.tool;
-        const toolArgs = parsed.args || {};
-
-        // Validate tool name
-        if (!toolName || typeof toolName !== 'string') return res.status(422).json({ error: 'invalid-tool-name' });
-        const contract = getContract(toolName);
-        if (!contract) return res.status(422).json({ error: 'unknown-tool', tool: toolName });
-
-        // Validate args
-        const argValidation = validateToolArgs(toolName, toolArgs);
-        if (!argValidation.ok) return res.status(422).json({ error: 'invalid-tool-args', details: argValidation.errors });
-
-        const callId = 'tc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-        session.pendingToolCall = { id: callId, tool: toolName, args: toolArgs, step: session.step };
-        session.status = contract.executionLocation === 'server' ? 'awaiting_server_tool' : 'awaiting_client_tool';
-        _touchBrainSession(session);
-
-        if (contract.executionLocation === 'server') {
-          // Execute server-side (e.g. get_today)
-          let result = null;
-          if (toolName === 'get_today') {
-            const now = new Date();
-            result = { today: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') };
-          }
-          session.toolTrace.push({ tool: toolName, step: session.step, status: 'executed-server' });
-          session.pendingToolCall = null;
-          session.status = 'awaiting_model';
-
-          // Continue loop: call Gemini with tool result
-          const nextResult = await _brainCallGemini(session, [{ tool: toolName, callId, result }], requestId, clientAbort.signal);
-          if (!nextResult.ok) return sendAiProviderError(res, nextResult);
-
-          const nextParsed = nextResult.parsed && typeof nextResult.parsed === 'object' ? nextResult.parsed : null;
-          if (!nextParsed || !nextParsed.type) return res.status(422).json({ error: 'ai-invalid-response' });
-
-          session.step++;
-          if (nextParsed.type === 'final') {
-            session.status = 'completed';
-            _touchBrainSession(session);
-            console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=final steps=' + session.step + ' latencyMs=' + (Date.now() - startTime));
-            return res.json(_brainFormatResponse(session, 'final', { answer: nextParsed.answer }));
-          }
-          // Another tool call — return as tool_request for client
-          if (nextParsed.type === 'tool_call') {
-            const nextContract = getContract(nextParsed.tool);
-            if (!nextContract) return res.status(422).json({ error: 'unknown-tool', tool: nextParsed.tool });
-            const nextArgVal = validateToolArgs(nextParsed.tool, nextParsed.args || {});
-            if (!nextArgVal.ok) return res.status(422).json({ error: 'invalid-tool-args', details: nextArgVal.errors });
-            const nextCallId = 'tc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-            session.pendingToolCall = { id: nextCallId, tool: nextParsed.tool, args: nextParsed.args || {}, step: session.step };
-            session.status = nextContract.executionLocation === 'server' ? 'awaiting_server_tool' : 'awaiting_client_tool';
-            _touchBrainSession(session);
-            console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=tool_request tool=' + nextParsed.tool + ' step=' + session.step + ' latencyMs=' + (Date.now() - startTime));
-            return res.json(_brainFormatResponse(session, 'tool_request', { toolCall: { id: nextCallId, tool: nextParsed.tool, args: nextParsed.args } }));
-          }
-        } else {
-          // Client-side tool — return tool_request for client to execute
-          session.toolTrace.push({ tool: toolName, step: session.step, status: 'requested-client' });
-          _touchBrainSession(session);
-          console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=tool_request tool=' + toolName + ' step=' + session.step + ' latencyMs=' + (Date.now() - startTime));
-          return res.json(_brainFormatResponse(session, 'tool_request', { toolCall: { id: callId, tool: toolName, args: toolArgs } }));
-        }
-      }
-
-      // Unknown response type
-      return res.status(422).json({ error: 'ai-invalid-response' });
-    } finally {
-      releaseSlot();
-    }
+      const result = await _advanceBrainSession(session, null, requestId, clientAbort.signal, startTime);
+      if (result.type === 'provider_error') return sendAiProviderError(res, result.result);
+      if (result.type === 'error') return res.status(422).json(result.payload);
+      return res.json(_brainFormatResponse(session, result.type, result.payload));
+    } finally { releaseSlot(); }
   } catch (e) {
     const safeType = e && typeof e.code === 'string' ? e.code : (e && e.name ? e.name : 'unknown');
     console.log('[ai-brain] requestId=' + requestId + ' status=error errorType=' + safeType + ' latencyMs=0');
@@ -3907,127 +3884,71 @@ router.post('/brain', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHour
 router.post('/brain/continue', maybeRateLimit(aiAgentLimiter), maybeRateLimit(aiAgentHourlyLimiter), async (req, res) => {
   const requestId = req.aiRequestId;
   const clientAbort = new AbortController();
-  const onClientClose = () => clientAbort.abort();
-  req.on('aborted', onClientClose);
-  res.on('close', () => { req.removeListener('aborted', onClientClose); });
+  req.on('aborted', () => clientAbort.abort());
+  res.on('close', () => { req.removeListener('aborted', () => clientAbort.abort()); });
 
   try {
     if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
-
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const brainSessionId = typeof body.brainSessionId === 'string' ? body.brainSessionId : '';
     const toolCallId = typeof body.toolCallId === 'string' ? body.toolCallId : '';
     const toolResult = body.result;
-
-    if (!brainSessionId || !toolCallId) {
-      return res.status(400).json({ error: 'missing-brain-session-or-tool-call-id' });
-    }
+    if (!brainSessionId || !toolCallId) return res.status(400).json({ error: 'missing-brain-session-or-tool-call-id' });
 
     const userId = req.user?.id;
     const session = _getBrainSession(brainSessionId, userId);
     if (!session) return res.status(404).json({ error: 'brain-session-not-found' });
-    if (session.status !== 'awaiting_client_tool') {
-      return res.status(422).json({ error: 'brain-invalid-state', state: session.status });
-    }
-    if (!session.pendingToolCall || session.pendingToolCall.id !== toolCallId) {
-      return res.status(422).json({ error: 'brain-stale-tool-call' });
-    }
+    if (session.status !== 'awaiting_client_tool') return res.status(422).json({ error: 'brain-invalid-state', state: session.status });
+    if (!session.pendingToolCall || session.pendingToolCall.id !== toolCallId) return res.status(422).json({ error: 'brain-stale-tool-call' });
 
-    // Concurrency slot
     let slotAcquired = false;
     if (userId) {
-      const current = agentInFlight.get(userId) || 0;
-      if (current >= MAX_AGENT_CONCURRENT) return res.status(429).json({ error: 'ai-agent-busy' });
-      agentInFlight.set(userId, current + 1);
-      slotAcquired = true;
+      const cur = agentInFlight.get(userId) || 0;
+      if (cur >= MAX_AGENT_CONCURRENT) return res.status(429).json({ error: 'ai-agent-busy' });
+      agentInFlight.set(userId, cur + 1); slotAcquired = true;
     }
-    const releaseSlot = () => {
-      if (slotAcquired && userId) {
-        const current = agentInFlight.get(userId) || 0;
-        if (current > 1) agentInFlight.set(userId, current - 1);
-        else if (current > 0) agentInFlight.delete(userId);
-      }
-    };
+    const releaseSlot = () => { if (slotAcquired && userId) { const c = agentInFlight.get(userId) || 0; if (c > 1) agentInFlight.set(userId, c - 1); else if (c > 0) agentInFlight.delete(userId); } };
 
     try {
       const startTime = Date.now();
+
+      // CRITICAL: capture pendingCall BEFORE clearing — this is the correct tool identity
+      const pendingCall = session.pendingToolCall;
       session.pendingToolCall = null;
       session.status = 'awaiting_model';
       session.step++;
-      session.toolTrace.push({ tool: session.toolTrace.length > 0 ? session.toolTrace[session.toolTrace.length - 1].tool : 'unknown', step: session.step, status: 'executed-client' });
+      session.toolTrace.push({ tool: pendingCall.tool, toolCallId: pendingCall.id, step: session.step, status: 'executed-client' });
       _touchBrainSession(session);
 
       // Check if tool returned a proposal
       if (toolResult && typeof toolResult === 'object' && toolResult.ok && toolResult.proposal) {
-        session.status = 'completed';
-        _touchBrainSession(session);
+        // Server-validate proposal before returning
+        const ctx = { taskUids: new Set(), projectIds: new Set(), milestoneIds: new Set() };
+        try {
+          const env = sanitizeChatContextEnvelope({ data: {} });
+          if (env.ok && env.envelope && env.envelope.data) {
+            (env.envelope.data.tasks || []).forEach((t) => { if (t && t.uid) ctx.taskUids.add(t.uid); });
+          }
+        } catch (e) { /* best effort */ }
+        const v = validateAgentProposal(toolResult.proposal, ctx);
+        if (!v.ok) {
+          _failBrainSession(session, 'brain-proposal-invalid');
+          return res.status(422).json({ error: 'brain-proposal-invalid', details: v.errors.slice(0, 5) });
+        }
+        _completeBrainSession(session);
         console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=proposal steps=' + session.step + ' latencyMs=' + (Date.now() - startTime));
         return res.json(_brainFormatResponse(session, 'proposal', { proposal: toolResult.proposal }));
       }
 
-      // Call Gemini with tool result
-      const aiResult = await _brainCallGemini(session, [{ tool: session.toolTrace[session.toolTrace.length - 1]?.tool || 'unknown', callId: toolCallId, result: toolResult }], requestId, clientAbort.signal);
-      if (!aiResult.ok) return sendAiProviderError(res, aiResult);
+      // Sanitize client tool result before sending to Gemini
+      const sanitizedResult = _sanitizeToolResultForBrain(pendingCall.tool, toolResult);
 
-      const parsed = aiResult.parsed && typeof aiResult.parsed === 'object' ? aiResult.parsed : null;
-      if (!parsed || !parsed.type) return res.status(422).json({ error: 'ai-invalid-response' });
-
-      if (parsed.type === 'final') {
-        session.status = 'completed';
-        _touchBrainSession(session);
-        console.log('[ai-brain] requestId=' + requestId + ' brainSessionId=' + session.id + ' status=final steps=' + session.step + ' latencyMs=' + (Date.now() - startTime));
-        return res.json(_brainFormatResponse(session, 'final', { answer: parsed.answer }));
-      }
-
-      if (parsed.type === 'tool_call') {
-        const contract = getContract(parsed.tool);
-        if (!contract) return res.status(422).json({ error: 'unknown-tool', tool: parsed.tool });
-        const argVal = validateToolArgs(parsed.tool, parsed.args || {});
-        if (!argVal.ok) return res.status(422).json({ error: 'invalid-tool-args', details: argVal.errors });
-
-        // Server-side tools: execute immediately and continue
-        if (contract.executionLocation === 'server') {
-          let result = null;
-          if (parsed.tool === 'get_today') {
-            const now = new Date();
-            result = { today: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') };
-          }
-          session.toolTrace.push({ tool: parsed.tool, step: session.step, status: 'executed-server' });
-          const nextResult = await _brainCallGemini(session, [{ tool: parsed.tool, callId: toolCallId, result }], requestId, clientAbort.signal);
-          if (!nextResult.ok) return sendAiProviderError(res, nextResult);
-          const nextParsed = nextResult.parsed;
-          if (!nextParsed || !nextParsed.type) return res.status(422).json({ error: 'ai-invalid-response' });
-          session.step++;
-          if (nextParsed.type === 'final') {
-            session.status = 'completed';
-            _touchBrainSession(session);
-            return res.json(_brainFormatResponse(session, 'final', { answer: nextParsed.answer }));
-          }
-          if (nextParsed.type === 'tool_call') {
-            const nc = getContract(nextParsed.tool);
-            if (!nc) return res.status(422).json({ error: 'unknown-tool', tool: nextParsed.tool });
-            const nav = validateToolArgs(nextParsed.tool, nextParsed.args || {});
-            if (!nav.ok) return res.status(422).json({ error: 'invalid-tool-args', details: nav.errors });
-            const ncid = 'tc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-            session.pendingToolCall = { id: ncid, tool: nextParsed.tool, args: nextParsed.args || {}, step: session.step };
-            session.status = nc.executionLocation === 'server' ? 'awaiting_server_tool' : 'awaiting_client_tool';
-            _touchBrainSession(session);
-            return res.json(_brainFormatResponse(session, 'tool_request', { toolCall: { id: ncid, tool: nextParsed.tool, args: nextParsed.args } }));
-          }
-        } else {
-          // Client-side tool — return tool_request
-          const callId = 'tc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-          session.pendingToolCall = { id: callId, tool: parsed.tool, args: parsed.args || {}, step: session.step };
-          session.status = 'awaiting_client_tool';
-          _touchBrainSession(session);
-          return res.json(_brainFormatResponse(session, 'tool_request', { toolCall: { id: callId, tool: parsed.tool, args: parsed.args } }));
-        }
-      }
-
-      return res.status(422).json({ error: 'ai-invalid-response' });
-    } finally {
-      releaseSlot();
-    }
+      // Continue brain loop with correct tool identity
+      const result = await _advanceBrainSession(session, [{ tool: pendingCall.tool, callId: pendingCall.id, result: sanitizedResult }], requestId, clientAbort.signal, startTime);
+      if (result.type === 'provider_error') return sendAiProviderError(res, result.result);
+      if (result.type === 'error') return res.status(422).json(result.payload);
+      return res.json(_brainFormatResponse(session, result.type, result.payload));
+    } finally { releaseSlot(); }
   } catch (e) {
     const safeType = e && typeof e.code === 'string' ? e.code : (e && e.name ? e.name : 'unknown');
     console.log('[ai-brain] requestId=' + requestId + ' status=error errorType=' + safeType + ' latencyMs=0');

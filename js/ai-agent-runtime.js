@@ -1354,11 +1354,13 @@
   }
 
   function _cancelCard(card, msgs) {
+    // Capture proposalId BEFORE clearing review state
+    const proposalId = _reviewState && _reviewState.proposalId ? _reviewState.proposalId : null;
     _clearReviewState();
     // Discard pending document-daily-plan cursor on cancel
     try {
-      if (window.TaskFlowDocumentDailyPlan && typeof window.TaskFlowDocumentDailyPlan.cancelPendingCursor === 'function') {
-        window.TaskFlowDocumentDailyPlan.cancelPendingCursor();
+      if (proposalId && window.TaskFlowDocumentDailyPlan && typeof window.TaskFlowDocumentDailyPlan.cancelPendingCursor === 'function') {
+        window.TaskFlowDocumentDailyPlan.cancelPendingCursor(proposalId);
       }
     } catch (e) { /* cancel must never break */ }
     if (!card || !card.parentNode) return;
@@ -1745,12 +1747,14 @@
         else if (typeof renderToday === 'function') renderToday();
       } catch (e) { /* */ }
 
+      // Capture proposalId BEFORE clearing review state
+      const _cursorProposalId = _reviewState && _reviewState.proposalId ? _reviewState.proposalId : null;
       _clearReviewState();
       if (card.parentNode) card.parentNode.removeChild(card);
       // Commit pending document-daily-plan cursor after successful Apply
       try {
-        if (window.TaskFlowDocumentDailyPlan && typeof window.TaskFlowDocumentDailyPlan.commitPendingCursor === 'function') {
-          window.TaskFlowDocumentDailyPlan.commitPendingCursor();
+        if (_cursorProposalId && window.TaskFlowDocumentDailyPlan && typeof window.TaskFlowDocumentDailyPlan.commitPendingCursor === 'function') {
+          window.TaskFlowDocumentDailyPlan.commitPendingCursor(_cursorProposalId);
         }
       } catch (e) { /* cursor commit must never break Apply */ }
       const reply = _resultText(applied.length, skipped.length, failed.length, ctx, virtualEntities);

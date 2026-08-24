@@ -669,7 +669,7 @@ describe('E2E FINAL: Cursor advance logic', () => {
     assert.equal(active.cursor.nextWeek, 1, 'nextWeek not yet incremented in storage');
 
     // Now commit the cursor (simulates successful Apply)
-    api.commitPendingCursor();
+    api.commitPendingCursor(pending.proposalId);
     const afterCommit = api.getActiveRoadmap();
     assert.equal(afterCommit.cursor.lastStartDate, addDays(startDate, 7), 'cursor advanced by 7 days');
     assert.equal(afterCommit.cursor.nextWeek, 2, 'nextWeek incremented to 2');
@@ -687,11 +687,13 @@ describe('E2E FINAL: Cursor advance logic', () => {
 
     // Week 1: generate + commit
     await api.runNextWindow('tuần tiếp theo', {});
-    api.commitPendingCursor();
+    var p1 = api.getPendingCursor();
+    api.commitPendingCursor(p1.proposalId);
 
     // Week 2: generate + commit
     await api.runNextWindow('tuần tiếp theo', {});
-    api.commitPendingCursor();
+    var p2 = api.getPendingCursor();
+    api.commitPendingCursor(p2.proposalId);
 
     const active = api.getActiveRoadmap();
     assert.equal(active.cursor.lastStartDate, addDays(startDate, 14), 'cursor advanced by 14 days');

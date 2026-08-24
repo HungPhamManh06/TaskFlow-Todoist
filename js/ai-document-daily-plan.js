@@ -223,6 +223,19 @@
     fd.append('message', message);
     fd.append('timeZone', _getTimeZone());
 
+    // Send existing tasks for deduplication
+    try {
+      if (typeof TaskFlowAIAgentRuntime !== 'undefined' && TaskFlowAIAgentRuntime.buildContext) {
+        var ctx = TaskFlowAIAgentRuntime.buildContext();
+        if (ctx && ctx.tasks) {
+          var existingTasks = ctx.tasks.slice(0, 50).map(function (t) {
+            return { text: t.text || '', deadline: t.deadline || null, done: !!t.done };
+          });
+          fd.append('taskflowContext', JSON.stringify({ tasks: existingTasks }));
+        }
+      }
+    } catch (e) { /* context must not break upload */ }
+
     var token = _getToken();
     var headers = {};
     if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -406,17 +419,23 @@
     if (typeof TaskFlowAIAgentRuntime === 'undefined' || !TaskFlowAIAgentRuntime.handleExternalProposal) {
       return { ok: false, code: 'runtime-not-loaded' };
     }
+    // Ensure proposal has an ID for cursor transaction binding
+    if (!proposal.id) {
+      proposal.id = 'proposal_doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    }
     return TaskFlowAIAgentRuntime.handleExternalProposal(proposal, {
       source: opts.source || 'document-daily-plan',
       fileName: opts.fileName || '',
+      proposalId: proposal.id,
     });
   }
 
   /* ---- Cursor transaction (proposal-scoped) ---- */
   function commitPendingCursor(proposalId) {
-    // Only commit if proposalId matches (or no proposalId given for backward compat)
+    // MUST have proposalId — no backward compat for undefined
     if (!_pendingCursor) return false;
-    if (proposalId && _pendingCursor.proposalId !== proposalId) return false;
+    if (!proposalId) return false; // reject undefined proposalId
+    if (_pendingCursor.proposalId !== proposalId) return false;
     if (_pendingCursor.source !== 'document-daily-plan') return false;
     updateCursor(_pendingCursor.roadmapId, _pendingCursor.toCursor);
     var committed = _pendingCursor;
@@ -426,9 +445,10 @@
   }
 
   function cancelPendingCursor(proposalId) {
-    // Only cancel if proposalId matches
+    // MUST have proposalId — no backward compat for undefined
     if (!_pendingCursor) return;
-    if (proposalId && _pendingCursor.proposalId !== proposalId) return;
+    if (!proposalId) return; // reject undefined proposalId
+    if (_pendingCursor.proposalId !== proposalId) return;
     _pendingCursor = null;
     _pendingCursorProposalId = null;
   }
