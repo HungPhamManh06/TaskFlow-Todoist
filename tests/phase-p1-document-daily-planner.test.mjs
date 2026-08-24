@@ -13,11 +13,38 @@ const require = createRequire(import.meta.url);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const aiSource = readFileSync(join(ROOT, 'server', 'ai.js'), 'utf8');
+const { DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA } = require(join(ROOT, 'server', 'ai.js'));
+
+function strictObjectSchemaErrors(schema, path = '$', errors = []) {
+  if (!schema || typeof schema !== 'object') return errors;
+
+  if (schema.type === 'object') {
+    const propertyNames = Object.keys(schema.properties || {}).sort();
+    const requiredNames = Array.isArray(schema.required) ? [...schema.required].sort() : [];
+    if (schema.additionalProperties !== false) {
+      errors.push(path + ': additionalProperties must be false');
+    }
+    if (JSON.stringify(requiredNames) !== JSON.stringify(propertyNames)) {
+      errors.push(path + ': required=' + JSON.stringify(requiredNames) + ' properties=' + JSON.stringify(propertyNames));
+    }
+    for (const [name, child] of Object.entries(schema.properties || {})) {
+      strictObjectSchemaErrors(child, path + '.' + name, errors);
+    }
+  }
+
+  if (schema.items) strictObjectSchemaErrors(schema.items, path + '[]', errors);
+  for (const keyword of ['anyOf', 'oneOf', 'allOf']) {
+    if (Array.isArray(schema[keyword])) {
+      schema[keyword].forEach((child, index) => strictObjectSchemaErrors(child, path + '.' + keyword + '[' + index + ']', errors));
+    }
+  }
+  return errors;
+}
 
 describe('P1 Document Daily Planner: server schemas', () => {
   it('DOCUMENT_ROADMAP_SCHEMA exists', () => {
     assert.ok(aiSource.includes('DOCUMENT_ROADMAP_SCHEMA'));
-    assert.ok(aiSource.includes("'title', 'summary', 'phases'"));
+    assert.ok(aiSource.includes("'title', 'summary', 'totalWeeks', 'phases'"));
   });
   it('DAILY_PLAN_SCHEMA exists', () => {
     assert.ok(aiSource.includes('DAILY_PLAN_SCHEMA'));
@@ -27,6 +54,17 @@ describe('P1 Document Daily Planner: server schemas', () => {
     const idx = aiSource.indexOf('DOCUMENT_ROADMAP_SCHEMA');
     const body = aiSource.slice(idx, idx + 2000);
     assert.ok(body.includes('maxItems: 20'));
+  });
+  it('roadmap and daily-plan schemas satisfy strict structured-output object rules', () => {
+    assert.deepEqual(strictObjectSchemaErrors(DOCUMENT_ROADMAP_SCHEMA), []);
+    assert.deepEqual(strictObjectSchemaErrors(DAILY_PLAN_SCHEMA), []);
+  });
+  it('represents optional roadmap scalars as required nullable fields', () => {
+    assert.deepEqual(DOCUMENT_ROADMAP_SCHEMA.properties.totalWeeks.type, ['integer', 'null']);
+    const weekSchema = DOCUMENT_ROADMAP_SCHEMA.properties.phases.items.properties.weeks.items;
+    assert.deepEqual(weekSchema.properties.estimatedHours.type, ['number', 'null']);
+    assert.ok(weekSchema.required.includes('deliverables'));
+    assert.ok(weekSchema.required.includes('estimatedHours'));
   });
   it('daily plan schema has days maxItems=14', () => {
     const idx = aiSource.indexOf('DAILY_PLAN_SCHEMA');

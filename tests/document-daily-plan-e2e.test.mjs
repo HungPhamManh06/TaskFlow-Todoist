@@ -54,7 +54,7 @@ describe('E2E: chat.js intent routing', () => {
 describe('E2E: server schemas', () => {
   it('DOCUMENT_ROADMAP_SCHEMA exists with required fields', () => {
     assert.ok(aiSource.includes('DOCUMENT_ROADMAP_SCHEMA'));
-    assert.ok(aiSource.includes("'title', 'summary', 'phases'"));
+    assert.ok(aiSource.includes("'title', 'summary', 'totalWeeks', 'phases'"));
   });
 
   it('DAILY_PLAN_SCHEMA exists with required fields', () => {
