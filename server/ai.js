@@ -3070,7 +3070,7 @@ const DOCUMENT_ROADMAP_SCHEMA = {
   properties: {
     title: { type: 'string', description: 'Roadmap title derived from document' },
     summary: { type: 'string', description: 'Brief summary of the roadmap' },
-    totalWeeks: { type: 'integer', description: 'Total number of weeks if inferable' },
+    totalWeeks: { type: ['integer', 'null'], description: 'Total number of weeks, or null if not inferable' },
     phases: {
       type: 'array',
       maxItems: 20,
@@ -3089,9 +3089,9 @@ const DOCUMENT_ROADMAP_SCHEMA = {
                 title: { type: 'string' },
                 goals: { type: 'array', maxItems: 10, items: { type: 'string' } },
                 deliverables: { type: 'array', maxItems: 5, items: { type: 'string' } },
-                estimatedHours: { type: 'number' },
+                estimatedHours: { type: ['number', 'null'] },
               },
-              required: ['week', 'title', 'goals'],
+              required: ['week', 'title', 'goals', 'deliverables', 'estimatedHours'],
               additionalProperties: false,
             },
           },
@@ -3101,7 +3101,7 @@ const DOCUMENT_ROADMAP_SCHEMA = {
       },
     },
   },
-  required: ['title', 'summary', 'phases'],
+  required: ['title', 'summary', 'totalWeeks', 'phases'],
   additionalProperties: false,
 };
 
@@ -3117,7 +3117,7 @@ router.post('/roadmap-extract', maybeRateLimit(aiFileLimiter), maybeRateLimit(ai
     // Cap input text
     const cappedText = documentText.slice(0, AI_FILE_MAX_TEXT_CHARS);
 
-    const systemPrompt = 'You are a document roadmap extractor. Read the provided document text and extract a compact structured roadmap.\n\nRules:\n- Extract ONLY information explicitly present in the document\n- Do NOT invent technologies, deadlines, or requirements\n- Use phases and weeks structure\n- Keep goals and deliverables concise\n- Return strict JSON only, no markdown';
+    const systemPrompt = 'You are a document roadmap extractor. Read the provided document text and extract a compact structured roadmap.\n\nRules:\n- Extract ONLY information explicitly present in the document\n- Do NOT invent technologies, deadlines, or requirements\n- Use phases and weeks structure\n- Keep goals and deliverables concise\n- Always include totalWeeks (null if unknown), deliverables ([] if absent), and estimatedHours (null if unknown)\n- Return strict JSON only, no markdown';
 
     const userPrompt = 'Extract the roadmap from this document:\n\n' + cappedText;
 
@@ -3381,7 +3381,7 @@ async function handleDocumentDailyPlan(req, res, overrides) {
     }
 
     // Stage A: Extract roadmap from document
-    const roadmapSystemPrompt = 'You are a document roadmap extractor. Read the provided document text and extract a compact structured roadmap.\n\nRules:\n- Extract ONLY information explicitly present in the document\n- Do NOT invent technologies, deadlines, or requirements\n- Use phases and weeks structure\n- Keep goals and deliverables concise\n- Return strict JSON only, no markdown';
+    const roadmapSystemPrompt = 'You are a document roadmap extractor. Read the provided document text and extract a compact structured roadmap.\n\nRules:\n- Extract ONLY information explicitly present in the document\n- Do NOT invent technologies, deadlines, or requirements\n- Use phases and weeks structure\n- Keep goals and deliverables concise\n- Always include totalWeeks (null if unknown), deliverables ([] if absent), and estimatedHours (null if unknown)\n- Return strict JSON only, no markdown';
 
     const roadmapResult = await callJson({
       messages: [
