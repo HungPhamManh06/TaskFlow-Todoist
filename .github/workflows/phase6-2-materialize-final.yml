@@ -3,40 +3,47 @@ name: Phase 6.2 materialize final commit
 on:
   push:
     branches: [hotfix/phase6-2-direct-chat]
-  pull_request:
-    branches: [main]
 
 permissions:
   contents: write
+
+env:
+  EXPECTED_MAIN: 74fe78acf7975f0eeb5e6ad46e67847b5a0ebcd9
+  MATERIALIZED_BRANCH: hotfix/phase6-2-materialized-main-v2
 
 jobs:
   materialize:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout helper branch
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: server/package-lock.json
 
+      - name: Prepare clean main baseline
+        run: |
+          set -euo pipefail
+          cp scripts/phase6-2-direct-hotfix.py /tmp/phase6-2-direct-hotfix.py
+          cp scripts/run-phase6-2-hotfix.py /tmp/run-phase6-2-hotfix.py
+          git fetch origin main
+          ACTUAL_MAIN="$(git rev-parse origin/main)"
+          echo "expected_main=$EXPECTED_MAIN"
+          echo "actual_main=$ACTUAL_MAIN"
+          test "$ACTUAL_MAIN" = "$EXPECTED_MAIN"
+          git checkout -B phase6-2-materialized "$EXPECTED_MAIN"
+
       - name: Install server deps
         run: cd server && npm ci
 
-      - name: Verify main baseline has not moved
-        env:
-          EXPECTED_MAIN: 74fe78acf7975f0eeb5e6ad46e67847b5a0ebcd9
-        run: |
-          git fetch origin main
-          ACTUAL_MAIN="$(git rev-parse origin/main)"
-          echo "main=$ACTUAL_MAIN"
-          test "$ACTUAL_MAIN" = "$EXPECTED_MAIN"
-
       - name: Apply verified direct hotfix patch
-        run: python scripts/run-phase6-2-hotfix.py
+        run: python /tmp/run-phase6-2-hotfix.py
 
       - name: Generate canonical browser contracts
         run: |
@@ -71,102 +78,14 @@ jobs:
       - name: Canonical contracts gate
         run: node scripts/generate-ai-tool-contracts.mjs --check
 
-      - name: Materialize final Git commit object without moving any ref
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          EXPECTED_MAIN: 74fe78acf7975f0eeb5e6ad46e67847b5a0ebcd9
+      - name: Commit verified production hotfix
         run: |
-          python - <<'PY'
-          import base64, json, os, pathlib, subprocess, urllib.request
-
-          repo = os.environ['REPO']
-          token = os.environ['GH_TOKEN']
-          expected = os.environ['EXPECTED_MAIN']
-          root = pathlib.Path('.')
-
-          def api(method, path, body=None):
-              data = None if body is None else json.dumps(body).encode()
-              req = urllib.request.Request(
-                  f'https://api.github.com/repos/{repo}{path}',
-                  data=data,
-                  method=method,
-                  headers={
-                      'Authorization': f'Bearer {token}',
-                      'Accept': 'application/vnd.github+json',
-                      'X-GitHub-Api-Version': '2022-11-28',
-                      'Content-Type': 'application/json',
-                      'User-Agent': 'taskflow-phase6-2-materializer',
-                  },
-              )
-              with urllib.request.urlopen(req) as resp:
-                  return json.load(resp)
-
-          main = api('GET', '/git/ref/heads/main')['object']['sha']
-          if main != expected:
-              raise SystemExit(f'main moved: expected {expected}, got {main}')
-          commit = api('GET', f'/git/commits/{main}')
-          base_tree = commit['tree']['sha']
-
-          status = subprocess.check_output(['git', 'status', '--porcelain=v1'], text=True)
-          paths = []
-          for line in status.splitlines():
-              if not line.strip():
-                  continue
-              p = line[3:]
-              if ' -> ' in p:
-                  p = p.split(' -> ', 1)[1]
-              if p in {
-                  'scripts/phase6-2-direct-hotfix.py',
-                  'scripts/run-phase6-2-hotfix.py',
-                  '.github/workflows/phase6-2-direct-verify.yml',
-                  '.github/workflows/phase6-2-materialize-final.yml',
-              }:
-                  continue
-              paths.append(p)
-
-          paths = sorted(dict.fromkeys(paths))
-          if not paths:
-              raise SystemExit('no final hotfix changes found')
-
-          tree_entries = []
-          for p in paths:
-              fp = root / p
-              if not fp.is_file():
-                  raise SystemExit(f'unsupported non-file change: {p}')
-              raw = fp.read_bytes()
-              blob = api('POST', '/git/blobs', {
-                  'content': base64.b64encode(raw).decode('ascii'),
-                  'encoding': 'base64',
-              })
-              tree_entries.append({'path': p, 'mode': '100644', 'type': 'blob', 'sha': blob['sha']})
-
-          tree = api('POST', '/git/trees', {'base_tree': base_tree, 'tree': tree_entries})
-          final_commit = api('POST', '/git/commits', {
-              'message': 'fix(ai): close Phase 6.2 regressions on main',
-              'tree': tree['sha'],
-              'parents': [main],
-          })
-
-          meta = {
-              'base_main': main,
-              'base_tree': base_tree,
-              'tree': tree['sha'],
-              'commit': final_commit['sha'],
-              'changed_files': paths,
-          }
-          pathlib.Path('final-commit.json').write_text(json.dumps(meta, indent=2) + '\n')
-          print('FINAL_COMMIT_SHA=' + final_commit['sha'])
-          print('FINAL_TREE_SHA=' + tree['sha'])
-          print('FINAL_CHANGED_FILES=' + str(len(paths)))
-          for p in paths:
-              print('  ' + p)
-          PY
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: phase6-2-final-commit-metadata
-          path: final-commit.json
-          if-no-files-found: error
-
-# trigger: write-enabled push materializer
+          set -euo pipefail
+          git status --short
+          test -n "$(git status --porcelain)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m 'fix(ai): close Phase 6.2 regressions on main'
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_MAIN"
+          git push origin "HEAD:refs/heads/$MATERIALIZED_BRANCH"
