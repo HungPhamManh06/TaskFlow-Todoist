@@ -99,3 +99,5 @@ jobs:
             tests/phase-agent-dep-order-cache-rollout.test.mjs
             tests/phase-file-agent-bulk-policy-agent-abort.test.mjs
           if-no-files-found: error
+
+# Verification workflow only; it never pushes or mutates repository refs.
