@@ -64,9 +64,9 @@ describe('Phase 6D — File Intent Classifier', () => {
     assert.equal(r.kind, 'agent');
   });
 
-  it('returns agent for "lập kế hoạch học từ tài liệu"', () => {
+  it('returns document-daily-plan for "lập kế hoạch học từ tài liệu"', () => {
     const r = classifyFileIntent('Lập kế hoạch học từ tài liệu này', true);
-    assert.equal(r.kind, 'agent');
+    assert.equal(r.kind, 'document-daily-plan');
   });
 
   it('returns agent for English "create tasks from this file"', () => {
