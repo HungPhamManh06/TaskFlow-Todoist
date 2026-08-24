@@ -26,7 +26,7 @@ describe('AI Brain: Session refs from trusted read results', () => {
 
   it('proposal validation uses session.refs not empty Sets', () => {
     const aiSrc = readFileSync(join(ROOT, 'server', 'ai.js'), 'utf8');
-    assert.ok(aiSrc.includes('validateAgentProposal(toolResult.proposal, session.refs)'), 'uses session.refs');
+    assert.ok(aiSrc.includes('validateAgentProposal(sanitizedResult.proposal, session.refs)') || aiSrc.includes('validateAgentProposal(toolResult.proposal, session.refs)'), 'uses session.refs');
     // Must NOT have old pattern
     assert.ok(!aiSrc.includes('validateAgentProposal(toolResult.proposal, ctx)'), 'does not use empty ctx');
   });
