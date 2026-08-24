@@ -1500,39 +1500,34 @@
           return { type: accepted.type || '', name: accepted.name || '', size: accepted.size || 0 };
         });
       _persistUserMessage(text + '\n' + fileLabel, acceptedFiles);
-      requestSucceeded = true;
-
-      // P1: Document Daily Plan — persist roadmap and send to Review
-      if (isFileDailyPlan && json.ok && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
-        try {
-          // Persist roadmap to client storage
-          if (window.TaskFlowDocumentDailyPlan && json.roadmap) {
-            window.TaskFlowDocumentDailyPlan.saveRoadmap({
-              id: 'roadmap-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-              accountScope: window.TaskFlowDocumentDailyPlan._getAccountScope(),
-              fingerprint: json.fingerprint || '',
-              documentName: json.documentName || 'document',
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              roadmap: json.roadmap,
-              cursor: {
-                nextWeek: 1,
-                lastStartDate: json.meta ? json.meta.dateRange[0] : new Date().toISOString().slice(0, 10),
-                lastDaysCount: json.meta ? json.meta.daysGenerated : 7,
-              },
-            });
-          }
-          // Send proposal to existing Review system
-          var summaryText = json.proposal.summary || ('Kế hoạch ' + (json.meta ? json.meta.daysGenerated : 7) + ' ngày — ' + json.proposal.actions.length + ' công việc');
-          _appendMessage(msgs, summaryText, 'bot');
-          _persistAssistantMessage(summaryText);
-          if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
-            var _proposalResult = window.TaskFlowAIAgentRuntime.handleExternalProposal(json.proposal, { source: 'document-daily-plan', fileName: json.documentName });
-            if (_proposalResult && !_proposalResult.ok && _proposalResult.code === 'exception') {
-              _appendMessage(msgs, _t('agentErrorReviewFailed') || _t('agentErrorServer'), 'bot');
-            }
-          }
-        } catch (e) { /* review must never break chat */ }
+      requestSucceeded = true;          // P1: Document Daily Plan — delegate persistence + Review to module
+          if (isFileDailyPlan && json.ok && json.proposal && Array.isArray(json.proposal.actions) && json.proposal.actions.length > 0) {
+            try {
+              // Persist roadmap via module (single source of truth)
+              if (window.TaskFlowDocumentDailyPlan && json.roadmap) {
+                window.TaskFlowDocumentDailyPlan.saveRoadmap({
+                  id: 'roadmap-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+                  accountScope: window.TaskFlowDocumentDailyPlan._getAccountScope(),
+                  fingerprint: json.fingerprint || '',
+                  documentName: json.documentName || 'document',
+                  createdAt: Date.now(),
+                  updatedAt: Date.now(),
+                  roadmap: json.roadmap,
+                  cursor: {
+                    nextWeek: 1,
+                    lastStartDate: json.meta && json.meta.dateRange ? json.meta.dateRange[0] : window.TaskFlowDocumentDailyPlan._today(),
+                    lastDaysCount: json.meta ? json.meta.daysGenerated : 7,
+                  },
+                });
+              }
+              // Send proposal to existing Review system via module
+              var summaryText = json.proposal.summary || ('Kế hoạch ' + (json.meta ? json.meta.daysGenerated : 7) + ' ngày — ' + json.proposal.actions.length + ' công việc');
+              _appendMessage(msgs, summaryText, 'bot');
+              _persistAssistantMessage(summaryText);
+              if (window.TaskFlowDocumentDailyPlan) {
+                window.TaskFlowDocumentDailyPlan.sendProposalToReview(json.proposal, { source: 'document-daily-plan', fileName: json.documentName });
+              }
+            } catch (e) { /* review must never break chat */ }
       } else if (isFileDailyPlan && json.ok && json.proposal && json.proposal.actions && json.proposal.actions.length === 0) {
         _appendMessage(msgs, 'Không tìm thấy kế hoạch đủ rõ để chia thành lịch hằng ngày.', 'bot');
         _persistAssistantMessage('Không tìm thấy kế hoạch đủ rõ để chia thành lịch hằng ngày.');
