@@ -39,6 +39,7 @@ const { authMiddleware } = require('./auth');
 const { callAiText, callAiJson, getConfig, getBuildSha, getAgentTimeoutMs } = require('./ai-provider');
 const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('./ai-roadmap-validator');
 const { extractPdfText, DEFAULT_EXTRACT_MAX_BYTES, HARD_EXTRACT_MAX_BYTES, FILE_AGENT_EXTRACT_MAX_BYTES } = require('./ai-file-parser');
+const { buildDatedDocumentRoadmap, buildDatedDocumentProposal } = require('./ai-dated-document');
 
 /* ---- Safe rate-limit response helper ---- */
 function _rateLimitResponse(res, aiResult) {
@@ -3208,7 +3209,6 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
   const requestId = req.aiRequestId;
   const startMs = Date.now();
   try {
-    if (!AI_API_KEY) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
     const body = req.body || {};
     const roadmap = body.roadmap;
     const startDate = String(body.startDate || '').trim();
@@ -3236,6 +3236,32 @@ router.post('/daily-plan', maybeRateLimit(aiFileLimiter), maybeRateLimit(aiFileH
     if (clampedDates.length === 0) {
       return res.status(400).json({ ok: false, error: 'ai-daily-plan-all-past-dates' });
     }
+
+    // Explicit calendar rows are already authoritative. Reuse them without an
+    // LLM call so follow-up windows stay faithful to the original document.
+    const datedPlan = buildDatedDocumentProposal(roadmap, clampedDates);
+    if (datedPlan) {
+      const datedValidation = validateDailyPlanProposal(datedPlan.proposal, { today });
+      if (!datedValidation.ok) {
+        return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: datedValidation.errors.slice(0, 5) });
+      }
+      console.log('[ai] route=/api/ai/daily-plan requestId=' + requestId + ' status=success source=document-dates actions=' + datedPlan.proposal.actions.length + ' latencyMs=' + (Date.now() - startMs));
+      return res.json({
+        ok: true,
+        proposal: canonicalizeAgentProposal(datedPlan.proposal),
+        meta: {
+          daysGenerated: datedPlan.matchedDates.length,
+          totalActions: datedPlan.proposal.actions.length,
+          estimatedMinutes: datedPlan.totalMinutes,
+          dateRange: [datedPlan.matchedDates[0], datedPlan.matchedDates[datedPlan.matchedDates.length - 1]],
+          hasPastDate: false,
+          source: 'document-dates',
+        },
+        latencyMs: Date.now() - startMs,
+      });
+    }
+
+    if (!AI_API_KEY) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
 
     // Existing tasks context (for deduplication)
     const existingCtx = existingTasks.length > 0
@@ -3357,8 +3383,6 @@ async function handleDocumentDailyPlan(req, res, overrides) {
   const requestId = req.aiRequestId;
   const startMs = Date.now();
   try {
-    if (!apiKey) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
-
     // Parse multipart upload (reuse existing parser)
     const parsed = await parseMultipart(req);
     const acceptedFiles = Array.isArray(parsed.files) ? parsed.files : [];
@@ -3379,6 +3403,55 @@ async function handleDocumentDailyPlan(req, res, overrides) {
     if (!fullText.trim()) {
       return res.status(422).json({ ok: false, error: 'ai-document-no-text' });
     }
+
+    const today = dateStringInTimeZone(now, timeZone);
+    const daysCount = 7;
+    const dates = [];
+    for (let i = 0; i < daysCount; i++) {
+      dates.push(addDaysToDateString(today, i));
+    }
+
+    // Prefer an exact, deterministic import when the PDF already contains a
+    // dated schedule. This avoids hallucination and provider schema failures.
+    const documentName = acceptedFiles[0] ? acceptedFiles[0].name : 'document';
+    const datedRoadmap = buildDatedDocumentRoadmap(fullText, documentName);
+    const datedPlan = buildDatedDocumentProposal(datedRoadmap, dates);
+    if (datedRoadmap && datedPlan && datedPlan.matchedDates.length >= Math.min(3, dates.length)) {
+      const datedValidation = validateDailyPlanProposal(datedPlan.proposal, { today });
+      if (!datedValidation.ok) {
+        return res.status(422).json({ ok: false, error: 'ai-daily-plan-invalid', details: datedValidation.errors.slice(0, 5) });
+      }
+
+      const fingerprintHash = crypto.createHash('sha256');
+      acceptedFiles.forEach((file) => {
+        fingerprintHash.update(file.name + ':' + file.size + '|');
+        fingerprintHash.update(file.buffer);
+      });
+      const fingerprint = fingerprintHash.digest('hex').slice(0, 16);
+
+      console.log('[ai] route=/api/ai/document-daily-plan requestId=' + requestId + ' status=success source=document-dates actions=' + datedPlan.proposal.actions.length + ' latencyMs=' + (Date.now() - startMs));
+      return res.json({
+        ok: true,
+        proposal: canonicalizeAgentProposal(datedPlan.proposal),
+        roadmap: datedRoadmap,
+        fingerprint,
+        documentName,
+        files: Array.isArray(batchContent.acceptedFiles) ? batchContent.acceptedFiles : [],
+        rejectedFiles: allRejectedFiles,
+        meta: {
+          daysGenerated: datedPlan.matchedDates.length,
+          totalActions: datedPlan.proposal.actions.length,
+          estimatedMinutes: datedPlan.totalMinutes,
+          dateRange: [datedPlan.matchedDates[0], datedPlan.matchedDates[datedPlan.matchedDates.length - 1]],
+          roadmapLatencyMs: 0,
+          planLatencyMs: 0,
+          source: 'document-dates',
+        },
+        latencyMs: Date.now() - startMs,
+      });
+    }
+
+    if (!apiKey) return res.status(503).json({ ok: false, error: 'ai-not-configured' });
 
     // Stage A: Extract roadmap from document
     const roadmapSystemPrompt = 'You are a document roadmap extractor. Read the provided document text and extract a compact structured roadmap.\n\nRules:\n- Extract ONLY information explicitly present in the document\n- Do NOT invent technologies, deadlines, or requirements\n- Use phases and weeks structure\n- Keep goals and deliverables concise\n- Always include totalWeeks (null if unknown), deliverables ([] if absent), and estimatedHours (null if unknown)\n- Return strict JSON only, no markdown';
@@ -3407,13 +3480,6 @@ async function handleDocumentDailyPlan(req, res, overrides) {
     console.log('[ai] route=/api/ai/document-daily-plan requestId=' + requestId + ' status=success stage=roadmap phases=' + roadmap.phases.length + ' latencyMs=' + roadmapResult.latencyMs);
 
     // Stage B: Generate daily plan from roadmap
-    const today = dateStringInTimeZone(now, timeZone);
-    const daysCount = 7;
-    const dates = [];
-    for (let i = 0; i < daysCount; i++) {
-      dates.push(addDaysToDateString(today, i));
-    }
-
     const roadmapStr = JSON.stringify(roadmap).slice(0, 8000);
     const dateRangeStr = dates.join(', ');
 
@@ -3489,7 +3555,6 @@ async function handleDocumentDailyPlan(req, res, overrides) {
     }
 
     // Build document fingerprint
-    const documentName = acceptedFiles[0] ? acceptedFiles[0].name : 'document';
     const fingerprintHash = crypto.createHash('sha256');
     acceptedFiles.forEach((file) => {
       fingerprintHash.update(file.name + ':' + file.size + '|');
