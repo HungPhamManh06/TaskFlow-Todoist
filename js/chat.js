@@ -1096,7 +1096,7 @@
     { key: 'fileChipQuiz', prompt: 'Tạo 10 câu hỏi ôn tập từ tài liệu' },
     { key: 'fileChipCreateTask', prompt: 'Tạo task từ tài liệu này', isAction: true },
     { key: 'fileChipExtractDeadline', prompt: 'Trích deadline từ tài liệu', isAction: true },
-    { key: 'fileChipPlan', prompt: 'Lập kế hoạch học từ tài liệu này', isAction: true },
+    { key: 'fileChipPlan', prompt: 'Lập kế hoạch học từ tài liệu này', isAction: true, intentKind: 'document-daily-plan' },
   ];
   var FILE_CHIPS_TEXT = [
     { key: 'fileChipSummary', prompt: 'Tóm tắt nội dung' },
@@ -1202,7 +1202,7 @@
       btn.addEventListener('click', function () {
         var input = _el('chatInput');
         if (input) input.value = c.prompt;
-        doChatSend();
+        doChatSend({ fileIntentKind: c.intentKind });
       });
       chipsEl.appendChild(btn);
     });
@@ -1347,6 +1347,7 @@
     var taskNouns = /(?:task|tasks|công\\s+việc|việc|nhiệm\\s+vụ|todo|to-do|checklist|action|action\\s+item|bước|việc\\s+cần\\s+làm)/i;
     var planNouns = /(?:kế\\s+hoạch|plan|roadmap|lịch|schedule|deadline|xếp\\s+lịch|lịch\\s+học|lịch\\s+trình)/i;
     var dayPattern = /(?:theo\\s+ngày|từng\\s+ngày|mỗi\\s+ngày|theo\\s+tuần|daily|weekly|each\\s+day|per\\s+day)/i;
+    var studyPlanPattern = /(?:kế\s+hoạch\s+học|lộ\s+trình\s+học|study\s+plan|learning\s+plan)/i;
     var flowVerbs = /(?:đưa\\s+(?:toàn\\s+bộ|tất\\+cả|vào)|đưa\\s+vào\\s+taskflow|vào\\s+taskflow|import\\s+to\\s+taskflow)/i;
 
     var hasCreateVerb = createVerbs.test(t);
@@ -1358,7 +1359,7 @@
     if (hasFlowVerb) {
       return { kind: 'import-plan', confidence: 'high', reason: 'import-to-taskflow' };
     }
-    if (hasDayPattern && (hasCreateVerb || hasPlanNoun)) {
+    if ((hasDayPattern || studyPlanPattern.test(t)) && (hasCreateVerb || hasPlanNoun)) {
       return { kind: 'document-daily-plan', confidence: 'high', reason: 'daily-plan-from-document' };
     }
     if (hasCreateVerb && hasDayPattern) {
@@ -1384,7 +1385,14 @@
     return intent.kind !== 'read';
   }
 
-  async function _sendWithFile(text) {
+  function _resolveFileIntent(text, explicitKind) {
+    if (explicitKind === 'document-daily-plan') {
+      return { kind: 'document-daily-plan', confidence: 'high', reason: 'explicit-file-chip' };
+    }
+    return classifyFileIntent(text);
+  }
+
+  async function _sendWithFile(text, explicitIntentKind) {
     if (_inFlight || !_attachedFiles.length) return;
     var requestFiles = _attachedFiles.slice();
     var requestQueueVersion = _attachmentQueueVersion;
@@ -1409,7 +1417,7 @@
       return;
     }
 
-    var fileIntent = classifyFileIntent(text);
+    var fileIntent = _resolveFileIntent(text, explicitIntentKind);
     var isFileDailyPlan = fileIntent.kind === 'document-daily-plan';
     var isFileAgent = fileIntent.kind !== 'read' && !isFileDailyPlan;
     var endpoint = isFileAgent ? '/api/ai/file-agent' : '/api/ai/file';
@@ -1573,7 +1581,7 @@
 
   /* Override doChatSend to check for attached file */
   var _origDoChatSend = doChatSend;
-  doChatSend = function () {
+  doChatSend = function (options) {
     // If a request is active, this becomes the Stop action
     if (_inFlight && _activeRequest) {
       stopActiveResponse();
@@ -1587,7 +1595,8 @@
     _resizeComposer(input);
     _syncComposerState();
     if (_attachedFiles.length) {
-      _sendWithFile(text || _t('fileChipSummary'));
+      var explicitIntentKind = options && options.fileIntentKind;
+      _sendWithFile(text || _t('fileChipSummary'), explicitIntentKind);
     } else {
       _doSend(text);
     }
@@ -1754,6 +1763,7 @@
     closeHistory: closeHistory,
     stopActiveResponse: stopActiveResponse,
     classifyFileIntent: classifyFileIntent,
+    resolveFileIntent: _resolveFileIntent,
     _doSend: _doSend,
     _hasToken: _hasToken,
     _isOnline: _isOnline,

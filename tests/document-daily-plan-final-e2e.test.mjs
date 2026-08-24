@@ -797,6 +797,26 @@ describe('E2E FINAL: Account A/B/A roadmap isolation', () => {
    6. CHAT.JS ORCHESTRATION DEDUP
    =========================================================== */
 describe('E2E FINAL: Chat.js orchestration dedup', () => {
+  it('the document plan chip explicitly selects the daily planner route', () => {
+    const chipsStart = chatSource.indexOf('var FILE_CHIPS_DOC');
+    const chipsEnd = chatSource.indexOf('var FILE_CHIPS_TEXT', chipsStart);
+    const chipsBody = chatSource.slice(chipsStart, chipsEnd);
+    assert.ok(chipsBody.includes("key: 'fileChipPlan'"), 'document plan chip exists');
+    assert.ok(chipsBody.includes("intentKind: 'document-daily-plan'"), 'chip carries an explicit daily-plan intent');
+
+    const renderStart = chatSource.indexOf('function _renderFileChips');
+    const renderEnd = chatSource.indexOf('function _setFileLoading', renderStart);
+    const renderBody = chatSource.slice(renderStart, renderEnd);
+    assert.ok(renderBody.includes('doChatSend({ fileIntentKind: c.intentKind })'), 'chip forwards its explicit intent');
+
+    const sendStart = chatSource.indexOf('async function _sendWithFile');
+    const sendEnd = chatSource.indexOf('/* Override doChatSend', sendStart);
+    const sendBody = chatSource.slice(sendStart, sendEnd);
+    assert.ok(sendBody.includes('_resolveFileIntent(text, explicitIntentKind)'), 'file send resolves the explicit intent');
+    assert.ok(sendBody.includes("fileIntent.kind === 'document-daily-plan'"), 'resolved intent selects the daily planner');
+    assert.ok(sendBody.includes('dailyPlanner.runInitialDocumentPlan'), 'daily planner handles the upload');
+  });
+
   it('chat.js delegates to module runInitialDocumentPlan for initial upload', () => {
     const sendStart = chatSource.indexOf('async function _sendWithFile');
     const sendEnd = chatSource.indexOf('/* Override doChatSend', sendStart);

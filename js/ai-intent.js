@@ -224,7 +224,8 @@
 
     // P11: Document Daily Plan — roadmap-like requests with daily planning intent
     var DAILY_PLAN_RE = /(?:tạo|lập|chia|làm|generate|create|make|build)(?:\s+[\p{L}\p{N}]+){0,6}(?:\s+(?:từng\s+ngày|hằng\s+ngày|mỗi\s+ngày|daily|per\s+day|each\s+day|every\s+day|tuần|week|7\s+ngày|14\s+ngày|7\s+days|14\s+days|tuần\s+tiếp|next\s+week))/iu;
-    if (DAILY_PLAN_RE.test(s)) return { kind: 'document-daily-plan', confidence: 'high', reason: 'file-daily-plan-intent' };
+    var STUDY_PLAN_RE = /(?:lập|tạo|lên|generate|create|make|build)(?:\s+[\p{L}\p{N}]+){0,4}\s+(?:kế\s+hoạch\s+học|lộ\s+trình\s+học|study\s+plan|learning\s+plan)/iu;
+    if (DAILY_PLAN_RE.test(s) || STUDY_PLAN_RE.test(s)) return { kind: 'document-daily-plan', confidence: 'high', reason: 'file-daily-plan-intent' };
 
     if (hasActionVerb && hasFileContext) {
       return { kind: 'agent', confidence: 'high', reason: 'file-action-with-context' };

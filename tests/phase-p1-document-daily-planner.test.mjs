@@ -62,6 +62,10 @@ describe('P1 Document Daily Planner: intent detection', () => {
     const r = aiIntent.classifyFileIntent('Lập kế hoạch theo từng ngày', true);
     assert.equal(r.kind, 'document-daily-plan');
   });
+  it('recognizes the exact document plan chip prompt', () => {
+    const r = aiIntent.classifyFileIntent('Lập kế hoạch học từ tài liệu này', true);
+    assert.equal(r.kind, 'document-daily-plan');
+  });
   it('recognizes variant 2', () => {
     const r = aiIntent.classifyFileIntent('chia tài liệu thành công việc mỗi ngày', true);
     assert.equal(r.kind, 'document-daily-plan');
