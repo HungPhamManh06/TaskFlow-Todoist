@@ -86,25 +86,30 @@ function inferDuration(text) {
   const s = String(text || '').toLowerCase();
   let totalMinutes = 0;
 
-  // Hours: "2 giờ", "2 hours", "1 hour"
-  const hoursMatch = s.match(/(\d+(?:\.\d+)?)\s*(?:giờ|hours?|hrs?|h(?!\d))\b/);
-  if (hoursMatch) totalMinutes += Math.round(parseFloat(hoursMatch[1]) * 60);
-
-  // Compact hours: "1h30", "1h 30"
+  // 1) Parse compact hours FIRST: "1h30", "1h 30", "2h15"
   const hCompact = s.match(/(\d+)\s*h\s*(\d{1,2})\b/);
-  if (hCompact && !hoursMatch) totalMinutes += parseInt(hCompact[1]) * 60 + parseInt(hCompact[2]);
+  if (hCompact) {
+    totalMinutes += parseInt(hCompact[1]) * 60 + parseInt(hCompact[2]);
+  }
 
-  // Minutes: "90 phút", "45 min", "30 minutes"
+  // 2) Hours: "2 giờ", "2 hours", "1 hour" — but NOT if compact already matched
+  if (!hCompact) {
+    const hoursMatch = s.match(/(\d+(?:\.\d+)?)\s*(?:giờ|hours?|hrs?)\b/);
+    if (hoursMatch) totalMinutes += Math.round(parseFloat(hoursMatch[1]) * 60);
+  }
+
+  // 3) Minutes: "90 phút", "45 min", "30 minutes"
   const minMatch = s.match(/(\d+(?:\.\d+)?)\s*(?:phút|min(?:utes?)?)\b/);
   if (minMatch) totalMinutes += Math.round(parseFloat(minMatch[1]));
 
-  // Plain number fallback: "90" assumed minutes
+  // 4) Plain number fallback: "90" assumed minutes
   if (totalMinutes === 0) {
     const plainNum = s.match(/^(\d+(?:\.\d+)?)\s*$/);
     if (plainNum) totalMinutes = Math.round(parseFloat(plainNum[1]));
   }
 
   if (totalMinutes <= 0) return DEFAULT_DURATION_MINUTES;
+  // Clamp to TaskFlow limits (20-120 minutes)
   return Math.min(Math.max(totalMinutes, 20), 120);
 }
 

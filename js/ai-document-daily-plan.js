@@ -389,8 +389,11 @@
     }
 
     // Store pending cursor — will only be committed after Apply succeeds.
-    // Generate a proposal-scoped ID so unrelated proposals don't affect cursor.
-    var proposalId = 'docplan-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    // Generate proposal ID FIRST and set on proposal for Review state binding.
+    var proposalId = 'proposal_doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    if (json.proposal && typeof json.proposal === 'object') {
+      json.proposal.id = proposalId;
+    }
     _pendingCursor = {
       proposalId: proposalId,
       source: 'document-daily-plan',
@@ -419,9 +422,10 @@
     if (typeof TaskFlowAIAgentRuntime === 'undefined' || !TaskFlowAIAgentRuntime.handleExternalProposal) {
       return { ok: false, code: 'runtime-not-loaded' };
     }
-    // Ensure proposal has an ID for cursor transaction binding
+    // Only create ID if proposal doesn't already have one
+    // (e.g. for initial PDF flow, ID was set in _executeWindow)
     if (!proposal.id) {
-      proposal.id = 'proposal_doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      proposal.id = 'proposal_doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     }
     return TaskFlowAIAgentRuntime.handleExternalProposal(proposal, {
       source: opts.source || 'document-daily-plan',
