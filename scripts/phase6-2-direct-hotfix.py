@@ -1,20 +1,41 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import json
+import os
 import re
+import sys
 
-# This helper is copied to /tmp by the materializer workflow.  Resolve the
-# repository from the workflow working directory instead of __file__, which
-# would otherwise point at /tmp and incorrectly make ROOT '/'.
-ROOT = Path.cwd()
+# This helper may be copied to /tmp by the materializer workflow, so __file__
+# cannot be trusted to locate the repository. Resolution order (first hit wins):
+#   1. --repo-root=<path> CLI argument
+#   2. GITHUB_WORKSPACE environment variable (set by GitHub Actions)
+#   3. current working directory (documented invocation contract)
+_root_arg = next(
+    (a.split('=', 1)[1] for a in sys.argv[1:] if a.startswith('--repo-root=')),
+    None,
+)
+ROOT = Path(
+    _root_arg or os.environ.get('GITHUB_WORKSPACE') or Path.cwd()
+).resolve()
+
+
+def _read_lf(path):
+    """Read UTF-8 and normalize every newline variant (CRLF, lone CR) to LF.
+    Deterministic across OSes. Plain text-mode reads already collapse CRLF on    input, but stray lone-CR artifacts inside committed blobs must be folded    too, and write-back below must never re-translate to os.linesep — Windows    would emit CRLF and silently break byte-sensitive source-structure gates.
+    """
+    return (ROOT / path).read_bytes().decode('utf-8').replace('\r\n', '\n').replace('\r', '\n')
+
+
+def _write_lf(path, text):
+    (ROOT / path).write_bytes(text.encode('utf-8'))
 
 
 def read(path):
-    return (ROOT / path).read_text(encoding='utf-8')
+    return _read_lf(path)
 
 
 def write(path, text):
-    (ROOT / path).write_text(text, encoding='utf-8')
+    _write_lf(path, text)
 
 
 def replace_once(path, old, new):
@@ -119,7 +140,7 @@ for name in ['generate_daily_plan', 'propose_create_task', 'propose_complete_tas
     c['outputSchema']['required'] = ['ok']
     c['outputSchema']['additionalProperties'] = False
 
-contracts_path.write_text(json.dumps(contracts, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+contracts_path.write_bytes((json.dumps(contracts, ensure_ascii=False, indent=2) + '\n').encode('utf-8'))
 
 # 2) Server contract module: remove dead duplicate schemas and make nullable
 # unions continue through format/range validation.
@@ -454,9 +475,10 @@ if asset not in sw:
     sw = sw.replace(marker, asset + marker, 1)
 write('sw.js', sw)
 for test_path in (ROOT / 'tests').glob('*.test.mjs'):
-    text = test_path.read_text(encoding='utf-8')
-    if 'taskflow-v292' in text:
-        test_path.write_text(text.replace('taskflow-v292', 'taskflow-v293'), encoding='utf-8')
+    raw = test_path.read_bytes()
+    if b'taskflow-v292' in raw:
+        # Byte-level swap: preserves each file's native line endings exactly.
+        test_path.write_bytes(raw.replace(b'taskflow-v292', b'taskflow-v293'))
 
 # 9) Make contract generation a real CI gate.
 ci = read('.github/workflows/ci.yml')
@@ -470,7 +492,7 @@ if 'Canonical AI tool contracts up to date' not in ci:
     write('.github/workflows/ci.yml', ci.replace(marker, check_step + marker, 1))
 
 # 10) Executable regression tests for the exact production regressions.
-(ROOT / 'tests' / 'phase6-2-hotfix-regressions.test.mjs').write_text(r'''import test from 'node:test';
+(ROOT / 'tests' / 'phase6-2-hotfix-regressions.test.mjs').write_bytes((r'''import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -548,6 +570,6 @@ test('CI contract gate and generated browser boot asset are present', () => {
   const sw = readFileSync(join(ROOT,'sw.js'),'utf8');
   assert.match(ci,/generate-ai-tool-contracts\.mjs --check/); assert.match(html,/ai-tool-contracts\.generated\.min\.js\?v=1/); assert.match(sw,/ai-tool-contracts\.generated\.min\.js/);
 });
-''', encoding='utf-8')
+''').encode('utf-8'))
 
 print('Phase 6.2 direct hotfix patches applied.')
