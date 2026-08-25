@@ -91,4 +91,11 @@ jobs:
           git add -A
           git commit -m 'fix(ai): close Phase 6.2 regressions on main'
           test "$(git rev-parse HEAD^)" = "$GITHUB_SHA"
-          git push origin "HEAD:refs/heads/$MATERIALIZED_BRANCH"
+          # The staging ref is ephemeral: it is fully regenerated from a
+          # freshly verified tree on every run, so overwrite any previous
+          # incarnation. A plain push fails non-fast-forward (exit 1) on every
+          # re-run once the branch already exists.
+          git push --force origin "HEAD:refs/heads/$MATERIALIZED_BRANCH" || {
+            echo "::error::push to $MATERIALIZED_BRANCH rejected — verify branch rules/protection permit github-actions[bot] to create and update this ref (contents: write)"
+            exit 1
+          }
