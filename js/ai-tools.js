@@ -48,24 +48,41 @@
   /* ---- Tool Registry ---- */
   var _tools = {};
 
+  function _canonicalContract(name) {
+    try {
+      var contracts = null;
+      if (typeof window !== 'undefined' && Array.isArray(window.TaskFlowAIToolContracts)) contracts = window.TaskFlowAIToolContracts;
+      else if (typeof globalThis !== 'undefined' && Array.isArray(globalThis.TaskFlowAIToolContracts)) contracts = globalThis.TaskFlowAIToolContracts;
+      if (!contracts) return null;
+      for (var i = 0; i < contracts.length; i++) {
+        if (contracts[i] && contracts[i].name === name) return contracts[i];
+      }
+    } catch (e) { /* fallback to implementation metadata */ }
+    return null;
+  }
+
   function register(tool) {
     if (!tool || typeof tool !== 'object') throw new Error('Tool must be an object');
     if (!tool.name || typeof tool.name !== 'string') throw new Error('Tool must have a name');
     if (_tools[tool.name]) throw new Error('Tool already registered: ' + tool.name);
-    if (!tool.description || typeof tool.description !== 'string') throw new Error('Tool must have a description');
-    if (!tool.category || typeof tool.category !== 'string') throw new Error('Tool must have a category');
-    if (!tool.safety || typeof tool.safety !== 'string') throw new Error('Tool must have a safety level');
     if (typeof tool.execute !== 'function') throw new Error('Tool must have an execute function');
-
-    _tools[tool.name] = {
-      name: tool.name,
-      description: tool.description,
-      category: tool.category,
-      safety: tool.safety,
-      mutating: tool.safety !== SAFETY_READ,
-      inputSchema: tool.inputSchema || null,
-      requiredContext: tool.requiredContext || [],
-      execute: tool.execute,
+    var canonical = _canonicalContract(tool.name);
+    var effective = canonical ? Object.assign({}, canonical, { execute: tool.execute, requiredContext: tool.requiredContext || [] }) : tool;
+    if (!effective.description || typeof effective.description !== 'string') throw new Error('Tool must have a description');
+    if (!effective.category || typeof effective.category !== 'string') throw new Error('Tool must have a category');
+    if (!effective.safety || typeof effective.safety !== 'string') throw new Error('Tool must have a safety level');
+    _tools[effective.name] = {
+      name: effective.name,
+      description: effective.description,
+      category: effective.category,
+      safety: effective.safety,
+      mutating: effective.safety !== SAFETY_READ,
+      executionLocation: effective.executionLocation || 'client',
+      returnsProposal: !!effective.returnsProposal,
+      inputSchema: effective.inputSchema || null,
+      outputSchema: effective.outputSchema || null,
+      requiredContext: effective.requiredContext || [],
+      execute: effective.execute,
     };
   }
 
@@ -237,23 +254,14 @@
         allTasks = allTasks.filter(function (t) {
           if (t.done) return false;
           if (t.deadline === today) return true;
-          // Derive actual date from planner grid
-          if (!t.deadline && t.day && typeof t.day === 'number' && t.week) {
-            var gridDate = _gridDate(t.week, t.day);
-            return gridDate === today;
-          }
-          return false;
+          return t.scheduledDate === today;
         });
       } else if (filter === 'upcoming') {
         allTasks = allTasks.filter(function (t) {
           if (t.done) return false;
+          if (t.deadline && t.deadline < today) return false;
           if (t.deadline && t.deadline > today) return true;
-          // Include grid-scheduled future tasks
-          if (!t.deadline && t.day && typeof t.day === 'number' && t.week) {
-            var gDate = _gridDate(t.week, t.day);
-            if (gDate && gDate > today) return true;
-          }
-          return false;
+          return !!(t.scheduledDate && t.scheduledDate > today);
         });
       } else if (filter === 'overdue') {
         allTasks = allTasks.filter(function (t) {
@@ -337,10 +345,7 @@
     safety: SAFETY_READ,
     inputSchema: {
       type: 'object',
-      properties: {
-        startDate: { type: 'string', format: 'date' },
-        daysCount: { type: 'number', minimum: 1, maximum: 14 },
-      },
+      properties: { startDate: { type: 'string', format: 'date' }, daysCount: { type: 'number', minimum: 1, maximum: 14 } },
       additionalProperties: false,
     },
     requiredContext: [],
@@ -348,41 +353,46 @@
       var startDate = (args && args.startDate) || _localTodayIso();
       var daysCount = (args && typeof args.daysCount === 'number') ? args.daysCount : 7;
       var busy = [];
-
+      var rangeDates = [];
+      var rangeDateSet = Object.create(null);
+      for (var dayOffset = 0; dayOffset < daysCount; dayOffset++) {
+        var rangeDt = new Date(startDate + 'T00:00:00');
+        rangeDt.setDate(rangeDt.getDate() + dayOffset);
+        var rangeDs = rangeDt.getFullYear() + '-' + String(rangeDt.getMonth() + 1).padStart(2, '0') + '-' + String(rangeDt.getDate()).padStart(2, '0');
+        rangeDates.push(rangeDs); rangeDateSet[rangeDs] = true;
+      }
       try {
         if (window.TaskFlowGCal && window.TaskFlowGCal.loadCache && window.TaskFlowGCal.eventsForDate) {
           var cache = window.TaskFlowGCal.loadCache();
           var events = cache && Array.isArray(cache.events) ? cache.events : [];
-          for (var d = 0; d < daysCount; d++) {
-            var dt = new Date(startDate + 'T00:00:00');
-            dt.setDate(dt.getDate() + d);
-            var ds = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+          rangeDates.forEach(function (ds) {
             (window.TaskFlowGCal.eventsForDate(events, ds) || []).forEach(function (e) {
-              busy.push({ date: ds, startMs: e.startMs, endMs: e.endMs, title: e.title });
+              if (!e || typeof e.startMs !== 'number' || typeof e.endMs !== 'number' || e.endMs <= e.startMs) return;
+              busy.push({ date: ds, startMs: e.startMs, endMs: e.endMs, source: 'gcal' });
             });
-          }
+          });
         }
       } catch (e) { /* offline */ }
-
-      // Normalize TaskFlow timeblocks into busy entries
+      function timeBlockMs(date, hhmm) {
+        if (typeof date !== 'string' || typeof hhmm !== 'string' || !/^\d{2}:\d{2}$/.test(hhmm)) return null;
+        var dt = new Date(date + 'T' + hhmm + ':00');
+        var ms = dt.getTime();
+        return Number.isFinite(ms) ? ms : null;
+      }
       try {
-        if (typeof loadTimeBlocksStore === 'function') {
-          var tbStore = loadTimeBlocksStore();
-          if (tbStore && typeof tbStore === 'object') {
-            // timeblocks keyed by date: { 'YYYY-MM-DD': [{ startMs, endMs, ... }] }
-            Object.keys(tbStore).forEach(function (dateKey) {
-              if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
-              var entries = Array.isArray(tbStore[dateKey]) ? tbStore[dateKey] : [];
-              entries.forEach(function (tb) {
-                if (!tb) return;
-                busy.push({ date: dateKey, startMs: tb.startMs || 0, endMs: tb.endMs || 0, source: 'taskflow' });
-              });
-            });
-          }
-        }
+        var tbStore = null;
+        if (window.TaskFlowTimeBlocks && typeof window.TaskFlowTimeBlocks.loadTimeBlocks === 'function') tbStore = window.TaskFlowTimeBlocks.loadTimeBlocks();
+        else if (typeof loadTimeBlocksStore === 'function') tbStore = loadTimeBlocksStore();
+        var blocks = tbStore && Array.isArray(tbStore.blocks) ? tbStore.blocks : [];
+        blocks.forEach(function (tb) {
+          if (!tb || tb.status === 'cancelled' || !rangeDateSet[tb.date]) return;
+          var startMs = timeBlockMs(tb.date, tb.start); var endMs = timeBlockMs(tb.date, tb.end);
+          if (startMs === null || endMs === null || endMs <= startMs) return;
+          busy.push({ date: tb.date, startMs: startMs, endMs: endMs, source: 'taskflow' });
+        });
       } catch (e) { /* */ }
-
-      return { busy: busy, startDate: startDate, daysCount: daysCount };
+      busy.sort(function (a, b) { return a.startMs - b.startMs; });
+      return { busy: busy.slice(0, 100), startDate: startDate, daysCount: daysCount };
     },
   });
 

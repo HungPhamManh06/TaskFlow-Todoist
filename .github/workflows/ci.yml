@@ -28,6 +28,9 @@ jobs:
           for f in js/*.min.js; do node --check "$f"; done
           cd server && node --check index.js && node --check auth.js && node --check sync.js && node --check db.js
 
+      - name: Canonical AI tool contracts up to date
+        run: node scripts/generate-ai-tool-contracts.mjs --check
+
       - name: Minified assets up to date (P1.2 opt#1)
         run: |
           npx --yes terser@5 --version >/dev/null 2>&1

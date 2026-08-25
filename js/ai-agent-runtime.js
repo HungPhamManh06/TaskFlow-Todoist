@@ -1749,14 +1749,14 @@
 
       // Capture proposalId AND source BEFORE clearing review state
       const _cursorProposalId = _reviewState && _reviewState.proposalId ? _reviewState.proposalId : null;
-      const _cursorSource = _reviewState && _reviewState.source ? _reviewState.source : null;
+      const _cursorSource = _reviewState && (_reviewState._source || _reviewState.source) ? (_reviewState._source || _reviewState.source) : null;
       _clearReviewState();
       if (card.parentNode) card.parentNode.removeChild(card);
       // Commit pending document-daily-plan cursor ONLY on full success
       try {
         if (_cursorProposalId && window.TaskFlowDocumentDailyPlan && typeof window.TaskFlowDocumentDailyPlan.commitPendingCursor === 'function') {
           var _isDocumentProposal = _cursorSource === 'document-daily-plan' || (typeof _cursorProposalId === 'string' && _cursorProposalId.indexOf('proposal_doc_') === 0);
-          var _allSucceeded = failed.length === 0 && skipped.length === 0;
+          var _allSucceeded = failed.length === 0 && skipped.length === 0 && applied.length === selectedProposal.actions.length;
           if (_allSucceeded || !_isDocumentProposal) {
             window.TaskFlowDocumentDailyPlan.commitPendingCursor(_cursorProposalId);
           }

@@ -71,7 +71,8 @@
             "type": "object",
             "properties": {
               "uid": {
-                "type": "string"
+                "type": "string",
+                "maxLength": 128
               },
               "text": {
                 "type": "string",
@@ -81,20 +82,34 @@
                 "type": "boolean"
               },
               "deadline": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
               },
               "scheduledDate": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
               },
               "duration": {
-                "type": "number"
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 1440
               }
             },
             "additionalProperties": false
           }
         },
         "total": {
-          "type": "number"
+          "type": "number",
+          "minimum": 0
         }
       },
       "required": [
@@ -121,7 +136,56 @@
       "properties": {
         "projects": {
           "type": "array",
-          "maxItems": 20
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 128
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 80
+              },
+              "milestones": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "status",
+              "milestones"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -222,15 +286,52 @@
       "properties": {
         "busy": {
           "type": "array",
-          "maxItems": 100
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date"
+              },
+              "startMs": {
+                "type": "number"
+              },
+              "endMs": {
+                "type": "number"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "gcal",
+                  "taskflow"
+                ]
+              }
+            },
+            "required": [
+              "date",
+              "startMs",
+              "endMs",
+              "source"
+            ],
+            "additionalProperties": false
+          }
         },
         "startDate": {
-          "type": "string"
+          "type": "string",
+          "format": "date"
         },
         "daysCount": {
-          "type": "number"
+          "type": "number",
+          "minimum": 1,
+          "maximum": 14
         }
       },
+      "required": [
+        "busy",
+        "startDate",
+        "daysCount"
+      ],
       "additionalProperties": false
     }
   },
@@ -266,7 +367,21 @@
           "type": "boolean"
         },
         "proposal": {},
-        "meta": {}
+        "meta": {},
+        "code": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "status": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "_pendingCursor": {}
       },
       "required": [
         "ok"
@@ -319,11 +434,23 @@
         "ok": {
           "type": "boolean"
         },
-        "proposal": {}
+        "proposal": {},
+        "code": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "status": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 400
+        }
       },
       "required": [
-        "ok",
-        "proposal"
+        "ok"
       ],
       "additionalProperties": false
     }
@@ -354,11 +481,23 @@
         "ok": {
           "type": "boolean"
         },
-        "proposal": {}
+        "proposal": {},
+        "code": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "status": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 400
+        }
       },
       "required": [
-        "ok",
-        "proposal"
+        "ok"
       ],
       "additionalProperties": false
     }
@@ -394,11 +533,23 @@
         "ok": {
           "type": "boolean"
         },
-        "proposal": {}
+        "proposal": {},
+        "code": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "status": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 400
+        }
       },
       "required": [
-        "ok",
-        "proposal"
+        "ok"
       ],
       "additionalProperties": false
     }
