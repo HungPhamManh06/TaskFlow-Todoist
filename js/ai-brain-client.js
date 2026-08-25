@@ -217,13 +217,12 @@
     var tasks = Array.isArray(result.tasks) ? result.tasks : [];
     var sanitized = tasks.slice(0, 60).map(function (t) {
       return {
-        uid: t.uid || '',
+        uid: typeof t.uid === 'string' ? t.uid.slice(0, 128) : '',
         text: typeof t.text === 'string' ? t.text.slice(0, 300) : '',
         done: !!t.done,
-        deadline: t.deadline || null,
-        duration: typeof t.duration === 'number' ? t.duration : null,
-        priority: typeof t.priority === 'number' ? t.priority : 0,
-        projectId: t.projectId || null,
+        deadline: typeof t.deadline === 'string' ? t.deadline : null,
+        scheduledDate: typeof t.scheduledDate === 'string' ? t.scheduledDate : null,
+        duration: typeof t.duration === 'number' && Number.isFinite(t.duration) ? t.duration : null,
       };
     });
     return { tasks: sanitized, total: typeof result.total === 'number' ? result.total : sanitized.length };
@@ -274,13 +273,18 @@
   }
 
   function _sanitizeFreeTime(result) {
-    var busy = Array.isArray(result.busy) ? result.busy.slice(0, 50) : [];
+    var busy = Array.isArray(result.busy) ? result.busy.slice(0, 100) : [];
     return {
       busy: busy.map(function (b) {
-        return { date: b.date, startMs: b.startMs, endMs: b.endMs };
+        return {
+          date: typeof b.date === 'string' ? b.date : '',
+          startMs: typeof b.startMs === 'number' ? b.startMs : 0,
+          endMs: typeof b.endMs === 'number' ? b.endMs : 0,
+          source: b.source === 'taskflow' ? 'taskflow' : 'gcal',
+        };
       }),
-      startDate: result.startDate,
-      daysCount: result.daysCount,
+      startDate: typeof result.startDate === 'string' ? result.startDate : '',
+      daysCount: typeof result.daysCount === 'number' ? result.daysCount : 0,
     };
   }
 

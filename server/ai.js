@@ -1590,7 +1590,8 @@ function canonicalizeAgentProposal(proposal) {
       if (action.type === 'create_task') {
         // priority: null → false (null = normal priority in strict wide-union)
         if (args.priority === null || args.priority === undefined) args.priority = false;
-        // all-null changes → null (changes is unused for create_task)        if (args.changes && typeof args.changes === 'object' && !Array.isArray(args.changes)) {
+        // all-null changes → null (changes is unused for create_task)
+        if (args.changes && typeof args.changes === 'object' && !Array.isArray(args.changes)) {
           const chKeys = Object.keys(args.changes);
           if (chKeys.length === 0 || chKeys.every(function (k) { return args.changes[k] == null; })) {
             args.changes = null;
@@ -3750,9 +3751,15 @@ function _sanitizeToolResultForBrain(toolName, result) {
       daysCount: typeof result.daysCount === 'number' ? result.daysCount : 0,
     };
   }
-  if (toolName === 'generate_daily_plan') {
-    // Only pass through ok, proposal (if present), meta — strip internal fields
-    return { ok: !!result.ok, proposal: result.proposal || null, meta: result.meta || null };
+  const toolContract = getContract(toolName);
+  if (toolContract && toolContract.returnsProposal) {
+    const out = { ok: !!result.ok };
+    if (result.proposal && typeof result.proposal === 'object') out.proposal = result.proposal;
+    if (result.meta && typeof result.meta === 'object') out.meta = result.meta;
+    if (typeof result.code === 'string') out.code = result.code.slice(0, 80);
+    if (typeof result.status === 'number') out.status = result.status;
+    if (typeof result.message === 'string') out.message = result.message.slice(0, 400);
+    return out;
   }
   // Unknown tool: return minimal safe copy
   return { ok: !!result.ok };

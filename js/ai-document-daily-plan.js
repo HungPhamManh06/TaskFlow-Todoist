@@ -45,7 +45,7 @@
       var changed = false;
       parsed.roadmaps = parsed.roadmaps.map(function (r) {
         var migrated = _migrateRecord(r);
-        if (migrated !== r || (migrated && !migrated.baseDate)) changed = true;
+        if (migrated !== r) changed = true;
         return migrated;
       });
       parsed.version = 2;
@@ -71,33 +71,29 @@
   /* ---- Migration: v1 records → v2 with baseDate + appliedCursor ---- */
   function _migrateRecord(record) {
     if (!record || typeof record !== 'object') return record;
-    // Already v2 if baseDate exists — idempotent
-    if (record.baseDate) return record;
-    var cursor = record.cursor || {};
-    var nextWk = cursor.nextWeek || 0;
-    var legacyWindowSize = cursor.lastDaysCount || 7;
-    // Derive baseDate: lastStartDate - (nextWeek - 1) * windowSize
-    // because lastStartDate is where the last completed window started
-    var lastStart = cursor.lastStartDate || null;
-    if (lastStart && nextWk > 0) {
-      // baseDate = first window start = lastStart - (nextWeek-1) * windowSize
-      record.baseDate = _addDays(lastStart, -((nextWk - 1) * legacyWindowSize));
-    } else if (lastStart) {
-      record.baseDate = lastStart;
-    } else if (record.createdAt) {
-      record.baseDate = new Date(record.createdAt).toISOString().slice(0, 10);
-    } else {
-      record.baseDate = _today();
-    }
-    // Compute cumulative days from baseDate to lastStartDate
+    var cursor = record.cursor && typeof record.cursor === 'object' ? record.cursor : {};
+    if (record.baseDate && cursor.lastAppliedDaysCount !== undefined && cursor.lastAppliedStartDate !== undefined) return record;
+    var migrated = Object.assign({}, record);
+    var nextWk = Number.isInteger(cursor.nextWeek) && cursor.nextWeek >= 0 ? cursor.nextWeek : 0;
+    var parsedWindow = Number(cursor.lastDaysCount);
+    var legacyWindowSize = Number.isFinite(parsedWindow) && parsedWindow > 0 ? parsedWindow : 7;
+    var lastStart = typeof cursor.lastStartDate === 'string' && cursor.lastStartDate ? cursor.lastStartDate : null;
+    var baseDate;
+    if (lastStart && nextWk > 0) baseDate = _addDays(lastStart, -((nextWk - 1) * legacyWindowSize));
+    else if (lastStart) baseDate = lastStart;
+    else if (record.createdAt) {
+      var created = new Date(record.createdAt);
+      baseDate = Number.isNaN(created.getTime()) ? _today() : created.toISOString().slice(0, 10);
+    } else baseDate = _today();
     var cumulativeDays = nextWk * legacyWindowSize;
-    record.cursor = {
+    migrated.baseDate = baseDate;
+    migrated.cursor = {
       nextWeek: nextWk,
-      lastAppliedStartDate: lastStart || record.baseDate,
+      lastAppliedStartDate: nextWk > 0 ? (lastStart || _addDays(baseDate, Math.max(0, cumulativeDays - legacyWindowSize))) : null,
       lastAppliedDaysCount: cumulativeDays,
     };
-    record.updatedAt = Date.now();
-    return record;
+    migrated.updatedAt = record.updatedAt || Date.now();
+    return migrated;
   }
 
   function saveRoadmap(record) {
@@ -342,23 +338,19 @@
 
     // Create pending cursor for initial proposal — Apply must advance cursor.
     var initialDaysCount = (json.meta && typeof json.meta.daysGenerated === 'number') ? json.meta.daysGenerated : 7;
-    var proposalId = 'proposal_doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    if (json.proposal && typeof json.proposal === 'object') {
+    if (roadmapId && json.proposal && typeof json.proposal === 'object') {
+      var proposalId = (typeof json.proposal.id === 'string' && json.proposal.id) ? json.proposal.id : 'proposal_doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
       json.proposal.id = proposalId;
+      _pendingCursor = {
+        proposalId: proposalId, source: 'document-daily-plan', roadmapId: roadmapId,
+        fromCursor: { nextWeek: 0, lastAppliedStartDate: null, lastAppliedDaysCount: 0 },
+        toCursor: { nextWeek: 1, lastAppliedStartDate: baseDate, lastAppliedDaysCount: initialDaysCount },
+        createdAt: Date.now(),
+      };
+      _pendingCursorProposalId = proposalId;
+    } else {
+      _pendingCursor = null; _pendingCursorProposalId = null;
     }
-    _pendingCursor = {
-      proposalId: proposalId,
-      source: 'document-daily-plan',
-      roadmapId: roadmapId,
-      fromCursor: { nextWeek: 0, lastAppliedStartDate: null, lastAppliedDaysCount: 0 },
-      toCursor: {
-        nextWeek: 1,
-        lastAppliedStartDate: baseDate,
-        lastAppliedDaysCount: initialDaysCount,
-      },
-      createdAt: Date.now(),
-    };
-    _pendingCursorProposalId = proposalId;
 
     return {
       ok: true,

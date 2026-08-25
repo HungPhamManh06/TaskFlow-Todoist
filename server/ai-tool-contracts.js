@@ -9,259 +9,14 @@ const fs = require('fs');
 const path = require('path');
 const TOOL_CONTRACTS = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'shared', 'ai-tool-contracts.json'), 'utf8'));
 
-// Serve as reference (original inline definitions removed, loaded from shared/ai-tool-contracts.json)
-const _unused = [
-  // ── READ TOOLS ──────────────────────────────────────
-  {
-    name: 'get_today',
-    description: 'Get today\'s date in YYYY-MM-DD format.',
-    category: 'read',
-    safety: 'read',
-    executionLocation: 'server',
-    returnsProposal: false,
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: { today: { type: 'string' } },
-      required: ['today'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'get_tasks',
-    description: 'Get current tasks with optional filter.',
-    category: 'read',
-    safety: 'read',
-    executionLocation: 'client',
-    returnsProposal: false,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        filter: { type: 'string', enum: ['all', 'active', 'completed', 'today', 'upcoming', 'overdue'] },
-        limit: { type: 'number', minimum: 1, maximum: 100 },
-      },
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        tasks: {
-          type: 'array',
-          maxItems: 60,
-          items: {
-            type: 'object',
-            properties: {
-              uid: { type: 'string' },
-              text: { type: 'string', maxLength: 300 },
-              done: { type: 'boolean' },
-              deadline: { type: 'string' },
-              scheduledDate: { type: 'string' },
-              duration: { type: 'number' },
-            },
-            additionalProperties: false,
-          },
-        },
-        total: { type: 'number' },
-      },
-      required: ['tasks', 'total'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'get_projects',
-    description: 'Get projects and milestones.',
-    category: 'read',
-    safety: 'read',
-    executionLocation: 'client',
-    returnsProposal: false,
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: { projects: { type: 'array', maxItems: 20 } },
-      required: ['projects'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'get_active_roadmap',
-    description: 'Get active document daily plan roadmap and cursor.',
-    category: 'read',
-    safety: 'read',
-    executionLocation: 'client',
-    returnsProposal: false,
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: { roadmap: {}, cursor: {}, documentName: { type: 'string' } },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'get_plan_progress',
-    description: 'Get document plan progress statistics.',
-    category: 'read',
-    safety: 'read',
-    executionLocation: 'client',
-    returnsProposal: false,
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        hasActivePlan: { type: 'boolean' },
-        documentName: { type: 'string', maxLength: 200 },
-        roadmapTitle: { type: 'string', maxLength: 200 },
-        totalWeeks: { type: 'number', minimum: 0, maximum: 500 },
-        cursor: { type: 'object' },
-      },
-      required: ['hasActivePlan'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'get_free_time',
-    description: 'Get busy time slots for a date range from timeblocks and calendar.',
-    category: 'read',
-    safety: 'read',
-    executionLocation: 'client',
-    returnsProposal: false,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        startDate: { type: 'string', format: 'date' },
-        daysCount: { type: 'number', minimum: 1, maximum: 14 },
-      },
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        busy: { type: 'array', maxItems: 100 },
-        startDate: { type: 'string' },
-        daysCount: { type: 'number' },
-      },
-      additionalProperties: false,
-    },
-  },
-
-  // ── PLANNING TOOLS ──────────────────────────────────
-  {
-    name: 'generate_daily_plan',
-    description: 'Generate daily tasks from an active roadmap for a date range. Returns a canonical proposal with create_task actions.',
-    category: 'planning',
-    safety: 'safe_proposal',
-    executionLocation: 'client',
-    returnsProposal: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        startDate: { type: 'string', format: 'date' },
-        daysCount: { type: 'number', minimum: 1, maximum: 14 },
-      },
-      required: ['startDate'],
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: { ok: { type: 'boolean' }, proposal: {}, meta: {} },
-      required: ['ok'],
-      additionalProperties: false,
-    },
-  },
-
-  // ── MUTATION-PROPOSAL TOOLS ─────────────────────────
-  {
-    name: 'propose_create_task',
-    description: 'Create a proposal to add a new task. Returns a canonical proposal with create_task actions.',
-    category: 'mutation_proposal',
-    safety: 'safe_proposal',
-    executionLocation: 'client',
-    returnsProposal: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        text: { type: 'string', minLength: 1, maxLength: 300 },
-        date: { type: 'string', format: 'date' },
-        duration: { type: 'number', minimum: 1, maximum: 480 },
-        priority: { type: 'boolean' },
-        projectId: { type: 'string' },
-        milestoneId: { type: 'string' },
-      },
-      required: ['text'],
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: { ok: { type: 'boolean' }, proposal: {} },
-      required: ['ok', 'proposal'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'propose_complete_task',
-    description: 'Create a proposal to mark a task as done.',
-    category: 'mutation_proposal',
-    safety: 'safe_proposal',
-    executionLocation: 'client',
-    returnsProposal: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        taskUid: { type: 'string', minLength: 1 },
-      },
-      required: ['taskUid'],
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: { ok: { type: 'boolean' }, proposal: {} },
-      required: ['ok', 'proposal'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'propose_reschedule_task',
-    description: 'Create a proposal to move a task to a different date.',
-    category: 'mutation_proposal',
-    safety: 'safe_proposal',
-    executionLocation: 'client',
-    returnsProposal: true,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        taskUid: { type: 'string', minLength: 1 },
-        newDate: { type: 'string', format: 'date' },
-      },
-      required: ['taskUid', 'newDate'],
-      additionalProperties: false,
-    },
-    outputSchema: {
-      type: 'object',
-      properties: { ok: { type: 'boolean' }, proposal: {} },
-      required: ['ok', 'proposal'],
-      additionalProperties: false,
-    },
-  },
-];
+// Canonical definitions live only in shared/ai-tool-contracts.json.
 
 // ── Validation helpers ────────────────────────────────────
 function _validDate(s) {
-  return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const parts = s.split('-').map(Number);
+  const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  return d.getUTCFullYear() === parts[0] && d.getUTCMonth() + 1 === parts[1] && d.getUTCDate() === parts[2];
 }
 
 function validateToolArgs(toolName, args) {
@@ -322,15 +77,16 @@ function _validateSchema(value, schema, path, depth, errors) {
   if (depth > MAX_SCHEMA_DEPTH) { errors.push('too-deep: ' + path); return; }
   if (!schema) return; // no constraint
 
-  // Handle union types (e.g. ['string', 'null'])
+  // Union types must still flow through format/range validation for the
+  // concrete value type (except null, which has no further constraints).
   if (Array.isArray(schema.type)) {
-    if (!schema.type.some((t) => t === null && value === null || t === _jsType(value))) {
+    const actualType = _jsType(value);
+    if (!schema.type.some((t) => t === actualType)) {
       errors.push('invalid-type: ' + path + ' (expected ' + schema.type.join('|') + ')');
+      return;
     }
-    return;
-  }
-
-  if (schema.type) {
+    if (actualType === 'null') return;
+  } else if (schema.type) {
     const expected = schema.type;
     if (expected === 'null') {
       if (value !== null) errors.push('invalid-type: ' + path + ' (expected null)');
@@ -345,7 +101,7 @@ function _validateSchema(value, schema, path, depth, errors) {
   if (typeof value === 'string') {
     if (schema.maxLength && value.length > schema.maxLength) errors.push('too-long: ' + path);
     if (schema.minLength && value.length < schema.minLength) errors.push('too-short: ' + path);
-    if (schema.format === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) errors.push('invalid-date: ' + path);
+    if (schema.format === 'date' && !_validDate(value)) errors.push('invalid-date: ' + path);
     if (schema.enum && !schema.enum.includes(value)) errors.push('invalid-enum: ' + path);
   }
 
