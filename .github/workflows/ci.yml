@@ -151,3 +151,23 @@ jobs:
 
       - name: "Document Daily Planner E2E (PDF → Roadmap → Daily Plan → Review → Apply → Undo → Next Week)"
         run: python scripts/e2e-document-daily-plan.py
+
+  # SW Upgrade AI E2E: proves old Service Worker cached AI JS → new deployment
+  # → browser loads new versioned lazy module instead of stale cache.
+  sw-upgrade-ai-e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Playwright (Python, Chromium)
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: "SW Upgrade AI E2E (old SW → versioned lazy modules → new version)"
+        run: python scripts/e2e-sw-upgrade-ai.py
