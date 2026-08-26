@@ -155,6 +155,9 @@ def main():
             buf = route.request.post_data_buffer or b""
             if b"document-daily-plan.pdf" not in buf:
                 fail("Stage A upload does not contain the PDF filename")
+            # Stage A must NOT send taskflowContext (privacy: dedup is Stage B)
+            if b"taskflowContext" in buf:
+                fail("Stage A /document-roadmap sent taskflowContext — must be removed")
             route.fulfill(status=200, content_type="application/json",
                           body=json.dumps(build_stage_a_payload()))
             return
@@ -283,7 +286,12 @@ def main():
             if not storage_contains("Learn UART communication"):
                 fail("applied tasks missing from planner state after Apply")
 
-            # ---- Undo: tasks reverted ----
+            # ---- Verify cursor advanced after Apply ----
+            cur = cursor_state().get("cursor") or {}
+            if cur.get("lastAppliedDaysCount") != 7:
+                fail("cursor did not advance to 7 after Apply: %s" % json.dumps(cursor_state()))
+
+            # ---- Undo: tasks reverted + cursor rolled back ----
             undo_btn = page.locator('[data-action="undo"]').first
             if undo_btn.is_disabled():
                 fail("undo button disabled right after Apply")
@@ -291,6 +299,9 @@ def main():
             page.wait_for_timeout(2000)
             if storage_contains("Learn UART communication"):
                 fail("Undo did not revert the applied tasks")
+            cur = cursor_state().get("cursor") or {}
+            if cur.get("lastAppliedDaysCount") != 0:
+                fail("Undo did not rollback cursor: %s" % json.dumps(cursor_state()))
 
             # ---- follow-up "l\u1eadp tu\u1ea7n ti\u1ebfp theo": no re-upload ----
             # Re-open chat if it closed
@@ -325,9 +336,10 @@ def main():
             page.locator('[data-testid="review-confirm"]').click()
             page.wait_for_timeout(2000)
 
+            # After Undo rolled cursor to 0, second Apply advances to 7
             cur = cursor_state().get("cursor") or {}
-            if cur.get("lastAppliedDaysCount") != 14:
-                fail("cursor did not advance by the second window size: %s"
+            if cur.get("lastAppliedDaysCount") != 7:
+                fail("cursor should be 7 after re-Apply (was rolled back): %s"
                      % json.dumps(cursor_state()))
             # Second window maps DATED_ROWS cyclically — index 1 = UART
             if not storage_contains("Learn UART communication"):

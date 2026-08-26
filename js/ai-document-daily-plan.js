@@ -278,18 +278,8 @@
     fd.append('message', message);
     fd.append('timeZone', _getTimeZone());
 
-    // Send existing tasks so later dedupe matches real planner state
-    try {
-      if (typeof TaskFlowAIAgentRuntime !== 'undefined' && TaskFlowAIAgentRuntime.buildContext) {
-        var ctx = TaskFlowAIAgentRuntime.buildContext();
-        if (ctx && ctx.tasks) {
-          var existingTasks = ctx.tasks.slice(0, 50).map(function (t) {
-            return { text: t.text || '', deadline: t.deadline || null, done: !!t.done };
-          });
-          fd.append('taskflowContext', JSON.stringify({ tasks: existingTasks }));
-        }
-      }
-    } catch (e) { /* context must not break upload */ }
+    // Stage A is PDF-only: no taskflowContext / existing tasks.
+    // Deduplication happens in Stage B (_executeWindow) via existingTasks.
 
     var token = _getToken();
     var headers = {};
@@ -579,6 +569,21 @@
     commitPendingCursor: commitPendingCursor,
     cancelPendingCursor: cancelPendingCursor,
     getPendingCursor: getPendingCursor,
+    /* Undo/Redo cursor integration: capture pending cursor metadata for
+       the planner undo stack, and restore it on undo/redo. */
+    getSnapshot: function () {
+      if (!_pendingCursor) return null;
+      return {
+        roadmapId: _pendingCursor.roadmapId,
+        fromCursor: _pendingCursor.fromCursor ? Object.assign({}, _pendingCursor.fromCursor) : null,
+        toCursor: _pendingCursor.toCursor ? Object.assign({}, _pendingCursor.toCursor) : null,
+      };
+    },
+    restoreSnapshot: function (data, isRedo) {
+      if (!data || !data.roadmapId) return;
+      var cursor = isRedo ? data.toCursor : data.fromCursor;
+      if (cursor) updateCursor(data.roadmapId, cursor);
+    },
     getStatus: getStatus,
     onAccountChange: onAccountChange,
     friendlyError: friendlyError,

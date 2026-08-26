@@ -5374,6 +5374,7 @@ function snapshotAll() {
     plan: { y: PLAN_YEAR, m: PLAN_MONTH, cw: state.currentWeek },
     inbox: Array.isArray(inbox) ? JSON.parse(JSON.stringify(inbox)) : [],
     timeblocks: tb,
+    documentPlanCursor: (window.TaskFlowDocumentDailyPlan && typeof window.TaskFlowDocumentDailyPlan.getSnapshot === 'function') ? window.TaskFlowDocumentDailyPlan.getSnapshot() : null,
   };
 }
 function pushUndo() {
@@ -5385,7 +5386,7 @@ function pushUndo() {
   undoStack.push(snap); // push() tự clear nhánh redo cũ (hành vi standard)
   updateUndoButtons();
 }
-function applySnapshot(snap) {
+function applySnapshot(snap, isRedo) {
   if (!snap) return;
   state = snap.state;
   yearState = snap.yearState;
@@ -5402,6 +5403,10 @@ function applySnapshot(snap) {
   // Phase 6T.2: Restore TimeBlocks on Undo
   if (snap.timeblocks && window.TaskFlowTimeBlocks) {
     try { saveTimeBlocksStore(snap.timeblocks); } catch (e) { /* restore best-effort */ }
+  }
+  // Restore document-daily-plan roadmap cursor on Undo/Redo
+  if (snap.documentPlanCursor && window.TaskFlowDocumentDailyPlan && typeof window.TaskFlowDocumentDailyPlan.restoreSnapshot === 'function') {
+    try { window.TaskFlowDocumentDailyPlan.restoreSnapshot(snap.documentPlanCursor, !!isRedo); } catch (e) { /* cursor restore must never break undo */ }
   }
   invalidateYearCache();
   renderCurrentView();
@@ -5432,14 +5437,14 @@ function doUndo() {
   if (!undoStack || !undoStack.canUndo()) return;
   const snap = undoStack.undo(); // undo() tự đẩy bản đang undo sang nhánh redo
   if (!snap) return;
-  applySnapshot(snap);
+  applySnapshot(snap, false);
   trackEvent('undo');
 }
 function doRedo() {
   if (!undoStack || !undoStack.canRedo()) return;
   const snap = undoStack.redo(); // redo() tự đẩy bản redo ngược về nhánh undo
   if (!snap) return;
-  applySnapshot(snap);
+  applySnapshot(snap, true);
   trackEvent('redo');
 }
 // Phase 16 (perf): đóng tab/điều hướng đi → flush mọi save đang debounce
