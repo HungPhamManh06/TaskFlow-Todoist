@@ -175,15 +175,22 @@
         if (undo.length > max) undo.shift();
         redo = [];
       },
-      undo: function () {
+      /* undo(currentSnapshot): pop before-state from undo stack,
+         push currentSnapshot onto redo stack, return before-state.
+         redo(currentSnapshot): pop after-state from redo stack,
+         push currentSnapshot onto undo stack, return after-state.
+         This ensures redo restores the actual post-action state. */
+      undo: function (currentSnapshot) {
         var s = undo.pop();
-        if (s !== undefined) redo.push(s);
-        return s !== undefined ? s : null;
+        if (s === undefined) return null;
+        if (currentSnapshot !== undefined) redo.push(currentSnapshot);
+        return s;
       },
-      redo: function () {
+      redo: function (currentSnapshot) {
         var s = redo.pop();
-        if (s !== undefined) undo.push(s);
-        return s !== undefined ? s : null;
+        if (s === undefined) return null;
+        if (currentSnapshot !== undefined) undo.push(currentSnapshot);
+        return s;
       },
       canUndo: function () { return undo.length > 0; },
       canRedo: function () { return redo.length > 0; },

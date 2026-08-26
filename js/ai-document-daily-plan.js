@@ -569,20 +569,20 @@
     commitPendingCursor: commitPendingCursor,
     cancelPendingCursor: cancelPendingCursor,
     getPendingCursor: getPendingCursor,
-    /* Undo/Redo cursor integration: capture pending cursor metadata for
-       the planner undo stack, and restore it on undo/redo. */
+    /* Undo/Redo cursor integration: snapshot captures ACTUAL cursor state
+       from the active roadmap (not _pendingCursor). restoreSnapshot writes
+       it back. The undo stack's before/after model handles correctness. */
     getSnapshot: function () {
-      if (!_pendingCursor) return null;
+      var active = getActiveRoadmap();
+      if (!active) return null;
       return {
-        roadmapId: _pendingCursor.roadmapId,
-        fromCursor: _pendingCursor.fromCursor ? Object.assign({}, _pendingCursor.fromCursor) : null,
-        toCursor: _pendingCursor.toCursor ? Object.assign({}, _pendingCursor.toCursor) : null,
+        roadmapId: active.id,
+        cursor: active.cursor ? Object.assign({}, active.cursor) : null,
       };
     },
-    restoreSnapshot: function (data, isRedo) {
-      if (!data || !data.roadmapId) return;
-      var cursor = isRedo ? data.toCursor : data.fromCursor;
-      if (cursor) updateCursor(data.roadmapId, cursor);
+    restoreSnapshot: function (data) {
+      if (!data || !data.roadmapId || !data.cursor) return;
+      updateCursor(data.roadmapId, data.cursor);
     },
     getStatus: getStatus,
     onAccountChange: onAccountChange,

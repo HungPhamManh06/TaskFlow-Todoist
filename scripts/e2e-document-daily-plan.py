@@ -6,9 +6,12 @@ Covers the Phase 6.2 architecture contract end-to-end:
              -> roadmap persisted account-scoped
              -> Stage B /api/ai/daily-plan  (the ONLY proposal source)
              -> Review DOM -> Apply -> tasks exist -> cursor advances
-             -> Undo -> tasks reverted (cursor stays advanced)
+             -> Undo -> tasks reverted + cursor rolled back
+             -> Redo -> tasks restored + cursor restored
+             -> Undo again -> tasks reverted + cursor rolled back
              -> "lap tuan tiep theo" -> NO re-upload / NO Stage A
-             -> second window from persisted roadmap -> Apply -> cursor += window
+             -> second window from persisted roadmap -> Apply -> cursor = 7
+             -> "lap tuan tiep theo" again -> cursor = 14
 
 Usage: python scripts/e2e-document-daily-plan.py [--headed]
 """
@@ -114,13 +117,10 @@ def build_stage_b_payload(body):
         fail("daily-plan startDate/daysCount malformed: %r %r" % (start, days_raw))
     dates = [(start_day + datetime.timedelta(days=i)).isoformat() for i in range(max(1, min(days, 14)))]
     allowed = set(dates)
-    existing = {str(t.get("text", "")).strip().lower()
-                for t in body.get("existingTasks", []) if isinstance(t, dict)}
+    # Mock always returns full actions — dedup is a server concern.
     actions = []
     for i, date in enumerate(sorted(allowed)):
         _, text, minutes = DATED_ROWS[i % len(DATED_ROWS)]
-        if text.strip().lower() in existing:
-            continue
         actions.append({
             "id": "a" + str(len(actions) + 1),
             "type": "create_task",
@@ -303,6 +303,35 @@ def main():
             if cur.get("lastAppliedDaysCount") != 0:
                 fail("Undo did not rollback cursor: %s" % json.dumps(cursor_state()))
 
+            # ---- Redo: tasks restored + cursor restored ----
+            redo_btn = page.locator('#btnRedo')
+            if redo_btn.is_disabled():
+                fail("redo button disabled after Undo")
+            redo_btn.click()
+            page.wait_for_timeout(2000)
+            if not storage_contains("Learn UART communication"):
+                fail("Redo did not restore the applied tasks")
+            cur = cursor_state().get("cursor") or {}
+            if cur.get("lastAppliedDaysCount") != 7:
+                fail("Redo did not restore cursor to 7: %s" % json.dumps(cursor_state()))
+            # Redo must NOT make any AI network requests
+            if counters["document-roadmap"] != 1:
+                fail("Redo triggered extra document-roadmap calls: %d" % counters["document-roadmap"])
+            if counters["daily-plan"] != 1:
+                fail("Redo triggered extra daily-plan calls: %d" % counters["daily-plan"])
+
+            # ---- Undo again: back to clean state ----
+            undo_btn2 = page.locator('[data-action="undo"]').first
+            if undo_btn2.is_disabled():
+                fail("undo button disabled after Redo")
+            undo_btn2.click()
+            page.wait_for_timeout(2000)
+            if storage_contains("Learn UART communication"):
+                fail("Second Undo did not revert the tasks")
+            cur = cursor_state().get("cursor") or {}
+            if cur.get("lastAppliedDaysCount") != 0:
+                fail("Second Undo did not rollback cursor: %s" % json.dumps(cursor_state()))
+
             # ---- follow-up "l\u1eadp tu\u1ea7n ti\u1ebfp theo": no re-upload ----
             # Re-open chat if it closed
             if not page.locator("#chatPop").is_visible():
@@ -334,7 +363,7 @@ def main():
             if rows2.count() != 7:
                 fail("second review should contain 7 rows, got %d" % rows2.count())
             page.locator('[data-testid="review-confirm"]').click()
-            page.wait_for_timeout(2000)
+            page.wait_for_timeout(3000)
 
             # After Undo rolled cursor to 0, second Apply advances to 7
             cur = cursor_state().get("cursor") or {}
@@ -345,10 +374,43 @@ def main():
             if not storage_contains("Learn UART communication"):
                 fail("second-window tasks missing from planner state after Apply")
 
+            # ---- third "lap tuan tiep theo" -> verify cumulative cursor = 14 ----
+            plans_before_3 = len(daily_plan_bodies)
+            page.wait_for_timeout(1000)  # let Apply finish + card removal settle
+            if not page.locator("#chatPop").is_visible():
+                page.locator("#chatFab").click()
+                page.wait_for_selector("#chatPop", state="visible")
+            page.locator("#chatInput").wait_for(state="visible")
+            page.locator("#chatInput").fill("l\u1eadp tu\u1ea7n ti\u1ebfp theo")
+            page.locator('[data-action="chat-send"]').click()
+            page.wait_for_selector('[data-testid="agent-card"]', timeout=30000)
+            if counters["document-roadmap"] != 1:
+                fail("third follow-up triggered extra Stage A: %d" % counters["document-roadmap"])
+            if counters["combined"]:
+                fail("third follow-up hit combined endpoint")
+            if len(daily_plan_bodies) != plans_before_3 + 1:
+                fail("third follow-up did not call /daily-plan once more")
+
+            # ---- third Review: Apply ----
+            page.wait_for_timeout(500)
+            rows3 = page.locator('[data-testid^="review-action-"]')
+            if rows3.count() != 7:
+                fail("third review should contain 7 rows, got %d" % rows3.count())
+            page.locator('[data-testid="review-confirm"]').click()
+            page.wait_for_timeout(2000)
+
+            cur = cursor_state().get("cursor") or {}
+            if cur.get("lastAppliedDaysCount") != 14:
+                fail("cursor should be 14 after third Apply, got %s"
+                     % json.dumps(cursor_state()))
+            if cur.get("nextWeek") != 2:
+                fail("nextWeek should be 2 after third Apply, got %s"
+                     % json.dumps(cursor_state()))
+
             browser.close()
     finally:
         server.shutdown()
-    print("E2E OK - document-roadmap x%d, daily-plan x%d, combined x%d"
+    print("E2E OK - document-roadmap x%d, daily-plan x%d, combined x%d, cursor=14 verified"
           % (counters["document-roadmap"], counters["daily-plan"], counters["combined"]))
 
 

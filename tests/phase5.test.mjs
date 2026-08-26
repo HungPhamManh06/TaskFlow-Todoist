@@ -49,16 +49,21 @@ test('5.1: makeUndoStack push/undo/redo/canUndo/clear', () => {
   assert.equal(s.canUndo(), false);
 });
 
-test('5.1: makeUndoStack redo sau khi undo', () => {
+test('5.1: makeUndoStack redo sau khi undo (before/after model)', () => {
   const s = PlanMath.makeUndoStack(5);
-  s.push({ v: 1 });
-  s.push({ v: 2 });
-  assert.deepEqual(s.undo(), { v: 2 });
-  assert.deepEqual(s.undo(), { v: 1 });
+  s.push({ v: 1 }); // push A
+  s.push({ v: 2 }); // push B
+  // State sequence: A → B → C (current=C)
+  // undo: pop B from undo, push C to redo → returns B
+  assert.deepEqual(s.undo({ v: 3 }), { v: 2 });
+  // undo: pop A from undo, push B to redo → returns A
+  assert.deepEqual(s.undo({ v: 2 }), { v: 1 });
   assert.equal(s.canRedo(), true);
-  assert.deepEqual(s.redo(), { v: 1 });
-  assert.deepEqual(s.redo(), { v: 2 });
-  assert.equal(s.redo(), null);
+  // redo: pop B from redo, push A to undo → returns B
+  assert.deepEqual(s.redo({ v: 1 }), { v: 2 });
+  // redo: pop C from redo, push B to undo → returns C
+  assert.deepEqual(s.redo({ v: 2 }), { v: 3 });
+  assert.equal(s.redo({ v: 3 }), null); // redo empty
 });
 
 test('5.1: makeUndoStack push mới sau undo → clear redo', () => {
