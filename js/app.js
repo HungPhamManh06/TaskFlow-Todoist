@@ -4,7 +4,12 @@
 // chat/search/quick-add/year-report/digest chỉ cần khi mở feature tương ứng — không
 // nằm trong chuỗi script boot ở app.html (P11 extractions 21-26). ensureLazyModule nạp
 // đúng 1 lần (cache theo URL); runLazyModule gọi fn sau khi nạp xong, fail loud nếu lỗi
-// mạng. URL không có ?v= để khớp precache trong sw.js (offline vẫn dùng được feature).
+// mạng. Versioned URLs bust Service Worker stale cache (taskflow-v294+) — browser
+// tự động load bản mới nhất khi deploy mà KHÔNG cần user clear site data.
+const LAZY_ASSET_VERSION = 'v1';
+function lazyAsset(path) {
+  return path + '?v=' + LAZY_ASSET_VERSION;
+}
 const _lazyScripts = new Map();
 function ensureLazyModule(url) {
   if (_lazyScripts.has(url)) return _lazyScripts.get(url);
@@ -587,7 +592,7 @@ function importJSONFile(file) {
       // Snapshot lấy ĐỒNG BỘ ngay trước khi ghi đè rồi ghi slot bất đồng bộ qua module lazy.
       let importSnapshot = null;
       try { importSnapshot = collectAllData(LEGACY_KEY); } catch (e) { throw new Error('backup-capture-failed'); }
-      await ensureLazyModule('js/backup.min.js');
+      await ensureLazyModule(lazyAsset('js/backup.min.js'));
       if (!window.TaskFlowBackup.rotateBackup(importSnapshot)) throw new Error('backup-write-failed');
       const applied = applySnapshotTransactional(prepared.snapshot, localStorage);
       if (!applied.ok) throw applied.error || new Error('import-write-failed');
@@ -1899,7 +1904,7 @@ function backupAfterSave() {
     try { window.TaskFlowBackup.maybeAutoBackup(); } catch (e) { /* ẩn */ }
     return;
   }
-  ensureLazyModule('js/backup.min.js')
+  ensureLazyModule(lazyAsset('js/backup.min.js'))
     .then(() => {
       try { window.TaskFlowBackup.maybeAutoBackup(); } catch (e) { /* ẩn */ }
     })
@@ -4407,29 +4412,29 @@ renderPomoWidgetStats = function() {
 // chat. runLazyChat orchestrate chuỗi đó; KHÔNG thêm gì vào boot path.
 
 function runLazyChat(fn) {
-  ensureLazyModule('js/ai-context.min.js')
-    .then(() => ensureLazyModule('js/ai-chat-context.min.js'))
-    .then(() => ensureLazyModule('js/ai-context-consent.min.js'))
-    .then(() => ensureLazyModule('js/ai-memory.min.js'))
-    .then(() => ensureLazyModule('js/chat-provider.min.js'))
-    .then(() => ensureLazyModule('js/ai-agent.min.js'))
-    .then(() => ensureLazyModule('js/ai-intent.min.js'))
-    .then(() => ensureLazyModule('js/ai-explainability.min.js'))
-    .then(() => ensureLazyModule('js/ai-plan.min.js'))
-    .then(() => ensureLazyModule('js/ai-plan-health.min.js'))
-    .then(() => ensureLazyModule('js/ai-plan-watch.min.js'))
-    .then(() => ensureLazyModule('js/ai-brief.min.js'))
-    .then(() => ensureLazyModule('js/ai-roadmap.min.js'))
-    .then(() => ensureLazyModule('js/focus-session.min.js'))
-    .then(() => ensureLazyModule('js/effort-calibration.min.js'))
-    .then(() => ensureLazyModule('js/goal-tracking.min.js'))
-    .then(() => ensureLazyModule('js/ai-agent-runtime.min.js'))
-    .then(() => ensureLazyModule('js/ai-tools.min.js'))
-    .then(() => ensureLazyModule('js/ai-tool-executor.min.js'))
-    .then(() => ensureLazyModule('js/ai-brain-client.min.js'))
-    .then(() => ensureLazyModule('js/ai-document-daily-plan.min.js'))
-    .then(() => ensureLazyModule('js/chat-history.min.js'))
-    .then(() => ensureLazyModule('js/chat.min.js'))
+  ensureLazyModule(lazyAsset('js/ai-context.min.js'))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-chat-context.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-context-consent.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-memory.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/chat-provider.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-agent.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-intent.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-explainability.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-plan.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-plan-health.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-plan-watch.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-brief.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-roadmap.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/focus-session.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/effort-calibration.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/goal-tracking.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-agent-runtime.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-tools.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-tool-executor.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-brain-client.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-document-daily-plan.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/chat-history.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/chat.min.js')))
     .then(() => { initChatContextProvider(); if (fn) fn(); })
     .catch((err) => {
       console.error(err);
@@ -4439,23 +4444,23 @@ function runLazyChat(fn) {
 
 // Preload chuỗi chat khi mở panel (vẫn lazy — không nằm trong boot path).
 function preloadLazyChat() {
-  ensureLazyModule('js/ai-context.min.js')
-    .then(() => ensureLazyModule('js/ai-chat-context.min.js'))
-    .then(() => ensureLazyModule('js/ai-context-consent.min.js'))
-    .then(() => ensureLazyModule('js/ai-memory.min.js'))
-    .then(() => ensureLazyModule('js/chat-provider.min.js'))
-    .then(() => ensureLazyModule('js/ai-agent.min.js'))
-    .then(() => ensureLazyModule('js/ai-intent.min.js'))
-    .then(() => ensureLazyModule('js/ai-explainability.min.js'))
-    .then(() => ensureLazyModule('js/ai-plan.min.js'))
-    .then(() => ensureLazyModule('js/ai-plan-health.min.js'))
-    .then(() => ensureLazyModule('js/ai-agent-runtime.min.js'))
-    .then(() => ensureLazyModule('js/ai-tools.min.js'))
-    .then(() => ensureLazyModule('js/ai-tool-executor.min.js'))
-    .then(() => ensureLazyModule('js/ai-brain-client.min.js'))
-    .then(() => ensureLazyModule('js/ai-document-daily-plan.min.js'))
-    .then(() => ensureLazyModule('js/chat-history.min.js'))
-    .then(() => ensureLazyModule('js/chat.min.js'))
+  ensureLazyModule(lazyAsset('js/ai-context.min.js'))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-chat-context.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-context-consent.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-memory.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/chat-provider.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-agent.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-intent.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-explainability.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-plan.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-plan-health.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-agent-runtime.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-tools.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-tool-executor.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-brain-client.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/ai-document-daily-plan.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/chat-history.min.js')))
+    .then(() => ensureLazyModule(lazyAsset('js/chat.min.js')))
     .then(() => initChatContextProvider())
     .catch(() => { /* im lặng — send path sẽ tự fallback */ });
 }
@@ -4657,7 +4662,7 @@ initChatContextProvider();
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'quickAddInput') {
     e.preventDefault();
-    runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.submitQuickAdd());
+    runLazyModule(lazyAsset('js/quick-add.min.js'), () => window.TaskFlowQuickAdd.submitQuickAdd());
   }
 });
 
@@ -5468,8 +5473,8 @@ function updateUndoButtons() {
 function toggleSearchModal() {
   const m = document.getElementById('searchModal');
   if (!m) return;
-  if (m.hidden) runLazyModule('js/search.min.js', () => window.TaskFlowSearch.openSearchModal());
-  else runLazyModule('js/search.min.js', () => window.TaskFlowSearch.closeSearchModal());
+  if (m.hidden) runLazyModule(lazyAsset('js/search.min.js'), () => window.TaskFlowSearch.openSearchModal());
+  else runLazyModule(lazyAsset('js/search.min.js'), () => window.TaskFlowSearch.closeSearchModal());
 }
 function focusTodayTaskAdd() {
   const ti = nowInfo(PLAN_START, NUM_DAYS, PLAN_YEAR, PLAN_MONTH);
@@ -5704,7 +5709,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   else if (act === 'tools-close') { closeToolsDrawer(); return; }
-  else if (act === 'shell-add-task') { runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.openQuickAdd()); return; }
+  else if (act === 'shell-add-task') { runLazyModule(lazyAsset('js/quick-add.min.js'), () => window.TaskFlowQuickAdd.openQuickAdd()); return; }
   else if (act === 'undo') { doUndo(); return; }
   else if (act === 'redo') { doRedo(); return; }
   else if (act === 'habits') {
@@ -5718,9 +5723,9 @@ document.addEventListener('click', (e) => {
   }
   else if (act === 'focus') { openFocusMode(); return; }
   else if (act === 'focus-close') { closeFocusMode(); return; }
-  else if (act === 'backup-restore') { runLazyModule('js/backup.min.js', () => window.TaskFlowBackup.openBackupModal()); return; }
-  else if (act === 'backup-close') { runLazyModule('js/backup.min.js', () => window.TaskFlowBackup.closeBackupModal()); return; }
-  else if (act === 'backup-use') { runLazyModule('js/backup.min.js', () => window.TaskFlowBackup.doRestoreBackup(+el.dataset.idx)); return; }
+  else if (act === 'backup-restore') { runLazyModule(lazyAsset('js/backup.min.js'), () => window.TaskFlowBackup.openBackupModal()); return; }
+  else if (act === 'backup-close') { runLazyModule(lazyAsset('js/backup.min.js'), () => window.TaskFlowBackup.closeBackupModal()); return; }
+  else if (act === 'backup-use') { runLazyModule(lazyAsset('js/backup.min.js'), () => window.TaskFlowBackup.doRestoreBackup(+el.dataset.idx)); return; }
   else if (act === 'feedback') {
     trackEvent('feedback_click', { kind: 'form' });
     if (!FB_FORM_URL) { TaskFlowUI.toast(t('fbNoForm'), 'error'); return; }
@@ -5881,9 +5886,9 @@ document.addEventListener('click', (e) => {
   } else if (act === 'upcoming-overdue-toggle') {
     toggleOverdueExpanded();
   } else if (act === 'quickadd-close') {
-    runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.closeQuickAdd());
+    runLazyModule(lazyAsset('js/quick-add.min.js'), () => window.TaskFlowQuickAdd.closeQuickAdd());
   } else if (act === 'quickadd-do') {
-    runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.submitQuickAdd());
+    runLazyModule(lazyAsset('js/quick-add.min.js'), () => window.TaskFlowQuickAdd.submitQuickAdd());
   } else if (act === 'habit-focus') {
     // P8: CTA empty state "Tạo thói quen" — từ Today chuyển sang Overview (nơi có ô nhập habit)
     if (state.view !== 'overview') setView('overview');
@@ -6435,12 +6440,12 @@ document.addEventListener('click', (e) => {
   } else if (act === 'copyhabits') {
     copyHabitsToNextMonth();
   } else if (act === 'search-toggle') {
-    runLazyModule('js/search.min.js', () => window.TaskFlowSearch.openSearchModal());
+    runLazyModule(lazyAsset('js/search.min.js'), () => window.TaskFlowSearch.openSearchModal());
   } else if (act === 'search-close') {
     if (searchDebounceTimer) { clearTimeout(searchDebounceTimer); searchDebounceTimer = null; }
-    runLazyModule('js/search.min.js', () => window.TaskFlowSearch.closeSearchModal());
+    runLazyModule(lazyAsset('js/search.min.js'), () => window.TaskFlowSearch.closeSearchModal());
   } else if (act === 'search-go') {
-    runLazyModule('js/search.min.js', () => window.TaskFlowSearch.goSearchResult(el));
+    runLazyModule(lazyAsset('js/search.min.js'), () => window.TaskFlowSearch.goSearchResult(el));
   } else if (act === 'tagfilter') {
     tagFilter = el.dataset.tag || null;
     if (state.view === 'calendar') { renderCalendar(); }
@@ -6532,17 +6537,17 @@ document.addEventListener('click', (e) => {
   } else if (act === 'share-week-report') {
     doShareWeekReport();
   } else if (act === 'year-report') {
-    runLazyModule('js/year-report.min.js', () => window.TaskFlowYearReport.openYearReportModal());
+    runLazyModule(lazyAsset('js/year-report.min.js'), () => window.TaskFlowYearReport.openYearReportModal());
   } else if (act === 'close-year-report') {
-    runLazyModule('js/year-report.min.js', () => window.TaskFlowYearReport.closeYearReportModal());
+    runLazyModule(lazyAsset('js/year-report.min.js'), () => window.TaskFlowYearReport.closeYearReportModal());
   } else if (act === 'share-year-report') {
-    runLazyModule('js/year-report.min.js', () => window.TaskFlowYearReport.doShareYearReport());
+    runLazyModule(lazyAsset('js/year-report.min.js'), () => window.TaskFlowYearReport.doShareYearReport());
   } else if (act === 'stats') {
-    runLazyModule('js/stats-ui.min.js', () => window.TaskFlowStatsUI.openStatsModal());
+    runLazyModule(lazyAsset('js/stats-ui.min.js'), () => window.TaskFlowStatsUI.openStatsModal());
   } else if (act === 'stats-close') {
-    runLazyModule('js/stats-ui.min.js', () => window.TaskFlowStatsUI.closeStatsModal());
+    runLazyModule(lazyAsset('js/stats-ui.min.js'), () => window.TaskFlowStatsUI.closeStatsModal());
   } else if (act === 'stats-range') {
-    runLazyModule('js/stats-ui.min.js', () => window.TaskFlowStatsUI.setStatsRange(el.dataset.range));
+    runLazyModule(lazyAsset('js/stats-ui.min.js'), () => window.TaskFlowStatsUI.setStatsRange(el.dataset.range));
   } else if (act === 'templates-toggle') {
     const tp = document.getElementById('templatesPop');
     if (tp) tp.hidden = !tp.hidden;
@@ -7019,7 +7024,7 @@ document.addEventListener('input', (e) => {
   const t = e.target;
   if (t.id === 'searchInput') {
     clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => runLazyModule('js/search.min.js', () => window.TaskFlowSearch.renderSearchResults(t.value)), 200);
+    searchDebounceTimer = setTimeout(() => runLazyModule(lazyAsset('js/search.min.js'), () => window.TaskFlowSearch.renderSearchResults(t.value)), 200);
   }
 });
 
@@ -7249,7 +7254,7 @@ document.addEventListener('keydown', (e) => {
     // Phase 4: phím tắt Quick Add (q) — thêm nhanh không cần đổi view
     if (k === 'q') {
       e.preventDefault();
-      runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.openQuickAdd());
+      runLazyModule(lazyAsset('js/quick-add.min.js'), () => window.TaskFlowQuickAdd.openQuickAdd());
       return;
     }
   }
@@ -7335,7 +7340,7 @@ function afterYearGoalToggle() {
 }
 
 function afterHabitToggle() {
-  runLazyModule('js/digest.min.js', () => window.TaskFlowDigest.updateDigestCache());
+  runLazyModule(lazyAsset('js/digest.min.js'), () => window.TaskFlowDigest.updateDigestCache());
   state.habits.forEach((h) => {
     const p = habitPct(h);
     document.querySelectorAll(`[data-action="habit"][data-id="${h.id}"]`).forEach((b) => {
@@ -7479,7 +7484,7 @@ let lastRealWeek = null;
 let viewedMonth = null;
 
 function refreshToday() {
-  runLazyModule('js/digest.min.js', () => window.TaskFlowDigest.updateDigestCache());
+  runLazyModule(lazyAsset('js/digest.min.js'), () => window.TaskFlowDigest.updateDigestCache());
   const now = new Date();
   if (viewedMonth !== null) {
     if (viewedMonth === now.getMonth() && PLAN_YEAR === now.getFullYear()) {
@@ -7567,17 +7572,17 @@ document.addEventListener('click', (e) => {
   const wr = document.getElementById('weekReportModal');
   if (wr && !wr.hidden && e.target === wr) closeWeekReportModal();
   const yr = document.getElementById('yearReportModal');
-  if (yr && !yr.hidden && e.target === yr) runLazyModule('js/year-report.min.js', () => window.TaskFlowYearReport.closeYearReportModal());
+  if (yr && !yr.hidden && e.target === yr) runLazyModule(lazyAsset('js/year-report.min.js'), () => window.TaskFlowYearReport.closeYearReportModal());
   const s = document.getElementById('searchModal');
-  if (s && !s.hidden && e.target === s) runLazyModule('js/search.min.js', () => window.TaskFlowSearch.closeSearchModal());
+  if (s && !s.hidden && e.target === s) runLazyModule(lazyAsset('js/search.min.js'), () => window.TaskFlowSearch.closeSearchModal());
   const qa = document.getElementById('quickAddModal');
-  if (qa && !qa.hidden && e.target === qa) runLazyModule('js/quick-add.min.js', () => window.TaskFlowQuickAdd.closeQuickAdd());
+  if (qa && !qa.hidden && e.target === qa) runLazyModule(lazyAsset('js/quick-add.min.js'), () => window.TaskFlowQuickAdd.closeQuickAdd());
   const t = document.getElementById('templateModal');
   if (t && !t.hidden && e.target === t) closeTemplateModal();
   const p = document.getElementById('profileModal');
   if (p && !p.hidden && e.target === p) closeProfileModal();
   const bm = document.getElementById('backupModal');
-  if (bm && !bm.hidden && e.target === bm) runLazyModule('js/backup.min.js', () => window.TaskFlowBackup.closeBackupModal());
+  if (bm && !bm.hidden && e.target === bm) runLazyModule(lazyAsset('js/backup.min.js'), () => window.TaskFlowBackup.closeBackupModal());
   const help = document.getElementById('helpModal');
   if (help && !help.hidden && e.target === help) TaskFlowUI.closeDialog('helpModal');
   const widget = document.getElementById('widgetSettingsModal');
@@ -7889,14 +7894,14 @@ loadXP();
 prepareTodayState();
 renderXP();
 setView(state.view, state.currentWeek);
-setTimeout(() => runLazyModule('js/digest.min.js', () => window.TaskFlowDigest.updateDigestCache()), 2000);
+setTimeout(() => runLazyModule(lazyAsset('js/digest.min.js'), () => window.TaskFlowDigest.updateDigestCache()), 2000);
 // Manifest shortcut "Thêm công việc" (?quick=1) → mở Quick Add ngay sau khi view đầu render.
 // V1.5 Quick Capture: nếu có payload share/quick-url, prefill input đã sanitize (preview trước Save).
 if (window.__quickAddOnBoot) {
   const capture = window.__quickAddCapture || null;
   delete window.__quickAddOnBoot;
   delete window.__quickAddCapture;
-  setTimeout(() => runLazyModule('js/quick-add.min.js', () => {
+  setTimeout(() => runLazyModule(lazyAsset('js/quick-add.min.js'), () => {
     window.TaskFlowQuickAdd.openQuickAdd();
     if (capture && window.TaskFlowQuickCapture) {
       const text = window.TaskFlowQuickCapture.composeTaskText(capture);

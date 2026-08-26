@@ -279,19 +279,19 @@ describe('Phase 6O — Opt-In Effort Calibration', () => {
   // ===== LAZY LOADING =====
 
   it('O.45: effort-calibration.min.js is in the lazy-loading chain', () => {
-    assert.ok(appSrc.includes("ensureLazyModule('js/effort-calibration.min.js')"), 'Lazy-loaded in app.js');
+    assert.ok(appSrc.includes("ensureLazyModule(lazyAsset('js/effort-calibration.min.js'))"), 'Lazy-loaded in app.js');
   });
 
   it('O.46: effort-calibration.min.js is loaded after focus-session.min.js', () => {
-    const focusIdx = appSrc.indexOf("ensureLazyModule('js/focus-session.min.js')");
-    const calIdx = appSrc.indexOf("ensureLazyModule('js/effort-calibration.min.js')");
+    const focusIdx = appSrc.indexOf("ensureLazyModule(lazyAsset('js/focus-session.min.js'))");
+    const calIdx = appSrc.indexOf("ensureLazyModule(lazyAsset('js/effort-calibration.min.js'))");
     assert.ok(calIdx > focusIdx, 'Loaded after focus-session');
   });
 
   // ===== SW CACHE =====
 
   it('O.47: effort-calibration.min.js is in SW precache list', () => {
-    assert.ok(swSrc.includes("'./js/effort-calibration.min.js'"), 'In SW precache');
+    assert.ok(swSrc.includes("'./js/effort-calibration.min.js?v='"), 'In SW precache');
   });
 
   it('O.48: effort-calibration.min.js is listed exactly once in SW precache', () => {

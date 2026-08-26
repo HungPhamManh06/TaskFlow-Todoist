@@ -304,7 +304,7 @@
     var retryTimer = null;
     function _doRetry() {
       if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-      if (failedMsg) _doSend(failedMsg, { userBubble: false });
+      if (failedMsg) _doSend(failedMsg, { userBubble: false, persistUser: false });
     }
     if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
       var remaining = Math.ceil(retryAfterSeconds);
@@ -530,7 +530,7 @@
     }
 
     _setContextStatus('used', contextKeys);
-    return json.answer;
+    return { answer: json.answer, truncated: !!json.truncated };
   }
 
   /* ---- Error message mapping ---- */
@@ -624,8 +624,8 @@
 
     if (opts.userBubble !== false) _appendMessage(msgs, text, 'user');
 
-    // Persist user message to history
-    _persistUserMessage(text);
+    // Persist user message to history (skip on retry to avoid duplication)
+    if (opts.persistUser !== false) _persistUserMessage(text);
 
     var typingEl = _showTyping(msgs);
 
@@ -763,12 +763,15 @@
         throw { code: 'agent-unhandled' };
       }
 
-      var answer = await _callChatAPI(text, _getProviderHistory(), req.signal);
+      var chatResult = await _callChatAPI(text, _getProviderHistory(), req.signal);
 
       if (!_isCurrentRequest(req.generation)) return; // stale
       _removeTyping(typingEl);
-      _appendMessage(msgs, answer, 'bot');
-      _persistAssistantMessage(answer);
+      _appendMessage(msgs, chatResult.answer, 'bot');
+      _persistAssistantMessage(chatResult.answer);
+      if (chatResult.truncated) {
+        _appendMessage(msgs, _t('chatResponseTruncated') || 'Cảu trả lời bị cắt ngắn. Nhấn "Tiếp tục" để nhận thêm.', 'bot');
+      }
 
     } catch (err) {
       if (err && err.name === 'AbortError') {

@@ -36,7 +36,7 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const path = require('path');
 const { authMiddleware } = require('./auth');
-const { callAiText, callAiJson, getConfig, getBuildSha, getAgentTimeoutMs } = require('./ai-provider');
+const { callAiText, callAiJson, getConfig, getBuildSha, getAgentTimeoutMs, getChatTimeoutMs } = require('./ai-provider');
 const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('./ai-roadmap-validator');
 const { extractPdfText, DEFAULT_EXTRACT_MAX_BYTES, HARD_EXTRACT_MAX_BYTES, FILE_AGENT_EXTRACT_MAX_BYTES } = require('./ai-file-parser');
 const { buildDatedDocumentRoadmap, buildDatedDocumentProposal } = require('./ai-dated-document');
@@ -1162,7 +1162,8 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
 
     const aiResult = await callAiText({
       messages,
-      maxTokens: 1024,
+      maxTokens: 3072,
+      timeoutMs: getChatTimeoutMs(),
       requestId,
       routeName: '/api/ai/chat',
       signal: clientAbort.signal
@@ -1172,9 +1173,48 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
       return sendAiProviderError(res, aiResult);
     }
 
-    const resp = { ok: true, answer: aiResult.content };
+    // Auto-continuation: if finish_reason === 'length', response is truncated.
+    // Make at most ONE continuation call to complete the answer.
+    let answer = aiResult.content;
+    let truncated = false;
+    let totalLatencyMs = aiResult.latencyMs;
+    if (aiResult.finishReason === 'length') {
+      try {
+        const CONTINUATION_MSG = lang === 'en'
+          ? 'Continue exactly from where the previous response was cut off. Do not repeat any content before.'
+          : 'Tiếp tục chính xác từ phần đang dở. Không lặp lại nội dung trước.';
+        const contMessages = [
+          ...messages,
+          { role: 'assistant', content: answer },
+          { role: 'user', content: CONTINUATION_MSG },
+        ];
+        const contResult = await callAiText({
+          messages: contMessages,
+          maxTokens: 3072,
+          timeoutMs: getChatTimeoutMs(),
+          requestId,
+          routeName: '/api/ai/chat-continuation',
+          signal: clientAbort.signal,
+        });
+        totalLatencyMs += contResult.latencyMs;
+        if (contResult.ok) {
+          answer = answer + contResult.content;
+          if (contResult.finishReason === 'length') {
+            truncated = true;
+          }
+        } else {
+          // Continuation failed — return partial answer with truncated flag
+          truncated = true;
+        }
+      } catch (_e) {
+        truncated = true;
+      }
+    }
+
+    const resp = { ok: true, answer };
+    if (truncated) resp.truncated = true;
     if (req.query && req.query.debug === '1') {
-      resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs: aiResult.latencyMs };
+      resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs: totalLatencyMs };
     }
     return res.json(resp);
   } catch (e) {

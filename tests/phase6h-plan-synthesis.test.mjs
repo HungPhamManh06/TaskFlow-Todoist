@@ -347,7 +347,7 @@ describe('Phase 6H — Source Code Structure', () => {
 
   it('app.js lazy loads ai-plan.min.js', () => {
     const appSrc = readFileSync(resolve(root, 'js/app.js'), 'utf8');
-    assert.ok(appSrc.includes("ensureLazyModule('js/ai-plan.min.js')"), 'lazy loaded');
+    assert.ok(appSrc.includes("ensureLazyModule(lazyAsset('js/ai-plan.min.js'))"), 'lazy loaded');
   });
 });
 

@@ -99,7 +99,8 @@ test('P5+P6: "hi" → Render URL, no taskflowContext, never Vercel/relative', as
   const { ctx, calls } = makeContext(true);
   assert.equal(vm.runInContext('window.TaskFlowChatContextProvider.shouldAttachContext("hi")', ctx), false);
   const answer = await vm.runInContext('window.TaskFlowChat._callChatAPI("hi", [])', ctx);
-  assert.equal(answer, 'OK');
+  assert.equal(answer.answer, 'OK');
+  assert.equal(answer.truncated, false);
   assert.equal(calls.length, 1);
   const url = calls[0].url;
   assert.equal(url, 'https://todoist-m3c7.onrender.com/api/ai/chat');
@@ -173,7 +174,7 @@ test('P8: catch renders ONE retry wrapper with the mapped error — no duplicate
 
 test('P9: retry reuses the same message, one request, no duplicate user bubble', () => {
   const chat = read('chat.js');
-  assert.match(chat, /_doSend\(failedMsg, \{ userBubble: false \}\)/);
+  assert.match(chat, /_doSend\(failedMsg, \{ userBubble: false, persistUser: false \}\)/);
   assert.match(chat, /async function _doSend\(text, opts\)/);
   assert.match(chat, /if \(opts\.userBubble !== false\) _appendMessage/);
 });

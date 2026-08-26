@@ -527,13 +527,13 @@ describe('Runtime: lazy loading chain includes document-daily-plan', () => {
    =========================================================== */
 describe('Runtime: SW cache includes ai-document-daily-plan.min.js', () => {
   it('APP_SHELL contains ai-document-daily-plan.min.js', () => {
-    assert.ok(swSource.includes("'./js/ai-document-daily-plan.min.js'"),
-      'APP_SHELL has ai-document-daily-plan.min.js');
+    assert.ok(swSource.includes("'./js/ai-document-daily-plan.min.js?v='"),
+      'APP_SHELL has ai-document-daily-plan.min.js versioned');
   });
 
   it('module is after ai-agent-runtime.min.js in APP_SHELL', () => {
-    const rtIdx = swSource.indexOf("'./js/ai-agent-runtime.min.js'");
-    const dpIdx = swSource.indexOf("'./js/ai-document-daily-plan.min.js'");
+    const rtIdx = swSource.indexOf("'./js/ai-agent-runtime.min.js?v='");
+    const dpIdx = swSource.indexOf("'./js/ai-document-daily-plan.min.js?v='");
     assert.ok(rtIdx >= 0, 'runtime in APP_SHELL');
     assert.ok(dpIdx >= 0, 'document-daily-plan in APP_SHELL');
     assert.ok(rtIdx < dpIdx, 'document-daily-plan comes after runtime');

@@ -269,15 +269,17 @@ async function callAiCore(options) {
     return { ok: false, content: null, latencyMs, status: 502, error: 'ai-provider-unavailable', details: null };
   }
 
-  // Extract content from OpenAI-compatible response
-  const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+  // Extract content and finish_reason from OpenAI-compatible response
+  const choice = json && json.choices && json.choices[0];
+  const content = choice && choice.message && choice.message.content;
+  const finishReason = choice && choice.finish_reason ? String(choice.finish_reason) : null;
   if (typeof content !== 'string' || !content.trim()) {
     logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=empty-content latencyMs=' + latencyMs);
     return { ok: false, content: null, latencyMs, status: 422, error: 'ai-invalid-response', details: ['empty-content'] };
   }
 
   logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=success latencyMs=' + latencyMs);
-  return { ok: true, content: content.trim(), latencyMs, status: 200, error: null, details: null };
+  return { ok: true, content: content.trim(), latencyMs, status: 200, error: null, details: null, finishReason };
 }
 
 /**
@@ -324,6 +326,18 @@ function getAgentTimeoutMs() {
   return validateTimeout(raw);
 }
 
+/**
+ * Chat-specific timeout configuration.
+ * AI_CHAT_TIMEOUT_MS provides a generous timeout for conversational chat
+ * (summarize, explain, etc.) without affecting other AI routes.
+ * Validation bounds: MIN_TIMEOUT_MS .. MAX_TIMEOUT_MS (5000..120000).
+ * Default: 120000 (2 minutes — chat responses can be long-form).
+ */
+function getChatTimeoutMs() {
+  const raw = process.env.AI_CHAT_TIMEOUT_MS || '120000';
+  return validateTimeout(raw);
+}
+
 /** Safe build SHA from environment. Used by /health and debug meta. */
 function getBuildSha() {
   return process.env.TASKFLOW_BUILD_SHA || process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'unknown';
@@ -340,6 +354,7 @@ module.exports = {
   validateMaxTokens,
   validateMaxMessageBytes,
   getAgentTimeoutMs,
+  getChatTimeoutMs,
   getBuildSha,
   _parseRetryAfter,
   DEFAULT_TIMEOUT_MS,

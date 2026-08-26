@@ -276,19 +276,19 @@ describe('Phase 6P — Goal Progress & Milestone Tracking', () => {
   // ===== LAZY LOADING =====
 
   it('P.46: goal-tracking.min.js is in the lazy-loading chain', () => {
-    assert.ok(appSrc.includes("ensureLazyModule('js/goal-tracking.min.js')"), 'Lazy-loaded in app.js');
+    assert.ok(appSrc.includes("ensureLazyModule(lazyAsset('js/goal-tracking.min.js'))"), 'Lazy-loaded in app.js');
   });
 
   it('P.47: goal-tracking.min.js is loaded after effort-calibration.min.js', () => {
-    const calIdx = appSrc.indexOf("ensureLazyModule('js/effort-calibration.min.js')");
-    const goalIdx = appSrc.indexOf("ensureLazyModule('js/goal-tracking.min.js')");
+    const calIdx = appSrc.indexOf("ensureLazyModule(lazyAsset('js/effort-calibration.min.js'))");
+    const goalIdx = appSrc.indexOf("ensureLazyModule(lazyAsset('js/goal-tracking.min.js'))");
     assert.ok(goalIdx > calIdx, 'Loaded after effort-calibration');
   });
 
   // ===== SW CACHE =====
 
   it('P.48: goal-tracking.min.js is in SW precache list', () => {
-    assert.ok(swSrc.includes("'./js/goal-tracking.min.js'"), 'In SW precache');
+    assert.ok(swSrc.includes("'./js/goal-tracking.min.js?v='"), 'In SW precache');
   });
 
   it('P.49: goal-tracking.min.js is listed exactly once', () => {

@@ -309,25 +309,25 @@ describe('Phase 6N — Focus Session Execution & Verified Progress Capture', () 
   // ===== LAZY LOADING =====
 
   it('N.53: focus-session.min.js is in the lazy-loading chain', () => {
-    assert.ok(appSrc.includes("ensureLazyModule('js/focus-session.min.js')"), 'Lazy-loaded in app.js');
+    assert.ok(appSrc.includes("ensureLazyModule(lazyAsset('js/focus-session.min.js'))"), 'Lazy-loaded in app.js');
   });
 
   it('N.54: focus-session.min.js is loaded after ai-roadmap.min.js', () => {
     const roadmapIdx = appSrc.indexOf("ensureLazyModule('js/ai-roadmap.min.js')");
-    const focusIdx = appSrc.indexOf("ensureLazyModule('js/focus-session.min.js')");
+    const focusIdx = appSrc.indexOf("ensureLazyModule(lazyAsset('js/focus-session.min.js'))");
     assert.ok(focusIdx > roadmapIdx, 'Loaded after ai-roadmap');
   });
 
   it('N.55: focus-session.min.js is loaded before ai-agent-runtime.min.js', () => {
-    const focusIdx = appSrc.indexOf("ensureLazyModule('js/focus-session.min.js')");
-    const agentIdx = appSrc.indexOf("ensureLazyModule('js/ai-agent-runtime.min.js')");
+    const focusIdx = appSrc.indexOf("ensureLazyModule(lazyAsset('js/focus-session.min.js'))");
+    const agentIdx = appSrc.indexOf("ensureLazyModule(lazyAsset('js/ai-agent-runtime.min.js'))");
     assert.ok(focusIdx < agentIdx, 'Loaded before ai-agent-runtime');
   });
 
   // ===== SW CACHE =====
 
   it('N.56: focus-session.min.js is in SW precache list', () => {
-    assert.ok(swSrc.includes("'./js/focus-session.min.js'"), 'In SW precache');
+    assert.ok(swSrc.includes("'./js/focus-session.min.js?v='"), 'In SW precache');
   });
 
   it('N.57: focus-session.min.js is listed exactly once in SW precache', () => {

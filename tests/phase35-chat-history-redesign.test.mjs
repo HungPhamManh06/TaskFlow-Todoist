@@ -35,8 +35,8 @@ test('both lazy chat chains load local history before chat', () => {
     const start = APP_JS.indexOf(name);
     const end = APP_JS.indexOf('\n}', start) + 2;
     const body = APP_JS.slice(start, end);
-    const history = body.indexOf("ensureLazyModule('js/chat-history.min.js')");
-    const chat = body.indexOf("ensureLazyModule('js/chat.min.js')");
+    const history = body.indexOf("ensureLazyModule(lazyAsset('js/chat-history.min.js'))");
+    const chat = body.indexOf("ensureLazyModule(lazyAsset('js/chat.min.js'))");
     assert.ok(history >= 0, `${name} must load chat history`);
     assert.ok(chat > history, `${name} must load history before chat`);
   }
@@ -279,7 +279,7 @@ test('send control keeps its node stable in stop mode and retry does not duplica
   assert.match(sendMode, /sendBtn\.disabled = false/);
   assert.match(functionBody(CHAT, 'stopActiveResponse'), /_resizeComposer\(input\)/);
   assert.match(functionBody(CHAT, 'stopActiveResponse'), /_syncComposerState\(\)/);
-  assert.match(functionBody(CHAT, '_showRetry'), /_doSend\(failedMsg, \{ userBubble: false \}\)/);
+  assert.match(functionBody(CHAT, '_showRetry'), /_doSend\(failedMsg, \{ userBubble: false, persistUser: false \}\)/);
 });
 
 test('initial suggestions are exactly three localized safe actions', () => {
