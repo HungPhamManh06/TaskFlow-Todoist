@@ -1222,6 +1222,73 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
   }
 });
 
+/* ============ POST /api/ai/chat/continue — Manual continuation (Phase 7) ============ */
+// Client sends partialAnswer + conversationHistory; server constructs a
+// continuation instruction, calls provider once, and returns the next fragment.
+// The client is responsible for joining fragments with joinContinuation().
+router.post('/chat/continue', maybeRateLimit(aiChatLimiter), async (req, res) => {
+  const requestId = req.aiRequestId;
+  const clientAbort = new AbortController();
+  const onClientClose = () => clientAbort.abort();
+  req.on('aborted', onClientClose);
+  res.on('close', () => { req.removeListener('aborted', onClientClose); });
+  try {
+    if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const partialAnswer = typeof body.partialAnswer === 'string' ? body.partialAnswer : '';
+    const history = sanitizeChatHistory(body.history);
+    if (!partialAnswer) {
+      return res.status(400).json({ error: 'invalid-message' });
+    }
+
+    // Derive language from the conversation history (last user message)
+    var lang = 'vi';
+    for (var i = history.length - 1; i >= 0; i--) {
+      if (history[i].role === 'user') {
+        lang = /[a-zA-Z]/.test(history[i].content) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(history[i].content)
+          ? 'en' : 'vi';
+        break;
+      }
+    }
+    const sysInstruction = lang === 'en' ? CHAT_SYSTEM_INSTRUCTION_EN : CHAT_SYSTEM_INSTRUCTION_VI;
+
+    const CONTINUATION_MSG = lang === 'en'
+      ? 'Continue exactly from where the previous response was cut off. Do not repeat any content before.'
+      : 'Tiếp tục chính xác từ phần đang dở. Không lặp lại nội dung trước.';
+
+    const messages = [
+      { role: 'system', content: sysInstruction },
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'assistant', content: partialAnswer },
+      { role: 'user', content: CONTINUATION_MSG },
+    ];
+
+    const aiResult = await callAiText({
+      messages,
+      maxTokens: 3072,
+      timeoutMs: getChatTimeoutMs(),
+      requestId,
+      routeName: '/api/ai/chat-continuation',
+      signal: clientAbort.signal,
+    });
+
+    if (!aiResult.ok) {
+      return sendAiProviderError(res, aiResult);
+    }
+
+    const resp = { ok: true, answer: aiResult.content };
+    if (aiResult.finishReason === 'length') {
+      resp.truncated = true;
+    }
+    if (req.query && req.query.debug === '1') {
+      resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs: aiResult.latencyMs };
+    }
+    return res.json(resp);
+  } catch (e) {
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
 /* ============ POST /api/ai/agent — Safe Action Agent (Phase 4B/4C) ============ */
 
 /* Action types allowed in Phase 4B/4C. NO delete_task, NO generic tools.

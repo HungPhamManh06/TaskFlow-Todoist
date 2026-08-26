@@ -166,8 +166,10 @@ test('P10: ?debug=1 logs only URL resolution lines, never secrets', async () => 
 test('P8: catch renders ONE retry wrapper with the mapped error — no duplicate _showInfo', () => {
   const chat = read('chat.js');
   assert.match(chat, /function _showRetry\(container, failedMsg, mappedErrorText/);
-  const catchBlock = chat.match(/} catch \(err\) \{[\s\S]*?\} finally \{/);
-  assert.ok(catchBlock, 'catch block found');
+  const sendFn = chat.match(/async function _doSend\(text, opts\) \{[\s\S]*?\} finally \{/);
+  assert.ok(sendFn, '_doSend function found');
+  const catchBlock = sendFn[0].match(/} catch \(err\) \{[\s\S]*?\} finally \{/);
+  assert.ok(catchBlock, 'catch block found in _doSend');
   assert.match(catchBlock[0], /_showRetry\(msgs, text, errMsg/);
   assert.doesNotMatch(catchBlock[0], /_showInfo/);
 });

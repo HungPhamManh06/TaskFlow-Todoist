@@ -18,8 +18,26 @@
   var MAX_PROVIDER_HISTORY = 10;
   var MAX_MSG_LEN = 4000;
 
+  /* ---- Continuation join helper (Phase 7) ---- */
+  /* Removes suffix/prefix overlap between two consecutive assistant fragments.
+   Conservative: only trims clear sentence-level overlap, never rewrites content. */
+  function joinContinuation(prev, cont) {
+    if (!prev) return cont || '';
+    if (!cont) return prev || '';
+    // Try overlap at increasing suffix lengths of prev vs prefix of cont
+    var maxCheck = Math.min(prev.length, cont.length, 500);
+    for (var len = maxCheck; len >= 3; len--) {
+      var suffix = prev.slice(prev.length - len);
+      if (cont.indexOf(suffix) === 0) {
+        return prev + cont.slice(len);
+      }
+    }
+    return prev + cont;
+  }
+
   /* ---- State ---- */
   var _inFlight = false;
+  var _pendingContinuation = null;  // { generation, partialAnswer, lastBotEl }
   var _activeRequest = null;   // { generation, controller, kind }
   var _requestGeneration = 0;
 
@@ -157,6 +175,8 @@
     _requestGeneration++;
     _activeRequest = null;
     _inFlight = false;
+    _pendingContinuation = null;
+    _removeContinueButton();
     // Remove typing indicator
     var typingEl = document.querySelector('.chat-typing');
     if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
@@ -328,6 +348,115 @@
     wrap.appendChild(btn);
     container.appendChild(wrap);
     container.scrollTop = container.scrollHeight;
+  }
+
+  /* ---- Continue button (Phase 7) ---- */
+  function _showContinueButton(container) {
+    var wrap = document.createElement('div');
+    wrap.className = 'chat-msg bot chat-continue-wrap';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chat-retry-btn';
+    btn.textContent = _t('chatContinue');
+    btn.addEventListener('click', function () {
+      if (_pendingContinuation) _doContinue();
+    });
+    wrap.appendChild(btn);
+    container.appendChild(wrap);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function _removeContinueButton() {
+    var wrap = document.querySelector('.chat-continue-wrap');
+    if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
+  }
+
+  async function _doContinue() {
+    if (!_pendingContinuation || _inFlight) return;
+    var pc = _pendingContinuation;
+    _pendingContinuation = null;
+    _removeContinueButton();
+
+    var msgs = _el('chatMessages');
+    if (!msgs) return;
+
+    _inFlight = true;
+    _setInputEnabled(false);
+    _setSendMode(true);
+    _removeContinueButton();
+    var typingEl = _showTyping(msgs);
+    var req = _startRequest('continue');
+
+    try {
+      var apiBase = _getApiBase();
+      if (!apiBase) throw { code: 'api-config-missing' };
+      var token = null;
+      try { token = localStorage.getItem('planner-token'); } catch (e) { /* */ }
+      var headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      var res = await fetch(apiBase + '/api/ai/chat/continue', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          partialAnswer: pc.partialAnswer,
+          history: pc.history,
+        }),
+        signal: req.signal,
+      });
+      var json;
+      try { json = await res.json(); } catch (e) { json = null; }
+
+      if (!_isCurrentRequest(req.generation)) return;
+      _removeTyping(typingEl);
+
+      if (!res.ok || !json || !json.ok) {
+        var errCode = (json && json.error) || 'network';
+        throw { code: errCode, status: res.status };
+      }
+
+      var merged = joinContinuation(pc.partialAnswer, json.answer);
+      if (pc.lastBotEl) {
+        var body = pc.lastBotEl.querySelector('.chat-msg-body');
+        if (body) body.textContent = merged;
+      }
+      _persistAssistantMessage(merged);
+      if (json.truncated) {
+        _pendingContinuation = {
+          generation: req.generation,
+          partialAnswer: merged,
+          history: pc.history,
+          lastBotEl: pc.lastBotEl,
+        };
+        _showContinueButton(msgs, pc.lastBotEl);
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        return;
+      }
+      _removeTyping(typingEl);
+      // Show error but preserve the partial answer already rendered
+      var errMsg = _mapError(err);
+      if (errMsg) {
+        _appendMessage(msgs, errMsg, 'bot');
+      }
+      // Re-show continue button so user can retry
+      if (pc.lastBotEl) {
+        _pendingContinuation = pc;
+        _showContinueButton(msgs, pc.lastBotEl);
+      }
+    } finally {
+      if (_isCurrentRequest(req.generation)) {
+        _inFlight = false;
+        _activeRequest = null;
+      }
+      _setInputEnabled(true);
+      _setSendMode(false);
+      var input = _el('chatInput');
+      _resizeComposer(input);
+      _syncComposerState();
+      if (input) input.focus();
+    }
   }
 
   /* ---- Update input enabled/disabled state ---- */
@@ -767,10 +896,16 @@
 
       if (!_isCurrentRequest(req.generation)) return; // stale
       _removeTyping(typingEl);
-      _appendMessage(msgs, chatResult.answer, 'bot');
+      var botEl = _appendMessage(msgs, chatResult.answer, 'bot');
       _persistAssistantMessage(chatResult.answer);
       if (chatResult.truncated) {
-        _appendMessage(msgs, _t('chatResponseTruncated') || 'Cảu trả lời bị cắt ngắn. Nhấn "Tiếp tục" để nhận thêm.', 'bot');
+        _pendingContinuation = {
+          generation: req.generation,
+          partialAnswer: chatResult.answer,
+          history: _getProviderHistory(),
+          lastBotEl: botEl,
+        };
+        _showContinueButton(msgs, botEl);
       }
 
     } catch (err) {
