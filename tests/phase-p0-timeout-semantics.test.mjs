@@ -19,7 +19,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
 
-const aiJS = readFileSync(join(ROOT, 'server', 'ai.js'), 'utf8');
+// Normalize CRLF so index-based structural assertions are checkout-agnostic
+// (Windows autocrlf working copies must behave exactly like CI's LF blobs).
+const aiJS = readFileSync(join(ROOT, 'server', 'ai.js'), 'utf8').replace(/\r\n/g, '\n');
 const providerJS = readFileSync(join(ROOT, 'server', 'ai-provider.js'), 'utf8');
 const clientJS = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
 

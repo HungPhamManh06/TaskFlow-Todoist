@@ -40,7 +40,8 @@ describe('E2E: chat.js intent routing', () => {
 
   it('document-daily-plan delegates initial upload to its orchestrator', () => {
     assert.ok(chatSource.includes('dailyPlanner.runInitialDocumentPlan'), 'delegates to document planner orchestrator');
-    assert.ok(planSource.includes("/api/ai/document-daily-plan'"), 'orchestrator owns the endpoint');
+    assert.ok(planSource.includes("/api/ai/document-roadmap'"), 'orchestrator owns the Stage A endpoint');
+    assert.ok(planSource.includes('_executeWindow(record, record.baseDate, 7, opts)'), 'initial window reuses the shared Stage B path');
   });
 
   it('tuần tiếp theo detection exists in _doSend', () => {
@@ -62,8 +63,13 @@ describe('E2E: server schemas', () => {
     assert.ok(aiSource.includes("'days', 'summary'"));
   });
 
-  it('/document-daily-plan route exists', () => {
-    assert.ok(aiSource.includes("router.post('/document-daily-plan'"));
+  it('/document-roadmap Stage A route exists', () => {
+    assert.ok(aiSource.includes("router.post('/document-roadmap'"));
+  });
+
+  it('combined /document-daily-plan endpoint is fully retired', () => {
+    assert.ok(!aiSource.includes("'/document-daily-plan'"), 'no dead combined route');
+    assert.ok(!aiSource.includes('handleDocumentDailyPlan'), 'no dead combined handler');
   });
 
   it('validateDailyPlanProposal exists and is exported', () => {
@@ -74,7 +80,7 @@ describe('E2E: server schemas', () => {
   it('no buildContext() in server daily-plan code', () => {
     // Find the daily-plan route and verify no buildContext call
     const dailyPlanIdx = aiSource.indexOf("router.post('/daily-plan'");
-    const nextRouteIdx = aiSource.indexOf("router.post('/document-daily-plan'");
+    const nextRouteIdx = aiSource.indexOf("router.post('/document-roadmap'");
     const segment = aiSource.slice(dailyPlanIdx, nextRouteIdx);
     assert.ok(!segment.includes('buildContext()'), 'no buildContext() in daily-plan route');
   });
@@ -115,8 +121,15 @@ describe('E2E: client module (ai-document-daily-plan.js)', () => {
     assert.ok(planSource.includes('clearAll'), 'has clear all for account switch');
   });
 
-  it('calls /api/ai/document-daily-plan for initial upload', () => {
-    assert.ok(planSource.includes('/api/ai/document-daily-plan'), 'calls correct endpoint');
+  it('calls /api/ai/document-roadmap for initial Stage A upload', () => {
+    assert.ok(planSource.includes('/api/ai/document-roadmap'), 'calls correct Stage A endpoint');
+    assert.ok(!planSource.includes('/api/ai/document-daily-plan'), 'combined endpoint is gone from client');
+  });
+
+  it('persists the roadmap BEFORE requesting any daily plan', () => {
+    const saveIdx = planSource.indexOf('saveRoadmap(record);');
+    const stageBIdx = planSource.indexOf('_executeWindow(record, record.baseDate');
+    assert.ok(saveIdx > 0 && stageBIdx > saveIdx, 'saveRoadmap precedes _executeWindow');
   });
 
   it('calls /api/ai/daily-plan for follow-up', () => {

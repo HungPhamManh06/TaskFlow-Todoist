@@ -11,7 +11,7 @@ const {
   buildDatedDocumentRoadmap,
   buildDatedDocumentProposal,
 } = require('../server/ai-dated-document.js');
-const { handleDailyPlan, handleDocumentDailyPlan } = require('../server/ai.js');
+const { handleDailyPlan, handleDocumentRoadmap } = require('../server/ai.js');
 
 const FORTY_WEEK_TEXT = `
 KẾ HOẠCH HỌC 40 TUẦN
@@ -136,13 +136,13 @@ T4
   });
 });
 
-describe('Combined document planner dated fallback', () => {
-  it('returns Review actions without calling the AI provider', async () => {
+describe('Stage A document-roadmap dated extraction', () => {
+  it('returns a roadmap WITHOUT calling the AI provider and without any proposal', async () => {
     const fileBuffer = Buffer.from('dated-roadmap-fixture');
     let providerCalls = 0;
     const recorder = responseRecorder();
 
-    await handleDocumentDailyPlan(
+    await handleDocumentRoadmap(
       { aiRequestId: 'dated-fallback-test' },
       recorder.res,
       {
@@ -170,12 +170,12 @@ describe('Combined document planner dated fallback', () => {
     assert.equal(result.statusCode, 200);
     assert.equal(providerCalls, 0);
     assert.equal(result.body.ok, true);
-    assert.equal(result.body.proposal.actions.length, 7);
-    assert.equal(result.body.proposal.actions[0].args.text, 'Function, parameter, return value.');
-    assert.equal(result.body.meta.source, 'document-dates');
-    assert.equal(result.body.meta.daysGenerated, 7);
+    assert.equal(result.body.proposal, undefined, 'Stage A must not produce a proposal');
     assert.equal(result.body.roadmap.totalWeeks, 40);
     assert.equal(result.body.roadmap.datedTasks.length, 7);
+    assert.equal(result.body.meta.source, 'document-dates');
+    assert.ok(Array.isArray(result.body.meta.dateRange) && result.body.meta.dateRange.length === 2);
+    assert.equal(result.body.meta.totalDatedTasks, 7);
   });
 
   it('uses the deterministic path for a valid two-day schedule', async () => {
@@ -190,7 +190,7 @@ Tuần 1: Ôn tập
     let providerCalls = 0;
     const recorder = responseRecorder();
 
-    await handleDocumentDailyPlan(
+    await handleDocumentRoadmap(
       { aiRequestId: 'sparse-dated-fallback-test' },
       recorder.res,
       {
@@ -217,8 +217,9 @@ Tuần 1: Ôn tập
     const result = recorder.read();
     assert.equal(result.statusCode, 200);
     assert.equal(providerCalls, 0);
-    assert.equal(result.body.proposal.actions.length, 2);
-    assert.deepEqual(result.body.proposal.actions.map((action) => action.args.date), ['2026-09-05', '2026-09-06']);
+    assert.equal(result.body.proposal, undefined, 'no proposal in Stage A response');
+    assert.equal(result.body.roadmap.datedTasks.length, 2);
+    assert.deepEqual(result.body.meta.dateRange, ['2026-09-05', '2026-09-06']);
     assert.equal(result.body.meta.source, 'document-dates');
   });
 });

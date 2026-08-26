@@ -28,7 +28,7 @@ const chatSource = readFileSync(join(ROOT, 'js', 'chat.js'), 'utf8');
 const agentSrc = readFileSync(join(ROOT, 'js', 'ai-agent.js'), 'utf8');
 const runtimeSrc = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
 const pdfFixture = readFileSync(join(ROOT, 'tests', 'fixtures', 'document-daily-plan-roadmap.pdf'));
-const { handleDocumentDailyPlan, validateDailyPlanProposal } = require(join(ROOT, 'server', 'ai.js'));
+const { handleDocumentRoadmap, handleDailyPlan, validateDailyPlanProposal } = require(join(ROOT, 'server', 'ai.js'));
 
 /* ---- Helpers ---- */
 function findByTestId(node, testid) {
@@ -101,13 +101,13 @@ describe('E2E FINAL: Server pipeline (real PDF + mocked provider)', () => {
     };
   }
 
-  it('real multipart PDF runs both provider stages and returns 14 review actions', async () => {
+  it('real multipart PDF runs Stage A then /daily-plan Stage B and returns 14 review actions', async () => {
     const startDate = '2026-08-24';
     const dates = dateRange(startDate, 7);
     const providerCalls = [];
     const callAiJson = async (request) => {
       providerCalls.push(request);
-      if (request.routeName.endsWith('/roadmap')) {
+      if (request.routeName.endsWith('/document-roadmap')) {
         assert.match(request.messages[1].content, /12-Week Full Stack/, 'real PDF text reaches roadmap stage');
         return {
           ok: true,
@@ -131,23 +131,49 @@ describe('E2E FINAL: Server pipeline (real PDF + mocked provider)', () => {
       return { ok: true, latencyMs: 13, parsed: { summary: 'Kế hoạch 7 ngày — 14 việc', days } };
     };
 
-    const req = await multipartRequest();
-    const recorder = responseRecorder();
-    await handleDocumentDailyPlan(req, recorder.res, {
+    // ---- Stage A: PDF → roadmap only ----
+    const reqA = await multipartRequest();
+    const recorderA = responseRecorder();
+    await handleDocumentRoadmap(reqA, recorderA.res, {
       apiKey: 'test-key',
       callAiJson,
       now: new Date('2026-08-24T00:30:00+07:00'),
     });
 
-    const { statusCode, body } = recorder.read();
-    assert.equal(statusCode, 200, JSON.stringify(body));
-    assert.equal(body.ok, true);
-    assert.equal(providerCalls.length, 2, 'roadmap and daily-plan provider stages called');
-    assert.equal(body.proposal.actions.length, 14, '14 actions returned for Review');
-    assert.deepEqual(body.meta.dateRange, [dates[0], dates[6]], 'dates follow user timezone');
-    assert.equal(body.files[0].name, 'roadmap.pdf', 'accepted multipart file is returned');
-    assert.equal(body.rejectedFiles.length, 0);
-    assert.match(body.fingerprint, /^[a-f0-9]{16}$/);
+    const a = recorderA.read();
+    assert.equal(a.statusCode, 200, JSON.stringify(a.body));
+    assert.equal(a.body.ok, true);
+    assert.equal(providerCalls.length, 1, 'Stage A makes exactly one provider call');
+    assert.equal(a.body.proposal, undefined, 'Stage A returns no proposal');
+    assert.equal(a.body.roadmap.totalWeeks, 12);
+    assert.match(a.body.fingerprint, /^[a-f0-9]{16}$/);
+    assert.equal(a.body.files[0].name, 'roadmap.pdf', 'accepted multipart file is returned');
+    assert.equal(a.body.rejectedFiles.length, 0);
+
+    // ---- Stage B: persisted roadmap → /daily-plan proposal ----
+    const recorderB = responseRecorder();
+    await handleDailyPlan(
+      { aiRequestId: 'stage-b-test', body: {
+        roadmap: a.body.roadmap,
+        startDate: dates[0],
+        daysCount: 7,
+        existingTasks: [],
+        lang: 'vi',
+        timeZone: 'Asia/Bangkok',
+      } },
+      recorderB.res,
+      {
+        apiKey: 'test-key',
+        callAiJson,
+        now: new Date('2026-08-24T00:30:00+07:00'),
+      },
+    );
+
+    const b = recorderB.read();
+    assert.equal(b.statusCode, 200, JSON.stringify(b.body));
+    assert.equal(providerCalls.length, 2, 'roadmap and daily-plan provider stages each called once');
+    assert.equal(b.body.proposal.actions.length, 14, '14 actions returned for Review');
+    assert.deepEqual(b.body.meta.dateRange, [dates[0], dates[6]], 'dates follow user timezone');
   });
 
   it('validateDailyPlanProposal rejects proposal with >84 actions', () => {
@@ -844,7 +870,7 @@ describe('E2E FINAL: Chat.js orchestration dedup', () => {
     assert.ok(!sendBody.includes('TaskFlowDocumentDailyPlan.saveRoadmap'), 'chat does not persist the roadmap itself');
     assert.ok(planSource.includes('function runInitialDocumentPlan'), 'module has runInitialDocumentPlan');
     assert.ok(planSource.includes('saveRoadmap(record)'), 'module calls saveRoadmap internally');
-    assert.ok(planSource.includes('/api/ai/document-daily-plan'), 'module calls correct endpoint');
+    assert.ok(planSource.includes('/api/ai/document-roadmap'), 'module calls correct Stage A endpoint');
     assert.ok(planSource.includes('new FormData'), 'module builds FormData');
   });
 

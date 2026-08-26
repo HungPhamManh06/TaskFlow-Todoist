@@ -629,7 +629,8 @@ describe('Runtime: cursor advance logic', () => {
 describe('Runtime: chat.js wires document-daily-plan correctly', () => {
   it('document-daily-plan upload is delegated to the canonical orchestrator', () => {
     assert.ok(chatSource.includes('dailyPlanner.runInitialDocumentPlan'), 'chat delegates initial upload');
-    assert.ok(planSource.includes('/api/ai/document-daily-plan'), 'orchestrator owns the endpoint');
+    assert.ok(planSource.includes('/api/ai/document-roadmap'), 'orchestrator owns the Stage A endpoint');
+    assert.ok(planSource.includes('/api/ai/daily-plan'), 'initial window rides the shared daily-plan endpoint');
   });
 
   it('follow-up "tuần tiếp theo" checks TaskFlowDocumentDailyPlan', () => {
@@ -667,9 +668,9 @@ describe('Runtime: chat.js wires document-daily-plan correctly', () => {
 describe('Runtime: server daily-plan route has no buildContext()', () => {
   it('daily-plan route does not call buildContext()', () => {
     const dailyPlanIdx = aiSource.indexOf("router.post('/daily-plan'");
-    const nextRouteIdx = aiSource.indexOf("router.post('/document-daily-plan'");
+    const nextRouteIdx = aiSource.indexOf("router.post('/document-roadmap'");
     assert.ok(dailyPlanIdx >= 0, 'daily-plan route found');
-    assert.ok(nextRouteIdx > dailyPlanIdx, 'document-daily-plan route after daily-plan');
+    assert.ok(nextRouteIdx > dailyPlanIdx, 'document-roadmap route after daily-plan');
     const segment = aiSource.slice(dailyPlanIdx, nextRouteIdx);
     assert.ok(!segment.includes('buildContext()'), 'no buildContext() in daily-plan route');
   });

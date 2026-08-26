@@ -1,0 +1,46 @@
+%PDF-1.4
+1 0 obj
+<</Type/Catalog/Pages 2 0 R>>
+endobj
+2 0 obj
+<</Type/Pages/Kids[3 0 R]/Count 1>>
+endobj
+3 0 obj
+<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>
+endobj
+4 0 obj
+<</Length 590>>
+stream
+BT /F1 11 Tf 40 750 Td 16 TL
+(Embedded Systems Roadmap 2026) Tj T*
+(01/09/2026 - 10/09/2026) Tj T*
+(Ngay   Noi dung hoc / thuc hanh   Done) Tj T*
+(01/09 Learn GPIO basics 1h [ ]) Tj T*
+(02/09 Learn UART communication 45 min [ ]) Tj T*
+(03/09 Learn SPI bus 90 min [ ]) Tj T*
+(04/09 I2C sensors lab 1h30 [ ]) Tj T*
+(05/09 Timer and PWM drills 60 min [ ]) Tj T*
+(06/09 ADC practice set 2 hours [ ]) Tj T*
+(07/09 Weekly review quiz 30 min [ ]) Tj T*
+(08/09 Interrupt handling basics 1h [ ]) Tj T*
+(09/09 DMA fundamentals 45 min [ ]) Tj T*
+(10/09 Mini project sensor logger 2 hours [ ]) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000054 00000 n 
+0000000105 00000 n 
+0000000217 00000 n 
+0000000856 00000 n 
+trailer
+<</Size 6/Root 1 0 R>>
+startxref
+919
+%%EOF

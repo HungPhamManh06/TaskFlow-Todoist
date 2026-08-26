@@ -278,7 +278,7 @@
     fd.append('message', message);
     fd.append('timeZone', _getTimeZone());
 
-    // Send existing tasks for deduplication
+    // Send existing tasks so later dedupe matches real planner state
     try {
       if (typeof TaskFlowAIAgentRuntime !== 'undefined' && TaskFlowAIAgentRuntime.buildContext) {
         var ctx = TaskFlowAIAgentRuntime.buildContext();
@@ -295,9 +295,10 @@
     var headers = {};
     if (token) headers['Authorization'] = 'Bearer ' + token;
 
-    // Stage A: Upload PDF + extract roadmap + generate daily plan in one call
-    // Server handles: PDF extraction → roadmap extraction → daily plan generation
-    var resp = await fetch(apiBase + '/api/ai/document-daily-plan', {
+    // Stage A ONLY: PDF → normalized roadmap. No proposal here — every
+    // proposal (initial or follow-up) comes from /api/ai/daily-plan through
+    // the single shared window implementation below.
+    var resp = await fetch(apiBase + '/api/ai/document-roadmap', {
       method: 'POST',
       headers: headers,
       body: fd,
@@ -307,61 +308,42 @@
     var json;
     try { json = await resp.json(); } catch (e) { json = null; }
 
-    if (!resp.ok || !json || !json.ok) {
-      var errorCode = (json && json.error) ? json.error : 'ai-document-plan-failed';
+    if (!resp.ok || !json || !json.ok || !json.roadmap) {
+      var errorCode = (json && json.error) ? json.error : 'ai-document-roadmap-failed';
       return { ok: false, code: errorCode, status: resp.status };
     }
 
-    // Persist roadmap
-    // baseDate = curriculum start date (immutable). Used to derive all windows.
-    var roadmapId = null;
+    // Persist roadmap BEFORE Stage B. baseDate = curriculum start date
+    // (immutable) taken from the document's own date range when present.
     var baseDate = (json.meta && Array.isArray(json.meta.dateRange) && json.meta.dateRange[0]) || _today();
-    if (json.roadmap) {
-      var record = {
-        id: 'roadmap-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-        accountScope: _getAccountScope(),
-        fingerprint: json.fingerprint || '',
-        documentName: json.documentName || 'document',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        roadmap: json.roadmap,
-        baseDate: baseDate,
-        cursor: {
-          nextWeek: 0,
-          lastAppliedStartDate: null,
-          lastAppliedDaysCount: 0,
-        },
-      };
-      roadmapId = record.id;
-      saveRoadmap(record);
-    }
+    var record = {
+      id: 'roadmap-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      accountScope: _getAccountScope(),
+      fingerprint: json.fingerprint || '',
+      documentName: json.documentName || 'document',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      roadmap: json.roadmap,
+      baseDate: baseDate,
+      cursor: {
+        nextWeek: 0,
+        lastAppliedStartDate: null,
+        lastAppliedDaysCount: 0,
+      },
+    };
+    saveRoadmap(record);
 
-    // Create pending cursor for initial proposal — Apply must advance cursor.
-    var initialDaysCount = (json.meta && typeof json.meta.daysGenerated === 'number') ? json.meta.daysGenerated : 7;
-    if (roadmapId && json.proposal && typeof json.proposal === 'object') {
-      var proposalId = (typeof json.proposal.id === 'string' && json.proposal.id) ? json.proposal.id : 'proposal_doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-      json.proposal.id = proposalId;
-      _pendingCursor = {
-        proposalId: proposalId, source: 'document-daily-plan', roadmapId: roadmapId,
-        fromCursor: { nextWeek: 0, lastAppliedStartDate: null, lastAppliedDaysCount: 0 },
-        toCursor: { nextWeek: 1, lastAppliedStartDate: baseDate, lastAppliedDaysCount: initialDaysCount },
-        createdAt: Date.now(),
-      };
-      _pendingCursorProposalId = proposalId;
-    } else {
-      _pendingCursor = null; _pendingCursorProposalId = null;
-    }
+    // Stage B: initial window through the SAME code path as "tuần tiếp theo".
+    var result = await _executeWindow(record, record.baseDate, 7, opts);
+    if (!result || !result.ok) return result;
 
-    return {
-      ok: true,
-      proposal: json.proposal,
-      meta: json.meta,
+    return Object.assign({}, result, {
       roadmap: json.roadmap,
       fingerprint: json.fingerprint || '',
       documentName: json.documentName || 'document',
       files: Array.isArray(json.files) ? json.files : [],
       rejectedFiles: Array.isArray(json.rejectedFiles) ? json.rejectedFiles : [],
-    };
+    });
   }
 
   /* ---- Stage B: Generate daily plan from stored roadmap ---- */
@@ -550,7 +532,7 @@
     'ai-not-configured': 'AI chưa được cấu hình.\nVui lòng liên hệ quản trị viên.',
     'ai-timeout': 'Yêu cầu AI quá lâu.\nVui lòng thử lại.',
     'ai-rate-limited': 'Đang gửi quá nhiều yêu cầu.\nVui lòng chờ một chút.',
-    'ai-document-plan-failed': 'Không thể tạo kế hoạch tài liệu.\nVui lòng thử lại.',
+    'ai-document-roadmap-failed': 'Không thể đọc lộ trình từ tài liệu.\nVui lòng thử lại.',
     'ai-daily-plan-failed': 'Không thể tạo kế hoạch hàng ngày.\nVui lòng thử lại.',
     'ai-document-plan-module-missing': 'Module lập kế hoạch tài liệu chưa được tải.\nVui lòng tải lại trang.',
     'no-active-roadmap': 'Không tìm thấy kế hoạch tài liệu.\nVui lòng tải lên PDF trước.',
