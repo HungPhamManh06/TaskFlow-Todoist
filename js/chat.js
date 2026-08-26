@@ -142,6 +142,20 @@
     });
   }
 
+  /* Update the last assistant message in history (for continuation merge). */
+  function _updateLastAssistantMessage(text) {
+    var mod = _getHistory();
+    if (!mod) return;
+    var conv = _getActiveConversation();
+    if (!conv) return;
+    if (typeof mod.updateLastMessage === 'function') {
+      mod.updateLastMessage(_getAccountScope(), conv.id, 'assistant', text);
+    } else {
+      // Fallback: append if update API unavailable
+      mod.addMessage(_getAccountScope(), conv.id, { role: 'assistant', content: text });
+    }
+  }
+
   function _getProviderHistory() {
     var mod = _getHistory();
     if (!mod) return [];
@@ -420,7 +434,8 @@
         var body = pc.lastBotEl.querySelector('.chat-msg-body');
         if (body) body.textContent = merged;
       }
-      _persistAssistantMessage(merged);
+      // Update last assistant message in history instead of appending duplicate
+      _updateLastAssistantMessage(merged);
       if (json.truncated) {
         _pendingContinuation = {
           generation: req.generation,
@@ -603,7 +618,8 @@
   }
 
   /* ---- API call ---- */
-  async function _callChatAPI(message, history, signal) {
+  async function _callChatAPI(message, history, signal, opts) {
+    opts = opts || {};
     var apiBase = _getApiBase();
     if (!apiBase) {
       throw { code: 'api-config-missing' };
@@ -631,6 +647,7 @@
     }
     var body = { message: message, history: history };
     if (taskflowContext) body.taskflowContext = taskflowContext;
+    if (opts.documentContext) body.documentContext = opts.documentContext;
     var contextKeys = _contextKeysFromEnvelope(taskflowContext);
 
     // P10: ?debug=1 safe diagnostics — URL resolution only, never token/body/context.
@@ -685,6 +702,53 @@
       case 'api-config-missing': return _t('chatErrorApiConfig');
       default: return _t('chatErrorMsg');
     }
+  }
+
+  /* ---- Document-aware intent detection (Phase 8) ---- */
+  function _isDocumentQuestion(text) {
+    if (!text) return false;
+    // Explicit document references (with and without diacritics)
+    if (/(?:tài\s+liệu|tai\s+lieu|document|pdf|file).{0,30}(?:này|nay|đang|dang|đã|da|đính\s+gắn|dinh\s+gan|upload|tải|tai)/i.test(text)) return true;
+    if (/(?:này|nay|đang|dang).{0,20}(?:nói|noi|đề\s+cập|de\s+cap|đang|dang|hướng\s+đến)/i.test(text) && /(?:tài\s+liệu|tai\s+lieu|document|roadmap|kế\s+hoạch|ke\s+hoach|lộ\s+trình|lo\s+trinh)/i.test(text)) return true;
+    // Summarize/explain document
+    if (/(?:tóm\s+tắt|tom\s+tat|summarize|summary|tổng\s+hợp|tong\s+hop).{0,40}(?:tài\s+liệu|tai\s+lieu|document|pdf|này|nay)/i.test(text)) return true;
+    if (/(?:giải\s+thích|giai\s+thich|explain).{0,40}(?:phần|phan|chương|chuong|chapter|section|topic|phương).{0,40}(?:trong|cua|từ|tu).{0,30}(?:tài\s+liệu|tai\s+lieu|document|pdf)/i.test(text)) return true;
+    // Week-specific questions about the roadmap
+    if (/(?:tuần|tuan)\s+\d+.{0,30}(?:học|hoc|làm|lam|nội\s+nội|noi\s+dung|chương\s+trình|chuong\s+trinh|gì|gi)/i.test(text)) return true;
+    if (/\d+.{0,10}(?:week|tuần|tuan).{0,30}(?:learn|study|học|hoc|làm|lam|gì|gi)/i.test(text)) return true;
+    // Goals/structure of the document/roadmap
+    if (/(?:mục\s+tiêu|muc\s+tieu|goal|objective).{0,30}(?:của|cua|trong).{0,30}(?:roadmap|lộ\s+trình|lo\s+trinh|kế\s+hoạch|ke\s+hoach|tài\s+liệu|tai\s+lieu)/i.test(text)) return true;
+    return false;
+  }
+
+  function _getDocumentContext() {
+    try {
+      var planner = window.TaskFlowDocumentDailyPlan;
+      if (!planner || typeof planner.getActiveRoadmap !== 'function') return null;
+      var active = planner.getActiveRoadmap();
+      if (!active || !active.roadmap) return null;
+      var status = typeof planner.getStatus === 'function' ? planner.getStatus() : null;
+      // Minimize data: only send roadmap phases + title + totalWeeks + cursor
+      var roadmapBrief = {
+        title: active.roadmap.title || '',
+        totalWeeks: active.roadmap.totalWeeks || null,
+        phases: (active.roadmap.phases || []).map(function (p) {
+          return {
+            name: p.name || '',
+            weeks: p.weeks || null,
+            goals: (p.goals || []).slice(0, 5),
+            deliverables: (p.deliverables || []).slice(0, 5),
+            topics: (p.topics || []).slice(0, 10)
+          };
+        })
+      };
+      return {
+        roadmap: roadmapBrief,
+        documentName: active.documentName || 'document',
+        totalWeeks: active.roadmap.totalWeeks || null,
+        cursor: active.cursor || {}
+      };
+    } catch (e) { return null; }
   }
 
   /* ---- Routing: should this message go to AI Brain? ---- */
@@ -836,50 +900,66 @@
         }
       }
 
-      // Try AI Brain for TaskFlow-specific queries and action intents
-      var brainClient = window.TaskFlowAIBrainClient;
-      if (brainClient && typeof brainClient.handleMessage === 'function' && _shouldUseBrain(text, intent)) {
-        try {
-          var brainResult = await brainClient.handleMessage(text, {
-            signal: req.signal,
-            history: _getProviderHistory(),
-          });
-
-          if (!_isCurrentRequest(req.generation)) return;
+      // Phase 8: Document-aware chat — detect BEFORE Brain so document
+      // questions go directly to /api/ai/chat with document context.
+      var documentContext = null;
+      if (_isDocumentQuestion(text)) {
+        documentContext = _getDocumentContext();
+        if (!documentContext) {
           _removeTyping(typingEl);
+          _appendMessage(msgs, _t('chatNoActiveDocument') || 'Bạn chưa có tài liệu đang hoạt động. Hãy đính kèm hoặc chọn một tài liệu.', 'bot');
+          _persistAssistantMessage(_t('chatNoActiveDocument') || 'Bạn chưa có tài liệu đang hoạt động.');
+          _setContextStatus('idle', []);
+          return;
+        }
+        // Route document questions directly to chat with context — skip Brain
+      } else {
+        // Try AI Brain for TaskFlow-specific queries and action intents
+        var brainClient = window.TaskFlowAIBrainClient;
+        if (brainClient && typeof brainClient.handleMessage === 'function' && _shouldUseBrain(text, intent)) {
+          try {
+            var brainResult = await brainClient.handleMessage(text, {
+              signal: req.signal,
+              history: _getProviderHistory(),
+            });
 
-          if (brainResult && brainResult.ok) {
-            if (brainResult.type === 'final' && brainResult.answer) {
-              _appendMessage(msgs, brainResult.answer, 'bot');
-              _persistAssistantMessage(brainResult.answer);
-              _setContextStatus('idle', []);
-              return;
-            }
-            if (brainResult.type === 'proposal' && brainResult.proposal) {
-              var brainSummary = brainResult.proposal.summary || ('Kế hoạch — ' + (brainResult.proposal.actions ? brainResult.proposal.actions.length : 0) + ' hành động');
-              _appendMessage(msgs, brainSummary, 'bot');
-              _persistAssistantMessage(brainSummary);
-              var _reviewResult = null;
-              try {
-                if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
-                  _reviewResult = window.TaskFlowAIAgentRuntime.handleExternalProposal(brainResult.proposal, { source: 'ai-brain' });
-                }
-              } catch (e) { /* review must never break chat */ }
-              if (_reviewResult && !_reviewResult.ok) {
-                _appendMessage(msgs, _t('agentErrorReviewFailed') || _t('agentErrorServer'), 'bot');
+            if (!_isCurrentRequest(req.generation)) return;
+            _removeTyping(typingEl);
+
+            if (brainResult && brainResult.ok) {
+              if (brainResult.type === 'final' && brainResult.answer) {
+                _appendMessage(msgs, brainResult.answer, 'bot');
+                _persistAssistantMessage(brainResult.answer);
+                _setContextStatus('idle', []);
+                return;
               }
-              _setContextStatus('idle', []);
-              return;
+              if (brainResult.type === 'proposal' && brainResult.proposal) {
+                var brainSummary = brainResult.proposal.summary || ('Kế hoạch — ' + (brainResult.proposal.actions ? brainResult.proposal.actions.length : 0) + ' hành động');
+                _appendMessage(msgs, brainSummary, 'bot');
+                _persistAssistantMessage(brainSummary);
+                var _reviewResult = null;
+                try {
+                  if (window.TaskFlowAIAgentRuntime && typeof window.TaskFlowAIAgentRuntime.handleExternalProposal === 'function') {
+                    _reviewResult = window.TaskFlowAIAgentRuntime.handleExternalProposal(brainResult.proposal, { source: 'ai-brain' });
+                  }
+                } catch (e) { /* review must never break chat */ }
+                if (_reviewResult && !_reviewResult.ok) {
+                  _appendMessage(msgs, _t('agentErrorReviewFailed') || _t('agentErrorServer'), 'bot');
+                }
+                _setContextStatus('idle', []);
+                return;
+              }
             }
+            // Brain failed or returned tool_request without resolution — fall through to legacy
+          } catch (e) {
+            // Brain error — fall through to legacy
           }
-          // Brain failed or returned tool_request without resolution — fall through to legacy
-        } catch (e) {
-          // Brain error — fall through to legacy
         }
       }
 
       // Fallback: legacy agent or chat API
-      if (useAgent) {
+      // Skip agent path for document-aware questions (Phase 8)
+      if (useAgent && !documentContext) {
         var agentRes = await window.TaskFlowAIAgentRuntime.handleAgent(text, _getProviderHistory(), msgs, { signal: req.signal, generation: req.generation });
         if (!_isCurrentRequest(req.generation)) return; // stale
         _removeTyping(typingEl);
@@ -892,7 +972,9 @@
         throw { code: 'agent-unhandled' };
       }
 
-      var chatResult = await _callChatAPI(text, _getProviderHistory(), req.signal);
+      var chatResult = await _callChatAPI(text, _getProviderHistory(), req.signal, {
+        documentContext: documentContext
+      });
 
       if (!_isCurrentRequest(req.generation)) return; // stale
       _removeTyping(typingEl);

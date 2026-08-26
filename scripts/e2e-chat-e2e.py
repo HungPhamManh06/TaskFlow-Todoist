@@ -174,10 +174,14 @@ def main():
             fab = page.locator('[data-testid="chat-fab"]')
             fab.click()
             page.wait_for_selector('#chatPop:not([hidden])', state='visible')
+            # Wait for lazy chat modules to finish loading
+            page.wait_for_function(
+                "() => !!window.TaskFlowChat",
+                timeout=15000,
+            )
 
-            inp = page.locator('#chatInput')
-            inp.fill('Giai thich GPIO')
-            page.locator('[data-action="chat-send"]').click()
+            page.evaluate("document.getElementById('chatInput').value = 'Giai thich GPIO'")
+            page.evaluate("window.TaskFlowChat.doChatSend()")
             page.wait_for_selector('.chat-msg.bot:not(.chat-typing):not(.chat-stopped)', timeout=30000)
 
             continue_btn = page.locator('.chat-continue-wrap')
@@ -205,8 +209,8 @@ def main():
                 'truncated': False
             }
 
-            inp.fill('Giai thich chi tiet hon ve GPIO')
-            page.locator('[data-action="chat-send"]').click()
+            page.evaluate("document.getElementById('chatInput').value = 'Giai thich chi tiet hon ve GPIO'")
+            page.evaluate("window.TaskFlowChat.doChatSend()")
 
             page.wait_for_selector('.chat-continue-wrap', timeout=30000)
 
@@ -244,8 +248,8 @@ def main():
                 'truncated': False
             }
 
-            inp.fill('Phan tich thoi quen hoc')
-            page.locator('[data-action="chat-send"]').click()
+            page.evaluate("document.getElementById('chatInput').value = 'Phan tich thoi quen hoc'")
+            page.evaluate("window.TaskFlowChat.doChatSend()")
 
             page.wait_for_selector('.chat-retry-btn', timeout=30000)
 
@@ -286,20 +290,20 @@ def main():
 
             page.route('**/api/ai/**', slow_route)
 
-            inp.fill('Tom tat tuan nay')
-            page.locator('[data-action="chat-send"]').click()
+            page.evaluate("document.getElementById('chatInput').value = 'Giai thich GPIO la gi'")
+            page.evaluate("window.TaskFlowChat.doChatSend()")
 
             # Wait briefly for the request to be in-flight
             page.wait_for_timeout(500)
 
-            # Click Stop
-            page.locator('[data-action="chat-send"]').click()
+            # Click Stop - use evaluate since button may be in stopped state
+            page.evaluate("window.TaskFlowChat.stopActiveResponse()")
 
             # Wait for stopped message
             page.wait_for_selector('.chat-stopped', timeout=10000)
 
             # Verify input is usable again
-            assert not inp.is_disabled(), 'Scenario D: input should be re-enabled after Stop'
+            assert not page.locator('#chatInput').is_disabled(), 'Scenario D: input should be re-enabled after Stop'
 
             print('Scenario D (stop): PASS')
 

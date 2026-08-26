@@ -656,7 +656,7 @@ describe('Runtime: chat.js wires document-daily-plan correctly', () => {
     assert.ok(chatSource.includes('if (_isDocumentPlanRequest(text))'), 'checks guard before generic agent');
     assert.ok(chatSource.includes("_t('documentPlanAttachRequired')"), 'shows an actionable attach-PDF message');
     assert.ok(
-      chatSource.indexOf('if (_isDocumentPlanRequest(text))') < chatSource.indexOf('if (useAgent)'),
+      chatSource.indexOf('if (_isDocumentPlanRequest(text))') < chatSource.indexOf('if (useAgent'),
       'document plan guard runs before generic agent routing',
     );
   });
@@ -714,5 +714,85 @@ describe('Runtime: Review DOM for 14-action daily plan proposal', () => {
     assert.ok(agentSrc.includes('maxActions: 120'), 'fileImport allows 120 actions');
     assert.ok(proposal.actions.length === 14, 'proposal has 14 actions (>10)');
     assert.ok(proposal.actions.length <= 84, 'proposal within daily plan limit');
+  });
+});
+
+/* ===========================================================
+   Phase 8: Document-Aware Chat
+   =========================================================== */
+describe('Phase 8: Document-aware chat', () => {
+  it('chat.js has _isDocumentQuestion helper', () => {
+    assert.ok(chatSource.includes('function _isDocumentQuestion'), '_isDocumentQuestion exists');
+    assert.ok(chatSource.includes('_getDocumentContext'), '_getDocumentContext exists');
+  });
+
+  it('chat.js detects document references in Vietnamese', () => {
+    // The function uses regex — verify key patterns exist in source
+    assert.ok(chatSource.includes('tai\\s+lieu') || chatSource.includes('tài\\s+liệu'), 'has tai lieu pattern');
+    assert.ok(chatSource.includes('tom\\s+tat') || chatSource.includes('tóm\\s+tắt'), 'has tom tat pattern');
+    assert.ok(chatSource.includes('giai\\s+thich') || chatSource.includes('giải\\s+thích'), 'has giai thich pattern');
+    assert.ok(chatSource.includes('document') || chatSource.includes('pdf'), 'has document/pdf pattern');
+  });
+
+  it('server chat route accepts documentContext field', () => {
+    assert.ok(aiSource.includes('documentContext'), 'server reads documentContext');
+    assert.ok(aiSource.includes('DOCUMENT_CONTEXT'), 'server injects DOCUMENT_CONTEXT tag');
+    assert.ok(aiSource.includes('docCtx'), 'server parses docCtx variable');
+  });
+
+  it('server documents roadmap context with bounded size', () => {
+    assert.ok(aiSource.includes('MAX_ROADMAP_CHARS'), 'has max roadmap chars limit');
+    assert.ok(aiSource.includes('6000'), 'roadmap bounded at 6000 chars');
+  });
+
+  it('chat.js sends documentContext in request body', () => {
+    assert.ok(chatSource.includes('opts.documentContext'), 'sends documentContext in body');
+    assert.ok(chatSource.includes('body.documentContext = opts.documentContext'), 'attaches to request');
+  });
+
+  it('no-active-document fallback shows i18n message', () => {
+    assert.ok(chatSource.includes('chatNoActiveDocument'), 'uses i18n key for fallback');
+    assert.ok(chatSource.includes('documentContext = _getDocumentContext()'), 'checks for active doc');
+    assert.ok(chatSource.includes('if (!documentContext)'), 'fallback when no document');
+  });
+
+  it('i18n has chatNoActiveDocument in VI and EN', () => {
+    const i18nSource = readFileSync(join(ROOT, 'js', 'i18n.js'), 'utf8');
+    assert.ok(i18nSource.includes('chatNoActiveDocument'), 'i18n has key');
+    // Vietnamese version
+    assert.ok(i18nSource.includes('chưa có tài liệu đang hoạt động'), 'VI translation present');
+    // English version
+    assert.ok(i18nSource.includes('no active document'), 'EN translation present');
+  });
+
+  it('document context is minimized — only sends roadmap phases + metadata', () => {
+    assert.ok(chatSource.includes('roadmapBrief'), 'builds minimized roadmap brief');
+    assert.ok(chatSource.includes('documentName'), 'includes document name');
+    assert.ok(chatSource.includes('totalWeeks'), 'includes totalWeeks');
+    assert.ok(chatSource.includes('cursor'), 'includes cursor progress');
+  });
+
+  it('continuation uses updateLastMessage instead of duplicate persist', () => {
+    // Verify chat.js uses _updateLastAssistantMessage in continuation
+    assert.ok(chatSource.includes('_updateLastAssistantMessage(merged)'), 'continuation updates last msg');
+    // Verify chat-history.js has the method
+    const histSource = readFileSync(join(ROOT, 'js', 'chat-history.js'), 'utf8');
+    assert.ok(histSource.includes('updateLastMessage'), 'chat-history has updateLastMessage');
+  });
+
+  it('account-scoped roadmap store enforces isolation', () => {
+    // The document store key includes account scope — verify pattern
+    assert.ok(planSource.includes('taskflow-document-roadmaps:'), 'store key includes prefix');
+    assert.ok(planSource.includes('_getAccountScope'), 'uses account scope for key');
+  });
+
+  it('document-roadmap is Stage A only — no proposal in response', () => {
+    assert.ok(aiSource.includes("routeName: '/api/ai/document-roadmap'"), 'document-roadmap route exists');
+    // Stage A returns roadmap but NOT a daily-plan proposal
+    const stageAIdx = aiSource.indexOf('handleDocumentRoadmap');
+    const stageAEnd = aiSource.indexOf('router.post', stageAIdx);
+    const stageABody = aiSource.slice(stageAIdx, stageAEnd);
+    assert.ok(!stageABody.includes('handleDailyPlan'), 'Stage A does NOT call handleDailyPlan');
+    assert.ok(!stageABody.includes('/api/ai/daily-plan'), 'Stage A does NOT call daily-plan endpoint');
   });
 });

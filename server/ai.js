@@ -1142,6 +1142,11 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
       return res.status(400).json({ error: 'ai-context-invalid', details: [ctxSan.reason] });
     }
 
+    // Phase 8: optional documentContext — the client sends the active roadmap
+    // metadata so the AI can answer document-aware questions.
+    const docCtx = body.documentContext && typeof body.documentContext === 'object' && body.documentContext.roadmap
+      ? body.documentContext : null;
+
     // Build messages for Gemini — system instruction + history + current message
     const lang = /[a-zA-Z]/.test(message) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(message)
       ? 'en' : 'vi';
@@ -1150,9 +1155,21 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
     // P13: context (nếu có) nằm trong tin nhắn USER — <TASKFLOW_CONTEXT_DATA>
     // trước, <USER_QUESTION> sau. Context KHÔNG bao giờ vào system (P12).
     // History chỉ chứa text hội thoại — context không bao giờ vào history (P22).
-    const userContent = ctxSan.envelope
-      ? '<TASKFLOW_CONTEXT_DATA>' + JSON.stringify(ctxSan.envelope) + '</TASKFLOW_CONTEXT_DATA>\n<USER_QUESTION>' + message + '</USER_QUESTION>'
-      : message;
+    // Phase 8: documentContext (roadmap + document metadata) is injected as
+    // <DOCUMENT_CONTEXT> so the AI can answer document-aware questions.
+    let docPrefix = '';
+    if (docCtx) {
+      const MAX_ROADMAP_CHARS = 6000;
+      const roadmapStr = JSON.stringify(docCtx.roadmap).slice(0, MAX_ROADMAP_CHARS);
+      docPrefix = '<DOCUMENT_CONTEXT>\nDocument: ' + (docCtx.documentName || 'document') + '\n';
+      if (docCtx.totalWeeks) docPrefix += 'Total weeks: ' + docCtx.totalWeeks + '\n';
+      if (docCtx.cursor) docPrefix += 'Progress: week ' + (docCtx.cursor.nextWeek || 0) + '\n';
+      docPrefix += 'Roadmap:\n' + roadmapStr + '\n</DOCUMENT_CONTEXT>\n';
+    }
+
+    const userContent = (ctxSan.envelope
+      ? '<TASKFLOW_CONTEXT_DATA>' + JSON.stringify(ctxSan.envelope) + '</TASKFLOW_CONTEXT_DATA>\n'
+      : '') + docPrefix + '<USER_QUESTION>' + message + '</USER_QUESTION>';
 
     const messages = [
       { role: 'system', content: sysInstruction },

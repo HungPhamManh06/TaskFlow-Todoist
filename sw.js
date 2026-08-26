@@ -3,7 +3,7 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v294';
+const CACHE = 'taskflow-v295';
 // Lazy module version — must match LAZY_ASSET_VERSION in app.js
 const LAZY_V = 'v1';
 const APP_SHELL = [
