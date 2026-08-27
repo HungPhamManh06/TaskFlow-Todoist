@@ -1,24 +1,70 @@
-// TaskFlow — Canonical Document Reference (Phase 9).
-// Server-side HMAC-signed document references.
+// TaskFlow — Canonical Document Reference (Phase 10).
+// Server-issued HMAC-signed document references with roadmap content binding.
 // Prevents browser from forging arbitrary trusted document context.
-// Uses a bounded document context contract with integrity/account binding.
+// Signature covers: version + userId + roadmapId + fingerprint + documentName + roadmapDigest.
 'use strict';
 
 const crypto = require('crypto');
 
-// Signing secret from env — fallback to a random per-process key
-// (acceptable for single-process deployments; multi-process needs shared secret)
-const _docSecret = process.env.AI_DOC_SIGN_SECRET || crypto.randomBytes(32).toString('hex');
+// ── Signing secret ──────────────────────────────────────
+// Production MUST set AI_DOC_SIGN_SECRET. Random fallback is ONLY for dev/test.
+// Using random secret means references don't persist across server restarts.
+const _rawSecret = process.env.AI_DOC_SIGN_SECRET || '';
+const _isDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+const _devFallback = crypto.randomBytes(32).toString('hex');
+
+// Fail closed in production when secret not configured
+const _docSecret = _rawSecret
+  ? _rawSecret
+  : (_isDev ? _devFallback : '');
+
 const HMAC_ALGO = 'sha256';
-const SIG_LENGTH = 16; // hex chars of HMAC to use as signature
+const SIG_LENGTH = 32; // Full 32 hex chars = 128-bit authentication tag
+const DOC_REF_VERSION = 1;
+
+/**
+ * Compute canonical roadmap digest (SHA-256 of sorted, deterministic roadmap).
+ * Ensures same semantic content → same digest.
+ * @param {object} roadmap - {title, totalWeeks, phases[]}
+ * @returns {string} hex digest
+ */
+function computeRoadmapDigest(roadmap) {
+  if (!roadmap || typeof roadmap !== 'object') return '';
+  const canonical = {
+    title: typeof roadmap.title === 'string' ? roadmap.title : '',
+    totalWeeks: Number.isFinite(roadmap.totalWeeks) ? roadmap.totalWeeks : null,
+    phases: Array.isArray(roadmap.phases)
+      ? roadmap.phases.map(function (p) {
+          if (!p || typeof p !== 'object') return null;
+          return {
+            name: typeof p.name === 'string' ? p.name : '',
+            weeks: typeof p.weeks === 'string' ? p.weeks : '',
+            goals: Array.isArray(p.goals) ? p.goals.slice().sort() : [],
+            deliverables: Array.isArray(p.deliverables) ? p.deliverables.slice().sort() : [],
+            topics: Array.isArray(p.topics) ? p.topics.slice().sort() : [],
+          };
+        }).filter(Boolean)
+      : [],
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(canonical)).digest('hex').slice(0, 32);
+}
+
+/**
+ * Build the canonical signing string for a document reference.
+ * Includes version + account + identity + content digest.
+ */
+function _buildSigningString(version, userId, roadmapId, fingerprint, documentName, roadmapDigest) {
+  return [version, userId || '', roadmapId || '', fingerprint || '', documentName || '', roadmapDigest || ''].join('|');
+}
 
 /**
  * Sign a document reference payload.
- * Payload includes: userId + fingerprint + roadmapId + documentName.
- * Signature = HMAC-SHA256(secret, canonicalString).slice(0, SIG_LENGTH)
+ * This is SERVER-ONLY — called from /document-roadmap after canonicalization.
+ * Browser MUST NOT call this directly for arbitrary content.
+ * @returns {string} hex signature (SIG_LENGTH hex chars)
  */
-function signDocumentReference(userId, fingerprint, roadmapId, documentName) {
-  const canonical = [userId || '', fingerprint || '', roadmapId || '', documentName || ''].join('|');
+function signDocumentReference(version, userId, roadmapId, fingerprint, documentName, roadmapDigest) {
+  const canonical = _buildSigningString(version, userId, roadmapId, fingerprint, documentName, roadmapDigest);
   const hmac = crypto.createHmac(HMAC_ALGO, _docSecret).update(canonical).digest('hex');
   return hmac.slice(0, SIG_LENGTH);
 }
@@ -26,16 +72,31 @@ function signDocumentReference(userId, fingerprint, roadmapId, documentName) {
 /**
  * Verify a document reference signature.
  * Returns true if the signature is valid for the given payload.
+ * @param {object} ref - {version, userId, roadmapId, fingerprint, documentName, roadmapDigest, signature}
  */
-function verifyDocumentReference(userId, fingerprint, roadmapId, documentName, signature) {
+function verifyDocumentReference(ref) {
+  if (!ref || typeof ref !== 'object') return false;
+  if (!_docSecret) return false; // Fail closed: no secret = no verification possible
+
+  const { version, userId, roadmapId, fingerprint, documentName, roadmapDigest, signature } = ref;
   if (!userId || !fingerprint || !roadmapId || !documentName || !signature) return false;
   if (typeof signature !== 'string' || signature.length !== SIG_LENGTH) return false;
-  const expected = signDocumentReference(userId, fingerprint, roadmapId, documentName);
+  if (version !== DOC_REF_VERSION) return false;
+
+  const expected = signDocumentReference(version, userId, roadmapId, fingerprint, documentName, roadmapDigest || '');
   try {
     return crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(signature, 'hex'));
   } catch (e) {
     return false;
   }
+}
+
+/**
+ * Check if production signing secret is configured.
+ * Used by health-check / deployment verification.
+ */
+function isSigningConfigured() {
+  return !!_rawSecret;
 }
 
 // ── Bounded document context schema validation ──────────
@@ -56,9 +117,9 @@ function _capString(v, max) {
 /**
  * Validate a documentContext object from the browser.
  * Returns sanitized object or null if invalid.
- * Phase 9: now also validates documentRef (HMAC-signed reference).
+ * Phase 10: validates schema + extracts reference fields for verification.
  */
-function sanitizeDocumentContext(raw, accountId) {
+function sanitizeDocumentContext(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
 
   // Size check first
@@ -103,10 +164,11 @@ function sanitizeDocumentContext(raw, accountId) {
     };
   }
 
-  // Phase 9: Validate documentRef signature if provided
+  // Extract reference fields for verification
   const fingerprint = _capString(raw.fingerprint, 64);
   const roadmapId = _capString(raw.roadmapId, 64);
   const docRefSignature = typeof raw.docRefSignature === 'string' ? raw.docRefSignature : null;
+  const docRefVersion = typeof raw.docRefVersion === 'number' ? raw.docRefVersion : null;
 
   return {
     roadmap: { title, totalWeeks, phases },
@@ -116,6 +178,7 @@ function sanitizeDocumentContext(raw, accountId) {
     fingerprint,
     roadmapId,
     docRefSignature,
+    docRefVersion,
   };
 }
 
@@ -123,5 +186,9 @@ module.exports = {
   signDocumentReference,
   verifyDocumentReference,
   sanitizeDocumentContext,
+  computeRoadmapDigest,
+  isSigningConfigured,
   MAX_DOC_CONTEXT_BYTES,
+  SIG_LENGTH,
+  DOC_REF_VERSION,
 };

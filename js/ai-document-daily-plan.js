@@ -320,6 +320,8 @@
         lastAppliedStartDate: null,
         lastAppliedDaysCount: 0,
       },
+      // Phase 10: persist server-issued signed document reference
+      documentRef: json.documentRef || null,
     };
     saveRoadmap(record);
 

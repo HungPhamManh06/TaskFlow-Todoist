@@ -742,12 +742,25 @@
           };
         })
       };
-      return {
+      var ctx = {
         roadmap: roadmapBrief,
         documentName: active.documentName || 'document',
         totalWeeks: active.roadmap.totalWeeks || null,
         cursor: active.cursor || {}
       };
+      // Phase 10: Include server-issued signed document reference
+      if (active.documentRef) {
+        ctx.fingerprint = active.documentRef.fingerprint || active.fingerprint || '';
+        ctx.roadmapId = active.documentRef.roadmapId || '';
+        ctx.docRefSignature = active.documentRef.signature || '';
+        ctx.docRefVersion = active.documentRef.version || 1;
+        ctx.version = active.documentRef.version || 1;
+      } else {
+        // Legacy unsigned roadmap — send fingerprint for server lookup
+        ctx.fingerprint = active.fingerprint || '';
+        ctx.roadmapId = active.id || '';
+      }
+      return ctx;
     } catch (e) { return null; }
   }
 

@@ -41,7 +41,7 @@ const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('
 const { extractPdfText, DEFAULT_EXTRACT_MAX_BYTES, HARD_EXTRACT_MAX_BYTES, FILE_AGENT_EXTRACT_MAX_BYTES } = require('./ai-file-parser');
 const { buildDatedDocumentRoadmap, buildDatedDocumentProposal } = require('./ai-dated-document');
 const { resolveRoadmapQuestion } = require('./ai-roadmap-resolver');
-const { signDocumentReference, verifyDocumentReference, sanitizeDocumentContext: sanitizeDocRefContext } = require('./ai-doc-reference');
+const { signDocumentReference, verifyDocumentReference, sanitizeDocumentContext: sanitizeDocRefContext, computeRoadmapDigest, isSigningConfigured, DOC_REF_VERSION } = require('./ai-doc-reference');
 const { logAiEvent, logAiError, createProposalFingerprint, isProposalApplied, markProposalApplied, verifyProposalFingerprint, generateProposalId } = require('./ai-observability');
 
 /* ---- Safe rate-limit response helper ---- */
@@ -1155,9 +1155,39 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
       return res.status(400).json({ error: 'ai-context-invalid', details: [ctxSan.reason] });
     }
 
-    // Phase 8: optional documentContext — client sends active roadmap metadata.
-    // Server validates strictly via sanitizeDocumentContext to reject arbitrary payloads.
-    const docCtx = sanitizeDocumentContext(body.documentContext);
+    // Phase 10: optional documentContext — client sends active roadmap metadata.
+    // Server validates schema, then verifies HMAC signature + account binding.
+    const docCtxRaw = sanitizeDocumentContext(body.documentContext);
+    let docCtx = null;
+    if (docCtxRaw) {
+      // Compute canonical digest from the sanitized roadmap
+      const serverDigest = computeRoadmapDigest(docCtxRaw.roadmap);
+      // Verify HMAC signature (binds account + roadmap content + identity)
+      const refVerified = verifyDocumentReference({
+        version: docCtxRaw.docRefVersion || docCtxRaw.version || DOC_REF_VERSION,
+        userId: String(req.user?.id || 'anon'),
+        roadmapId: docCtxRaw.roadmapId || '',
+        fingerprint: docCtxRaw.fingerprint || '',
+        documentName: docCtxRaw.documentName || '',
+        roadmapDigest: serverDigest,
+        signature: docCtxRaw.docRefSignature || '',
+      });
+      if (!refVerified) {
+        // Phase 10: Fail closed — reject unverified document context
+        logAiEvent({
+          event: 'ai_request',
+          requestId,
+          route: '/api/ai/chat',
+          status: 'rejected',
+          documentMode: false,
+          latencyMs: 0,
+        });
+        // Do NOT inject roadmap into prompt — treat as no document context
+        docCtx = null;
+      } else {
+        docCtx = docCtxRaw;
+      }
+    }
 
     // Build messages for Gemini — system instruction + history + current message
     const lang = /[a-zA-Z]/.test(message) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(message)
@@ -3643,11 +3673,36 @@ async function handleDocumentRoadmap(req, res, overrides) {
     });
     const fingerprint = fingerprintHash.digest('hex').slice(0, 16);
 
+    // Phase 10: Issue server-signed document reference
+    const userId = String(req.user?.id || 'anon');
+    const roadmapId = 'rm_' + fingerprint + '_' + Date.now().toString(36);
+    const roadmapDigest = computeRoadmapDigest(roadmap);
+    const docRefSignature = signDocumentReference(
+      DOC_REF_VERSION, userId, roadmapId, fingerprint, documentName, roadmapDigest
+    );
+    const documentRef = {
+      version: DOC_REF_VERSION,
+      roadmapId,
+      fingerprint,
+      documentName,
+      roadmapDigest,
+      signature: docRefSignature,
+      signedBy: userId,
+    };
+    logAiEvent({
+      event: 'document_roadmap_signed',
+      requestId,
+      route: '/api/ai/document-roadmap',
+      status: 'success',
+      latencyMs: Date.now() - startMs,
+    });
+
     res.json({
       ok: true,
       roadmap,
       fingerprint,
       documentName,
+      documentRef,
       files: Array.isArray(batchContent.acceptedFiles) ? batchContent.acceptedFiles : [],
       rejectedFiles: allRejectedFiles,
       meta: {
@@ -4066,27 +4121,11 @@ router.post('/brain/continue', maybeRateLimit(aiAgentLimiter), maybeRateLimit(ai
   }
 });
 
-/* ============ POST /api/ai/doc-reference/sign — Phase 9: Sign a document reference ============ */
-// Client calls this after Stage A (PDF upload) to get a signed reference.
-// Server binds the reference to the authenticated account.
+/* ============ POST /api/ai/doc-reference/sign — RETIRED (Phase 10) ============ */
+// Phase 10: Document references are now issued ONLY by /document-roadmap.
+// This endpoint is retired. Browser must not sign arbitrary metadata.
 router.post('/doc-reference/sign', async (req, res) => {
-  const requestId = req.aiRequestId;
-  try {
-    const userId = req.user?.id || 'anon';
-    const body = req.body && typeof req.body === 'object' ? req.body : {};
-    const fingerprint = typeof body.fingerprint === 'string' ? body.fingerprint.slice(0, 64) : '';
-    const roadmapId = typeof body.roadmapId === 'string' ? body.roadmapId.slice(0, 64) : '';
-    const documentName = typeof body.documentName === 'string' ? body.documentName.slice(0, 200) : '';
-    if (!fingerprint || !roadmapId || !documentName) {
-      return res.status(400).json({ error: 'missing-fields', details: ['fingerprint', 'roadmapId', 'documentName'] });
-    }
-    const signature = signDocumentReference(userId, fingerprint, roadmapId, documentName);
-    logAiEvent({ event: 'doc_reference_signed', requestId, route: '/api/ai/doc-reference/sign', status: 'success', latencyMs: 0 });
-    return res.json({ ok: true, signature, userId, fingerprint, roadmapId, documentName });
-  } catch (e) {
-    logAiError(requestId, '/api/ai/doc-reference/sign', 'server-error', 0, 500);
-    return res.status(500).json({ error: 'server-error' });
-  }
+  return res.status(410).json({ error: 'retired', details: ['document references are issued by /document-roadmap'] });
 });
 
 /* ============ POST /api/ai/doc-reference/verify — Phase 9: Verify a document reference ============ */
@@ -4115,4 +4154,4 @@ router.post('/doc-reference/verify', async (req, res) => {
   }
 });
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal, normalizeTimeZone, dateStringInTimeZone, addDaysToDateString, handleDailyPlan, handleDocumentRoadmap, signDocumentReference, verifyDocumentReference, createProposalFingerprint, isProposalApplied, markProposalApplied, verifyProposalFingerprint, generateProposalId, logAiEvent, logAiError, resolveRoadmapQuestion };
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal, normalizeTimeZone, dateStringInTimeZone, addDaysToDateString, handleDailyPlan, handleDocumentRoadmap, signDocumentReference, verifyDocumentReference, computeRoadmapDigest, isSigningConfigured, DOC_REF_VERSION, createProposalFingerprint, isProposalApplied, markProposalApplied, verifyProposalFingerprint, generateProposalId, logAiEvent, logAiError, resolveRoadmapQuestion };
