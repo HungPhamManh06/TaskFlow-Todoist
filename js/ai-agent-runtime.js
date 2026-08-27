@@ -325,6 +325,7 @@
       _fileMime: dry && dry._fileMime ? dry._fileMime : null,
       _validationPolicy: validationPolicy || null,
       _dry: dry || null,
+      _entityFingerprint: _captureEntityFingerprint(proposal, null),
     };
   }
 
@@ -1633,6 +1634,99 @@
   let _applying = false;
   let _lastResult = null;
 
+  /* ---- Phase 10: proposal idempotency (bounded client-side registry) ---- */
+  const _APPLIED_PROPOSALS_KEY = 'taskflow-applied-proposals';
+  const MAX_APPLIED_PROPOSALS = 500;
+  const _appliedProposals = new Map(); // proposalId → timestamp (in-memory cache)
+
+  function _loadAppliedProposals() {
+    try {
+      const raw = localStorage.getItem(_APPLIED_PROPOSALS_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) { return {}; }
+  }
+
+  function _saveAppliedProposals(store) {
+    try {
+      const keys = Object.keys(store);
+      if (keys.length > MAX_APPLIED_PROPOSALS) {
+        const sorted = keys.sort((a, b) => (store[a] || 0) - (store[b] || 0));
+        for (let i = 0; i < keys.length - MAX_APPLIED_PROPOSALS; i++) {
+          delete store[sorted[i]];
+        }
+      }
+      localStorage.setItem(_APPLIED_PROPOSALS_KEY, JSON.stringify(store));
+    } catch (e) { /* persist must never break */ }
+  }
+
+  function _isProposalAlreadyApplied(proposalId) {
+    if (!proposalId) return false;
+    if (_appliedProposals.has(proposalId)) return true;
+    const store = _loadAppliedProposals();
+    if (store[proposalId]) {
+      _appliedProposals.set(proposalId, store[proposalId]);
+      return true;
+    }
+    return false;
+  }
+
+  function _markProposalApplied(proposalId) {
+    if (!proposalId) return;
+    const now = Date.now();
+    _appliedProposals.set(proposalId, now);
+    try {
+      const store = _loadAppliedProposals();
+      store[proposalId] = now;
+      _saveAppliedProposals(store);
+    } catch (e) { /* */ }
+  }
+
+  /* ---- Phase 10: entity-state fingerprint for stale detection ---- */
+  function _captureEntityFingerprint(proposal, ctx) {
+    const fp = {};
+    if (!proposal || !Array.isArray(proposal.actions)) return fp;
+    proposal.actions.forEach(function (a) {
+      if (!a || !a.args) return;
+      const ref = a.args.taskRef;
+      if (ref && ref.kind === 'existing' && ref.uid) {
+        const loc = _locate(ref.uid);
+        if (loc && loc.tk) {
+          fp[ref.uid] = {
+            done: !!loc.tk.done,
+            deadline: loc.tk.deadline || null,
+            textLen: typeof loc.tk.text === 'string' ? loc.tk.text.length : 0,
+          };
+        }
+      }
+    });
+    return fp;
+  }
+
+  function _verifyEntityFingerprint(proposal, savedFp) {
+    if (!savedFp || Object.keys(savedFp).length === 0) return { ok: true, staleActions: [] };
+    const staleActions = [];
+    if (!proposal || !Array.isArray(proposal.actions)) return { ok: true, staleActions };
+    proposal.actions.forEach(function (a) {
+      if (!a || !a.args) return;
+      const ref = a.args.taskRef;
+      if (ref && ref.kind === 'existing' && ref.uid) {
+        const saved = savedFp[ref.uid];
+        if (!saved) return; // entity was not in original scope
+        const loc = _locate(ref.uid);
+        if (!loc || !loc.tk) {
+          staleActions.push({ actionId: a.id, reason: 'deleted' });
+          return;
+        }
+        if (loc.tk.done !== saved.done) {
+          staleActions.push({ actionId: a.id, reason: 'done-state-changed' });
+        }
+      }
+    });
+    return { ok: staleActions.length === 0, staleActions: staleActions };
+  }
+
   /* ---- Phase 5C: confirm → selected subgraph revalidation → apply ---- */
   async function _confirmCard(card, msgs, proposal) {
     if (_applying || !card || !card.parentNode) return;
@@ -1660,6 +1754,18 @@
         return selectedIds.has(a.id);
       });
 
+      // Phase 10: check proposal idempotency
+      const _proposalCheckId = _reviewState && _reviewState.proposalId ? _reviewState.proposalId : null;
+      if (_proposalCheckId && _isProposalAlreadyApplied(_proposalCheckId)) {
+        const infoBubble = _bubble('agent-info');
+        infoBubble.textContent = _t('agentAlreadyApplied') || 'Đề xuất đã được áp dụng trước đó.';
+        msgs.appendChild(infoBubble);
+        msgs.scrollTop = msgs.scrollHeight;
+        _clearReviewState();
+        if (card.parentNode) card.parentNode.removeChild(card);
+        return;
+      }
+
       // P22: revalidate selected subgraph against CURRENT state
       // Use the stored validation policy (e.g. fileImport for File-Agent proposals)
       const savedPolicy = _reviewState && _reviewState._validationPolicy ? _reviewState._validationPolicy : null;
@@ -1674,6 +1780,20 @@
         if (card.parentNode) card.parentNode.removeChild(card);
         return;
       }
+      // Phase 10: entity-state fingerprint verification (stale detection)
+      if (_reviewState && _reviewState._entityFingerprint) {
+        const _fpCheck = _verifyEntityFingerprint(selectedProposal, _reviewState._entityFingerprint);
+        if (!_fpCheck.ok) {
+          const staleBubble = _bubble('agent-info');
+          staleBubble.textContent = _t('agentStaleProposal') || 'Dữ liệu đã thay đổi kể từ khi AI tạo đề xuất.';
+          msgs.appendChild(staleBubble);
+          msgs.scrollTop = msgs.scrollHeight;
+          _clearReviewState();
+          if (card.parentNode) card.parentNode.removeChild(card);
+          return;
+        }
+      }
+
       const dry = window.TaskFlowAIAgent.dryRun(selectedProposal, ctx, savedPolicy);
       if (!dry.valid) {
         const errBubble = _bubble('agent-info');
@@ -1747,6 +1867,11 @@
         else if (typeof renderToday === 'function') renderToday();
       } catch (e) { /* */ }
 
+      // Phase 10: mark proposal as applied for idempotency
+      const _appliedProposalId = _reviewState && _reviewState.proposalId ? _reviewState.proposalId : null;
+      if (_appliedProposalId && applied.length > 0) {
+        _markProposalApplied(_appliedProposalId);
+      }
       // Capture proposalId AND source BEFORE clearing review state
       const _cursorProposalId = _reviewState && _reviewState.proposalId ? _reviewState.proposalId : null;
       const _cursorSource = _reviewState && (_reviewState._source || _reviewState.source) ? (_reviewState._source || _reviewState.source) : null;
@@ -2045,5 +2170,8 @@
     _targetDayForDate: _targetDayForDate,
     _buildDepGraph: _buildDepGraph,
     _validateEditArgs: _validateEditArgs,
+    _isProposalAlreadyApplied: _isProposalAlreadyApplied,
+    _captureEntityFingerprint: _captureEntityFingerprint,
+    _verifyEntityFingerprint: _verifyEntityFingerprint,
   };
 });

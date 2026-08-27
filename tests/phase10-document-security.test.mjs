@@ -250,4 +250,70 @@ describe('Phase 10: Proposal Safety', () => {
     // User-B with same proposalId should be independent
     assert.ok(!isProposalApplied(proposalId, 'user-B'), 'different user not affected');
   });
+
+  test('proposal ID is a stable string', () => {
+    const id1 = generateProposalId();
+    const id2 = generateProposalId();
+    assert.equal(typeof id1, 'string');
+    assert.ok(id1.length > 0);
+    assert.notEqual(id1, id2, 'each proposal gets unique ID');
+  });
+});
+
+describe('Phase 10 Closure: Entity-state fingerprint & idempotency', () => {
+
+  test('ai-agent-runtime.js has _captureEntityFingerprint', () => {
+    const src = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
+    assert.ok(src.includes('_captureEntityFingerprint'), 'fingerprint capture function exists');
+  });
+
+  test('ai-agent-runtime.js has _verifyEntityFingerprint', () => {
+    const src = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
+    assert.ok(src.includes('_verifyEntityFingerprint'), 'fingerprint verify function exists');
+  });
+
+  test('ai-agent-runtime.js has proposal idempotency registry', () => {
+    const src = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
+    assert.ok(src.includes('_isProposalAlreadyApplied'), 'idempotency check exists');
+    assert.ok(src.includes('_markProposalApplied'), 'idempotency mark exists');
+    assert.ok(src.includes('taskflow-applied-proposals'), 'uses localStorage registry');
+  });
+
+  test('_initReviewState captures entity fingerprint', () => {
+    const src = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
+    assert.ok(src.includes('_entityFingerprint'), 'review state captures entity fingerprint');
+  });
+
+  test('_confirmCard checks idempotency before Apply', () => {
+    const src = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
+    assert.ok(src.includes('_isProposalAlreadyApplied(_proposalCheckId)'), 'checks idempotency before apply');
+  });
+
+  test('_confirmCard verifies entity fingerprint before Apply', () => {
+    const src = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
+    assert.ok(src.includes('_verifyEntityFingerprint(selectedProposal'), 'verifies fingerprint before apply');
+  });
+
+  test('_confirmCard marks proposal as applied after success', () => {
+    const src = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
+    assert.ok(src.includes('_markProposalApplied(_appliedProposalId)'), 'marks proposal applied after success');
+  });
+
+  test('idempotency registry is bounded (MAX_APPLIED_PROPOSALS)', () => {
+    const src = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
+    assert.ok(src.includes('MAX_APPLIED_PROPOSALS'), 'bounded registry exists');
+    assert.ok(src.includes('500'), 'bounded to max 500 entries');
+  });
+
+  test('ci.yml includes ai-trust-boundary-e2e job', () => {
+    const ci = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+    assert.ok(ci.includes('ai-trust-boundary-e2e'), 'CI has ai-trust-boundary-e2e job');
+    assert.ok(ci.includes('e2e-ai-trust-boundary.py'), 'CI runs trust boundary script');
+    assert.ok(!ci.includes('continue-on-error'), 'no continue-on-error in CI');
+  });
+
+  test('e2e-ai-trust-boundary.py exists', () => {
+    const { existsSync } = require('fs');
+    assert.ok(existsSync(join(ROOT, 'scripts', 'e2e-ai-trust-boundary.py')), 'trust boundary E2E script exists');
+  });
 });

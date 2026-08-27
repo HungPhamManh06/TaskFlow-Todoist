@@ -209,3 +209,23 @@ jobs:
 
       - name: "Document Chat E2E (roadmap context, no-doc fallback, next-week, legacy absent)"
         run: python scripts/e2e-document-chat.py
+
+  # AI Trust Boundary E2E: tampered document rejection, HMAC verification, deterministic resolver,
+  # proposal idempotency, entity-state fingerprint, signed document reference
+  ai-trust-boundary-e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Playwright (Python, Chromium)
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: "AI Trust Boundary E2E (tampered roadmap, HMAC, fingerprint, idempotency, deterministic resolver)"
+        run: python scripts/e2e-ai-trust-boundary.py
