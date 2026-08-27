@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
-Phase 8 E2E — Document-Aware Chat
+Phase 8 E2E — Document-Aware Chat (REAL UI flow)
 
-Tests:
-1. Upload PDF → roadmap persisted via real Stage A call
-2. Informational follow-up ("Tóm tắt tài liệu này") sends documentContext
-3. Week question ("Tuần 1 học gì?") sends documentContext
-4. "lập tuần tiếp theo" uses Stage B only (no document-roadmap call)
-5. No active document → controlled fallback message
-6. Network counters correct
+Uses real browser interactions for ALL chat actions:
+- Chat send: fill #chatInput + dispatchEvent('input') + click send button
+- No page.invoke('doChatSend') or internal function calls for core user actions
+- saveRoadmap() used only for test bootstrap (setting deterministic initial state)
+
+Scenarios:
+1. Bootstrap roadmap via saveRoadmap (test setup — acceptable per spec)
+2. "Tom tat tai lieu nay" via real UI → documentContext sent → answer appears
+3. "Tuan 1 hoc gi?" via real UI → documentContext sent
+4. "Lap tuan tiep theo" via real UI → no document-roadmap re-call
+5. No active document → fallback message
+6. No legacy endpoint called
 """
 import http.server
 import json
@@ -151,9 +156,11 @@ def main():
                             "ok": True,
                             "proposal": {
                                 "actions": [
-                                    {"id": "a1", "type": "create_task", "text": "Study GPIO basics",
-                                     "date": "2026-09-01", "duration": 60, "priority": False,
-                                     "start": None, "projectId": None, "milestoneId": None,
+                                    {"id": "a1", "type": "create_task",
+                                     "text": "Study GPIO basics",
+                                     "date": "2026-09-01", "duration": 60,
+                                     "priority": False, "start": None,
+                                     "projectId": None, "milestoneId": None,
                                      "taskRef": None, "changes": None},
                                 ],
                                 "summary": "Week 1: GPIO basics"
@@ -197,6 +204,10 @@ def main():
                 timeout=20000,
             )
             page.evaluate("localStorage.setItem('planner-token', 'test-token')")
+            # Override API_CONFIG to route all API calls through the local test server
+            page.evaluate(
+                "const API_CONFIG = { url: '%s', google: false };\n" % base
+            )
             page.route('**/api/ai/**', handle_route)
 
             # Open chat to trigger lazy module loading
@@ -214,10 +225,35 @@ def main():
                 timeout=15000,
             )
 
+            # Ensure composer is initialized
+            page.wait_for_function(
+                "() => { try { window.TaskFlowChat._initComposer(); } catch(e) {} "
+                "var inp = document.getElementById('chatInput'); "
+                "var send = document.querySelector('[data-action=\"chat-send\"]'); "
+                "return inp && send; }",
+                timeout=5000,
+            )
+
             results = []
 
             # ═══════════════════════════════════════════════════════
-            # Scenario 1: Simulate roadmap save (client-side)
+            # Helper: send chat message via REAL UI
+            # ═══════════════════════════════════════════════════════
+            def send_chat_message(text):
+                """Type into #chatInput and press Enter — real UI interaction."""
+                inp = page.locator('#chatInput')
+                inp.fill(text)
+                # Ensure input event fires to enable send button
+                page.evaluate(
+                    "var el = document.getElementById('chatInput'); "
+                    "el.dispatchEvent(new Event('input', {bubbles: true}));"
+                )
+                page.wait_for_timeout(300)
+                # Press Enter to submit — triggers keydown listener in _initComposer
+                inp.press('Enter')
+
+            # ═══════════════════════════════════════════════════════
+            # Scenario 1: Bootstrap roadmap via saveRoadmap (test setup)
             # ═══════════════════════════════════════════════════════
             page.evaluate("""() => {
                 window.TaskFlowDocumentDailyPlan.saveRoadmap({
@@ -238,17 +274,16 @@ def main():
             }""")
 
             roadmap = page.evaluate("() => window.TaskFlowDocumentDailyPlan?.getActiveRoadmap()")
-            results.append(('1. roadmap saved', roadmap is not None and roadmap.get('roadmap', {}).get('title') == 'Embedded Systems Roadmap'))
+            results.append(('1. roadmap bootstrapped', roadmap is not None and roadmap.get('roadmap', {}).get('title') == 'Embedded Systems Roadmap'))
 
             # ═══════════════════════════════════════════════════════
-            # Scenario 2: "Tóm tắt tài liệu này" → documentContext
+            # Scenario 2: "Tom tat tai lieu nay" via REAL UI → documentContext
             # ═══════════════════════════════════════════════════════
             API_CALLS.clear()
             captured_bodies.clear()
+            chat_calls[0] = 0
 
-            # Use evaluate to set input and trigger send directly
-            page.evaluate("document.getElementById('chatInput').value = 'Tom tat tai lieu nay'")
-            page.evaluate("window.TaskFlowChat.doChatSend()")
+            send_chat_message('Tom tat tai lieu nay')
 
             page.wait_for_selector('.chat-msg.bot:not(.chat-typing):not(.chat-stopped)', timeout=30000)
             time.sleep(0.3)
@@ -270,14 +305,13 @@ def main():
             results.append(('4. /api/ai/chat called', chat_calls[0] >= 1))
 
             # ═══════════════════════════════════════════════════════
-            # Scenario 3: "Tuần 1 học gì?" → documentContext
+            # Scenario 3: "Tuan 1 hoc gi?" via REAL UI → documentContext
             # ═══════════════════════════════════════════════════════
             API_CALLS.clear()
             captured_bodies.clear()
             chat_calls[0] = 0
 
-            page.evaluate("document.getElementById('chatInput').value = 'Tuan 1 hoc gi?'")
-            page.evaluate("window.TaskFlowChat.doChatSend()")
+            send_chat_message('Tuan 1 hoc gi?')
             page.wait_for_selector('.chat-msg.bot:not(.chat-typing):not(.chat-stopped)', timeout=30000)
             time.sleep(0.3)
 
@@ -288,12 +322,11 @@ def main():
             results.append(('5. week question sends documentContext', week_ctx))
 
             # ═══════════════════════════════════════════════════════
-            # Scenario 4: "lập tuần tiếp theo" → Stage B only
+            # Scenario 4: "Lap tuan tiep theo" via REAL UI → Stage B only
             # ═══════════════════════════════════════════════════════
             API_CALLS.clear()
-            page.evaluate("document.getElementById('chatInput').value = 'lap tuan tiep theo'")
-            page.evaluate("window.TaskFlowChat.doChatSend()")
-            time.sleep(1.5)
+            send_chat_message('Lap tuan tiep theo')
+            time.sleep(2)
 
             rm_calls_next = [c for c in API_CALLS if '/document-roadmap' in c.get('path', '')]
             results.append(('6. next-week: no document-roadmap', len(rm_calls_next) == 0))
@@ -307,18 +340,19 @@ def main():
 
             API_CALLS.clear()
             captured_bodies.clear()
-            page.evaluate("document.getElementById('chatInput').value = 'Tom tat tai lieu nay'")
-            page.evaluate("window.TaskFlowChat.doChatSend()")
-            time.sleep(1)
+            send_chat_message('Tom tat tai lieu nay')
+            time.sleep(1.5)
 
             chat_after = [c for c in API_CALLS if '/api/ai/chat' in c.get('path', '')]
             results.append(('8. no-doc: no /api/ai/chat call', len(chat_after) == 0))
 
             fallback_found = page.evaluate("""() => {
-                var msgs = document.querySelectorAll('.chat-msg');
+                var msgs = document.querySelectorAll('.chat-msg.bot');
                 for (var i = 0; i < msgs.length; i++) {
-                    var t = msgs[i].textContent || '';
-                    if (t.includes('chua co tai lieu') || t.includes('no active document') || t.includes('chưa có tài liệu'))
+                    var t = (msgs[i].textContent || '').normalize('NFD');
+                    // Strip combining diacritics for flexible matching
+                    var stripped = t.replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                    if (stripped.indexOf('chua co tai lieu') >= 0 || stripped.indexOf('no active document') >= 0)
                         return true;
                 }
                 return false;

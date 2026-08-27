@@ -795,4 +795,35 @@ describe('Phase 8: Document-aware chat', () => {
     assert.ok(!stageABody.includes('handleDailyPlan'), 'Stage A does NOT call handleDailyPlan');
     assert.ok(!stageABody.includes('/api/ai/daily-plan'), 'Stage A does NOT call daily-plan endpoint');
   });
+
+  it('document question check runs BEFORE document plan request check', () => {
+    // _isDocumentQuestion must intercept informational questions before
+    // _isDocumentPlanRequest which routes to daily-plan
+    const docQIdx = chatSource.indexOf('_isDocumentQuestion(text)');
+    const docPlanIdx = chatSource.indexOf('_isDocumentPlanRequest(text)');
+    assert.ok(docQIdx >= 0, '_isDocumentQuestion exists');
+    assert.ok(docPlanIdx >= 0, '_isDocumentPlanRequest exists');
+    assert.ok(docQIdx < docPlanIdx, '_isDocumentQuestion must come before _isDocumentPlanRequest');
+  });
+
+  it('server sanitizeDocumentContext validates roadmap schema', () => {
+    assert.ok(aiSource.includes('sanitizeDocumentContext'), 'validator function exists');
+    assert.ok(aiSource.includes('MAX_DOC_CONTEXT_BYTES'), 'has max size limit');
+    assert.ok(aiSource.includes('16 * 1024'), 'limit is 16KB');
+    assert.ok(aiSource.includes('roadmap.phases'), 'validates phases array');
+    assert.ok(aiSource.includes('phases.length > 50'), 'bounds phase count');
+    assert.ok(aiSource.includes('.slice(0,'), 'bounds string field lengths');
+  });
+
+  it('CI includes document-chat-e2e job', () => {
+    const ciSource = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+    assert.ok(ciSource.includes('document-chat-e2e'), 'CI has document-chat-e2e job');
+    assert.ok(ciSource.includes('e2e-document-chat.py'), 'CI runs e2e-document-chat.py');
+  });
+
+  it('duplicate updateLastMessage removed from chat-history.js', () => {
+    const histSource = readFileSync(join(ROOT, 'js', 'chat-history.js'), 'utf8');
+    const count = (histSource.match(/updateLastMessage:/g) || []).length;
+    assert.strictEqual(count, 1, 'exactly one updateLastMessage definition');
+  });
 });

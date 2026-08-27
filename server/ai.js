@@ -1058,6 +1058,64 @@ function sanitizeChatContextEnvelope(raw) {
   return { ok: true, envelope: envelope };
 }
 
+/* ---- Phase 8: Document context validation ----
+   The client sends a bounded, account-scoped document reference. The server
+   validates the schema strictly — arbitrary payloads are rejected with 400.
+   The roadmap is the only trusted data that gets injected into the prompt.
+   All string fields are capped; arrays are bounded; unknown keys are stripped. */
+const MAX_DOC_CONTEXT_BYTES = 16 * 1024; // 16 KB max document context
+function sanitizeDocumentContext(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  // Size check first
+  try {
+    if (Buffer.byteLength(JSON.stringify(raw), 'utf8') > MAX_DOC_CONTEXT_BYTES) return null;
+  } catch (e) { return null; }
+
+  const roadmap = raw.roadmap;
+  if (!roadmap || typeof roadmap !== 'object' || Array.isArray(roadmap)) return null;
+  if (!roadmap.phases || !Array.isArray(roadmap.phases) || roadmap.phases.length === 0) return null;
+  if (roadmap.phases.length > 50) return null; // bounded
+
+  // Validate roadmap structure
+  const title = typeof roadmap.title === 'string' ? roadmap.title.slice(0, 200) : '';
+  const totalWeeks = Number.isFinite(roadmap.totalWeeks) && roadmap.totalWeeks > 0 && roadmap.totalWeeks <= 524
+    ? Math.round(roadmap.totalWeeks) : null;
+
+  const phases = roadmap.phases.map(function (p) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return null;
+    return {
+      name: typeof p.name === 'string' ? p.name.slice(0, 200) : '',
+      weeks: typeof p.weeks === 'string' ? p.weeks.slice(0, 30) : (Number.isFinite(p.weeks) ? String(p.weeks) : ''),
+      goals: Array.isArray(p.goals) ? p.goals.filter(function (g) { return typeof g === 'string'; }).slice(0, 10).map(function (g) { return g.slice(0, 200); }) : [],
+      deliverables: Array.isArray(p.deliverables) ? p.deliverables.filter(function (d) { return typeof d === 'string'; }).slice(0, 10).map(function (d) { return d.slice(0, 200); }) : [],
+      topics: Array.isArray(p.topics) ? p.topics.filter(function (t) { return typeof t === 'string'; }).slice(0, 15).map(function (t) { return t.slice(0, 200); }) : [],
+    };
+  }).filter(Boolean);
+
+  if (phases.length === 0) return null;
+
+  const documentName = typeof raw.documentName === 'string' ? raw.documentName.slice(0, 200) : 'document';
+  const totalWeeksCtx = Number.isFinite(raw.totalWeeks) && raw.totalWeeks > 0 && raw.totalWeeks <= 524
+    ? Math.round(raw.totalWeeks) : totalWeeks;
+
+  // Validate cursor
+  let cursor = null;
+  if (raw.cursor && typeof raw.cursor === 'object' && !Array.isArray(raw.cursor)) {
+    const c = raw.cursor;
+    cursor = {
+      nextWeek: Number.isFinite(c.nextWeek) && c.nextWeek >= 0 && c.nextWeek <= 9999 ? Math.round(c.nextWeek) : 0,
+      lastAppliedDaysCount: Number.isFinite(c.lastAppliedDaysCount) && c.lastAppliedDaysCount >= 0 && c.lastAppliedDaysCount <= 365 ? Math.round(c.lastAppliedDaysCount) : 0,
+    };
+  }
+
+  return {
+    roadmap: { title, totalWeeks, phases },
+    documentName,
+    totalWeeks: totalWeeksCtx,
+    cursor,
+  };
+}
+
 // System instruction — server-owned, not replaceable by client.
 // Phase 3B (P11): instruction mô tả context có điều kiện; context chỉ là DỮ LIỆU
 // đọc trong tin nhắn người dùng, không bao giờ là lệnh hệ thống (P12).
@@ -1142,10 +1200,9 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
       return res.status(400).json({ error: 'ai-context-invalid', details: [ctxSan.reason] });
     }
 
-    // Phase 8: optional documentContext — the client sends the active roadmap
-    // metadata so the AI can answer document-aware questions.
-    const docCtx = body.documentContext && typeof body.documentContext === 'object' && body.documentContext.roadmap
-      ? body.documentContext : null;
+    // Phase 8: optional documentContext — client sends active roadmap metadata.
+    // Server validates strictly via sanitizeDocumentContext to reject arbitrary payloads.
+    const docCtx = sanitizeDocumentContext(body.documentContext);
 
     // Build messages for Gemini — system instruction + history + current message
     const lang = /[a-zA-Z]/.test(message) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(message)

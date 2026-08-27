@@ -855,10 +855,23 @@
         useAgent = !!(window.TaskFlowAIAgentRuntime && window.TaskFlowAIAgentRuntime.isActionIntent(text));
       }
 
-      // Document-plan request without an attached file: reuse the saved
-      // roadmap when possible; otherwise ask for the PDF instead of routing
-      // the request to the generic task agent.
-      if (_isDocumentPlanRequest(text)) {
+      // Phase 8: Document-aware chat — detect BEFORE Brain and BEFORE
+      // document-plan request so informational questions go to /api/ai/chat
+      // with document context, while planning actions go to daily-plan.
+      var documentContext = null;
+      if (_isDocumentQuestion(text)) {
+        documentContext = _getDocumentContext();
+        if (!documentContext) {
+          _removeTyping(typingEl);
+          _appendMessage(msgs, _t('chatNoActiveDocument') || 'Bạn chưa có tài liệu đang hoạt động. Hãy đính kèm hoặc chọn một tài liệu.', 'bot');
+          _persistAssistantMessage(_t('chatNoActiveDocument') || 'Bạn chưa có tài liệu đang hoạt động.');
+          _setContextStatus('idle', []);
+          return;
+        }
+        // Route document questions directly to chat with context — skip Brain
+      } else if (_isDocumentPlanRequest(text)) {
+        // Document-plan request without an attached file: reuse the saved
+        // roadmap when possible; otherwise ask for the PDF.
         var planner = window.TaskFlowDocumentDailyPlan;
         var activePlan = planner && typeof planner.getActiveRoadmap === 'function'
           ? planner.getActiveRoadmap()
@@ -898,21 +911,6 @@
           _setContextStatus('idle', []);
           return;
         }
-      }
-
-      // Phase 8: Document-aware chat — detect BEFORE Brain so document
-      // questions go directly to /api/ai/chat with document context.
-      var documentContext = null;
-      if (_isDocumentQuestion(text)) {
-        documentContext = _getDocumentContext();
-        if (!documentContext) {
-          _removeTyping(typingEl);
-          _appendMessage(msgs, _t('chatNoActiveDocument') || 'Bạn chưa có tài liệu đang hoạt động. Hãy đính kèm hoặc chọn một tài liệu.', 'bot');
-          _persistAssistantMessage(_t('chatNoActiveDocument') || 'Bạn chưa có tài liệu đang hoạt động.');
-          _setContextStatus('idle', []);
-          return;
-        }
-        // Route document questions directly to chat with context — skip Brain
       } else {
         // Try AI Brain for TaskFlow-specific queries and action intents
         var brainClient = window.TaskFlowAIBrainClient;

@@ -325,32 +325,6 @@
       return null;
     },
 
-    /** Update the content of the last message with a given role.
-     * Used by continuation to replace the partial assistant answer with the
-     * merged full answer instead of appending a duplicate. */
-    updateLastMessage: function (accountScope, conversationId, role, newContent) {
-      if (!newContent || typeof newContent !== 'string') return null;
-      var state = api.load(accountScope);
-      for (var i = 0; i < state.conversations.length; i++) {
-        if (state.conversations[i].id === conversationId) {
-          var conv = state.conversations[i];
-          // Walk backwards to find the last message with matching role
-          for (var j = conv.messages.length - 1; j >= 0; j--) {
-            if (conv.messages[j].role === role) {
-              conv.messages[j].content = newContent.slice(0, MAX_MESSAGE_CHARS);
-              conv.updatedAt = Date.now();
-              state.conversations.splice(i, 1);
-              state.conversations.unshift(conv);
-              api.save(accountScope, state);
-              return conv.messages[j];
-            }
-          }
-          break; // conversation found but no matching role — exit
-        }
-      }
-      return null;
-    },
-
     /** Get the bounded recent messages for provider history */
     getProviderHistory: function (accountScope, conversationId, maxMessages) {
       maxMessages = maxMessages || 10;
