@@ -970,6 +970,20 @@
         throw { code: 'agent-unhandled' };
       }
 
+      // Phase 9: Deterministic roadmap resolver — answer factual questions without AI call
+      if (documentContext && documentContext.roadmap && window.TaskFlowRoadmapResolver) {
+        var deterministicResult = window.TaskFlowRoadmapResolver.resolveRoadmapQuestion(
+          text, documentContext.roadmap, documentContext.cursor
+        );
+        if (deterministicResult && deterministicResult.matched) {
+          _removeTyping(typingEl);
+          var detBotEl = _appendMessage(msgs, deterministicResult.answer, 'bot');
+          _persistAssistantMessage(deterministicResult.answer);
+          _setContextStatus('idle', []);
+          return;
+        }
+      }
+
       var chatResult = await _callChatAPI(text, _getProviderHistory(), req.signal, {
         documentContext: documentContext
       });

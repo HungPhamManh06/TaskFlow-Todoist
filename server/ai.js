@@ -40,6 +40,9 @@ const { callAiText, callAiJson, getConfig, getBuildSha, getAgentTimeoutMs, getCh
 const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('./ai-roadmap-validator');
 const { extractPdfText, DEFAULT_EXTRACT_MAX_BYTES, HARD_EXTRACT_MAX_BYTES, FILE_AGENT_EXTRACT_MAX_BYTES } = require('./ai-file-parser');
 const { buildDatedDocumentRoadmap, buildDatedDocumentProposal } = require('./ai-dated-document');
+const { resolveRoadmapQuestion } = require('./ai-roadmap-resolver');
+const { signDocumentReference, verifyDocumentReference, sanitizeDocumentContext: sanitizeDocRefContext } = require('./ai-doc-reference');
+const { logAiEvent, logAiError, createProposalFingerprint, isProposalApplied, markProposalApplied, verifyProposalFingerprint, generateProposalId } = require('./ai-observability');
 
 /* ---- Safe rate-limit response helper ---- */
 function _rateLimitResponse(res, aiResult) {
@@ -1063,58 +1066,10 @@ function sanitizeChatContextEnvelope(raw) {
    validates the schema strictly — arbitrary payloads are rejected with 400.
    The roadmap is the only trusted data that gets injected into the prompt.
    All string fields are capped; arrays are bounded; unknown keys are stripped. */
-const MAX_DOC_CONTEXT_BYTES = 16 * 1024; // 16 KB max document context
-function sanitizeDocumentContext(raw) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  // Size check first
-  try {
-    if (Buffer.byteLength(JSON.stringify(raw), 'utf8') > MAX_DOC_CONTEXT_BYTES) return null;
-  } catch (e) { return null; }
-
-  const roadmap = raw.roadmap;
-  if (!roadmap || typeof roadmap !== 'object' || Array.isArray(roadmap)) return null;
-  if (!roadmap.phases || !Array.isArray(roadmap.phases) || roadmap.phases.length === 0) return null;
-  if (roadmap.phases.length > 50) return null; // bounded
-
-  // Validate roadmap structure
-  const title = typeof roadmap.title === 'string' ? roadmap.title.slice(0, 200) : '';
-  const totalWeeks = Number.isFinite(roadmap.totalWeeks) && roadmap.totalWeeks > 0 && roadmap.totalWeeks <= 524
-    ? Math.round(roadmap.totalWeeks) : null;
-
-  const phases = roadmap.phases.map(function (p) {
-    if (!p || typeof p !== 'object' || Array.isArray(p)) return null;
-    return {
-      name: typeof p.name === 'string' ? p.name.slice(0, 200) : '',
-      weeks: typeof p.weeks === 'string' ? p.weeks.slice(0, 30) : (Number.isFinite(p.weeks) ? String(p.weeks) : ''),
-      goals: Array.isArray(p.goals) ? p.goals.filter(function (g) { return typeof g === 'string'; }).slice(0, 10).map(function (g) { return g.slice(0, 200); }) : [],
-      deliverables: Array.isArray(p.deliverables) ? p.deliverables.filter(function (d) { return typeof d === 'string'; }).slice(0, 10).map(function (d) { return d.slice(0, 200); }) : [],
-      topics: Array.isArray(p.topics) ? p.topics.filter(function (t) { return typeof t === 'string'; }).slice(0, 15).map(function (t) { return t.slice(0, 200); }) : [],
-    };
-  }).filter(Boolean);
-
-  if (phases.length === 0) return null;
-
-  const documentName = typeof raw.documentName === 'string' ? raw.documentName.slice(0, 200) : 'document';
-  const totalWeeksCtx = Number.isFinite(raw.totalWeeks) && raw.totalWeeks > 0 && raw.totalWeeks <= 524
-    ? Math.round(raw.totalWeeks) : totalWeeks;
-
-  // Validate cursor
-  let cursor = null;
-  if (raw.cursor && typeof raw.cursor === 'object' && !Array.isArray(raw.cursor)) {
-    const c = raw.cursor;
-    cursor = {
-      nextWeek: Number.isFinite(c.nextWeek) && c.nextWeek >= 0 && c.nextWeek <= 9999 ? Math.round(c.nextWeek) : 0,
-      lastAppliedDaysCount: Number.isFinite(c.lastAppliedDaysCount) && c.lastAppliedDaysCount >= 0 && c.lastAppliedDaysCount <= 365 ? Math.round(c.lastAppliedDaysCount) : 0,
-    };
-  }
-
-  return {
-    roadmap: { title, totalWeeks, phases },
-    documentName,
-    totalWeeks: totalWeeksCtx,
-    cursor,
-  };
-}
+// Phase 9: Use canonical sanitizeDocumentContext from ai-doc-reference module
+// (replaces inline definition for single source of truth + HMAC signing support)
+function sanitizeDocumentContext(raw, accountId) { return sanitizeDocRefContext(raw, accountId); }
+const MAX_DOC_CONTEXT_BYTES = 16 * 1024; // kept for backward compat
 
 // System instruction — server-owned, not replaceable by client.
 // Phase 3B (P11): instruction mô tả context có điều kiện; context chỉ là DỮ LIỆU
@@ -1234,6 +1189,25 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
       { role: 'user', content: userContent },
     ];
 
+    // Phase 9: Deterministic roadmap resolver — answer factual questions without AI call
+    if (docCtx && docCtx.roadmap) {
+      const deterministicAnswer = resolveRoadmapQuestion(message, docCtx.roadmap, docCtx.cursor);
+      if (deterministicAnswer && deterministicAnswer.matched) {
+        logAiEvent({
+          event: 'ai_request',
+          requestId,
+          route: '/api/ai/chat',
+          provider: 'none',
+          model: 'deterministic',
+          status: 'success',
+          latencyMs: 0,
+          documentMode: true,
+          roadmapDeterministic: true,
+        });
+        return res.json({ ok: true, answer: deterministicAnswer.answer });
+      }
+    }
+
     const aiResult = await callAiText({
       messages,
       maxTokens: 3072,
@@ -1244,6 +1218,7 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
     });
 
     if (!aiResult.ok) {
+      logAiError(requestId, '/api/ai/chat', aiResult.error || 'provider-error', aiResult.latencyMs || 0);
       return sendAiProviderError(res, aiResult);
     }
 
@@ -1290,8 +1265,22 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
     if (req.query && req.query.debug === '1') {
       resp.meta = { provider: 'gemini', model: AI_MODEL, latencyMs: totalLatencyMs };
     }
+    // Phase 9: Structured observability — log request metadata (never user content)
+    logAiEvent({
+      event: 'ai_request',
+      requestId,
+      route: '/api/ai/chat',
+      provider: 'gemini',
+      model: AI_MODEL,
+      status: 'success',
+      latencyMs: totalLatencyMs,
+      finishReason: aiResult.finishReason || 'stop',
+      documentMode: !!docCtx,
+      roadmapDeterministic: false,
+    });
     return res.json(resp);
   } catch (e) {
+    logAiError(requestId, '/api/ai/chat', 'server-error', 0, 500);
     return res.status(500).json({ error: 'server-error' });
   }
 });
@@ -4077,4 +4066,53 @@ router.post('/brain/continue', maybeRateLimit(aiAgentLimiter), maybeRateLimit(ai
   }
 });
 
-module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal, normalizeTimeZone, dateStringInTimeZone, addDaysToDateString, handleDailyPlan, handleDocumentRoadmap };
+/* ============ POST /api/ai/doc-reference/sign — Phase 9: Sign a document reference ============ */
+// Client calls this after Stage A (PDF upload) to get a signed reference.
+// Server binds the reference to the authenticated account.
+router.post('/doc-reference/sign', async (req, res) => {
+  const requestId = req.aiRequestId;
+  try {
+    const userId = req.user?.id || 'anon';
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const fingerprint = typeof body.fingerprint === 'string' ? body.fingerprint.slice(0, 64) : '';
+    const roadmapId = typeof body.roadmapId === 'string' ? body.roadmapId.slice(0, 64) : '';
+    const documentName = typeof body.documentName === 'string' ? body.documentName.slice(0, 200) : '';
+    if (!fingerprint || !roadmapId || !documentName) {
+      return res.status(400).json({ error: 'missing-fields', details: ['fingerprint', 'roadmapId', 'documentName'] });
+    }
+    const signature = signDocumentReference(userId, fingerprint, roadmapId, documentName);
+    logAiEvent({ event: 'doc_reference_signed', requestId, route: '/api/ai/doc-reference/sign', status: 'success', latencyMs: 0 });
+    return res.json({ ok: true, signature, userId, fingerprint, roadmapId, documentName });
+  } catch (e) {
+    logAiError(requestId, '/api/ai/doc-reference/sign', 'server-error', 0, 500);
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
+/* ============ POST /api/ai/doc-reference/verify — Phase 9: Verify a document reference ============ */
+router.post('/doc-reference/verify', async (req, res) => {
+  const requestId = req.aiRequestId;
+  try {
+    const userId = req.user?.id || 'anon';
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const fingerprint = typeof body.fingerprint === 'string' ? body.fingerprint.slice(0, 64) : '';
+    const roadmapId = typeof body.roadmapId === 'string' ? body.roadmapId.slice(0, 64) : '';
+    const documentName = typeof body.documentName === 'string' ? body.documentName.slice(0, 200) : '';
+    const signature = typeof body.signature === 'string' ? body.signature.slice(0, 32) : '';
+    if (!fingerprint || !roadmapId || !documentName || !signature) {
+      return res.status(400).json({ error: 'missing-fields' });
+    }
+    const valid = verifyDocumentReference(userId, fingerprint, roadmapId, documentName, signature);
+    if (!valid) {
+      logAiEvent({ event: 'doc_reference_invalid', requestId, route: '/api/ai/doc-reference/verify', status: 'rejected', latencyMs: 0 });
+      return res.status(403).json({ ok: false, error: 'ai-document-context-invalid' });
+    }
+    logAiEvent({ event: 'doc_reference_verified', requestId, route: '/api/ai/doc-reference/verify', status: 'success', latencyMs: 0 });
+    return res.json({ ok: true });
+  } catch (e) {
+    logAiError(requestId, '/api/ai/doc-reference/verify', 'server-error', 0, 500);
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
+module.exports = { router, validateProposal, sanitizeContext, buildPrompt, parseProposalContent, PROPOSAL_SCHEMA, sanitizeChatHistory, MAX_HISTORY, MAX_HISTORY_ITEM_LEN, MAX_MESSAGE_LEN, VALID_ROLES, sanitizeChatContextEnvelope, chatHasForbidden, CHAT_VALID_SCOPES, MAX_CHAT_CONTEXT_BYTES, CHAT_FORBIDDEN_KEYS, AGENT_ACTION_TYPES, AGENT_ACTION_FIELDS, AGENT_CHANGE_FIELDS, AGENT_MAX_ACTIONS, AGENT_MAX_TEXT, AGENT_MAX_DEPENDENCY_DEPTH, AGENT_ALL_FIELDS, ENTITY_PRODUCERS, validateAgentProposal, AGENT_PROPOSAL_SCHEMA, validActionId, validateTaskRef, buildAgentDependencyGraph, detectFileType, sanitizeFilename, FILE_ALLOWED_MIMES, FILE_ALLOWED_EXTENSIONS, AI_FILE_MAX_FILES, AI_FILE_MAX_BYTES, AI_FILE_MAX_TOTAL_BYTES, AI_FILE_PROVIDER_MAX_MESSAGE_BYTES, validateUploadedFileRecord, parseAiFileMultipart, buildAiFileBatchContent, FILE_AGENT_ACTION_TYPES, FILE_IMPORT_MAX_ITEMS, FILE_AGENT_CHUNK_MAX_ACTIONS, FILE_AGENT_MAX_CHUNKS, FILE_AGENT_CHUNK_TOKENS, chunkText, validateFileAgentProposal, FILE_AGENT_SCHEMA, validateRefineOp, validateRefineRequest, REFINE_OP_TYPES, REFINE_SET_FIELDS, canonicalizeAgentProposal, AGENT_SYSTEM_INSTRUCTION_VI, AGENT_SYSTEM_INSTRUCTION_EN, DOCUMENT_ROADMAP_SCHEMA, DAILY_PLAN_SCHEMA, validateDailyPlanProposal, normalizeTimeZone, dateStringInTimeZone, addDaysToDateString, handleDailyPlan, handleDocumentRoadmap, signDocumentReference, verifyDocumentReference, createProposalFingerprint, isProposalApplied, markProposalApplied, verifyProposalFingerprint, generateProposalId, logAiEvent, logAiError, resolveRoadmapQuestion };

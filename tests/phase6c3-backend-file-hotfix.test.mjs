@@ -119,7 +119,7 @@ describe('Phase 6C.3 — Backend File Processing Hotfix', () => {
     assert.ok(outerCatchIdx > 0, 'outer catch not found');
     const catchBlock = src.substring(outerCatchIdx, outerCatchIdx + 300);
     assert.ok(
-      catchBlock.includes('errorType=') || catchBlock.includes('safeType'),
+      catchBlock.includes('errorType=') || catchBlock.includes('safeType') || catchBlock.includes('logAiError'),
       'outer catch should log safe error type'
     );
     assert.ok(

@@ -21,6 +21,7 @@ const ROOT = join(__dirname, '..');
 const aiSource = readFileSync(join(ROOT, 'server', 'ai.js'), 'utf8');
 const planSource = readFileSync(join(ROOT, 'js', 'ai-document-daily-plan.js'), 'utf8');
 const appSource = readFileSync(join(ROOT, 'js', 'app.js'), 'utf8');
+const docRefSource = readFileSync(join(ROOT, 'server', 'ai-doc-reference.js'), 'utf8');
 const swSource = readFileSync(join(ROOT, 'sw.js'), 'utf8');
 const agentSrc = readFileSync(join(ROOT, 'js', 'ai-agent.js'), 'utf8');
 const runtimeSrc = readFileSync(join(ROOT, 'js', 'ai-agent-runtime.js'), 'utf8');
@@ -807,12 +808,15 @@ describe('Phase 8: Document-aware chat', () => {
   });
 
   it('server sanitizeDocumentContext validates roadmap schema', () => {
-    assert.ok(aiSource.includes('sanitizeDocumentContext'), 'validator function exists');
-    assert.ok(aiSource.includes('MAX_DOC_CONTEXT_BYTES'), 'has max size limit');
-    assert.ok(aiSource.includes('16 * 1024'), 'limit is 16KB');
-    assert.ok(aiSource.includes('roadmap.phases'), 'validates phases array');
-    assert.ok(aiSource.includes('phases.length > 50'), 'bounds phase count');
-    assert.ok(aiSource.includes('.slice(0,'), 'bounds string field lengths');
+    // Phase 9: validation moved to ai-doc-reference.js module
+    assert.ok(docRefSource.includes('sanitizeDocumentContext'), 'validator function exists in module');
+    assert.ok(docRefSource.includes('MAX_DOC_CONTEXT_BYTES'), 'has max size limit');
+    assert.ok(docRefSource.includes('MAX_PHASES'), 'bounds phase count constant');
+    assert.ok(docRefSource.includes('MAX_PHASES = 50'), 'phase count limit is 50');
+    assert.ok(docRefSource.includes('roadmap.phases'), 'validates phases array');
+    assert.ok(docRefSource.includes('.slice(0,'), 'bounds string field lengths');
+    // ai.js still has the re-export wrapper
+    assert.ok(aiSource.includes('sanitizeDocumentContext'), 'ai.js re-exports sanitizeDocumentContext');
   });
 
   it('CI includes document-chat-e2e job', () => {
@@ -825,5 +829,85 @@ describe('Phase 8: Document-aware chat', () => {
     const histSource = readFileSync(join(ROOT, 'js', 'chat-history.js'), 'utf8');
     const count = (histSource.match(/updateLastMessage:/g) || []).length;
     assert.strictEqual(count, 1, 'exactly one updateLastMessage definition');
+  });
+
+  // ── Phase 9: Canonical document reference + deterministic resolver + observability ──
+
+  it('ai-doc-reference: HMAC signing + verification', () => {
+    assert.ok(docRefSource.includes('signDocumentReference'), 'signDocumentReference exists');
+    assert.ok(docRefSource.includes('verifyDocumentReference'), 'verifyDocumentReference exists');
+    assert.ok(docRefSource.includes('timingSafeEqual'), 'uses timing-safe comparison');
+    assert.ok(docRefSource.includes('HMAC_ALGO'), 'specifies HMAC algorithm');
+    assert.ok(docRefSource.includes('SIG_LENGTH'), 'defines signature length');
+  });
+
+  it('ai-roadmap-resolver: deterministic query patterns', () => {
+    const resolverSource = readFileSync(join(ROOT, 'server', 'ai-roadmap-resolver.js'), 'utf8');
+    assert.ok(resolverSource.includes('resolveRoadmapQuestion'), 'resolver function exists');
+    assert.ok(resolverSource.includes('parseWeekRange'), 'week range parser exists');
+    assert.ok(resolverSource.includes('findPhaseForWeek'), 'phase finder exists');
+    assert.ok(resolverSource.includes('WEEK_LOOKUP_PATTERNS'), 'has week lookup patterns');
+    assert.ok(resolverSource.includes('TOTAL_WEEKS_PATTERNS'), 'has total weeks patterns');
+    assert.ok(resolverSource.includes('CURRENT_WEEK_PATTERNS'), 'has current week patterns');
+    assert.ok(resolverSource.includes('PHASE_LOOKUP_PATTERNS'), 'has phase lookup patterns');
+    assert.ok(resolverSource.includes('week_out_of_range'), 'handles out-of-range weeks');
+  });
+
+  it('ai-observability: privacy-safe structured logging', () => {
+    const obsSource = readFileSync(join(ROOT, 'server', 'ai-observability.js'), 'utf8');
+    assert.ok(obsSource.includes('logAiEvent'), 'logAiEvent function exists');
+    assert.ok(obsSource.includes('logAiError'), 'logAiError function exists');
+    assert.ok(obsSource.includes('LOG_ALLOWED_FIELDS'), 'has allowed fields set');
+    assert.ok(obsSource.includes('LOG_FORBIDDEN_PATTERNS'), 'has forbidden patterns');
+    assert.ok(obsSource.includes('createProposalFingerprint'), 'proposal fingerprint exists');
+    assert.ok(obsSource.includes('isProposalApplied'), 'idempotency check exists');
+    assert.ok(obsSource.includes('markProposalApplied'), 'idempotency mark exists');
+    assert.ok(obsSource.includes('generateProposalId'), 'proposal ID generation exists');
+  });
+
+  it('client ai-roadmap-resolver.js exists with deterministic patterns', () => {
+    const clientResolverSource = readFileSync(join(ROOT, 'js', 'ai-roadmap-resolver.js'), 'utf8');
+    assert.ok(clientResolverSource.includes('resolveRoadmapQuestion'), 'client resolver exists');
+    assert.ok(clientResolverSource.includes('TaskFlowRoadmapResolver'), 'exposes as global module');
+    assert.ok(clientResolverSource.includes('WEEK_PATTERNS'), 'has week patterns');
+    assert.ok(clientResolverSource.includes('TOTAL_WEEKS_PATTERNS'), 'has total weeks patterns');
+  });
+
+  it('chat.js integrates deterministic resolver before AI call', () => {
+    assert.ok(chatSource.includes('TaskFlowRoadmapResolver'), 'chat.js references the resolver');
+    assert.ok(chatSource.includes('resolveRoadmapQuestion'), 'chat.js calls resolveRoadmapQuestion');
+    assert.ok(chatSource.includes('roadmapDeterministic') || chatSource.includes('deterministicResult'), 'uses deterministic result');
+  });
+
+  it('server ai.js has observability logging', () => {
+    assert.ok(aiSource.includes('logAiEvent'), 'ai.js imports logAiEvent');
+    assert.ok(aiSource.includes('logAiError'), 'ai.js imports logAiError');
+    assert.ok(aiSource.includes('logAiEvent({'), 'ai.js calls logAiEvent');
+    assert.ok(aiSource.includes('doc-reference/sign'), 'has doc-reference/sign endpoint');
+    assert.ok(aiSource.includes('doc-reference/verify'), 'has doc-reference/verify endpoint');
+  });
+
+  it('app.js lazy-loads ai-roadmap-resolver.min.js', () => {
+    assert.ok(appSource.includes('ai-roadmap-resolver.min.js'), 'app.js loads roadmap resolver module');
+  });
+
+  it('Phase 9: server/ai-roadmap-resolver.js handles edge cases', () => {
+    // Parse week range
+    const resolverSource = readFileSync(join(ROOT, 'server', 'ai-roadmap-resolver.js'), 'utf8');
+    assert.ok(resolverSource.includes('524'), 'max weeks bounded');
+    assert.ok(resolverSource.includes('phases.length'), 'handles phases array');
+  });
+
+  it('server ai-doc-reference.js: no raw PDF persistence', () => {
+    assert.ok(!docRefSource.includes('base64') || docRefSource.includes('base64').length < 5, 'does not persist base64');
+    assert.ok(!docRefSource.includes('localStorage'), 'does not write localStorage');
+    assert.ok(docRefSource.includes('MAX_DOC_CONTEXT_BYTES'), 'context is bounded');
+  });
+
+  it('Phase 9: ai-observability has proposal idempotency', () => {
+    const obsSource = readFileSync(join(ROOT, 'server', 'ai-observability.js'), 'utf8');
+    assert.ok(obsSource.includes('MAX_APPLIED_ENTRIES'), 'bounded registry');
+    assert.ok(obsSource.includes('IDEMPOTENCY_TTL_MS'), 'has TTL for entries');
+    assert.ok(obsSource.includes('_cleanupAppliedProposals'), 'cleanup function exists');
   });
 });

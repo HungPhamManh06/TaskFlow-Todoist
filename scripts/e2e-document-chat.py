@@ -224,6 +224,11 @@ def main():
                 "() => !!window.TaskFlowChat",
                 timeout=15000,
             )
+            # Phase 9: wait for deterministic roadmap resolver
+            page.wait_for_function(
+                "() => !!window.TaskFlowRoadmapResolver",
+                timeout=15000,
+            )
 
             # Ensure composer is initialized
             page.wait_for_function(
@@ -315,11 +320,12 @@ def main():
             page.wait_for_selector('.chat-msg.bot:not(.chat-typing):not(.chat-stopped)', timeout=30000)
             time.sleep(0.3)
 
-            week_ctx = any(
-                b.get('documentContext', {}).get('roadmap')
-                for b in captured_bodies
-            )
-            results.append(('5. week question sends documentContext', week_ctx))
+            # Phase 9: deterministic resolver answers 'Tuan X hoc gi?' locally without AI call
+            # Verify a new bot message appeared after the week question
+            bot_msgs = page.query_selector_all('.chat-msg.bot:not(.chat-typing)')
+            # At minimum: welcome + answer to 'Tom tat' + answer to 'Tuan 1' = 3
+            week_answered = len(bot_msgs) >= 3
+            results.append(('5. week question answered (deterministic)', week_answered))
 
             # ═══════════════════════════════════════════════════════
             # Scenario 4: "Lap tuan tiep theo" via REAL UI → Stage B only
