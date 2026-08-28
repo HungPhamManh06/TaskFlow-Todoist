@@ -308,8 +308,26 @@ def main():
 
             def slow_route(route):
                 url = route.request.url
-                if '/api/ai/chat' in url and '/continue' not in url and getattr(Handler, 'SLOW_CHAT', False):
-                    # Let server handle the delay - fall through to HTTP handler
+                path = urlsplit(url).path
+                # For streaming endpoint: fulfill directly with delayed NDJSON
+                # so the fetch stays pending while we sleep
+                is_stream = ('/api/ai/chat/stream' in path and
+                             getattr(Handler, 'SLOW_CHAT', False))
+                is_legacy_chat = ('/api/ai/chat' in path and
+                                  '/stream' not in path and
+                                  '/continue' not in path and
+                                  getattr(Handler, 'SLOW_CHAT', False))
+                if is_stream:
+                    # Fulfill directly — don't fall through to server
+                    import time as _time
+                    _time.sleep(10)
+                    ndjson = json.dumps({'type': 'done', 'finishReason': 'stop', 'truncated': False}) + '\n'
+                    route.fulfill(
+                        status=200,
+                        content_type='application/x-ndjson; charset=utf-8',
+                        body=ndjson,
+                    )
+                elif is_legacy_chat:
                     route.fallback()
                 else:
                     route.fallback()
