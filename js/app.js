@@ -4965,7 +4965,7 @@ function shellNavLabel(value) {
 }
 
 // View nằm trong More sheet: highlight nút "Thêm" khi đang xem (luôn đúng 1 active trên mobile)
-const MORE_SHEET_VIEWS = ['inbox', 'week', 'overview', 'year', 'calendar', 'projects'];
+const MORE_SHEET_VIEWS = ['week', 'overview', 'year', 'calendar'];
 
 function buildNav() {
   const desktop = document.getElementById('navTabs');
@@ -4974,11 +4974,11 @@ function buildNav() {
     { view: 'today', icon: 'sun', label: shellNavLabel(t('todayTxt')), id: 'tab-today', controls: 'view-today' },
     { view: 'inbox', icon: 'inbox', label: shellNavLabel(t('tabInbox')), id: 'tab-inbox', controls: 'view-inbox' },
     { view: 'upcoming', icon: 'upcoming', label: shellNavLabel(t('tabUpcoming')), id: 'tab-upcoming', controls: 'view-upcoming' },
-    { view: 'overview', icon: 'overview', label: shellNavLabel(t('tabOverview')), id: 'tab-overview', controls: 'view-overview' },
     { view: 'week', icon: 'week', label: shellNavLabel(t('weekN', { n: state.currentWeek })), id: 'tab-week-' + state.currentWeek, controls: 'view-week', week: state.currentWeek },
-    { view: 'year', icon: 'year', label: shellNavLabel(t('tabYear', { y: PLAN_YEAR })), id: 'tab-year', controls: 'view-year' },
     { view: 'calendar', icon: 'calendar', label: shellNavLabel(t('tabCalendar')), id: 'tab-calendar', controls: 'view-calendar' },
     { view: 'projects', icon: 'briefcase', label: shellNavLabel(t('projectsPageTitle')), id: 'tab-projects', controls: 'view-projects' },
+    { view: 'overview', icon: 'overview', label: shellNavLabel(t('tabOverview')), id: 'tab-overview', controls: 'view-overview' },
+    { view: 'year', icon: 'year', label: shellNavLabel(t('tabYear', { y: PLAN_YEAR })), id: 'tab-year', controls: 'view-year' },
   ];
   const navAttributes = {
     today: 'data-nav-view="today" data-view="today"',
@@ -5000,15 +5000,16 @@ function buildNav() {
   const byView = {};
   items.forEach((it) => { byView[it.view] = it; });
   if (desktop) {
+    // Phase 13: Calm productivity — reduced primary nav, clear hierarchy
     const groups = [
-      { label: t('navGroupMain'), items: [
+      { label: '', items: [
         byView.today, byView.inbox, byView.upcoming,
       ] },
-      // P3: PLAN = Tổng quan → Tuần → Năm → Lịch; TRACK = Thói quen → Focus → Báo cáo
       { label: t('navGroupPlan'), items: [
-        byView.overview, byView.week, byView.year, byView.calendar, byView.projects,
+        byView.week, byView.calendar, byView.projects,
       ] },
       { label: t('navGroupTrack'), items: [
+        byView.overview, byView.year,
         actionBtn('habits', 'habit', shellNavLabel(t('habitTitle'))),
         actionBtn('focus', 'focus', shellNavLabel(t('focusOpen'))),
         actionBtn('report', 'report', shellNavLabel(t('reportTitle'))),
@@ -5031,16 +5032,17 @@ function buildNav() {
       id="mobile-${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
       ${item.week ? `data-week="${item.week}"` : ''}>
       ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
+    // Phase 13: Calm mobile nav — Today / Inbox / Upcoming / + / Projects / More
     mobile.innerHTML =
       mobileItem(byView.today) +
+      mobileItem(byView.inbox) +
       mobileItem(byView.upcoming) +
       `<div class="app-mobile-nav-add">
         <button type="button" class="app-mobile-nav-fab" data-action="shell-add-task"
           aria-label="${esc(t('quickAddTitle'))}">${window.TaskFlowUI.icon('plus')}</button>
         <span class="app-mobile-nav-add-label">${esc(t('moreAdd'))}</span>
       </div>` +
-      `<button type="button" class="app-mobile-nav-item" data-action="habits"
-        aria-label="${esc(shellNavLabel(t('habitTitle')))}">${window.TaskFlowUI.icon('habit')}<span>${esc(shellNavLabel(t('habitTitle')))}</span></button>` +
+      mobileItem(byView.projects) +
       `<button type="button" class="app-mobile-nav-item" data-action="more" aria-controls="moreSheet"
         aria-expanded="false" aria-haspopup="dialog">${window.TaskFlowUI.icon('more')}<span>${esc(t('moreNav'))}</span></button>`;
     const moreSheetNav = document.getElementById('moreSheetNav');
@@ -5121,9 +5123,30 @@ function updateShellContext() {
     year: t('tabYear', { y: PLAN_YEAR }),
     calendar: t('tabCalendar'),
     day: t('dayViewTitle'),
+    projects: t('projectsPageTitle'),
   };
   if (title) title.textContent = labels[state.view] || labels.today;
-  if (period) period.textContent = `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`;
+  // Phase 13: contextual period — only show month nav context where relevant
+  var monthNav = document.querySelector('.app-month-nav');
+  if (period) {
+    var periodMap = {
+      today: `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`,
+      inbox: '',
+      upcoming: t('tabUpcoming'),
+      overview: `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`,
+      week: `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`,
+      year: String(PLAN_YEAR),
+      calendar: `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`,
+      projects: `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`,
+      day: `${monthLabel(PLAN_MONTH)} · ${PLAN_YEAR}`,
+    };
+    period.textContent = periodMap[state.view] || '';
+  }
+  // Hide month nav on views where it's not the primary navigation
+  if (monthNav) {
+    var showMonthNav = state.view === 'overview' || state.view === 'calendar' || state.view === 'year';
+    monthNav.hidden = !showMonthNav;
+  }
 }
 
 let toolsDrawerReturnFocusSelector = null;

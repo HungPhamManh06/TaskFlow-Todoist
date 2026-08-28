@@ -247,8 +247,8 @@ test('navigation renderer synchronizes every desktop and mobile destination', ()
   );
 });
 
-test('sidebar groups navigation into MAIN/PLAN/TRACK with tooltips', () => {
-  assert.match(APP_JS, /navGroupMain/);
+test('sidebar groups navigation into primary/PLAN/TRACK with tooltips', () => {
+  // Phase 13: first group has no label (primary items directly visible)
   assert.match(APP_JS, /navGroupPlan/);
   assert.match(APP_JS, /navGroupTrack/);
   assert.match(APP_JS, /app-nav-group-label/);
@@ -259,8 +259,8 @@ test('sidebar groups navigation into MAIN/PLAN/TRACK with tooltips', () => {
   // secondary keeps tools + profile + landing (focus/report moved to TRACK)
   assert.match(APP, /data-action=\"profile-open\"/);
   assert.doesNotMatch(APP, /data-action=\"focus\"[^>]*\/?>\s*<span>Chế độ tập trung<\/span>[\s\S]{0,80}data-action=\"report\"/);
-  // P3: PLAN = Tổng quan → Tuần → Năm → Lịch; TRACK = Thói quen → Focus → Báo cáo
-  assert.match(APP_JS, /byView\.overview, byView\.week, byView\.year, byView\.calendar/);
+  // Phase 13: PLAN = Tuần → Lịch → Dự án; TRACK = Tổng quan → Năm → Thói quen → Focus → Báo cáo
+  assert.match(APP_JS, /byView\.week, byView\.calendar, byView\.projects/);
   assert.match(APP_JS, /actionBtn\('habits', 'habit', shellNavLabel\(t\('habitTitle'\)\)\)/);
   assert.match(APP_JS, /actionBtn\('focus', 'focus'/);
   assert.match(APP_JS, /byView\.calendar,/);
@@ -834,7 +834,7 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=232/);
+  assert.match(APP, /js\/app\.min\.js\?v=233/);
   assert.match(SW, /const CACHE = 'taskflow-v298';/);
 });
 
@@ -1389,17 +1389,18 @@ test('P11: remind-ui extracted — scheduleItemReminder/syncReminderTimers/rende
   assert.match(rumod, /remind-off-item/);
 });
 
-test('Mobile bottom-nav redesign: Today/Upcoming/FAB/Habits/More + sheet chứa week/inbox/overview/year/calendar', () => {
-  // buildNav mobile: 5 mục đúng thứ tự Hôm nay / Sắp tới / + (FAB action) / Thói quen / Thêm
+test('Mobile bottom-nav redesign: Today/Inbox/Upcoming/FAB/Projects/More + sheet chứa week/overview/year/calendar', () => {
+  // Phase 13: buildNav mobile: 6 mục Today / Inbox / Upcoming / + FAB / Projects / More
   assert.match(APP_JS, /mobileItem\(byView\.today\) \+/);
+  assert.match(APP_JS, /mobileItem\(byView\.inbox\) \+/);
   assert.match(APP_JS, /mobileItem\(byView\.upcoming\) \+/);
   assert.match(APP_JS, /app-mobile-nav-fab" data-action="shell-add-task"/);
-  assert.match(APP_JS, /data-action="habits"/);
+  assert.match(APP_JS, /mobileItem\(byView\.projects\) \+/);
   assert.match(APP_JS, /data-action="more" aria-controls="moreSheet"/);
   // FAB là ACTION: không data-nav-view → updateNav không bao giờ active (chỉ 1 tab active)
   assert.match(APP_JS, /app-mobile-nav-fab/);
   assert.doesNotMatch(APP_JS, /app-mobile-nav-fab[\s\S]{0,80}data-nav-view/);
-  // More sheet: Inbox, Tuần, Tổng quan, Năm, Lịch + Focus, Báo cáo, Cài đặt (Upcoming đã là tab chính)
+  // More sheet: Week, Tổng quan, Năm, Lịch + Focus, Báo cáo, Cài đặt
   assert.match(APP_JS, /MORE_SHEET_VIEWS\.map\(\(v\) => byView\[v\]\)/);
   assert.match(APP_JS, /actionBtn\('focus'/);
   assert.match(APP_JS, /actionBtn\('report'/);
@@ -1412,7 +1413,7 @@ test('Mobile bottom-nav redesign: Today/Upcoming/FAB/Habits/More + sheet chứa 
   // Week không còn là tab chính mobile
   assert.doesNotMatch(APP_JS, /mobileItem\(byView\.week\)/);
   // View trong More sheet → highlight nút Thêm (luôn ĐÚNG MỘT active trên mobile)
-  assert.match(APP_JS, /const MORE_SHEET_VIEWS = \['inbox', 'week', 'overview', 'year', 'calendar', 'projects'\]/);
+  assert.match(APP_JS, /const MORE_SHEET_VIEWS = \['week', 'overview', 'year', 'calendar'\]/);
   assert.match(APP_JS, /moreBtn\.classList\.toggle\('active', moreActive\)/);
   // CSS: thanh dùng --mobile-nav-height (64px), active chỉ 1 tab accent 10%, hover hover-only
   const shell = readRequiredAsset('css/app-shell.css');
@@ -1446,7 +1447,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=232/);
+  assert.match(APP, /js\/app\.min\.js\?v=233/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
