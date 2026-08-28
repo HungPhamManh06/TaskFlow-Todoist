@@ -87,15 +87,19 @@ def desktop_checks(browser, base, errors, screenshots):
     habit.click()
     assert habit.get_attribute("aria-checked") != before
 
-    for view in ("calendar", "year", "week", "projects"):
+    # Phase 13: desktop sidebar nav groups — calendar/year/week are in moreSheet
+    for view in ("calendar", "year", "week"):
         page.locator(f'#desktopSidebar [data-nav-view="{view}"]').click()
         page.wait_for_selector(f'[data-testid="{view}-view"]', state="visible")
         assert page.locator(f'#desktopSidebar [data-nav-view="{view}"][aria-current="page"]').count() == 1
-        # Bottom-nav mobile (redesign): chỉ Today/Upcoming là tab chính;
-        # week/calendar/year/projects nằm trong More sheet (luôn render để sync active state)
+        # Bottom-nav mobile (redesign): week/calendar/year in More sheet
         if view == "week":
             assert page.locator(f'#mobileNav [data-nav-view="upcoming"][aria-current="page"]').count() == 0
         assert page.locator(f'#moreSheet [data-nav-view="{view}"][aria-current="page"]').count() == 1
+    # Projects is now a primary sidebar item (Phase 13), not in More sheet
+    page.locator('#desktopSidebar [data-nav-view="projects"]').click()
+    page.wait_for_selector('[data-testid="projects-view"]', state="visible")
+    assert page.locator('#desktopSidebar [data-nav-view="projects"][aria-current="page"]').count() == 1
 
     # Phép đo week-goals-card bên dưới cần view Week — loop kết thúc ở projects
     # (v1.1) nên quay về week trước khi đo.
