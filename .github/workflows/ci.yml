@@ -39,7 +39,7 @@ jobs:
 
       - name: Content-hashed build pipeline (Phase 14)
         run: |
-          npm ci
+          npm install
           npm run build
           npm run build:check
 
