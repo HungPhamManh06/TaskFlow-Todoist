@@ -25,8 +25,8 @@ let esbuild;
 try {
   esbuild = require_('esbuild');
 } catch {
-  execSync('npm install esbuild@0.24.2 --save-dev', { cwd: ROOT, stdio: 'inherit' });
-  esbuild = require_('esbuild');
+  console.error('esbuild not found. Run: npm install');
+  process.exit(1);
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
