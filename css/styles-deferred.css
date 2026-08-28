@@ -1923,6 +1923,27 @@ sup.remind-dot {
 .chat-retry-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .chat-retry-wrap p { margin: 0; color: var(--color-text-muted); font-size: 12px; }
 .chat-retry-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+/* Streaming message (Phase 11) */
+.chat-msg--streaming { border-left: 3px solid var(--color-accent, #C24E28); animation: chatPulse 1.5s ease-in-out infinite; }
+/* Safe Markdown renderer (Phase 11) */
+.chat-md { margin: 0; line-height: 1.55; }
+.chat-md p { margin: 0 0 0.5em; }
+.chat-md p:last-child { margin-bottom: 0; }
+.chat-md strong { font-weight: 700; }
+.chat-md em { font-style: italic; }
+.chat-md code { padding: 1px 5px; border-radius: 4px; background: rgba(var(--ink-rgb, 51, 47, 42), .08); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; }
+.chat-md pre { margin: 0.5em 0; padding: 10px 12px; border-radius: 8px; background: rgba(var(--ink-rgb, 51, 47, 42), .06); border: 1px solid var(--color-border); overflow-x: auto; }
+.chat-md pre code { padding: 0; background: none; font-size: 12px; }
+.chat-md ul, .chat-md ol { margin: 0.4em 0; padding-left: 1.4em; }
+.chat-md li { margin: 0.15em 0; }
+.chat-md h2, .chat-md h3, .chat-md h4 { margin: 0.6em 0 0.3em; font-family: var(--font-brand); font-weight: 700; line-height: 1.25; }
+.chat-md h2 { font-size: 1.1em; }
+.chat-md h3 { font-size: 1.02em; }
+.chat-md h4 { font-size: 0.95em; }
+.chat-md blockquote { margin: 0.4em 0; padding: 4px 12px; border-left: 3px solid var(--color-accent, #C24E28); color: var(--color-text-muted); font-size: 0.92em; }
+.chat-md a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+.chat-md a:hover { opacity: 0.85; }
+.chat-md hr { margin: 0.6em 0; border: 0; border-top: 1px solid var(--color-border); }
 /* Chat history + stop response (Phase) */
 .chat-send--stopping { background: var(--color-danger); color: var(--color-on-accent); }
 .chat-stopped { align-self: center; border-color: transparent; background: transparent; color: var(--color-text-muted); font-size: 12px; font-style: italic; }

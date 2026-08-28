@@ -191,6 +191,26 @@ jobs:
       - name: "Chat E2E (normal, truncated, Continue, retry, Stop)"
         run: python scripts/e2e-chat-e2e.py
 
+  # Chat Streaming E2E: proves real NDJSON streaming, Stop mid-stream,
+  # late-delta isolation, and Markdown rendering in streaming answers
+  chat-streaming-e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Playwright (Python, Chromium)
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: "Chat Streaming E2E (NDJSON streaming, Stop, late-delta, Markdown)"
+        run: python scripts/e2e-chat-streaming.py
+
   # Document-aware Chat E2E: tests document context routing, fallback, and network invariants
   document-chat-e2e:
     runs-on: ubuntu-latest
