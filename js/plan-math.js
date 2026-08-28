@@ -134,29 +134,40 @@
     var copies = [];
     var mark = [];
     var seen = new Set();
+    // Helper: get canonical recurrence series id for dedup.
+    // Priority: repeat.seriesId > 'repeat:' + uid > kind+text fallback.
+    function _seriesKey(task) {
+      if (task.repeat && task.repeat.seriesId) return task.repeat.seriesId;
+      if (task.uid) return 'repeat:' + task.uid;
+      return task.kind + '\u0000' + task.text;
+    }
+    // First pass: collect series keys from today onwards (existing occurrences)
     weeks.forEach(function (w, wi) {
       (w.days || []).forEach(function (d, di) {
         if (wi * 7 + di < todayIdx) return;
-        (d.tasks || []).forEach(function (x) { seen.add(x.kind + '\u0000' + x.text); });
+        (d.tasks || []).forEach(function (x) { seen.add(_seriesKey(x)); });
       });
     });
+    // Second pass: create copies from past days
     weeks.forEach(function (w, wi) {
       (w.days || []).forEach(function (d, di) {
         if (wi * 7 + di >= todayIdx) return; // chỉ task ngày QUÁ KHỨ sinh bản mới
         (d.tasks || []).forEach(function (t) {
           if (!t.repeat || !t.repeat.freq) return;
           if (t._recurred) return;
-          var key = t.kind + '\u0000' + t.text;
+          var key = _seriesKey(t);
           if (seen.has(key)) return; // đã có từ hôm nay trở đi → không sinh trùng
           seen.add(key);
           mark.push(t);
+          // Attach seriesId so carry engine can dedupe against this occurrence
+          var seriesId = (t.repeat && t.repeat.seriesId) || ('repeat:' + (t.uid || ''));
           copies.push({
             kind: t.kind,
             done: false,
             text: t.text,
             tags: (t.tags || []).slice(),
             remind: { enabled: false, time: '20:00' },
-            repeat: { freq: t.repeat.freq, every: t.repeat.every || 1 },
+            repeat: { freq: t.repeat.freq, every: t.repeat.every || 1, seriesId: seriesId },
           });
         });
       });

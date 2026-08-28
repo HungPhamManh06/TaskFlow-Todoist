@@ -7433,6 +7433,15 @@ function carryOverRepeatTasks() {
   // Safety net: data rất cũ chưa có uid → gán trước để planCarry liên kết bền vững
   // (thường đã có sẵn từ migration loadState — bước này chỉ phòng hờ, idempotent)
   state.weeks.forEach((w) => (w.days || []).forEach((d) => (d.tasks || []).forEach((tk) => ensureTaskUid(tk))));
+  // Migration: ensure all recurring tasks have repeat.seriesId (idempotent, no-op if present)
+  state.weeks.forEach((w) => (w.days || []).forEach((d) => (d.tasks || []).forEach((tk) => {
+    if (tk && tk.repeat && tk.repeat.freq && window.PlanCarry.ensureSeriesId) {
+      window.PlanCarry.ensureSeriesId(tk);
+    }
+  })));
+  // Cleanup: remove existing duplicates where repeat + carry created two tasks
+  // for the same series on the same day. Keep the repeat occurrence, merge carry metadata.
+  _cleanupDuplicateRecurringCarry();
   // planCarry tự định vị ô hôm nay (todayW/todayD) — dùng ĐÚNG cơ chế đó để push,
   // tránh lệch giữa hai cách tính khác nhau.
   const plan = window.PlanCarry.planCarry(state.weeks, PLAN_START, new Date());
@@ -7445,6 +7454,56 @@ function carryOverRepeatTasks() {
   });
   save();
   return true;
+}
+
+// Cleanup existing duplicates: when a repeat occurrence AND a carry copy exist
+// for the same series on the same day, remove the carry copy and merge its
+// carriedFrom metadata into the repeat occurrence.
+function _cleanupDuplicateRecurringCarry() {
+  if (!window.PlanCarry || !window.PlanCarry.getSeriesId) return;
+  var changed = false;
+  state.weeks.forEach((w) => {
+    (w.days || []).forEach((d) => {
+      var tasks = d.tasks || [];
+      var toRemove = new Set();
+      // Build index: seriesId → array of task indices
+      var seriesMap = {};
+      tasks.forEach((tk, idx) => {
+        var sid = window.PlanCarry.getSeriesId(tk);
+        if (!sid) return;
+        if (!seriesMap[sid]) seriesMap[sid] = [];
+        seriesMap[sid].push(idx);
+      });
+      // For each series with >1 task, keep the one WITHOUT carriedFrom (the repeat occurrence)
+      Object.keys(seriesMap).forEach((sid) => {
+        var indices = seriesMap[sid];
+        if (indices.length <= 1) return;
+        // Find the repeat occurrence (no carriedFrom) and the carry copy (has carriedFrom)
+        var repeatIdx = -1;
+        var carryIdx = -1;
+        indices.forEach((idx) => {
+          if (tasks[idx].carriedFrom && carryIdx < 0) carryIdx = idx;
+          else if (repeatIdx < 0) repeatIdx = idx;
+        });
+        // If we found both, merge carriedFrom into repeat and remove carry copy
+        if (repeatIdx >= 0 && carryIdx >= 0) {
+          var repeatTask = tasks[repeatIdx];
+          var carryTask = tasks[carryIdx];
+          // Merge carriedFrom metadata (earliest date wins)
+          if (carryTask.carriedFrom && !repeatTask.carriedFrom) {
+            repeatTask.carriedFrom = carryTask.carriedFrom;
+          }
+          // Remove the carry copy
+          toRemove.add(carryIdx);
+          changed = true;
+        }
+      });
+      if (toRemove.size > 0) {
+        d.tasks = tasks.filter((_, idx) => !toRemove.has(idx));
+      }
+    });
+  });
+  if (changed) save();
 }
 function carriedDateLabel(cf) {
   if (!cf) return '';

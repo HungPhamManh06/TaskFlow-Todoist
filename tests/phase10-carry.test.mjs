@@ -169,3 +169,81 @@ test('syncCarriedDone: fallback chỉ số cho bản dồn legacy (carriedFrom {
   PlanCarry.syncCarriedDone(weeks, 0, 5, weeks[0].days[5].tasks.indexOf(legacyCopy), legacyCopy);
   assert.equal(src.done, true);
 });
+
+/* ============================================================
+   Carry × Recurrence dedup — seriesId prevents duplicate
+   when repeat occurrence already exists in target day
+   ============================================================ */
+
+test('planCarry: skip carry when repeat occurrence with same seriesId already exists in target day', () => {
+  const weeks = buildWeeks(2);
+  // Past day: recurring task (source)
+  addTask(weeks[0].days[4], { text: 'Uống nước', repeat: { freq: 'daily', seriesId: 'repeat:water' } });
+  // Today: repeat occurrence already created by planRecurrence
+  addTask(weeks[0].days[5], { text: 'Uống nước', repeat: { freq: 'daily', seriesId: 'repeat:water' } });
+  const plan = PlanCarry.planCarry(weeks, PLAN_START, TODAY);
+  assert.equal(plan.copies.length, 0, 'carry should be skipped when repeat occurrence exists');
+});
+
+test('planCarry: allow carry when no matching seriesId in target day', () => {
+  const weeks = buildWeeks(2);
+  // Past day: recurring task (source)
+  addTask(weeks[0].days[4], { text: 'Uống nước', repeat: { freq: 'daily', seriesId: 'repeat:water' } });
+  // Today: different task (no seriesId conflict)
+  addTask(weeks[0].days[5], { text: 'Khác', repeat: { freq: 'daily', seriesId: 'repeat:other' } });
+  const plan = PlanCarry.planCarry(weeks, PLAN_START, TODAY);
+  assert.equal(plan.copies.length, 1, 'carry should proceed when no seriesId conflict');
+  assert.equal(plan.copies[0].copy.text, 'Uống nước');
+});
+
+test('planCarry: different seriesIds with same text should NOT be merged', () => {
+  const weeks = buildWeeks(2);
+  // Past day: two recurring tasks with same text but different seriesId
+  addTask(weeks[0].days[4], { text: 'Đọc sách', repeat: { freq: 'daily', seriesId: 'repeat:a' } });
+  addTask(weeks[0].days[4], { text: 'Đọc sách', repeat: { freq: 'daily', seriesId: 'repeat:b' } });
+  // Today: one of them already exists
+  addTask(weeks[0].days[5], { text: 'Đọc sách', repeat: { freq: 'daily', seriesId: 'repeat:a' } });
+  const plan = PlanCarry.planCarry(weeks, PLAN_START, TODAY);
+  // Only series 'b' should be carried (series 'a' already exists)
+  assert.equal(plan.copies.length, 1, 'only non-existing series should be carried');
+  assert.ok(plan.copies[0].source.text === 'Đọc sách');
+});
+
+test('getSeriesId: returns repeat.seriesId if present', () => {
+  const task = { uid: 't1', repeat: { freq: 'daily', seriesId: 'repeat:water' } };
+  assert.equal(PlanCarry.getSeriesId(task), 'repeat:water');
+});
+
+test('getSeriesId: falls back to repeat:uid', () => {
+  const task = { uid: 't2', repeat: { freq: 'daily' } };
+  assert.equal(PlanCarry.getSeriesId(task), 'repeat:t2');
+});
+
+test('getSeriesId: returns repeat:uid for task with uid but no repeat', () => {
+  const task = { uid: 't3' };
+  assert.equal(PlanCarry.getSeriesId(task), 'repeat:t3');
+});
+
+test('getSeriesId: returns null for null/undefined task', () => {
+  assert.equal(PlanCarry.getSeriesId(null), null);
+  assert.equal(PlanCarry.getSeriesId(undefined), null);
+});
+
+test('ensureSeriesId: sets repeat.seriesId if missing', () => {
+  const task = { uid: 't4', repeat: { freq: 'daily' } };
+  const sid = PlanCarry.ensureSeriesId(task);
+  assert.equal(sid, 'repeat:t4');
+  assert.equal(task.repeat.seriesId, 'repeat:t4');
+});
+
+test('ensureSeriesId: no-op if seriesId already present', () => {
+  const task = { uid: 't5', repeat: { freq: 'daily', seriesId: 'existing' } };
+  const sid = PlanCarry.ensureSeriesId(task);
+  assert.equal(sid, 'existing');
+  assert.equal(task.repeat.seriesId, 'existing');
+});
+
+test('ensureSeriesId: returns null for non-recurring task', () => {
+  const task = { uid: 't6' };
+  assert.equal(PlanCarry.ensureSeriesId(task), null);
+});

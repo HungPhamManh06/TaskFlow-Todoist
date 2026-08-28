@@ -17,6 +17,28 @@
     return tk;
   }
 
+  // Canonical recurrence series identity: deterministic, stable across occurrences.
+  // Priority: existing repeat.seriesId > 'repeat:' + uid > deterministic fallback.
+  // NEVER use Date.now() — migration must be idempotent.
+  function getSeriesId(task) {
+    if (!task) return null;
+    if (task.repeat && task.repeat.seriesId) return task.repeat.seriesId;
+    if (task.uid) return 'repeat:' + task.uid;
+    return null;
+  }
+
+  // Ensure task has a repeat.seriesId (idempotent, no-op if already present).
+  // Mutates task in place. Returns the seriesId.
+  function ensureSeriesId(task) {
+    if (!task) return null;
+    if (!task.repeat || !task.repeat.freq) return null;
+    var sid = getSeriesId(task);
+    if (sid && !task.repeat.seriesId) {
+      task.repeat.seriesId = sid;
+    }
+    return sid;
+  }
+
   // Tìm task theo uid trong toàn bộ weeks (tháng đang xem)
   function findTaskByUid(weeks, uid) {
     if (!uid) return null;
@@ -67,6 +89,15 @@
             (!x.carriedFrom.uid && x.carriedFrom.w === wi && x.carriedFrom.d === di && x.carriedFrom.t === ti)
           ));
           if (exists) return;
+          // Phase: dedupe — if a task with same recurrence series already exists in target day,
+          // skip carry to avoid duplicate (repeat + carry = one logical task).
+          var srcSeriesId = getSeriesId(tk);
+          if (srcSeriesId) {
+            var seriesExists = targetTasks.some(function (x) {
+              return getSeriesId(x) === srcSeriesId;
+            });
+            if (seriesExists) return;
+          }
           const srcDate = (d.date || '') + (d.yy ? '/' + d.yy : '');
           copies.push({
             source: tk,
@@ -131,6 +162,8 @@
     dayDate: dayDate,
     planCarry: planCarry,
     syncCarriedDone: syncCarriedDone,
+    getSeriesId: getSeriesId,
+    ensureSeriesId: ensureSeriesId,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.PlanCarry = api;
