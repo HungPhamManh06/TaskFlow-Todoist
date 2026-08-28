@@ -37,6 +37,12 @@ jobs:
           npx --yes csso-cli@4 --version >/dev/null 2>&1
           python scripts/minify.py --check
 
+      - name: Content-hashed build pipeline (Phase 14)
+        run: |
+          npm ci
+          npm run build
+          npm run build:check
+
       - name: Unit tests (phase0 + phase1 + phase2)
         run: node --test tests/*.test.mjs
 

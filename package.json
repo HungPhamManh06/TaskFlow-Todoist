@@ -1,0 +1,13 @@
+{
+  "name": "taskflow-todoist",
+  "version": "3.0.0",
+  "private": true,
+  "description": "TaskFlow — Calm productivity planner, offline-first",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:check": "node scripts/build.mjs --check"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
