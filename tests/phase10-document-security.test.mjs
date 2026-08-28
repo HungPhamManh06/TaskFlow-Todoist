@@ -317,3 +317,87 @@ describe('Phase 10 Closure: Entity-state fingerprint & idempotency', () => {
     assert.ok(existsSync(join(ROOT, 'scripts', 'e2e-ai-trust-boundary.py')), 'trust boundary E2E script exists');
   });
 });
+
+/* ---- Phase 11: Streaming + Markdown ---- */
+describe('Phase 11: Streaming Chat Architecture', () => {
+  test('ai-provider.js exports callAiStream', () => {
+    const src = readFileSync(join(ROOT, 'server', 'ai-provider.js'), 'utf8');
+    assert.ok(src.includes('callAiStream'), 'callAiStream exists in ai-provider.js');
+    assert.ok(src.includes('stream: true'), 'stream: true in request body');
+  });
+
+  test('ai.js has POST /chat/stream endpoint', () => {
+    const src = readFileSync(join(ROOT, 'server', 'ai.js'), 'utf8');
+    assert.ok(src.includes("router.post('/chat/stream'"), '/chat/stream endpoint exists');
+    assert.ok(src.includes('application/x-ndjson'), 'NDJSON content type');
+  });
+
+  test('chat.js has _callChatStreamAPI function', () => {
+    const src = readFileSync(join(ROOT, 'js', 'chat.js'), 'utf8');
+    assert.ok(src.includes('function _callChatStreamAPI'), '_callChatStreamAPI exists');
+    assert.ok(src.includes('/api/ai/chat/stream'), 'calls streaming endpoint');
+  });
+
+  test('chat.js has streaming function', () => {
+    const src = readFileSync(join(ROOT, 'js', 'chat.js'), 'utf8');
+    assert.ok(src.includes('function _callChatStreamAPI'), '_callChatStreamAPI function exists');
+    assert.ok(src.includes('/api/ai/chat/stream'), 'streaming endpoint URL present');
+    assert.ok(src.includes('ReadableStream') || src.includes('body.getReader'), 'uses ReadableStream');
+  });
+
+  test('chat-markdown.js exists and is safe', () => {
+    const { existsSync } = require('fs');
+    assert.ok(existsSync(join(ROOT, 'js', 'chat-markdown.js')), 'chat-markdown.js exists');
+    assert.ok(existsSync(join(ROOT, 'js', 'chat-markdown.min.js')), 'chat-markdown.min.js exists');
+    const src = readFileSync(join(ROOT, 'js', 'chat-markdown.js'), 'utf8');
+    // Check that no production code uses innerHTML — strip block comments and line comments
+    const codeOnly = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    assert.ok(!codeOnly.includes('innerHTML'), 'no innerHTML in code');
+    assert.ok(!codeOnly.includes('document.write'), 'no document.write in code');
+    assert.ok(src.includes('renderMarkdown'), 'renderMarkdown function exists');
+    assert.ok(src.includes('createTextNode') || src.includes('textContent'), 'uses safe text insertion');
+  });
+
+  test('app.js lazy-loads chat-markdown.min.js before chat.min.js', () => {
+    const src = readFileSync(join(ROOT, 'js', 'app.js'), 'utf8');
+    const mdIdx = src.indexOf('chat-markdown.min.js');
+    const chatIdx = src.indexOf('chat.min.js');
+    assert.ok(mdIdx > 0, 'chat-markdown.min.js in lazy chain');
+    assert.ok(mdIdx < chatIdx, 'chat-markdown loaded before chat');
+  });
+
+  test('streaming endpoint has HMAC document verification', () => {
+    const src = readFileSync(join(ROOT, 'server', 'ai.js'), 'utf8');
+    const streamIdx = src.indexOf("router.post('/chat/stream'");
+    const nextRoute = src.indexOf("router.post('/chat/continue'");
+    const streamSection = src.slice(streamIdx, nextRoute);
+    assert.ok(streamSection.includes('verifyDocumentReference'), 'streaming verifies HMAC');
+    assert.ok(streamSection.includes('computeRoadmapDigest'), 'streaming computes digest');
+  });
+
+  test('streaming endpoint has deterministic resolver', () => {
+    const src = readFileSync(join(ROOT, 'server', 'ai.js'), 'utf8');
+    const streamIdx = src.indexOf("router.post('/chat/stream'");
+    const nextRoute = src.indexOf("router.post('/chat/continue'");
+    const streamSection = src.slice(streamIdx, nextRoute);
+    assert.ok(streamSection.includes('resolveRoadmapQuestion'), 'streaming uses deterministic resolver');
+  });
+
+  test('streaming E2E test exists', () => {
+    const { existsSync } = require('fs');
+    // E2E may not exist yet — just verify the test script pattern exists
+    const chatE2e = readFileSync(join(ROOT, 'scripts', 'e2e-chat-e2e.py'), 'utf8');
+    assert.ok(chatE2e.includes('/api/ai/chat/stream'), 'chat E2E handles streaming endpoint');
+  });
+
+  test('CI workflow includes ai-trust-boundary-e2e job', () => {
+    const ci = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
+    assert.ok(ci.includes('ai-trust-boundary-e2e'), 'CI has ai-trust-boundary-e2e job');
+  });
+
+  test('SW cache bumped for streaming changes', () => {
+    const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
+    assert.ok(/taskflow-v297/.test(sw), 'SW cache bumped to v297');
+  });
+});
+

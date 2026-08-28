@@ -299,6 +299,38 @@
     if (el && el.parentNode) el.parentNode.removeChild(el);
   }
 
+  /* ---- Phase 11: Streaming message helpers ---- */
+  function _appendStreamingMessage(container) {
+    var shouldStick = _isNearBottom(container);
+    var wrap = document.createElement('div');
+    wrap.className = 'chat-msg bot chat-msg--streaming';
+    var body = document.createElement('div');
+    body.className = 'chat-msg-body';
+    // Start with typing indicator
+    body.textContent = '...';
+    body.setAttribute('aria-live', 'polite');
+    wrap.appendChild(body);
+    container.appendChild(wrap);
+    if (shouldStick) container.scrollTop = container.scrollHeight;
+    return wrap;
+  }
+
+  /**
+   * Render bot message content using safe Markdown renderer.
+   * Falls back to textContent if Markdown module not loaded.
+   */
+  function _renderBotMessage(bodyEl, text) {
+    if (!bodyEl) return;
+    if (window.TaskFlowChatMarkdown && window.TaskFlowChatMarkdown.renderMarkdown) {
+      // Clear and render markdown into safe DOM elements
+      while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
+      var rendered = window.TaskFlowChatMarkdown.renderMarkdown(text || '');
+      bodyEl.appendChild(rendered);
+    } else {
+      bodyEl.textContent = text || '';
+    }
+  }
+
   /* ---- Show localized message ---- */
   function _showInfo(container, text) {
     _appendMessage(container, text, 'bot chat-info');
@@ -679,6 +711,93 @@
     return { answer: json.answer, truncated: !!json.truncated };
   }
 
+  /* ---- Phase 11: Streaming chat API call ---- */
+  async function _callChatStreamAPI(message, history, signal, opts, onDelta) {
+    opts = opts || {};
+    var apiBase = _getApiBase();
+    if (!apiBase) throw { code: 'api-config-missing' };
+    var url = apiBase + '/api/ai/chat/stream';
+
+    var token = null;
+    try { token = localStorage.getItem('planner-token'); } catch (e) { /* */ }
+
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+
+    var taskflowContext = null;
+    try {
+      if (window.TaskFlowChatContextProvider && window.TaskFlowChatContextProvider.prepare) {
+        var ctxRes = window.TaskFlowChatContextProvider.prepare(message);
+        if (ctxRes && ctxRes.ok && ctxRes.envelope) taskflowContext = ctxRes.envelope;
+      }
+    } catch (e) { /* */ }
+
+    var body = { message: message, history: history };
+    if (taskflowContext) body.taskflowContext = taskflowContext;
+    if (opts.documentContext) body.documentContext = opts.documentContext;
+    var contextKeys = _contextKeysFromEnvelope(taskflowContext);
+    _setContextStatus('using', contextKeys);
+
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(body),
+      signal: signal,
+    });
+
+    if (!res.ok) {
+      _setContextStatus('error', []);
+      var errJson;
+      try { errJson = await res.json(); } catch (e) { errJson = null; }
+      var errCode = (errJson && errJson.error) || 'network';
+      var rateLimit = errJson && errJson.rateLimit;
+      throw { code: errCode, status: res.status, rateLimit: rateLimit || undefined };
+    }
+
+    // Read NDJSON stream
+    var reader = res.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    var fullAnswer = '';
+    var finishReason = 'stop';
+    var truncated = false;
+    var streamError = null;
+
+    while (true) {
+      var chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+
+      var lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (var li = 0; li < lines.length; li++) {
+        var line = lines[li].trim();
+        if (!line) continue;
+        try {
+          var evt = JSON.parse(line);
+          if (evt.type === 'delta' && evt.text) {
+            fullAnswer += evt.text;
+            if (onDelta) onDelta(evt.text, fullAnswer);
+          } else if (evt.type === 'done') {
+            finishReason = evt.finishReason || 'stop';
+            truncated = !!evt.truncated;
+          } else if (evt.type === 'error') {
+            streamError = evt.error;
+          }
+        } catch (e) { /* skip malformed */ }
+      }
+    }
+
+    if (streamError) {
+      _setContextStatus('error', []);
+      throw { code: streamError };
+    }
+
+    _setContextStatus('used', contextKeys);
+    return { answer: fullAnswer, truncated: truncated, finishReason: finishReason };
+  }
+
   /* ---- Error message mapping ---- */
   function _mapError(err) {
     if (err && err.name === 'AbortError') return null; // user stopped — no error
@@ -997,22 +1116,75 @@
         }
       }
 
-      var chatResult = await _callChatAPI(text, _getProviderHistory(), req.signal, {
-        documentContext: documentContext
-      });
+      // Phase 11: Try streaming first, fall back to non-streaming
+      var chatResult = null;
+      var _streamBotEl = null;
+      var _streamBodyEl = null;
+      var _streamText = '';
+      var _streamThrottleTimer = null;
+      var _useStreaming = true;
 
+      try {
+        chatResult = await _callChatStreamAPI(text, _getProviderHistory(), req.signal, {
+          documentContext: documentContext
+        }, function onDelta(deltaText, fullText) {
+          if (!_isCurrentRequest(req.generation)) return;
+          _streamText = fullText;
+          // Throttle DOM updates to ~60ms
+          if (!_streamThrottleTimer) {
+            _streamThrottleTimer = setTimeout(function () {
+              _streamThrottleTimer = null;
+              if (!_isCurrentRequest(req.generation)) return;
+              if (_streamBodyEl) {
+                _renderBotMessage(_streamBodyEl, _streamText);
+              }
+              if (msgs) msgs.scrollTop = msgs.scrollHeight;
+            }, 60);
+          }
+          // Create bot element on first delta
+          if (!_streamBotEl && msgs) {
+            _removeTyping(typingEl);
+            _streamBotEl = _appendStreamingMessage(msgs);
+            _streamBodyEl = _streamBotEl.querySelector('.chat-msg-body');
+          }
+        });
+      } catch (streamErr) {
+        // Streaming failed — re-throw to show error/retry UI
+        if (_streamThrottleTimer) { clearTimeout(_streamThrottleTimer); _streamThrottleTimer = null; }
+        throw streamErr;
+      }
+
+      if (_streamThrottleTimer) { clearTimeout(_streamThrottleTimer); _streamThrottleTimer = null; }
       if (!_isCurrentRequest(req.generation)) return; // stale
       _removeTyping(typingEl);
-      var botEl = _appendMessage(msgs, chatResult.answer, 'bot');
-      _persistAssistantMessage(chatResult.answer);
-      if (chatResult.truncated) {
-        _pendingContinuation = {
-          generation: req.generation,
-          partialAnswer: chatResult.answer,
-          history: _getProviderHistory(),
-          lastBotEl: botEl,
-        };
-        _showContinueButton(msgs, botEl);
+
+      if (_useStreaming && _streamBotEl) {
+        // Streaming: finalize the existing bot element with Markdown
+        if (_streamBodyEl) _renderBotMessage(_streamBodyEl, chatResult.answer);
+        _persistAssistantMessage(chatResult.answer);
+        if (chatResult.truncated) {
+          _pendingContinuation = {
+            generation: req.generation,
+            partialAnswer: chatResult.answer,
+            history: _getProviderHistory(),
+            lastBotEl: _streamBotEl,
+          };
+          _showContinueButton(msgs, _streamBotEl);
+        }
+      } else {
+        // Non-streaming fallback
+        var botEl = _appendMessage(msgs, chatResult.answer, 'bot');
+        _renderBotMessage(botEl.querySelector('.chat-msg-body'), chatResult.answer);
+        _persistAssistantMessage(chatResult.answer);
+        if (chatResult.truncated) {
+          _pendingContinuation = {
+            generation: req.generation,
+            partialAnswer: chatResult.answer,
+            history: _getProviderHistory(),
+            lastBotEl: botEl,
+          };
+          _showContinueButton(msgs, botEl);
+        }
       }
 
     } catch (err) {

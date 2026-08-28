@@ -36,7 +36,7 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const path = require('path');
 const { authMiddleware } = require('./auth');
-const { callAiText, callAiJson, getConfig, getBuildSha, getAgentTimeoutMs, getChatTimeoutMs } = require('./ai-provider');
+const { callAiText, callAiJson, callAiStream, getConfig, getBuildSha, getAgentTimeoutMs, getChatTimeoutMs } = require('./ai-provider');
 const { validateRoadmapModelOutput, canonicalizeRoadmapModelOutput } = require('./ai-roadmap-validator');
 const { extractPdfText, DEFAULT_EXTRACT_MAX_BYTES, HARD_EXTRACT_MAX_BYTES, FILE_AGENT_EXTRACT_MAX_BYTES } = require('./ai-file-parser');
 const { buildDatedDocumentRoadmap, buildDatedDocumentProposal } = require('./ai-dated-document');
@@ -1311,6 +1311,195 @@ router.post('/chat', maybeRateLimit(aiChatLimiter), async (req, res) => {
     return res.json(resp);
   } catch (e) {
     logAiError(requestId, '/api/ai/chat', 'server-error', 0, 500);
+    return res.status(500).json({ error: 'server-error' });
+  }
+});
+
+/* ============ POST /api/ai/chat/stream — Streaming chat (Phase 11) ============ */
+// Same semantics as /api/ai/chat but uses server-sent NDJSON chunks.
+// Protocol: {type:"start"} {type:"delta",text:"..."} ... {type:"done",finishReason,answer}
+// Error: {type:"error",error:"..."}
+router.post('/chat/stream', maybeRateLimit(aiChatLimiter), async (req, res) => {
+  const requestId = req.aiRequestId;
+  const clientAbort = new AbortController();
+  const onClientClose = () => clientAbort.abort();
+  req.on('aborted', onClientClose);
+  res.on('close', () => { req.removeListener('aborted', onClientClose); });
+  try {
+    if (!AI_API_KEY) return res.status(503).json({ error: 'ai-not-configured' });
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+    if (!message || message.length > MAX_MESSAGE_LEN) {
+      return res.status(400).json({ error: 'invalid-message' });
+    }
+    const history = sanitizeChatHistory(body.history);
+
+    // Phase 3B: context validation (reuse same logic as /chat)
+    const ctxSan = sanitizeChatContextEnvelope(body.taskflowContext);
+    if (!ctxSan.ok) {
+      return res.status(400).json({ error: 'ai-context-invalid', details: [ctxSan.reason] });
+    }
+
+    // Phase 10: document context + HMAC verification
+    const docCtxRaw = sanitizeDocumentContext(body.documentContext);
+    let docCtx = null;
+    if (docCtxRaw) {
+      const serverDigest = computeRoadmapDigest(docCtxRaw.roadmap);
+      const refVerified = verifyDocumentReference({
+        version: docCtxRaw.docRefVersion || docCtxRaw.version || DOC_REF_VERSION,
+        userId: String(req.user?.id || 'anon'),
+        roadmapId: docCtxRaw.roadmapId || '',
+        fingerprint: docCtxRaw.fingerprint || '',
+        documentName: docCtxRaw.documentName || '',
+        roadmapDigest: serverDigest,
+        signature: docCtxRaw.docRefSignature || '',
+      });
+      if (!refVerified) {
+        logAiEvent({ event: 'ai_request', requestId, route: '/api/ai/chat/stream', status: 'rejected', latencyMs: 0 });
+        docCtx = null;
+      } else {
+        docCtx = docCtxRaw;
+      }
+    }
+
+    const lang = /[a-zA-Z]/.test(message) && !/[àáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/.test(message)
+      ? 'en' : 'vi';
+    const sysInstruction = lang === 'en' ? CHAT_SYSTEM_INSTRUCTION_EN : CHAT_SYSTEM_INSTRUCTION_VI;
+
+    let docPrefix = '';
+    if (docCtx) {
+      const MAX_ROADMAP_CHARS = 6000;
+      const roadmapStr = JSON.stringify(docCtx.roadmap).slice(0, MAX_ROADMAP_CHARS);
+      docPrefix = '<DOCUMENT_CONTEXT>\nDocument: ' + (docCtx.documentName || 'document') + '\n';
+      if (docCtx.totalWeeks) docPrefix += 'Total weeks: ' + docCtx.totalWeeks + '\n';
+      if (docCtx.cursor) docPrefix += 'Progress: week ' + (docCtx.cursor.nextWeek || 0) + '\n';
+      docPrefix += 'Roadmap:\n' + roadmapStr + '\n</DOCUMENT_CONTEXT>\n';
+    }
+
+    const userContent = (ctxSan.envelope
+      ? '<TASKFLOW_CONTEXT_DATA>' + JSON.stringify(ctxSan.envelope) + '</TASKFLOW_CONTEXT_DATA>\n'
+      : '') + docPrefix + '<USER_QUESTION>' + message + '</USER_QUESTION>';
+
+    const messages = [
+      { role: 'system', content: sysInstruction },
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: userContent },
+    ];
+
+    // Phase 9: Deterministic roadmap resolver — answer without streaming
+    if (docCtx && docCtx.roadmap) {
+      const deterministicAnswer = resolveRoadmapQuestion(message, docCtx.roadmap, docCtx.cursor);
+      if (deterministicAnswer && deterministicAnswer.matched) {
+        logAiEvent({
+          event: 'ai_request', requestId, route: '/api/ai/chat/stream', provider: 'none',
+          model: 'deterministic', status: 'success', latencyMs: 0,
+          documentMode: true, roadmapDeterministic: true,
+        });
+        return res.json({ ok: true, answer: deterministicAnswer.answer });
+      }
+    }
+
+    // Set up streaming response
+    const streamStartedAt = Date.now();
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+    res.setHeader('X-Request-Id', requestId);
+
+    // Send start event
+    res.write(JSON.stringify({ type: 'start', requestId }) + '\n');
+
+    let fullAnswer = '';
+    let finishReason = null;
+    let totalLatencyMs = 0;
+    let streamError = null;
+
+    try {
+      const stream = callAiStream({
+        messages,
+        maxTokens: 3072,
+        timeoutMs: getChatTimeoutMs(),
+        requestId,
+        routeName: '/api/ai/chat/stream',
+        signal: clientAbort.signal,
+      });
+
+      for await (const event of stream) {
+        if (clientAbort.signal.aborted) break;
+        if (event.type === 'delta') {
+          fullAnswer += event.text;
+          // Throttle: write deltas as they come — client renders incrementally
+          res.write(JSON.stringify({ type: 'delta', text: event.text }) + '\n');
+        } else if (event.type === 'done') {
+          finishReason = event.finishReason;
+          fullAnswer = event.content || fullAnswer;
+        } else if (event.type === 'error') {
+          streamError = event.error;
+          break;
+        }
+      }
+    } catch (e) {
+      streamError = 'ai-provider-unavailable';
+    }
+
+    if (streamError) {
+      res.write(JSON.stringify({ type: 'error', error: streamError }) + '\n');
+      res.end();
+      logAiError(requestId, '/api/ai/chat/stream', streamError, totalLatencyMs);
+      return;
+    }
+
+    // Handle continuation for truncated responses (Phase 7 semantics)
+    let truncated = false;
+    if (finishReason === 'length') {
+      try {
+        const CONTINUATION_MSG = lang === 'en'
+          ? 'Continue exactly from where the previous response was cut off. Do not repeat any content before.'
+          : 'Tiếp tục chính xác từ phần đang dở. Không lặp lại nội dung trước.';
+        const contMessages = [
+          ...messages,
+          { role: 'assistant', content: fullAnswer },
+          { role: 'user', content: CONTINUATION_MSG },
+        ];
+        const contStream = callAiStream({
+          messages: contMessages,
+          maxTokens: 3072,
+          timeoutMs: getChatTimeoutMs(),
+          requestId,
+          routeName: '/api/ai/chat/stream-continuation',
+          signal: clientAbort.signal,
+        });
+        for await (const event of contStream) {
+          if (clientAbort.signal.aborted) break;
+          if (event.type === 'delta') {
+            fullAnswer += event.text;
+            res.write(JSON.stringify({ type: 'delta', text: event.text }) + '\n');
+          } else if (event.type === 'done') {
+            finishReason = event.finishReason;
+            if (event.finishReason === 'length') truncated = true;
+          } else if (event.type === 'error') {
+            truncated = true;
+            break;
+          }
+        }
+      } catch (_e) {
+        truncated = true;
+      }
+    }
+
+    // Send done event
+    res.write(JSON.stringify({ type: 'done', finishReason: finishReason || 'stop', truncated }) + '\n');
+    res.end();
+
+    logAiEvent({
+      event: 'ai_request', requestId, route: '/api/ai/chat/stream',
+      provider: 'gemini', model: AI_MODEL, status: 'success',
+      latencyMs: Date.now() - streamStartedAt,
+      finishReason: finishReason || 'stop',
+      documentMode: !!docCtx,
+      roadmapDeterministic: false,
+    });
+  } catch (e) {
+    logAiError(requestId, '/api/ai/chat/stream', 'server-error', 0, 500);
     return res.status(500).json({ error: 'server-error' });
   }
 });

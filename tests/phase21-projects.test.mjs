@@ -367,7 +367,7 @@ test('wiring: app.html nạp projects.min.js + projects-ui.min.js trước app.m
 test('wiring: sw.js precache projects + projects-ui, cache bump v214', () => {
   assert.ok(SW.includes("'./js/projects.min.js'"), 'sw.js phải precache projects.min.js');
   assert.ok(SW.includes("'./js/projects-ui.min.js'"), 'sw.js phải precache projects-ui.min.js');
-  assert.match(SW, /const CACHE = 'taskflow-v296'/);
+  assert.match(SW, /const CACHE = 'taskflow-v297'/);
 });
 
 test('wiring: app.js guard + nav + dispatcher + setView branch', () => {

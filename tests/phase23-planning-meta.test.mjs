@@ -262,7 +262,7 @@ test('wiring: app.html nạp contexts.min.js trước app.min.js + cache-bust đ
 
 test('wiring: sw.js precache contexts.min.js + cache bump v214', () => {
   assert.ok(SW.includes("'./js/contexts.min.js'"), 'SW precache contexts.min.js');
-  assert.ok(SW.includes("const CACHE = 'taskflow-v296'"), 'SW cache bump v287');
+  assert.ok(SW.includes("const CACHE = 'taskflow-v297'"), 'SW cache bump v287');
 });
 
 test('wiring: app.js dispatcher có td-energy / td-ctx-toggle / ctx-* actions', () => {

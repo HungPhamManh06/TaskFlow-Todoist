@@ -120,7 +120,33 @@ def main():
 
             def handle_route(route):
                 url = route.request.url
-                if '/api/ai/chat' in url and '/continue' not in url:
+                if '/api/ai/chat/stream' in url:
+                    idx = response_index[0]
+                    response_index[0] += 1
+                    resp = chat_responses.get(idx, {
+                        'ok': True,
+                        'answer': 'Default test answer.',
+                        'truncated': False
+                    })
+                    if not resp.get('ok'):
+                        # Return HTTP error for streaming endpoint
+                        route.fulfill(
+                            status=502,
+                            content_type='application/json',
+                            body=json.dumps({'error': resp.get('error', 'ai-provider-unavailable')}),
+                        )
+                    else:
+                        answer = resp.get('answer', 'Default test answer.')
+                        ndjson_lines = []
+                        for ch in answer:
+                            ndjson_lines.append(json.dumps({'type': 'delta', 'text': ch}))
+                        ndjson_lines.append(json.dumps({'type': 'done', 'finishReason': 'stop', 'truncated': resp.get('truncated', False)}))
+                        route.fulfill(
+                            status=200,
+                            content_type='application/x-ndjson; charset=utf-8',
+                            body='\n'.join(ndjson_lines) + '\n',
+                        )
+                elif '/api/ai/chat' in url and '/continue' not in url:
                     idx = response_index[0]
                     response_index[0] += 1
                     resp = chat_responses.get(idx, {

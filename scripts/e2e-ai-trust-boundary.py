@@ -111,7 +111,26 @@ def main():
 
                 API_CALLS.append({'path': path, 'body': parsed, 'url': url})
 
-                if '/api/ai/chat' in path and '/continue' not in path:
+                if '/api/ai/chat/stream' in path:
+                    chat_calls[0] += 1
+                    captured_bodies.append(parsed)
+                    doc_ctx = parsed.get('documentContext')
+                    answer = 'Day la cau tra loi tu AI.'
+                    if doc_ctx and doc_ctx.get('roadmap'):
+                        rn = doc_ctx.get('documentName', '?')
+                        phases = doc_ctx.get('roadmap', {}).get('phases', [])
+                        answer = f'Tai lieu {rn} co {len(phases)} phases.'
+                    # Return NDJSON stream format
+                    ndjson_lines = []
+                    for ch in answer:
+                        ndjson_lines.append(json.dumps({'type': 'delta', 'text': ch}))
+                    ndjson_lines.append(json.dumps({'type': 'done', 'finishReason': 'stop', 'truncated': False}))
+                    route.fulfill(
+                        status=200,
+                        content_type='application/x-ndjson; charset=utf-8',
+                        body='\n'.join(ndjson_lines) + '\n',
+                    )
+                elif '/api/ai/chat' in path and '/continue' not in path:
                     chat_calls[0] += 1
                     captured_bodies.append(parsed)
                     doc_ctx = parsed.get('documentContext')

@@ -343,9 +343,168 @@ function getBuildSha() {
   return process.env.TASKFLOW_BUILD_SHA || process.env.RENDER_GIT_COMMIT || process.env.COMMIT_SHA || 'unknown';
 }
 
+/* ---- Phase 11: Streaming chat ---- */
+
+/**
+ * Call AI with streaming enabled. Returns an async generator yielding:
+ *   { type: 'delta', text: string }
+ *   { type: 'done', finishReason: string|null, content: string }
+ *   { type: 'error', error: string }
+ *
+ * The caller MUST consume the generator fully (or abort) to avoid resource leaks.
+ * The response body is SSE or NDJSON — the Gemini OpenAI-compat endpoint
+ * returns SSE lines: data: {"choices":[{"delta":{"content":"..."}}]}
+ */
+async function *callAiStream(options) {
+  const {
+    messages,
+    maxTokens: rawMaxTokens = 2048,
+    timeoutMs: explicitTimeout,
+    requestId = '',
+    routeName = '',
+    signal,
+  } = options;
+  const maxTokens = validateMaxTokens(rawMaxTokens);
+  const maxMessageBytes = validateMaxMessageBytes(options.maxMessageBytes);
+
+  const cfg = getConfig();
+  if (!cfg.apiKey) {
+    yield { type: 'error', error: 'ai-not-configured' };
+    return;
+  }
+
+  // Message budget check
+  try {
+    const msgBytes = Buffer.byteLength(JSON.stringify(messages), 'utf8');
+    if (msgBytes > maxMessageBytes) {
+      logSafe('status=message-budget-exceeded msgBytes=' + msgBytes + ' route=' + routeName);
+      yield { type: 'error', error: 'payload-too-large' };
+      return;
+    }
+  } catch (e) { /* non-critical */ }
+
+  const model = options.model || cfg.model;
+  const effectiveTimeout = (Number.isFinite(explicitTimeout) && explicitTimeout > 0)
+    ? Math.floor(explicitTimeout)
+    : cfg.timeoutMs;
+  const provider = deriveProviderLabel(cfg.apiUrl);
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, effectiveTimeout);
+  if (signal) {
+    if (signal.aborted) { controller.abort(); clearTimeout(timer); }
+    else signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  const logPrefix = (routeName ? 'route=' + routeName : 'route=unknown')
+    + (requestId ? ' requestId=' + requestId : '');
+
+  const body = {
+    model,
+    max_tokens: maxTokens,
+    messages,
+    stream: true,
+  };
+
+  let upstream;
+  try {
+    upstream = await fetch(cfg.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + cfg.apiKey,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    clearTimeout(timer);
+    const latencyMs = Date.now() - startedAt;
+    if (e && e.name === 'AbortError') {
+      if (timedOut) {
+        logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=timeout timeoutMs=' + effectiveTimeout + ' latencyMs=' + latencyMs);
+        yield { type: 'error', error: 'ai-timeout' };
+        return;
+      }
+      logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=client-abort latencyMs=' + latencyMs);
+      yield { type: 'error', error: 'ai-client-abort' };
+      return;
+    }
+    logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=upstream-error latencyMs=' + latencyMs);
+    yield { type: 'error', error: 'ai-provider-unavailable' };
+    return;
+  }
+
+  if (!upstream.ok) {
+    clearTimeout(timer);
+    const latencyMs = Date.now() - startedAt;
+    const code = mapUpstreamStatus(upstream.status);
+    logSafe(logPrefix + ' provider=' + provider + ' upstreamStatus=' + upstream.status + ' latencyMs=' + latencyMs);
+    yield { type: 'error', error: code };
+    return;
+  }
+
+  // Read SSE stream — Gemini OpenAI-compat returns lines like:
+  // data: {"id":"...","choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}
+  // data: [DONE]
+  const reader = upstream.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullContent = '';
+  let finishReason = null;
+  const latencyMs = Date.now() - startedAt;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Process complete lines
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // keep incomplete line in buffer
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === 'data: [DONE]') {
+          if (trimmed === 'data: [DONE]') {
+            finishReason = finishReason || 'stop';
+          }
+          continue;
+        }
+        // Strip SSE prefix
+        const jsonStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed;
+        if (!jsonStr || jsonStr === '[DONE]') continue;
+
+        try {
+          const chunk = JSON.parse(jsonStr);
+          const choice = chunk && chunk.choices && chunk.choices[0];
+          if (choice) {
+            if (choice.finish_reason) finishReason = choice.finish_reason;
+            const delta = choice.delta;
+            if (delta && typeof delta.content === 'string' && delta.content) {
+              fullContent += delta.content;
+              yield { type: 'delta', text: delta.content };
+            }
+          }
+        } catch (parseErr) {
+          // Skip malformed chunks — don't break the stream
+        }
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+
+  logSafe(logPrefix + ' provider=' + provider + ' model=' + model + ' status=success latencyMs=' + (Date.now() - startedAt) + ' streamLength=' + fullContent.length);
+  yield { type: 'done', finishReason, content: fullContent };
+}
+
 module.exports = {
   callAiText,
   callAiJson,
+  callAiStream,
   mapUpstreamStatus,
   logSafe,
   getConfig,
