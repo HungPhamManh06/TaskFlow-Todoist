@@ -37,10 +37,11 @@ jobs:
           npx --yes csso-cli@4 --version >/dev/null 2>&1
           python scripts/minify.py --check
 
+      - name: Install build dependencies
+        run: npm install
+
       - name: Content-hashed build pipeline (Phase 14)
         run: |
-          npm install --ignore-scripts
-          npx --yes esbuild@0.24.2 --version
           npm run build
           npm run build:check
 
