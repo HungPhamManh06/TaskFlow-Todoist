@@ -249,3 +249,21 @@ jobs:
 
       - name: "AI Trust Boundary E2E (tampered roadmap, HMAC, fingerprint, idempotency, deterministic resolver)"
         run: python scripts/e2e-ai-trust-boundary.py
+
+  task-mutations-e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Playwright (Python, Chromium)
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: "Task Mutations E2E (Quick Add, Complete, Repeat dedup, Move, Atomic rollback, normalizeTask)"
+        run: python scripts/e2e-task-mutations.py

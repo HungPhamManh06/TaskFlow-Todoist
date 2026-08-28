@@ -506,3 +506,87 @@ describe('TaskFlowTaskStore — validateTask', () => {
     assert.ok(r.errors.includes('invalid-kind'));
   });
 });
+
+/* ===================== Atomic Transaction ===================== */
+
+describe('TaskFlowTaskStore — atomicTransaction', () => {
+  it('executes mutations and returns needsSave on success', () => {
+    const arr = [];
+    const r = ts.atomicTransaction([arr], () => {
+      ts.create(arr, { text: 'A' });
+      ts.create(arr, { text: 'B' });
+    });
+    assert.equal(r.ok, true);
+    assert.equal(arr.length, 2);
+    assert.equal(r.needsSave, true);
+  });
+
+  it('rolls back on failure — no half-state', () => {
+    const arr = [];
+    const r = ts.atomicTransaction([arr], () => {
+      ts.create(arr, { text: 'A' });
+      ts.create(arr, { text: 'B' });
+      throw new Error('boom');
+    });
+    assert.equal(r.ok, false);
+    assert.equal(r.error, 'boom');
+    assert.equal(arr.length, 0, 'array must be empty after rollback');
+  });
+
+  it('rolls back multiple arrays atomically', () => {
+    const a1 = [];
+    const a2 = [];
+    const r = ts.atomicTransaction([a1, a2], () => {
+      ts.create(a1, { text: 'A' });
+      ts.create(a2, { text: 'B' });
+      throw new Error('fail');
+    });
+    assert.equal(r.ok, false);
+    assert.equal(a1.length, 0);
+    assert.equal(a2.length, 0);
+  });
+
+  it('does not modify arrays on failure', () => {
+    const arr = [{ uid: 'existing', text: 'old', done: false }];
+    const r = ts.atomicTransaction([arr], () => {
+      arr[0].text = 'mutated';
+      throw new Error('nope');
+    });
+    assert.equal(r.ok, false);
+    assert.equal(arr[0].text, 'old', 'original task must be restored');
+  });
+
+  it('returns ok:false on invalid args', () => {
+    assert.equal(ts.atomicTransaction(null, () => {}).ok, false);
+    assert.equal(ts.atomicTransaction([], 'notfn').ok, false);
+  });
+});
+
+/* ===================== normalizeTask UID Guarantee ===================== */
+
+describe('TaskFlowTaskStore — normalizeTask always produces UID', () => {
+  it('assigns UID when input has no uid', () => {
+    const t = ts.normalizeTask({ text: 'test' });
+    assert.ok(t.uid, 'normalizeTask must never return task with null/undefined uid');
+    assert.equal(typeof t.uid, 'string');
+  });
+
+  it('preserves supplied UID', () => {
+    const t = ts.normalizeTask({ uid: 'my-uid', text: 'test' });
+    assert.equal(t.uid, 'my-uid');
+  });
+
+  it('each call produces a different UID', () => {
+    const a = ts.normalizeTask({ text: 'a' });
+    const b = ts.normalizeTask({ text: 'b' });
+    assert.notEqual(a.uid, b.uid);
+  });
+
+  it('produces valid task for all default fields', () => {
+    const t = ts.normalizeTask({ text: 'minimal' });
+    assert.equal(t.done, false);
+    assert.equal(typeof t.text, 'string');
+    assert.ok(Array.isArray(t.tags));
+    assert.ok(Array.isArray(t.linkedMetricIds));
+  });
+});

@@ -1531,17 +1531,36 @@
     if (!ref) return { status: 'skipped', reason: 'stale' };
     const ch = action.args.changes || {};
     const tk = ref.tk;
-    if (ch.text !== undefined && ch.text !== null) tk.text = ch.text;
-    if (ch.priority !== undefined && ch.priority !== null) tk.kind = ch.priority === true ? 'priority' : 'regular';
-    if (ch.duration !== undefined && ch.duration !== null) tk.duration = ch.duration;
-    if (ch.date !== undefined) {
-      if (ch.date === null) delete tk.deadline; else tk.deadline = ch.date;
-    }
-    if (ch.projectId !== undefined) {
-      if (ch.projectId === null) delete tk.projectId; else tk.projectId = ch.projectId;
-    }
-    if (ch.milestoneId !== undefined) {
-      if (ch.milestoneId === null) delete tk.milestoneId; else tk.milestoneId = ch.milestoneId;
+    // Phase 12.1: use canonical TaskFlowTaskStore.update for sanitized patch
+    var TTS3 = (typeof window !== 'undefined' && window.TaskFlowTaskStore) || null;
+    if (TTS3 && TTS3.update) {
+      var patch = {};
+      if (ch.text !== undefined && ch.text !== null) patch.text = ch.text;
+      if (ch.priority !== undefined && ch.priority !== null) patch.kind = ch.priority === true ? 'priority' : 'regular';
+      if (ch.duration !== undefined && ch.duration !== null) patch.duration = ch.duration;
+      if (ch.date !== undefined) {
+        patch.deadline = ch.date === null ? null : ch.date;
+      }
+      if (ch.projectId !== undefined) {
+        patch.projectId = ch.projectId === null ? null : ch.projectId;
+      }
+      if (ch.milestoneId !== undefined) {
+        patch.milestoneId = ch.milestoneId === null ? null : ch.milestoneId;
+      }
+      TTS3.update(tk, patch);
+    } else {
+      if (ch.text !== undefined && ch.text !== null) tk.text = ch.text;
+      if (ch.priority !== undefined && ch.priority !== null) tk.kind = ch.priority === true ? 'priority' : 'regular';
+      if (ch.duration !== undefined && ch.duration !== null) tk.duration = ch.duration;
+      if (ch.date !== undefined) {
+        if (ch.date === null) delete tk.deadline; else tk.deadline = ch.date;
+      }
+      if (ch.projectId !== undefined) {
+        if (ch.projectId === null) delete tk.projectId; else tk.projectId = ch.projectId;
+      }
+      if (ch.milestoneId !== undefined) {
+        if (ch.milestoneId === null) delete tk.milestoneId; else tk.milestoneId = ch.milestoneId;
+      }
     }
     return { status: 'applied' };
   }

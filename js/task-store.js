@@ -69,7 +69,8 @@
   };
 
   // Normalize a raw task input into canonical form.
-  // Fills missing fields with defaults. Does NOT generate UID (use create for that).
+  // Fills missing fields with defaults. Always produces a valid UID — callers
+  // can pass a UID in the input to preserve identity (e.g. import, migration).
   function normalizeTask(input) {
     if (!input || typeof input !== 'object') return null;
     var task = {};
@@ -107,6 +108,8 @@
     if (Array.isArray(input.subtasks)) task.subtasks = input.subtasks.map(function (s) { return Object.assign({}, s); });
     // Text must be string
     if (typeof task.text !== 'string') task.text = String(task.text || '');
+    // Always ensure a valid UID — ghost tasks (uid=null) cause invisible data
+    ensureTaskUid(task);
     return task;
   }
 
@@ -371,6 +374,48 @@
     }
   }
 
+  // Atomic transaction with rollback on failure.
+  // taskArrays: array of arrays to snapshot (e.g. [dayA.tasks, dayB.tasks]).
+  // The arrays are deep-cloned before fn() runs; on failure, restored exactly.
+  // Returns { ok, result, needsSave } on success, { ok: false, error } on rollback.
+  function atomicTransaction(taskArrays, fn) {
+    if (!Array.isArray(taskArrays) || typeof fn !== 'function') {
+      return { ok: false, error: 'invalid-args' };
+    }
+    // Snapshot: clone each array + deep-clone each task within
+    var snapshots = taskArrays.map(function (arr) {
+      if (!Array.isArray(arr)) return null;
+      return arr.map(function (tk) {
+        if (!tk || typeof tk !== 'object') return tk;
+        return JSON.parse(JSON.stringify(tk));
+      });
+    });
+    beginBatch();
+    markDirty();
+    try {
+      var result = fn();
+      var needsSave = endBatch();
+      return { ok: true, result: result, needsSave: needsSave };
+    } catch (e) {
+      // Rollback: restore arrays from snapshots
+      while (_batchDepth > 0) _batchDepth--;
+      _batchDirty = false;
+      for (var i = 0; i < taskArrays.length; i++) {
+        if (snapshots[i] && Array.isArray(taskArrays[i])) {
+          taskArrays[i].length = 0;
+          var clone = snapshots[i].map(function (tk) {
+            if (!tk || typeof tk !== 'object') return tk;
+            return JSON.parse(JSON.stringify(tk));
+          });
+          for (var j = 0; j < clone.length; j++) {
+            taskArrays[i].push(clone[j]);
+          }
+        }
+      }
+      return { ok: false, error: e && e.message ? e.message : 'transaction-failed' };
+    }
+  }
+
   /* ===================== Task Schema Helpers ===================== */
 
   // Canonical list of valid task fields for validation
@@ -429,6 +474,7 @@
     isBatching: isBatching,
     markDirty: markDirty,
     transaction: transaction,
+    atomicTransaction: atomicTransaction,
 
     // Validation
     validateTask: validateTask,

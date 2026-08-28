@@ -254,9 +254,9 @@ test('saveContexts/loadContexts: localStorage + Sync.push', () => {
 
 test('wiring: app.html nạp contexts.min.js trước app.min.js + cache-bust đúng', () => {
   const ctxIdx = APP.indexOf('js/contexts.min.js?v=1');
-  const appIdx = APP.indexOf('js/app.min.js?v=231');
+  const appIdx = APP.indexOf('js/app.min.js?v=232');
   assert.ok(ctxIdx !== -1, 'contexts.min.js phải được nạp');
-  assert.ok(appIdx !== -1, 'app.min.js?v=231');
+  assert.ok(appIdx !== -1, 'app.min.js?v=232');
   assert.ok(ctxIdx < appIdx, 'contexts nạp trước app.min.js');
 });
 
