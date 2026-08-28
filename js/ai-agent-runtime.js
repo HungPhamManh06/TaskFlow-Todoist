@@ -1480,24 +1480,29 @@
       const todayRef = _todayDayRef();
       if (todayRef && (!targetDate || targetDate === _todayStr())) dayRef = todayRef;
     }
-    const task = {
-      uid: (typeof newTaskUid === 'function') ? newTaskUid() : 'agent_' + Date.now().toString(36),
+    // Phase 12: use canonical TaskFlowTaskStore.create for consistent schema + idempotency
+    var _rawInput = {
       kind: args.priority === true ? 'priority' : 'regular',
-      done: false,
       text: text,
-      tags: [],
-      linkedMetricIds: [],
-      remind: { enabled: false, time: '20:00' },
     };
-    if (targetDate) task.deadline = targetDate;
-    if (args.duration !== undefined && args.duration !== null) task.duration = args.duration;
-    if (args.projectId) task.projectId = args.projectId;
-    if (args.milestoneId) task.milestoneId = args.milestoneId;
+    if (targetDate) _rawInput.deadline = targetDate;
+    if (args.duration !== undefined && args.duration !== null) _rawInput.duration = args.duration;
+    if (args.projectId) _rawInput.projectId = args.projectId;
+    if (args.milestoneId) _rawInput.milestoneId = args.milestoneId;
+    var TTS = (typeof window !== 'undefined' && window.TaskFlowTaskStore) || null;
+    var task;
     if (dayRef) {
-      _pushTask(dayRef, task);
+      var day = state.weeks[dayRef.week].days[dayRef.day];
+      if (TTS && TTS.create) {
+        task = TTS.create(day.tasks, _rawInput);
+      } else {
+        task = Object.assign({ uid: (typeof newTaskUid === 'function') ? newTaskUid() : 'agent_' + Date.now().toString(36), done: false, tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } }, _rawInput);
+        day.tasks.push(task);
+      }
     } else {
       try {
         if (typeof inbox === 'undefined' || !Array.isArray(inbox)) return { status: 'failed' };
+        task = TTS && TTS.normalizeTask ? TTS.normalizeTask(_rawInput) : Object.assign({ uid: (typeof newTaskUid === 'function') ? newTaskUid() : 'agent_' + Date.now().toString(36), done: false, tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } }, _rawInput);
         task.inbox = true;
         inbox.push(task);
         saveInbox(inbox);
@@ -1555,7 +1560,13 @@
     const ref = _locate(realUid);
     if (!ref) return { status: 'skipped', reason: 'stale' };
     if (ref.tk.done) return { status: 'skipped', reason: 'already-done' };
-    ref.tk.done = true;
+    // Phase 12: use canonical TaskFlowTaskStore.complete
+    var TTS2 = (typeof window !== 'undefined' && window.TaskFlowTaskStore) || null;
+    if (TTS2 && TTS2.complete) {
+      TTS2.complete(ref.tk, true);
+    } else {
+      ref.tk.done = true;
+    }
     try { if (typeof addXP === 'function') addXP(10); } catch (e) { /* */ }
     return { status: 'applied' };
   }

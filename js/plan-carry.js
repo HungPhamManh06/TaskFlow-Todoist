@@ -6,30 +6,34 @@
 (function () {
   'use strict';
 
-  // uid cố định cho task: timestamp base36 + 6 ký tự ngẫu nhiên (đủ độc nhất trong thực tế)
+  // Delegate to canonical TaskFlowTaskStore when available (Phase 12).
+  // Fallback: local implementation for Node tests where TaskFlowTaskStore isn't loaded.
+  function _ts() { return (typeof window !== 'undefined' && window.TaskFlowTaskStore) || null; }
+
   function newTaskUid() {
-    return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    var ts = _ts();
+    return ts ? ts.newTaskUid() : 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
-  // Gán uid nếu task chưa có (idempotent) — MUTATE task; dùng cho data cũ trước nâng cấp
   function ensureTaskUid(tk) {
+    var ts = _ts();
+    if (ts) return ts.ensureTaskUid(tk);
     if (tk && typeof tk.uid !== 'string') tk.uid = newTaskUid();
     return tk;
   }
 
-  // Canonical recurrence series identity: deterministic, stable across occurrences.
-  // Priority: existing repeat.seriesId > 'repeat:' + uid > deterministic fallback.
-  // NEVER use Date.now() — migration must be idempotent.
   function getSeriesId(task) {
+    var ts = _ts();
+    if (ts) return ts.getSeriesId(task);
     if (!task) return null;
     if (task.repeat && task.repeat.seriesId) return task.repeat.seriesId;
     if (task.uid) return 'repeat:' + task.uid;
     return null;
   }
 
-  // Ensure task has a repeat.seriesId (idempotent, no-op if already present).
-  // Mutates task in place. Returns the seriesId.
   function ensureSeriesId(task) {
+    var ts = _ts();
+    if (ts) return ts.ensureSeriesId(task);
     if (!task) return null;
     if (!task.repeat || !task.repeat.freq) return null;
     var sid = getSeriesId(task);

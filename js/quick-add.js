@@ -92,16 +92,15 @@
     const durIn = document.getElementById('quickAddDur');
     const prioIn = document.getElementById('quickAddPrio');
     const timeVal = timeIn && timeIn.value ? timeIn.value : '20:00';
-    const tk = {
-      uid: newTaskUid(),
-      kind: (prioIn && prioIn.checked) ? 'priority' : 'regular',
-      done: false,
+    // Phase 12: use canonical TaskFlowTaskStore.normalizeTask for consistent schema
+    const rawInput = {
       text,
-      tags: [],
-      linkedMetricIds: [],
+      kind: (prioIn && prioIn.checked) ? 'priority' : 'regular',
       remind: { enabled: false, time: timeVal },
     };
-    if (durIn && durIn.value !== '') tk.duration = Math.max(0, +durIn.value || 0);
+    if (durIn && durIn.value !== '') rawInput.duration = Math.max(0, +durIn.value || 0);
+    const TTS = (typeof window !== 'undefined' && window.TaskFlowTaskStore) || null;
+    const tk = TTS ? TTS.normalizeTask(rawInput) : Object.assign({ uid: newTaskUid(), done: false, tags: [], linkedMetricIds: [] }, rawInput);
     let ok = false;
     if (quickAddTarget && quickAddTarget.scope === 'inbox') {
       tk.inbox = true;

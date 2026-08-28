@@ -271,7 +271,11 @@ test('5.6: i18n focus keys đủ vi+en', () => {
 
 test('5.8: nút + tạo task → focus ngay ô viết task mới', () => {
   assert.match(APP_JS, /act === 'addtask'/);
-  assert.match(APP_JS, /d\.tasks\.push\(\{ uid: newTaskUid\(\), kind: el\.dataset\.kind/);
+  // Phase 12: allow either canonical TaskFlowTaskStore.create or legacy direct push
+  assert.ok(
+    /TaskFlowTaskStore\.create\(d\.tasks/.test(APP_JS) || /d\.tasks\.push\(\{ uid: newTaskUid/.test(APP_JS),
+    'addtask handler must create task via TaskFlowTaskStore.create or legacy push'
+  );
   assert.match(APP_JS, /data-role=\"task-text\"/);
   assert.match(APP_JS, /d\.tasks\.length - 1/);
   assert.match(APP_JS, /fresh\.focus\(\)/);

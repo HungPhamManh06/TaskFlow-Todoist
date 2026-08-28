@@ -3,7 +3,7 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v297';
+const CACHE = 'taskflow-v298';
 // Lazy module version — must match LAZY_ASSET_VERSION in app.js
 const LAZY_V = 'v1';
 const APP_SHELL = [
@@ -68,6 +68,7 @@ const APP_SHELL = [
   './js/planmini.min.js',
   './js/clock.min.js',
   './js/shell.min.js',
+  './js/task-store.min.js',
   './js/plan-math.min.js',
   './js/plan-stats.min.js',
   './js/plan-carry.min.js',

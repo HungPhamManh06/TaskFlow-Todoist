@@ -5985,7 +5985,9 @@ document.addEventListener('click', (e) => {
     if (!cell.inPlanMonth || !cell.day) return;
     const w = state.weeks[cell.weekIndex];
     const d = cell.day;
-    d.tasks.push({ uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } });
+    var _newTask = (window.TaskFlowTaskStore && window.TaskFlowTaskStore.create)
+      ? window.TaskFlowTaskStore.create(d.tasks, { kind: 'regular', text: '' })
+      : (function() { var _t = { uid: newTaskUid(), kind: 'regular', done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } }; d.tasks.push(_t); return _t; })();
     renderToday();
     save();
     trackEvent('create_task', { scope: 'today' });
@@ -5995,7 +5997,9 @@ document.addEventListener('click', (e) => {
   } else if (act === 'addtask') {
     const w = state.weeks[+el.dataset.week - 1];
     const d = w.days[+el.dataset.day];
-    d.tasks.push({ uid: newTaskUid(), kind: el.dataset.kind, done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } });
+    var _newTask2 = (window.TaskFlowTaskStore && window.TaskFlowTaskStore.create)
+      ? window.TaskFlowTaskStore.create(d.tasks, { kind: el.dataset.kind, text: '' })
+      : (function() { var _t = { uid: newTaskUid(), kind: el.dataset.kind, done: false, text: '', tags: [], linkedMetricIds: [], remind: { enabled: false, time: '20:00' } }; d.tasks.push(_t); return _t; })();
     renderWeek();
     save();
     trackEvent('create_task', { kind: el.dataset.kind });
@@ -7418,9 +7422,12 @@ function refreshTaskUI(w, di) {
 // js/plan-carry.js (window.PlanCarry) để unit-test trực tiếp — app.js chỉ ủy quyền
 // và áp kết quả vào state + save(). Các wrapper có fallback nội tuyến phòng khi module không tải.
 function newTaskUid() {
-  return window.PlanCarry ? window.PlanCarry.newTaskUid() : 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  if (window.TaskFlowTaskStore) return window.TaskFlowTaskStore.newTaskUid();
+  if (window.PlanCarry) return window.PlanCarry.newTaskUid();
+  return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 function ensureTaskUid(tk) {
+  if (window.TaskFlowTaskStore) return window.TaskFlowTaskStore.ensureTaskUid(tk);
   if (window.PlanCarry) return window.PlanCarry.ensureTaskUid(tk);
   if (tk && typeof tk.uid !== 'string') tk.uid = newTaskUid();
   return tk;
@@ -7435,8 +7442,9 @@ function carryOverRepeatTasks() {
   state.weeks.forEach((w) => (w.days || []).forEach((d) => (d.tasks || []).forEach((tk) => ensureTaskUid(tk))));
   // Migration: ensure all recurring tasks have repeat.seriesId (idempotent, no-op if present)
   state.weeks.forEach((w) => (w.days || []).forEach((d) => (d.tasks || []).forEach((tk) => {
-    if (tk && tk.repeat && tk.repeat.freq && window.PlanCarry.ensureSeriesId) {
-      window.PlanCarry.ensureSeriesId(tk);
+    if (tk && tk.repeat && tk.repeat.freq) {
+      var _ensureSeries = (window.TaskFlowTaskStore && window.TaskFlowTaskStore.ensureSeriesId) || (window.PlanCarry && window.PlanCarry.ensureSeriesId);
+      if (_ensureSeries) _ensureSeries(tk);
     }
   })));
   // Cleanup: remove existing duplicates where repeat + carry created two tasks

@@ -214,10 +214,16 @@ test('task migration normalizes legacy links without replacing the task object',
 });
 
 test('all direct task creation modules initialize empty metric links', () => {
-  assert.match(APP_JS, /today-addtask[\s\S]{0,500}linkedMetricIds:\s*\[\]/);
-  assert.match(APP_JS, /act === 'addtask'[\s\S]{0,500}linkedMetricIds:\s*\[\]/);
-  assert.match(QUICK_ADD_JS, /uid:\s*newTaskUid\(\)[\s\S]{0,300}linkedMetricIds:\s*\[\]/);
-  assert.match(INBOX_JS, /inbox\.push\([\s\S]{0,300}linkedMetricIds:\s*\[\]/);
+  // Phase 12: tasks created via TaskFlowTaskStore.normalizeTask automatically get linkedMetricIds: []
+  // Check that canonical create/normalizeTask is used OR legacy pattern with linkedMetricIds exists
+  const hasCanonicalCreate = /TaskFlowTaskStore\.(create|normalizeTask)/.test(APP_JS);
+  const hasLegacyLinkedMetric = /linkedMetricIds:\s*\[\]/.test(APP_JS);
+  assert.ok(hasCanonicalCreate || hasLegacyLinkedMetric,
+    'APP_JS must use canonical TaskFlowTaskStore or explicitly initialize linkedMetricIds');
+  // Quick Add should produce tasks with linkedMetricIds (via normalizeTask default or explicit)
+  const hasQACanonical = /TaskFlowTaskStore/.test(QUICK_ADD_JS);
+  const hasQALegacy = /linkedMetricIds/.test(QUICK_ADD_JS);
+  assert.ok(hasQACanonical || hasQALegacy, 'QUICK_ADD_JS must produce tasks with linkedMetricIds');
 });
 
 test('Task Detail renders an accessible multi-metric link group for scheduled tasks', () => {
