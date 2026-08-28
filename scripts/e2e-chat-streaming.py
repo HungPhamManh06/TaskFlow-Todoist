@@ -288,8 +288,8 @@ def main():
             page.evaluate("document.getElementById('chatInput').value = 'Test stop'")
             page.evaluate("window.TaskFlowChat.doChatSend()")
 
-            # Wait for request to be in-flight
-            page.wait_for_timeout(500)
+            # Wait for request to be in-flight by checking for typing indicator
+            page.wait_for_selector('.chat-typing', timeout=5000)
 
             # Click Stop
             page.evaluate("window.TaskFlowChat.stopActiveResponse()")
@@ -356,8 +356,8 @@ def main():
             page.evaluate("document.getElementById('chatInput').value = 'Question A'")
             page.evaluate("window.TaskFlowChat.doChatSend()")
 
-            # Stop immediately
-            page.wait_for_timeout(300)
+            # Wait for typing indicator to confirm request is in-flight
+            page.wait_for_selector('.chat-typing', timeout=5000)
             page.evaluate("window.TaskFlowChat.stopActiveResponse()")
             page.wait_for_selector('.chat-stopped', timeout=10000)
 
