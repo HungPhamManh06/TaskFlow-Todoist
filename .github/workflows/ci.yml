@@ -39,7 +39,8 @@ jobs:
 
       - name: Content-hashed build pipeline (Phase 14)
         run: |
-          npm install
+          npm install --ignore-scripts
+          npx --yes esbuild@0.24.2 --version
           npm run build
           npm run build:check
 
