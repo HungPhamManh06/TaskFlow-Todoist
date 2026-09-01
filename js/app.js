@@ -8,6 +8,17 @@
 // tự động load bản mới nhất khi deploy mà KHÔNG cần user clear site data.
 const LAZY_ASSET_VERSION = 'v1';
 function lazyAsset(path) {
+  // Phase 14.1: in dist builds, TaskFlowAssetMap maps source paths to hashed
+  // filenames.  The map is injected before app.js by the build pipeline.
+  // Keys are source paths without .min suffix (e.g. "js/quick-add.js").
+  if (window.TaskFlowAssetMap) {
+    // Try exact path first, then strip .min suffix (callers pass .min.js)
+    const mapped = window.TaskFlowAssetMap[path]
+      || (path.endsWith('.min.js') && window.TaskFlowAssetMap[path.replace(/\.min\.js$/, '.js')])
+      || (path.endsWith('.min.css') && window.TaskFlowAssetMap[path.replace(/\.min\.css$/, '.css')]);
+    if (mapped) return 'assets/' + mapped;
+  }
+  // Fallback: source/dev mode (old ?v= pin)
   return path + '?v=' + LAZY_ASSET_VERSION;
 }
 const _lazyScripts = new Map();

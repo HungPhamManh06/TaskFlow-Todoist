@@ -207,6 +207,15 @@ async function build() {
     if (!existsSync(srcPath)) continue;
     let html = readFileSync(srcPath, 'utf8');
     html = rewriteHtml(html, manifest);
+    // Inject asset-map.js before the first hashed asset <script> so that
+    // window.TaskFlowAssetMap is available for runtime lazy-module resolution.
+    const firstHashedScript = html.match(/<script[^>]+src="assets\/[^"]+"/);
+    if (firstHashedScript && !html.includes('asset-map.js')) {
+      html = html.replace(
+        firstHashedScript[0],
+        '<script src="asset-map.js"></script>\n        ' + firstHashedScript[0]
+      );
+    }
     writeFileSync(join(DIST, page), html, 'utf8');
     console.log(`HTML: ${page}`);
   }
