@@ -7,6 +7,9 @@ on:
         description: 'Production URL to test'
         required: false
         default: 'https://taskflow-todoist.vercel.app'
+      expected_sha:
+        description: 'Expected deployment SHA (optional — printed for manual verification)'
+        required: false
 
 jobs:
   production-smoke:
@@ -17,6 +20,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Print release evidence
+        run: |
+          echo "=== Release Evidence ==="
+          echo "Git SHA:       $(git rev-parse HEAD)"
+          echo "Base URL:      ${{ inputs.base_url }}"
+          echo "Expected SHA:  ${{ inputs.expected_sha || '(not provided)' }}"
+          echo "========================"
 
       - name: Install Playwright (Python, Chromium)
         run: |

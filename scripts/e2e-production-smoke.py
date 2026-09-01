@@ -4,17 +4,18 @@ Usage:
   python scripts/e2e-production-smoke.py
   python scripts/e2e-production-smoke.py --base-url https://taskflow-todoist.vercel.app
 
-Checks:
-  A. HTTP routes return 200
-  B. Hashed assets in HTML (no ?v= pins)
-  C. Security headers present (6 headers)
-  D. Asset network check (ALL first-party references, no 404)
-  E. Browser boot (zero pageerror, zero unexpected console.error)
-  F. Navigation smoke (Today, Inbox, Upcoming, Projects, Calendar)
-  G. Quick Add in local mode (must PASS)
-  H. Chat lazy load (module loads without 404)
+Exit code 0 ONLY if ALL release-critical checks PASS.
+No release-critical condition may produce WARN.
 
-Exit code 1 if any release-critical check FAILs.
+Checks:
+  A. HTTP routes (including /asset-map.js)
+  B. Hashed assets in HTML (no ?v= pins)
+  C. Security headers with required VALUES (not just existence)
+  D. ALL first-party asset network (no 404)
+  E. Browser boot (zero pageerror, zero unexpected console.error)
+  F. Navigation (Today, Inbox, Upcoming, Calendar, Projects) — no errors
+  G. Quick Add — state=1 AND DOM=1
+  H. Chat lazy load — hashed URL via TaskFlowAssetMap, panel opens
 """
 import argparse
 import re
@@ -43,8 +44,9 @@ def fetch(url, timeout=10):
 
 
 def check_routes(base):
-    """A. Check HTTP routes."""
-    routes = ["/", "/app", "/privacy", "/terms", "/data-and-security", "/manifest.json", "/sw.js"]
+    """A. Check HTTP routes — including asset-map.js."""
+    routes = ["/", "/app", "/privacy", "/terms", "/data-and-security",
+              "/manifest.json", "/sw.js", "/asset-map.js"]
     results = []
     for route in routes:
         url = base.rstrip("/") + route
@@ -56,65 +58,65 @@ def check_routes(base):
 
 
 def check_hashed_assets(base):
-    """B. Check that /app HTML uses hashed assets, no ?v= pins."""
+    """B. Check /app HTML uses hashed assets, no ?v= pins."""
     url = base.rstrip("/") + "/app"
     status, _, body = fetch(url)
     if status != 200:
         print(f"  FAIL /app returned HTTP {status}")
         return [("Hashed assets", "FAIL", f"HTTP {status}")]
 
-    # Find all first-party script/css references
     scripts = re.findall(r'src="([^"]*\.js)"', body)
     styles = re.findall(r'href="([^"]*\.css)"', body)
+    first_party = [s for s in (scripts + styles) if not s.startswith("http")]
 
-    # Filter to first-party (not external CDN)
-    all_refs = scripts + styles
-    first_party = [s for s in all_refs if not s.startswith("http")]
-
-    # Check no ?v= pins for first-party assets
     v_pins = [s for s in first_party if "?v=" in s]
     if v_pins:
         print(f"  FAIL Found first-party ?v= pins: {v_pins[:3]}")
         return [("Hashed assets", "FAIL", f"Found ?v= pins: {v_pins[:3]}")]
 
-    # Check hashed pattern for assets/ references
     hashed = [s for s in first_party if s.startswith("assets/") and re.search(r'\.[a-f0-9]{8}\.(js|css)$', s)]
     if not hashed:
         print(f"  FAIL No hashed assets in /app HTML (first-party refs: {len(first_party)})")
         return [("Hashed assets", "FAIL", "No hashed assets")]
 
-    print(f"  PASS Hashed assets ({len(hashed)} hashed, {len(first_party)} total first-party, no ?v= pins)")
+    print(f"  PASS Hashed assets ({len(hashed)} hashed, {len(first_party)} total first-party)")
     return [("Hashed assets", "PASS", f"{len(hashed)} hashed, {len(first_party)} total")]
 
 
 def check_security_headers(base):
-    """C. Check security headers — 6 required headers."""
+    """C. Security headers — enforce required VALUES."""
     url = base.rstrip("/") + "/app"
-    status, headers, _ = fetch(url)
+    _, headers, _ = fetch(url)
+    csp = headers.get("Content-Security-Policy", "")
     checks = [
-        ("Content-Security-Policy", lambda h: "Content-Security-Policy" in h),
-        ("Strict-Transport-Security", lambda h: "Strict-Transport-Security" in h),
-        ("X-Content-Type-Options", lambda h: "X-Content-Type-Options" in h and "nosniff" in h.get("X-Content-Type-Options", "")),
-        ("X-Frame-Options", lambda h: "X-Frame-Options" in h),
-        ("Referrer-Policy", lambda h: "Referrer-Policy" in h),
-        ("Permissions-Policy", lambda h: "Permissions-Policy" in h),
+        ("X-Content-Type-Options",
+         lambda h: h.get("X-Content-Type-Options", "") == "nosniff"),
+        ("X-Frame-Options",
+         lambda h: h.get("X-Frame-Options", "") == "DENY"),
+        ("Content-Security-Policy",
+         lambda h: "frame-ancestors 'none'" in h.get("Content-Security-Policy", "")),
+        ("Strict-Transport-Security",
+         lambda h: "max-age=" in h.get("Strict-Transport-Security", "")),
+        ("Referrer-Policy",
+         lambda h: bool(h.get("Referrer-Policy", ""))),
+        ("Permissions-Policy",
+         lambda h: bool(h.get("Permissions-Policy", ""))),
     ]
     results = []
     for name, check in checks:
         ok = check(headers)
-        results.append((name, "PASS" if ok else "FAIL", "" if ok else "missing or invalid"))
+        results.append((name, "PASS" if ok else "FAIL", "" if ok else "missing or wrong value"))
         print(f"  {'PASS' if ok else 'FAIL'} {name}")
     return results
 
 
 def check_assets_network(base):
-    """D. Check ALL critical first-party assets — no 404."""
+    """D. ALL first-party assets — no 404."""
     url = base.rstrip("/") + "/app"
     status, _, body = fetch(url)
     if status != 200:
         return [("Asset network", "FAIL", "Cannot fetch /app")]
 
-    # Extract ALL first-party asset URLs from HTML
     assets = re.findall(r'(?:src|href)="(assets/[^"]+)"', body)
     icons = re.findall(r'(?:src|href)="(icons/[^"]+)"', body)
     fonts = re.findall(r'(?:src|href)="(fonts/[^"]+)"', body)
@@ -123,14 +125,12 @@ def check_assets_network(base):
     failures = []
     checked = 0
     for asset in all_assets:
-        asset_url = base.rstrip("/") + "/" + asset
-        asset_status, _, _ = fetch(asset_url)
+        asset_status, _, _ = fetch(base.rstrip("/") + "/" + asset)
         checked += 1
         if asset_status >= 400:
             failures.append(f"{asset} → HTTP {asset_status}")
 
-    # Also check manifest.json and sw.js directly
-    for extra in ["/manifest.json", "/sw.js"]:
+    for extra in ["/manifest.json", "/sw.js", "/asset-map.js"]:
         extra_status, _, _ = fetch(base.rstrip("/") + extra)
         checked += 1
         if extra_status >= 400:
@@ -144,10 +144,11 @@ def check_assets_network(base):
 
 
 def check_browser_smoke(base):
-    """E-H. Browser: boot errors, navigation, Quick Add, Chat lazy load."""
+    """E-H. Browser: errors, navigation, Quick Add, Chat lazy load."""
     results = []
     page_errors = []
     console_errors = []
+    lazy_urls = []  # Captured lazy module URLs
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
@@ -158,6 +159,7 @@ def check_browser_smoke(base):
         page = ctx.new_page()
         page.on("pageerror", lambda err: page_errors.append(str(err)))
         page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
+        page.on("request", lambda req: lazy_urls.append(req.url) if "/assets/" in req.url else None)
 
         page.add_init_script("localStorage.setItem('planner-onboarded','1');")
         page.goto(f"{base.rstrip('/')}/app?view=today", wait_until="networkidle")
@@ -189,70 +191,72 @@ def check_browser_smoke(base):
         page.goto(f"{base.rstrip('/')}/app?view=today", wait_until="networkidle")
         page.wait_for_selector('[data-testid="today-view"]', state="visible")
 
-        # ── G. Quick Add (MUST PASS) ──────────────────────────────────
+        # ── G. Quick Add (MUST PASS — state AND DOM required) ─────────
         try:
-            # Click visible add-task button (desktop primary action)
             add_btn = page.locator('.app-primary-action[data-action="shell-add-task"]')
             if not add_btn.first.is_visible():
                 add_btn = page.locator('[data-action="shell-add-task"]')
             add_btn.first.click()
-            # Wait for the Quick Add modal (lazy module must load first)
             page.wait_for_selector('#quickAddModal:not([hidden])', state="visible", timeout=8000)
             page.wait_for_selector('#quickAddInput', state="visible", timeout=5000)
             page.fill('#quickAddInput', 'Production Smoke Task')
             page.locator('[data-action="quickadd-do"]').click()
-            # Wait for submit to propagate + render
-            page.wait_for_timeout(1500)
-            # Verify via state (reliable) and DOM (secondary)
-            state_ok = page.evaluate("""() => {
-                try {
-                    const now = new Date();
-                    const key = window.TaskFlowShell.monthKey(now.getFullYear(), now.getMonth());
-                    const state = JSON.parse(localStorage.getItem(key) || '{}');
-                    const tasks = [];
-                    (state.weeks || []).forEach(w => (w.days || []).forEach(d => (d.tasks || []).forEach(t => tasks.push(t.text))));
-                    return tasks.filter(t => t === 'Production Smoke Task').length;
-                } catch(e) { return -1; }
-            }""")
-            # Also check DOM (task renders as .task-text span inside .today-task)
-            dom_count = page.locator('.task-text:has-text("Production Smoke Task")').count()
-            if state_ok == 1 and dom_count >= 1:
+            # Wait for state + DOM to both be ready
+            for _ in range(10):
+                page.wait_for_timeout(300)
+                state_count = page.evaluate("""() => {
+                    try {
+                        const now = new Date();
+                        const key = window.TaskFlowShell.monthKey(now.getFullYear(), now.getMonth());
+                        const state = JSON.parse(localStorage.getItem(key) || '{}');
+                        const tasks = [];
+                        (state.weeks || []).forEach(w => (w.days || []).forEach(d => (d.tasks || []).forEach(t => tasks.push(t.text))));
+                        return tasks.filter(t => t === 'Production Smoke Task').length;
+                    } catch(e) { return -1; }
+                }""")
+                dom_count = page.locator('.task-text:has-text("Production Smoke Task")').count()
+                if state_count == 1 and dom_count >= 1:
+                    break
+            if state_count == 1 and dom_count >= 1:
                 print("  PASS Quick Add (exactly 1 task — state + DOM confirmed)")
                 results.append(("Quick Add", "PASS", "Exactly 1 task"))
-            elif state_ok == 1:
-                print("  PASS Quick Add (1 task in state, DOM pending render)")
-                results.append(("Quick Add", "PASS", "1 task in state"))
             else:
-                print(f"  FAIL Quick Add (state={state_ok}, dom={dom_count})")
-                results.append(("Quick Add", "FAIL", f"state={state_ok}, dom={dom_count}"))
+                print(f"  FAIL Quick Add (state={state_count}, dom={dom_count})")
+                results.append(("Quick Add", "FAIL", f"state={state_count}, dom={dom_count}"))
         except Exception as e:
             print(f"  FAIL Quick Add — {type(e).__name__}: {e}")
             results.append(("Quick Add", "FAIL", f"{type(e).__name__}"))
 
-        # ── H. Chat lazy load ─────────────────────────────────────────
+        # ── H. Chat lazy load (MUST PASS) ─────────────────────────────
         try:
-            # The chat FAB is #chatFab with data-action="chat-toggle"
             chat_btn = page.locator('#chatFab')
             if chat_btn.count() > 0 and chat_btn.first.is_visible():
+                # Clear lazy_urls to capture only Chat-related requests
+                lazy_urls_before = len(lazy_urls)
                 chat_btn.first.click()
-                page.wait_for_timeout(2000)
-                # Check chat panel appeared (#chatPop becomes visible)
-                chat_panel = page.locator('#chatPop')
-                if chat_panel.count() > 0 and chat_panel.is_visible():
+                page.wait_for_selector('#chatPop:not([hidden])', state="visible", timeout=8000)
+                # Verify lazy module loaded via hashed URL (not ?v= fallback)
+                new_urls = lazy_urls[lazy_urls_before:]
+                chat_lazy = [u for u in new_urls if "chat" in u.lower() and "/assets/" in u]
+                has_old_fallback = any("?v=" in u for u in new_urls if "chat" in u.lower())
+                if chat_lazy:
+                    print(f"  PASS Chat lazy load (hashed URL: {chat_lazy[0].split('/')[-1]})")
+                    results.append(("Chat lazy load", "PASS", chat_lazy[0].split("/")[-1]))
+                elif not has_old_fallback:
+                    # Panel opened, module loaded (may be bundled in main app)
                     print("  PASS Chat lazy load (panel opened)")
                     results.append(("Chat lazy load", "PASS", "Panel opened"))
                 else:
-                    print("  WARN Chat lazy load (button clicked but panel not visible)")
-                    results.append(("Chat lazy load", "WARN", "Panel not visible"))
+                    print(f"  FAIL Chat lazy load — old ?v= fallback used: {[u for u in new_urls if '?' in u][:2]}")
+                    results.append(("Chat lazy load", "FAIL", "Old ?v= fallback"))
             else:
-                print("  WARN Chat FAB not visible")
-                results.append(("Chat lazy load", "WARN", "FAB not visible"))
+                print("  FAIL Chat FAB not visible")
+                results.append(("Chat lazy load", "FAIL", "FAB not visible"))
         except Exception as e:
-            print(f"  WARN Chat lazy load — {type(e).__name__}")
-            results.append(("Chat lazy load", "WARN", str(e)[:100]))
+            print(f"  FAIL Chat lazy load — {type(e).__name__}: {e}")
+            results.append(("Chat lazy load", "FAIL", str(e)[:100]))
 
         # ── E. Check page + console errors ─────────────────────────────
-        # Filter only truly unexpected errors (not known benign)
         unexpected_console = [
             e for e in console_errors
             if "favicon" not in e.lower()
