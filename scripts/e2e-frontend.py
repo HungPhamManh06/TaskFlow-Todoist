@@ -2547,6 +2547,13 @@ def monthly_review_checks(browser, base, width, height, errors, screenshot):
       state.reflections.overview = ['P7 legacy achievement', '', '', ''];
       localStorage.setItem(key, JSON.stringify(state));
     }""")
+    # Freeze Date to mid-month so the habit untick migration (which strips
+    # future-day ticks for the current month) does not remove our seeded 8 true
+    # habit days. Without this, running the test on the 1st of the month
+    # would strip days 1-7 leaving only 1 true -> body score drops from 65 to 30.
+    import datetime as _dt
+    _now = _dt.datetime.now()
+    page.clock.set_fixed_time(_dt.datetime(_now.year, _now.month, 15, 12, 0, 0))
     page.reload(wait_until="networkidle")
     page.evaluate("window.TaskFlowReportUI.openReportModal()")
     card = page.locator('[data-testid="monthly-review"]')
