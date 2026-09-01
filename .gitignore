@@ -30,6 +30,7 @@ skills-lock.json
 
 # Build pipeline generated files
 node_modules/
+dist/
 asset-manifest.json
 asset-map.js
 ._build_tmp*

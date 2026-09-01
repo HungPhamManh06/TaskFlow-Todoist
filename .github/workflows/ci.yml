@@ -65,8 +65,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: "Install build dependencies"
+        run: npm install
+
       - name: "Versioned assets in app.html consistent with their last commit"
         run: python scripts/check-release-assets.py
+
+      - name: "Dist build output is current (hash integrity + no stale ?v= pins)"
+        run: |
+          npm run build
+          npm run build:check
 
   # Critical smoke suite runs on all three engines (P1.2). The suite is
   # deterministic across engines: it emulates prefers-reduced-motion (the app

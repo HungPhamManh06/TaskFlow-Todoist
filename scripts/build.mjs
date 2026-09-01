@@ -2,23 +2,23 @@
 /**
  * scripts/build.mjs — TaskFlow content-hashed build pipeline.
  *
- * Stage A (current): generates hashed assets + manifest + validates consistency.
- * app.html and sw.js keep using ?v= pins for now.
+ * Outputs to dist/ — Vercel serves dist/ as outputDirectory.
  *
  * Usage:
- *   node scripts/build.mjs          # build hashed assets + manifest
- *   node scripts/build.mjs --check  # verify committed output is current
- *   node scripts/build.mjs --apply  # also update app.html and sw.js
+ *   node scripts/build.mjs          # full dist build
+ *   node scripts/build.mjs --check  # verify dist output is current
  */
 
-import { readFileSync, writeFileSync, readdirSync, statSync, unlinkSync, existsSync } from 'fs';
-import { join, extname } from 'path';
+import { readFileSync, writeFileSync, readdirSync, statSync, unlinkSync, existsSync, mkdirSync, rmSync, copyFileSync } from 'fs';
+import { join, extname, relative } from 'path';
 import { execSync } from 'child_process';
 import { createHash } from 'crypto';
 import { createRequire } from 'module';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(import.meta.dirname, '..');
+const DIST = join(ROOT, 'dist');
+const DIST_ASSETS = join(DIST, 'assets');
 const HASH_LEN = 8;
 
 let esbuild;
@@ -71,15 +71,64 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function ensureDir(dir) {
+  mkdirSync(dir, { recursive: true });
+}
+
+function copyDir(src, dest) {
+  ensureDir(dest);
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDir(srcPath, destPath);
+    } else {
+      copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+// ── HTML rewriting ───────────────────────────────────────────────────
+function rewriteHtml(html, manifest) {
+  // Replace css/X.min.css?v=N → assets/X.<hash>.css
+  // Replace css/X.css?v=N → assets/X.<hash>.css
+  // Replace js/X.min.js?v=N → assets/X.<hash>.js
+  // Replace js/X.js?v=N → assets/X.<hash>.js (for .generated.min.js etc)
+  for (const [src, info] of Object.entries(manifest)) {
+    if (src.startsWith('_')) continue;
+    const ext = extname(src);
+
+    // Patterns: css/X.min.css?v=N, css/X.css?v=N, js/X.min.js?v=N, js/X.js?v=N
+    const minName = src.replace(ext, `.min${ext}`);
+    const patterns = [minName, src];
+    for (const name of patterns) {
+      const escaped = escapeRegex(name);
+      // Match with optional ?v=N
+      const reDQ = new RegExp(`((?:src|href)=)"${escaped}(?:\\?v=\\d+)?"`, 'g');
+      const reSQ = new RegExp(`((?:src|href)=)'${escaped}(?:\\?v=\\d+)?'`, 'g');
+      html = html.replace(reDQ, `$1"assets/${info.file}"`);
+      html = html.replace(reSQ, `$1'assets/${info.file}'`);
+    }
+  }
+  return html;
+}
+
 // ── Build ────────────────────────────────────────────────────────────
 async function build() {
   const isCheck = process.argv.includes('--check');
-  const isApply = process.argv.includes('--apply');
   if (isCheck) return check();
 
-  console.log('Building TaskFlow assets…');
+  console.log('Building TaskFlow dist…');
   const startTime = Date.now();
 
+  // Clean dist
+  if (existsSync(DIST)) {
+    rmSync(DIST, { recursive: true, force: true });
+  }
+  ensureDir(DIST);
+  ensureDir(DIST_ASSETS);
+
+  // Build JS + CSS
   const sources = [...jsSources(), ...cssSources()].sort();
   const manifest = {};
   const treeHash = hashTree(sources);
@@ -87,7 +136,7 @@ async function build() {
   for (const src of sources) {
     const fullSrc = join(ROOT, src);
     const ext = extname(src);
-    const basename = src.replace(/\.[^.]+$/, '');
+    const basename = src.replace(/\.[^.]+$/, '').replace(/^[^/]+\//, '');
 
     const sourceCode = readFileSync(fullSrc, 'utf8');
     let minified;
@@ -107,7 +156,7 @@ async function build() {
     // Hash the minified output
     const hash = fileHash(Buffer.from(minified));
     const outName = `${basename}.${hash}${ext}`;
-    const outPath = join(ROOT, outName);
+    const outPath = join(DIST_ASSETS, outName);
 
     // Verify JS output parses
     if (ext === '.js') {
@@ -123,83 +172,106 @@ async function build() {
       }
     }
 
-    // Write final hashed file
     writeFileSync(outPath, minified, 'utf8');
 
+    // Manifest key uses source path (for rewriting), value is hashed filename
     manifest[src] = { file: outName, hash };
     const srcSize = statSync(fullSrc).size;
     const outSize = statSync(outPath).size;
     const pct = srcSize ? Math.round((1 - outSize / srcSize) * 100) : 0;
-    console.log(`  ${src} → ${outName}  ${srcSize}→${outSize} (${pct}% off)`);
+    console.log(`  ${src} → assets/${outName}  ${srcSize}→${outSize} (${pct}% off)`);
   }
 
-  // Write manifest
+  // Write manifest to dist
   manifest._treeHash = treeHash;
-  writeFileSync(join(ROOT, 'asset-manifest.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+  writeFileSync(join(DIST_ASSETS, 'asset-manifest.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
   console.log(`\nManifest: ${Object.keys(manifest).length - 1} hashed entries`);
 
-  // Write runtime asset map (for lazy-loaded modules)
+  // Write runtime asset map to dist (for lazy-loaded modules)
   const assetMap = {};
   for (const [src, info] of Object.entries(manifest)) {
     if (src.startsWith('_')) continue;
     assetMap[src] = info.file;
   }
   writeFileSync(
-    join(ROOT, 'asset-map.js'),
+    join(DIST, 'asset-map.js'),
     `/* Auto-generated by scripts/build.mjs — DO NOT EDIT */\nwindow.TaskFlowAssetMap = ${JSON.stringify(assetMap, null, 2)};\n`,
     'utf8'
   );
   console.log('Asset map: asset-map.js');
 
-  // Stage B (--apply): update app.html and sw.js
-  if (isApply) {
-    updateAppHtml(manifest);
-    updateSW(manifest);
+  // Copy and rewrite HTML pages
+  const htmlPages = ['app.html', 'index.html', 'privacy.html', 'terms.html', 'data-and-security.html'];
+  for (const page of htmlPages) {
+    const srcPath = join(ROOT, page);
+    if (!existsSync(srcPath)) continue;
+    let html = readFileSync(srcPath, 'utf8');
+    html = rewriteHtml(html, manifest);
+    writeFileSync(join(DIST, page), html, 'utf8');
+    console.log(`HTML: ${page}`);
   }
 
-  console.log(`\nBuild complete in ${Date.now() - startTime}ms.`);
-}
-
-// ── Update app.html (--apply only) ───────────────────────────────────
-function updateAppHtml(manifest) {
-  const htmlPath = join(ROOT, 'app.html');
-  let html = readFileSync(htmlPath, 'utf8');
-
-  for (const [src, info] of Object.entries(manifest)) {
-    if (src.startsWith('_')) continue;
-    const ext = extname(src);
-    const minName = src.replace(ext, `.min${ext}`);
-
-    const pattern = new RegExp(
-      `((?:src|href)="${escapeRegex(minName)})(?:\\?v=\\d+)?"`,
-      'g'
-    );
-    html = html.replace(pattern, `$1"${info.file}"`);
-
-    const patternSq = new RegExp(
-      `((?:src|href)='${escapeRegex(minName)})(?:\\?v=\\d+)?'`,
-      'g'
-    );
-    html = html.replace(patternSq, `$1${info.file}'`);
+  // Copy og-preview.html if exists (no rewrite needed — static)
+  const ogPath = join(ROOT, 'og-preview.html');
+  if (existsSync(ogPath)) {
+    copyFileSync(ogPath, join(DIST, 'og-preview.html'));
+    console.log('HTML: og-preview.html (static)');
   }
 
-  writeFileSync(htmlPath, html, 'utf8');
-  console.log('Updated app.html');
+  // Copy and rewrite service worker
+  buildSW(manifest);
+
+  // Copy static assets
+  // Icons
+  const iconsDir = join(ROOT, 'icons');
+  if (existsSync(iconsDir)) {
+    copyDir(iconsDir, join(DIST, 'icons'));
+    console.log('Static: icons/');
+  }
+
+  // Fonts
+  const fontsDir = join(ROOT, 'fonts');
+  if (existsSync(fontsDir)) {
+    copyDir(fontsDir, join(DIST, 'fonts'));
+    console.log('Static: fonts/');
+  }
+
+  // manifest.json (PWA)
+  const manifestJson = join(ROOT, 'manifest.json');
+  if (existsSync(manifestJson)) {
+    copyFileSync(manifestJson, join(DIST, 'manifest.json'));
+    console.log('Static: manifest.json');
+  }
+
+  // og-image.png
+  const ogImage = join(ROOT, 'og-image.png');
+  if (existsSync(ogImage)) {
+    copyFileSync(ogImage, join(DIST, 'og-image.png'));
+    console.log('Static: og-image.png');
+  }
+
+  console.log(`\nBuild complete in ${Date.now() - startTime}ms. Output: dist/`);
 }
 
-// ── Update SW (--apply only) ─────────────────────────────────────────
-function updateSW(manifest) {
-  const swPath = join(ROOT, 'sw.js');
-  let sw = readFileSync(swPath, 'utf8');
+// ── SW generation ────────────────────────────────────────────────────
+function buildSW(manifest) {
+  const swSrc = readFileSync(join(ROOT, 'sw.js'), 'utf8');
 
+  // Build precache list: HTML pages, static files, hashed assets
   const entries = [
-    './', './index.html', './app.html', './privacy.html',
-    './terms.html', './data-and-security.html', './manifest.json',
-    './css/tokens.css', './css/landing.css', './css/legal.css',
-    './icons/ui-sprite.svg', './icons/icon-192.png',
-    './icons/icon-512.png', './icons/icon-maskable-512.png',
+    './',
+    './index.html',
+    './app.html',
+    './privacy.html',
+    './terms.html',
+    './data-and-security.html',
+    './manifest.json',
   ];
 
+  // Add non-hashed CSS that landing/legal pages still reference after rewrite
+  // (none — all CSS is hashed now)
+
+  // Add font files
   const fontsDir = join(ROOT, 'fonts');
   if (existsSync(fontsDir)) {
     for (const f of readdirSync(fontsDir).sort()) {
@@ -207,27 +279,57 @@ function updateSW(manifest) {
     }
   }
 
+  // Add hashed assets
   for (const [src, info] of Object.entries(manifest).sort((a, b) => a[0].localeCompare(b[0]))) {
     if (src.startsWith('_')) continue;
-    entries.push(`./${info.file}`);
+    entries.push(`./assets/${info.file}`);
   }
 
-  const manifestHash = fileHash(join(ROOT, 'asset-manifest.json'));
-  const shellBlock = `const APP_SHELL = [\n  ${entries.map(e => `'${e}'`).join(',\n  ')},\n];`;
+  // Deterministic cache identity from manifest
+  const manifestHash = fileHash(join(DIST_ASSETS, 'asset-manifest.json'));
 
+  let sw = swSrc;
+
+  // Replace APP_SHELL
+  const shellBlock = `const APP_SHELL = [\n  ${entries.map(e => `'${e}'`).join(',\n  ')},\n];`;
   sw = sw.replace(/const APP_SHELL = \[[\s\S]*?\];/, shellBlock);
+
+  // Replace CACHE name
   sw = sw.replace(/const CACHE = 'taskflow-v\d+';/, `const CACHE = 'taskflow-${manifestHash}';`);
+
+  // Remove LAZY_V line if present
   sw = sw.replace(/\/\/ Lazy module version[^\n]*\nconst LAZY_V = 'v1';\n?/, '');
 
-  writeFileSync(swPath, sw, 'utf8');
-  console.log(`Updated sw.js (CACHE: taskflow-${manifestHash})`);
+  writeFileSync(join(DIST, 'sw.js'), sw, 'utf8');
+  console.log(`SW: dist/sw.js (CACHE: taskflow-${manifestHash})`);
 }
 
 // ── Check mode ───────────────────────────────────────────────────────
 function check() {
-  const manifestPath = join(ROOT, 'asset-manifest.json');
+  // Verify dist exists
+  if (!existsSync(DIST)) {
+    console.error('FAIL: dist/ not found. Run: npm run build');
+    process.exit(1);
+  }
+
+  // Verify dist HTML pages exist
+  for (const page of ['app.html', 'index.html']) {
+    if (!existsSync(join(DIST, page))) {
+      console.error(`FAIL: dist/${page} not found`);
+      process.exit(1);
+    }
+  }
+
+  // Verify dist/sw.js exists
+  if (!existsSync(join(DIST, 'sw.js'))) {
+    console.error('FAIL: dist/sw.js not found');
+    process.exit(1);
+  }
+
+  // Verify manifest
+  const manifestPath = join(DIST_ASSETS, 'asset-manifest.json');
   if (!existsSync(manifestPath)) {
-    console.error('FAIL: asset-manifest.json not found. Run: npm run build');
+    console.error('FAIL: dist/assets/asset-manifest.json not found. Run: npm run build');
     process.exit(1);
   }
 
@@ -239,23 +341,40 @@ function check() {
     if (src.startsWith('_')) continue;
     checked++;
 
-    const outPath = join(ROOT, info.file);
+    const outPath = join(DIST_ASSETS, info.file);
     if (!existsSync(outPath)) {
-      console.error(`  FAIL: ${info.file} missing (for ${src})`);
+      console.error(`  FAIL: assets/${info.file} missing (for ${src})`);
       ok = false;
       continue;
     }
     const actualHash = fileHash(outPath);
     if (actualHash !== info.hash) {
-      console.error(`  FAIL: ${info.file} hash mismatch (expected ${info.hash}, got ${actualHash})`);
+      console.error(`  FAIL: assets/${info.file} hash mismatch (expected ${info.hash}, got ${actualHash})`);
       ok = false;
     }
   }
 
-  // Verify asset-map.js exists
-  if (!existsSync(join(ROOT, 'asset-map.js'))) {
-    console.error('  FAIL: asset-map.js missing. Run: npm run build');
+  // Verify dist/asset-map.js exists
+  if (!existsSync(join(DIST, 'asset-map.js'))) {
+    console.error('  FAIL: dist/asset-map.js missing. Run: npm run build');
     ok = false;
+  }
+
+  // Verify no first-party ?v= pins in dist HTML
+  for (const page of ['app.html', 'index.html']) {
+    const htmlPath = join(DIST, page);
+    if (!existsSync(htmlPath)) continue;
+    const html = readFileSync(htmlPath, 'utf8');
+    const vPinMatch = html.match(/(?:src|href)="js\/[^"]*\.js\?v=\d+"/);
+    if (vPinMatch) {
+      console.error(`  FAIL: dist/${page} still has first-party ?v= pin: ${vPinMatch[0]}`);
+      ok = false;
+    }
+    const cssPinMatch = html.match(/(?:src|href)="css\/[^"]*\.css\?v=\d+"/);
+    if (cssPinMatch) {
+      console.error(`  FAIL: dist/${page} still has first-party CSS ?v= pin: ${cssPinMatch[0]}`);
+      ok = false;
+    }
   }
 
   // Source tree hash check
@@ -267,7 +386,7 @@ function check() {
   }
 
   if (ok) {
-    console.log(`ALL ${checked} hashed assets verified. Manifest consistent.`);
+    console.log(`ALL ${checked} hashed assets verified. Manifest consistent. dist/ valid.`);
     return 0;
   } else {
     console.error('\nBuild output is stale — run: npm run build');
