@@ -1,5 +1,7 @@
 # TaskFlow Feature Freeze Backlog
 
+**FEATURE FREEZE STARTED: 2026-09-01**
+
 Items deferred until after beta freeze period (3–6 weeks).
 
 ## P0 — Must fix before any release

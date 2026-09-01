@@ -9,7 +9,7 @@ Baseline SHA: `b85b960`
 |------|--------|----------|---------|
 | Core task flows | PASS | 3522 unit tests pass, task-mutations E2E 6/6 | — |
 | Data integrity | PASS | TaskStore canonical mutations, UID guarantee, atomic rollback | — |
-| Backup / restore | PASS | test-sync.js 13/13, import/export roundtrip verified | — |
+| Backup / restore | PASS | e2e-backup-restore roundtrip + malformed restore preservation | — |
 | Offline / PWA | PASS | e2e-offline all routes offline, SW upgrade verified | — |
 | Service Worker upgrades | PASS | e2e-sw-upgrade-ai cache purge verified | — |
 | AI Chat | PASS | e2e-chat 4/4, e2e-chat-streaming 4/4 | — |
@@ -18,7 +18,7 @@ Baseline SHA: `b85b960`
 | Document Chat | PASS | e2e-document-chat 10/10 | — |
 | Authentication | PASS | test-server-security 5/5 (JWT, CORS, headers, rate limit) | — |
 | Security headers | PASS | CSP, HSTS, X-Content-Type-Options, X-Frame-Options verified | — |
-| Accessibility | WARN | Keyboard nav works, some ARIA labels may need audit | — |
+| Accessibility | PASS | e2e-a11y automated checks, keyboard nav verified | — |
 | Mobile QA | PASS | e2e-smoke chromium/firefox/webkit responsive verified | — |
 | Desktop QA | PASS | e2e-smoke desktop viewport verified | — |
 | Performance | PASS | Build sizes: 98 JS + 9 CSS hashed assets, ~50% avg minification | — |
@@ -75,5 +75,5 @@ Baseline SHA: `b85b960`
 
 ## Known Issues (P3)
 
-1. **A11y audit incomplete**: Keyboard navigation verified by E2E; formal screen reader audit not yet performed. Non-blocking for beta.
+1. **A11y screen reader audit**: Automated accessibility checks PASS; formal NVDA/VoiceOver audit remains P3 backlog.
 2. **Large dataset E2E**: 1000-task automated scenario not yet created. Unit tests use realistic scale. Non-blocking for beta.

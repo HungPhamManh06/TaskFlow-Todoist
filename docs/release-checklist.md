@@ -15,6 +15,8 @@ Pre-release verification before deploying to production.
 
 ## E2E Verification
 
+- [ ] Backup/restore: `python scripts/e2e-backup-restore.py`
+- [ ] A11y: `python scripts/e2e-a11y.py`
 - [ ] Task mutations: `python scripts/e2e-task-mutations.py`
 - [ ] AI trust boundary: `python scripts/e2e-ai-trust-boundary.py`
 - [ ] Chat: `python scripts/e2e-chat-e2e.py`
@@ -28,7 +30,7 @@ Pre-release verification before deploying to production.
 ## Deploy
 
 - [ ] Commit and push to main
-- [ ] CI passes: all 14 jobs GREEN
+- [ ] CI passes: all 16 jobs GREEN
 - [ ] Vercel deployment: READY
 - [ ] Exact SHA matches: `git log -1 --format=%H` == Vercel `githubCommitSha`
 
@@ -53,5 +55,6 @@ Pre-release verification before deploying to production.
 ## Post-Release
 
 - [ ] Monitor for error reports
+- [ ] Production smoke: `python scripts/e2e-production-smoke.py`
 - [ ] Verify offline functionality
 - [ ] Check PWA installability
