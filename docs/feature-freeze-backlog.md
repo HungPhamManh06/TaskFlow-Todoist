@@ -1,6 +1,7 @@
 # TaskFlow Feature Freeze Backlog
 
 **FEATURE FREEZE STARTED: 2026-09-01**
+**Validated at production SHA: `6c35d0b`**
 
 Items deferred until after beta freeze period (3–6 weeks).
 

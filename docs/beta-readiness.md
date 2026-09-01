@@ -1,8 +1,8 @@
 # TaskFlow Beta Readiness Audit
 
-Generated: Phase 15.2 — Final Release Gate Hardening
+Generated: Phase 15.3 — Freeze Activation & Release Proof
 Baseline SHA: `c4cff7a`
-Final SHA: `01081d2`
+Final closure SHA: `6c35d0b`
 
 ## Audit Summary
 
