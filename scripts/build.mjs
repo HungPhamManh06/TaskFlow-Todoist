@@ -85,7 +85,7 @@ async function build() {
   const treeHash = hashTree(sources);
 
   for (const src of sources) {
-    const fullSrc = join(ROOT, src.replace(/\//g, '\\'));
+    const fullSrc = join(ROOT, src);
     const ext = extname(src);
     const basename = src.replace(/\.[^.]+$/, '');
 
@@ -107,7 +107,7 @@ async function build() {
     // Hash the minified output
     const hash = fileHash(Buffer.from(minified));
     const outName = `${basename}.${hash}${ext}`;
-    const outPath = join(ROOT, outName.replace(/\//g, '\\'));
+    const outPath = join(ROOT, outName);
 
     // Verify JS output parses
     if (ext === '.js') {
