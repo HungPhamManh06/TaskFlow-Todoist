@@ -5265,6 +5265,90 @@ function closeToolsDrawer() {
 if (!window.TaskFlowUpcoming) throw new Error('TaskFlowUpcoming missing — js/upcoming.js failed to load');
 const { setUpcomingRange, tasksForDate, upcomingOverdueTasks, upcomingCollect, upcomingDayHeader, upcomingTaskMeta, upcomingTaskRowHTML, renderUpcoming, pushTaskToDate, toggleOverdueExpanded } = window.TaskFlowUpcoming;
 
+/* ---------- Kéo task Sắp tới / Quá hạn vào Việc hôm nay ---------- */
+// Nguồn: row Upcoming (data-drag="upcoming-task", data-y/m/week/day/task — xuyên tháng).
+// Đích: list Việc hôm nay / tab "Hôm nay" / thanh thả nổi. Dùng inboxTargetForDate()
+// để resolve ô hôm nay (đúng cả khi đang xem tháng khác) — cùng nền với pushTaskToDate.
+function moveUpcomingTaskToToday(src) {
+  const sy = +src.y, sm = +src.m, sw = +src.week, sd = +src.day, sti = +src.task;
+  if (![sy, sm, sw, sd, sti].every((v) => Number.isFinite(v))) return false;
+  const now = new Date();
+  const tgt = inboxTargetForDate(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+  if (!tgt) return false;
+  if (sy === tgt.y && sm === tgt.m && sw === tgt.week && sd === tgt.day) return 'already';
+  const srcIsCur = (sy === PLAN_YEAR && sm === PLAN_MONTH);
+  const dstIsCur = (tgt.y === PLAN_YEAR && tgt.m === PLAN_MONTH);
+  let srcSt = null, dstSt = null;
+  if (srcIsCur && dstIsCur) {
+    srcSt = state; dstSt = state;
+  } else if (sy === tgt.y && sm === tgt.m) {
+    // Cùng tháng ngoài tháng đang xem: MỘT object duy nhất (tránh 2 bản đọc
+    // cùng key localStorage ghi đè lẫn nhau).
+    srcSt = loadMonthStateOrCreate(sy, sm); dstSt = srcSt;
+  } else {
+    srcSt = srcIsCur ? state : monthStateRaw(sy, sm);
+    if (!srcSt || !srcSt.weeks) return false;
+    dstSt = dstIsCur ? state : loadMonthStateOrCreate(tgt.y, tgt.m);
+  }
+  if (!dstSt || !dstSt.weeks) return false;
+  const srcW = srcSt.weeks[sw - 1];
+  const srcD = srcW && srcW.days && srcW.days[sd];
+  const tk = srcD && srcD.tasks && srcD.tasks[sti];
+  if (!tk) return false;
+  const dstW = dstSt.weeks[tgt.week - 1];
+  const dstD = dstW && dstW.days && dstW.days[tgt.day];
+  if (!dstD || !Array.isArray(dstD.tasks)) return false;
+  pushUndo();
+  const [moved] = srcD.tasks.splice(sti, 1);
+  dstD.tasks.push(moved);
+  if (srcSt === state && dstSt === state) save();
+  else {
+    if (srcSt === state) save(); else saveMonthState(sy, sm, srcSt);
+    if (dstSt === state) save(); else saveMonthState(tgt.y, tgt.m, dstSt);
+  }
+  return 'moved';
+}
+function handleUpcomingMoveResult(r) {
+  if (r === 'moved') {
+    if (state.view === 'upcoming') renderUpcoming();
+    else renderCurrentView();
+    TaskFlowUI.toast(t('upcomingMovedToast'), 'success');
+    trackEvent('move_upcoming_to_today');
+  } else if (r === 'already') {
+    TaskFlowUI.toast(t('upcomingAlreadyToday'), 'info');
+  } else {
+    TaskFlowUI.toast(t('upcomingMoveTodayError'), 'error');
+  }
+}
+// Thanh thả nổi cuối màn hình — hiện khi đang kéo task Upcoming (view Sắp tới
+// và view Hôm nay là 2 tab độc lập nên list Hôm nay không visible để thả trực tiếp).
+function ensureTodayDropbar() {
+  let bar = document.getElementById('todayDropbar');
+  if (bar) return bar;
+  bar = document.createElement('div');
+  bar.id = 'todayDropbar';
+  bar.className = 'today-dropbar';
+  bar.hidden = true;
+  bar.setAttribute('data-drop', 'today-dropbar');
+  bar.innerHTML = `<span class="today-dropbar-icon" aria-hidden="true">📥</span><span data-role="today-dropbar-label"></span>`;
+  document.body.appendChild(bar);
+  return bar;
+}
+function showTodayDropbar(on) {
+  if (!on) {
+    const existing = document.getElementById('todayDropbar');
+    if (!existing) return;
+    existing.classList.remove('show', 'drag-over');
+    existing.hidden = true;
+    return;
+  }
+  const bar = ensureTodayDropbar();
+  const lbl = bar.querySelector('[data-role="today-dropbar-label"]');
+  if (lbl) lbl.textContent = t('upcomingDropToday');
+  bar.hidden = false;
+  requestAnimationFrame(() => bar.classList.add('show'));
+}
+
 /* ============================ Quick Add — thêm nhanh ở mọi màn hình (Phase 4) ============================ */
 /* ============================ Quick Add — thêm nhanh ở mọi màn hình (Phase 4) ============================ */
 // openQuickAdd/closeQuickAdd/submitQuickAdd/quickAddDefaultTarget/quickAddTarget được
@@ -5528,13 +5612,37 @@ let dragState = null;
 document.addEventListener('dragstart', (e) => {
   const el = e.target.closest('[data-drag]');
   if (!el) return;
-  dragState = { type: el.dataset.drag, week: el.dataset.week, day: el.dataset.day, task: el.dataset.task, id: el.dataset.id, scope: el.dataset.scope, el };
+  dragState = { type: el.dataset.drag, y: el.dataset.y, m: el.dataset.m, week: el.dataset.week, day: el.dataset.day, task: el.dataset.task, id: el.dataset.id, scope: el.dataset.scope, el };
   e.dataTransfer.effectAllowed = 'move';
   try { e.dataTransfer.setData('text/plain', 'x'); } catch (err) { /* ẩn */ }
   el.classList.add('dragging');
+  // Kéo từ Sắp tới → hiện thanh thả "Việc hôm nay" (2 view độc lập, list Hôm nay
+  // không visible cùng lúc nên cần đích thả luôn thấy được).
+  if (dragState.type === 'upcoming-task') {
+    try { showTodayDropbar(true); } catch (err) { /* ẩn */ }
+  }
 });
 document.addEventListener('dragover', (e) => {
   if (!dragState) return;
+  // Upcoming → Hôm nay: thả lên list Việc hôm nay, tab "Hôm nay" (desktop/mobile)
+  // hoặc thanh thả nổi. Cả 3 đều move task vào ô hôm nay (xuyên tháng).
+  if (dragState.type === 'upcoming-task') {
+    const todayZone = e.target.closest('[data-drop="today-taskzone"], [data-drop="today-dropbar"]');
+    if (todayZone) {
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = 'move'; } catch (err) { /* ẩn */ }
+      todayZone.classList.add('drag-over');
+      return;
+    }
+    const todayNav = e.target.closest('[data-nav-view="today"]');
+    if (todayNav) {
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = 'move'; } catch (err) { /* ẩn */ }
+      todayNav.classList.add('drag-over');
+      return;
+    }
+    return;
+  }
   // Task: thả lên row khác CÙNG ngày (chèn tại vị trí row) HOẶC lên vùng nhóm
   // (chèn cuối nhóm) — row được ưu tiên vì nó nằm BÊN TRONG vùng nhóm.
   if (dragState.type === 'task') {
@@ -5572,13 +5680,29 @@ document.addEventListener('dragleave', (e) => {
   if (el) el.classList.remove('drag-over');
   const zone = e.target.closest('[data-drop="taskzone"]');
   if (zone) zone.classList.remove('drag-over');
+  const todayZone = e.target.closest('[data-drop="today-taskzone"], [data-drop="today-dropbar"]');
+  if (todayZone) todayZone.classList.remove('drag-over');
+  const todayNav = e.target.closest('[data-nav-view="today"]');
+  if (todayNav) todayNav.classList.remove('drag-over');
 });
 document.addEventListener('drop', (e) => {
   e.preventDefault();
   const el = e.target.closest('[data-drag]');
   const zone = e.target.closest('[data-drop="taskzone"]');
+  const todayZone = e.target.closest('[data-drop="today-taskzone"], [data-drop="today-dropbar"]');
+  const todayNav = e.target.closest('[data-nav-view="today"]');
   document.querySelectorAll('.drag-over').forEach((n) => n.classList.remove('drag-over'));
   if (!dragState) return;
+  // Kéo từ Sắp tới / Quá hạn → Việc hôm nay (list, tab nav, thanh thả nổi).
+  if (dragState.type === 'upcoming-task') {
+    const ds = dragState;
+    const droppedOnToday = !!(todayZone || todayNav);
+    showTodayDropbar(false);
+    dragState = null;
+    if (!droppedOnToday) return;
+    handleUpcomingMoveResult(moveUpcomingTaskToToday(ds));
+    return;
+  }
   if (dragState.type === 'task') {
     const w = state.weeks[+dragState.week - 1];
     const d = w && w.days[+dragState.day];
@@ -5669,6 +5793,7 @@ document.addEventListener('drop', (e) => {
   dragState = null;
 });
 document.addEventListener('dragend', () => {
+  showTodayDropbar(false);
   dragState = null;
   document.querySelectorAll('.drag-over, .dragging').forEach((n) => n.classList.remove('drag-over', 'dragging'));
 });
@@ -5923,6 +6048,9 @@ document.addEventListener('click', (e) => {
     setUpcomingRange(+el.dataset.days);
   } else if (act === 'upcoming-overdue-toggle') {
     toggleOverdueExpanded();
+  } else if (act === 'upcoming-today') {
+    // Nút fallback cho kéo-thả (touch/keyboard): chuyển task Sắp tới/Quá hạn vào hôm nay.
+    handleUpcomingMoveResult(moveUpcomingTaskToToday(el.dataset));
   } else if (act === 'quickadd-close') {
     runLazyModule(lazyAsset('js/quick-add.min.js'), () => window.TaskFlowQuickAdd.closeQuickAdd());
   } else if (act === 'quickadd-do') {

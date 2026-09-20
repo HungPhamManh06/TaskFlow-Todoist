@@ -141,7 +141,10 @@
     const check = checkboxHTML(tk.kind === 'priority' ? 'pink' : 'blue', tk.done, `data-action="task" ${data}`, window.TaskFlowUI.checkboxLabel('task', tk.text, fmtDate(date)));
     const meta = bits.length ? `<span class="up-meta">${bits.map((b) => `<span>${esc(b)}</span>`).join('<span class="up-dot">·</span>')}</span>` : '';
     const tagsHTML = tags.length ? `<span class="task-tags">${tags.map((tg) => `<span class="tag-chip" data-tag="${esc(tg)}">#${esc(tg)}</span>`).join('')}</span>` : '';
-    return `<div class="up-task-row${tk.done ? ' done' : ''}${tk.kind === 'priority' ? ' prio' : ''}">
+    // Kéo-thả vào Việc hôm nay: row là nguồn kéo (data-drag="upcoming-task").
+    // data-y/m/week/day/task định danh gốc xuyên tháng — app.js dùng để move.
+    // Nút "Hôm nay" là fallback cho touch/keyboard (HTML5 DnD không có trên mobile).
+    return `<div class="up-task-row${tk.done ? ' done' : ''}${tk.kind === 'priority' ? ' prio' : ''}" draggable="true" data-drag="upcoming-task" ${data} title="${t('dragHint')}" aria-label="${t('dragHint')}">
     ${check}
     <span class="up-main" data-action="task-detail" ${data} role="button" tabindex="0"
       aria-label="${t('taskDetail')}: ${esc(tk.text || '')}">
@@ -149,6 +152,7 @@
       ${meta}
       ${tagsHTML}
     </span>
+    ${tk.done ? '' : `<button type="button" class="up-today" data-action="upcoming-today" ${data} title="${t('upcomingToTodayAria')}" aria-label="${t('upcomingToTodayAria')}">${window.TaskFlowUI.icon('sun')}<span>${t('upcomingToToday')}</span></button>`}
     ${tk.done ? '' : `<button type="button" class="up-focus" data-action="focus-task" ${data} title="${t('taskFocusBtn')}" aria-label="${t('taskFocusBtn')}">${window.TaskFlowUI.icon('focus')}</button>`}
   </div>`;
   }

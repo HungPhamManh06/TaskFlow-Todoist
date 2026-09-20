@@ -834,8 +834,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=234/);
-  assert.match(SW, /const CACHE = 'taskflow-v298';/);
+  assert.match(APP, /js\/app\.min\.js\?v=235/);
+  assert.match(SW, /const CACHE = 'taskflow-v299';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1447,7 +1447,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=234/);
+  assert.match(APP, /js\/app\.min\.js\?v=235/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
@@ -1455,7 +1455,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v298';/);
+  assert.match(SW, /const CACHE = 'taskflow-v299';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2117,7 +2117,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v298';/);
+  assert.match(SW, /const CACHE = 'taskflow-v299';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2195,7 +2195,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v298';/);
+  assert.match(SW, /const CACHE = 'taskflow-v299';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2433,7 +2433,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v293', 'taskflow-v298', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v293', 'taskflow-v299', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);
@@ -2455,7 +2455,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
   // Activate: cache cũ (v210) bị xoá, v211 + digest giữ lại
   const activateChain = handlers.activate({ waitUntil(p) { return p; } });
   await activateChain;
-  assert.deepStrictEqual(deleteCalls.sort(), ['taskflow-v220', 'taskflow-v293'], 'activate phải xoá cache cũ, giữ v294 + digest');
+  assert.deepStrictEqual(deleteCalls.sort(), ['taskflow-v220', 'taskflow-v293'], 'activate phải xoá cache cũ, giữ v299 + digest');
 
   // Fetch online cho request mới v5: exact match miss → network phục vụ file MỚI
   // ngay trong lần load nâng cấp đầu tiên (không cần reload lần 2)
@@ -3062,6 +3062,42 @@ test('Phase 2: Upcoming view — nav item, view section, range filter and cross-
   assert.match(upStyles, /\.up-range-btn\.active\s*{/);
   assert.match(upStyles, /\.up-task-row\s*{/);
   assert.match(upStyles, /\.up-focus\s*{/);
+});
+
+test('Upcoming → Today: kéo task Sắp tới / Quá hạn vào Việc hôm nay', () => {
+  const upcomingMod = readRequiredAsset('js/upcoming.js');
+  // 1. Row Upcoming là nguồn kéo (drag) + nút fallback "Hôm nay" cho touch/keyboard
+  assert.match(upcomingMod, /draggable="true" data-drag="upcoming-task"/);
+  assert.match(upcomingMod, /data-action="upcoming-today"/);
+  // 2. List Việc hôm nay là vùng thả
+  assert.match(readRequiredAsset('js/today.js'), /data-drop="today-taskzone"/);
+  // 3. Move xuyên tháng: resolve ô hôm nay qua inboxTargetForDate, lưu đúng tháng
+  assert.match(APP_JS, /function moveUpcomingTaskToToday\(src\)/);
+  assert.match(APP_JS, /inboxTargetForDate\(new Date\(now\.getFullYear\(\), now\.getMonth\(\), now\.getDate\(\)\)\)/);
+  assert.match(APP_JS, /saveMonthState\(sy, sm, srcSt\)/);
+  assert.match(APP_JS, /saveMonthState\(tgt\.y, tgt\.m, dstSt\)/);
+  assert.match(APP_JS, /pushUndo\(\);\s*\n\s*const \[moved\] = srcD\.tasks\.splice\(sti, 1\);/);
+  // 4. Dispatcher: nút + thả (list / tab Hôm nay / thanh thả nổi)
+  assert.match(APP_JS, /act === 'upcoming-today'/);
+  assert.match(APP_JS, /dragState\.type === 'upcoming-task'/);
+  assert.match(APP_JS, /data-drop="today-dropbar"/);
+  assert.match(APP_JS, /\[data-nav-view="today"\]/);
+  // 5. i18n keys đủ vi+en
+  assert.match(I18N_JS, /upcomingToToday: 'Hôm nay'/);
+  assert.match(I18N_JS, /upcomingToToday: 'Today'/);
+  assert.match(I18N_JS, /upcomingDropToday: 'Thả vào Việc hôm nay'/);
+  assert.match(I18N_JS, /upcomingDropToday: 'Drop into Today'/);
+  assert.match(I18N_JS, /upcomingMovedToast:/);
+  assert.match(I18N_JS, /upcomingAlreadyToday:/);
+  assert.match(I18N_JS, /upcomingMoveTodayError:/);
+  // 6. CSS: nút + thanh thả nổi có trong cả 2 source (styles + deferred)
+  const styles = readRequiredAsset('css/styles.css');
+  const deferred = readRequiredAsset('css/styles-deferred.css');
+  assert.match(styles, /\.up-today\s*{/);
+  assert.match(styles, /\.today-dropbar\s*{/);
+  assert.match(styles, /\.today-task-list\.drag-over\s*{/);
+  assert.match(deferred, /\.up-today\s*{/);
+  assert.match(deferred, /\.today-dropbar\s*{/);
 });
 
 test('V2 segmented control: shared capsule primitive + stable render shells', () => {

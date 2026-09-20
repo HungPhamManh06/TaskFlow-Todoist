@@ -4106,6 +4106,45 @@ sup.remind-dot {
   padding: 2px 4px;
   margin: -2px -4px;
 }
+/* Kéo task Sắp tới / Quá hạn → Việc hôm nay: highlight list Hôm nay + tab Hôm nay */
+.today-task-list.drag-over {
+  outline: 2px dashed var(--terracotta);
+  outline-offset: 3px;
+  border-radius: 12px;
+  background: rgba(243, 154, 130, .10);
+}
+.app-nav-item.drag-over,
+.app-mobile-nav-item.drag-over {
+  outline: 2px dashed var(--terracotta);
+  outline-offset: 2px;
+  border-radius: 10px;
+  background: rgba(243, 154, 130, .14);
+}
+/* Thanh thả nổi cuối màn hình khi kéo task Upcoming */
+.today-dropbar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%) translateY(12px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border: 2px dashed var(--terracotta);
+  border-radius: 999px;
+  background: var(--color-surface, #fffdf8);
+  color: var(--color-text);
+  font: 600 .92rem/1.3 var(--font-body);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease, background .16s ease;
+}
+.today-dropbar.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+.today-dropbar.drag-over { background: rgba(243, 154, 130, .16); transform: translateX(-50%) scale(1.03); }
+.today-dropbar-icon { font-size: 1.2rem; }
+:root[data-dark="true"] .today-dropbar { background: #2a241d; box-shadow: 0 12px 32px rgba(0, 0, 0, .5); }
 
 .btn-icon:disabled { opacity: .38; cursor: default; transform: none; }
 
@@ -8611,6 +8650,32 @@ body.focus-mode .container { padding: 0; }
 }
 .up-focus:hover { background: rgba(var(--accent-rgb, 194, 78, 40), .12); color: var(--accent); border-color: rgba(var(--accent-rgb, 194, 78, 40), .4); }
 .up-focus:focus-visible { outline: 3px solid var(--blue-tag); outline-offset: 2px; }
+/* Nút "Hôm nay" trên row Sắp tới — fallback cho kéo-thả (touch/keyboard) */
+.up-today {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--card-border, #e8dfd0);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: 600 .78rem/1.2 var(--font-body);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+  white-space: nowrap;
+}
+.up-today svg { width: 15px; height: 15px; }
+.up-today:hover { background: rgba(var(--accent-rgb, 194, 78, 40), .12); color: var(--accent); border-color: rgba(var(--accent-rgb, 194, 78, 40), .4); }
+.up-today:focus-visible { outline: 3px solid var(--blue-tag); outline-offset: 2px; }
+.up-task-row.dragging { opacity: .5; }
+@media (max-width: 560px) {
+  .up-today span { display: none; }
+  .up-today { padding: 6px 8px; }
+}
 :root[data-dark="true"] .up-group-head .up-count { background: rgba(255, 255, 255, .1); color: #C9B7A0; }
 :root[data-dark="true"] .up-range { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .12); }
 :root[data-dark="true"] .up-range-btn.active { background: #2E241C; color: #F2E8D5; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); }
