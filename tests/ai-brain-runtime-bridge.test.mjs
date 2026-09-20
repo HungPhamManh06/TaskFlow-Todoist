@@ -10,6 +10,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const require = createRequire(import.meta.url);
 
+// Date-relative fixtures. Hardcoded calendar dates silently rot once the wall
+// clock passes them: runWindow clamps a past startDate to today, and a deadline
+// that used to be "today" becomes "overdue". Keep every fixture relative to now.
+function isoDate(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 /* ===========================================================
    1. TOOL CONTRACTS: client/server canonical source
    =========================================================== */
@@ -229,9 +238,7 @@ describe('AI Brain: runWindow structured API', () => {
   }
 
   function futureDate() {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    return isoDate(14);
   }
 
   it('runWindow calls /daily-plan with structured params', async () => {
@@ -248,9 +255,10 @@ describe('AI Brain: runWindow structured API', () => {
     });
     api2.saveRoadmap({ id: 'rm-1', accountScope: 'test-user', fingerprint: 'fp1', documentName: 'test.pdf', createdAt: Date.now(), updatedAt: Date.now(), roadmap: { title: 'Test', phases: [] }, baseDate: startDate, cursor: { nextWeek: 1, lastAppliedStartDate: startDate, lastAppliedDaysCount: 7 } });
 
-    await api2.runWindow({ startDate: '2026-09-10', daysCount: 5 }, {});
+    const windowStart = isoDate(3);
+    await api2.runWindow({ startDate: windowStart, daysCount: 5 }, {});
     assert.ok(capturedBody, 'body captured');
-    assert.equal(capturedBody.startDate, '2026-09-10', 'startDate passed directly');
+    assert.equal(capturedBody.startDate, windowStart, 'future startDate passed directly (past ones are clamped, see next test)');
     assert.equal(capturedBody.daysCount, 5, 'daysCount passed directly');
   });
 
@@ -292,10 +300,10 @@ describe('AI Brain: get_tasks filter semantics', () => {
           week: 1,
           days: [
             { day: 1, tasks: [
-              { uid: 't1', text: 'Task today', done: false, deadline: '2026-09-10' },
-              { uid: 't2', text: 'Task overdue', done: false, deadline: '2026-01-01' },
-              { uid: 't3', text: 'Task done', done: true, deadline: '2026-09-10' },
-              { uid: 't4', text: 'Task upcoming', done: false, deadline: '2026-12-25' },
+              { uid: 't1', text: 'Task today', done: false, deadline: isoDate(0) },
+              { uid: 't2', text: 'Task overdue', done: false, deadline: isoDate(-30) },
+              { uid: 't3', text: 'Task done', done: true, deadline: isoDate(0) },
+              { uid: 't4', text: 'Task upcoming', done: false, deadline: isoDate(30) },
               { uid: 't5', text: 'Task no deadline', done: false },
             ]},
           ],
@@ -334,7 +342,7 @@ describe('AI Brain: get_tasks filter semantics', () => {
     const sandbox = { window: {}, console: { log() {}, error() {} }, localStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
       state: { weeks: [{ week: 1, days: [{ day: 1, tasks: [
         { uid: 'tt', text: 'Today task', done: false, deadline: today },
-        { uid: 'tn', text: 'Not today', done: false, deadline: '2026-12-25' },
+        { uid: 'tn', text: 'Not today', done: false, deadline: isoDate(30) },
       ]}] }] },
       TaskFlowI18N: { t: (k) => k }, Date, JSON, Math, Map, Set, Array, Object, String, Number, RegExp, Error, parseInt,
     };
