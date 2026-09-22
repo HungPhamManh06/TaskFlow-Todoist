@@ -382,6 +382,7 @@
     syncErrUsernameTaken: 'Username already taken, try another one.',
     syncErrBadCredentials: 'Wrong username or password.',
     syncErrNetwork: 'Cannot reach the server, check the URL in js/api-config.js.',
+    storageFullWarn: 'Browser storage is full — your last change was NOT saved. Export a JSON backup, then delete old data.',
     syncErrServer: 'Server error, please try again later.',
     syncErrRateLimited: 'Too many login attempts. Try again in 15 minutes.',
     homeTitle: 'Back to the intro page',

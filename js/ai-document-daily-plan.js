@@ -83,7 +83,9 @@
     else if (lastStart) baseDate = lastStart;
     else if (record.createdAt) {
       var created = new Date(record.createdAt);
-      baseDate = Number.isNaN(created.getTime()) ? _today() : created.toISOString().slice(0, 10);
+      // P1.1: baseDate phải theo ngày LOCAL. toISOString() cho ngày UTC → chạy luồng
+      // PDF → kế hoạch ngày trước 07:00 giờ VN thì cả roadmap/daily plan lệch 1 ngày.
+      baseDate = Number.isNaN(created.getTime()) ? _today() : _localISO(created);
     } else baseDate = _today();
     var cumulativeDays = nextWk * legacyWindowSize;
     migrated.baseDate = baseDate;
@@ -235,13 +237,17 @@
   }
 
   /* ---- Date helpers ---- */
-  function _today() {
-    // Safe local date (avoids UTC offset issues)
-    var d = new Date();
+  /** ISO 'YYYY-MM-DD' theo giờ LOCAL — KHÔNG dùng toISOString() (lệch ngày với UTC+7). */
+  function _localISO(d) {
     var year = d.getFullYear();
     var month = String(d.getMonth() + 1).padStart(2, '0');
     var day = String(d.getDate()).padStart(2, '0');
     return year + '-' + month + '-' + day;
+  }
+
+  function _today() {
+    // Safe local date (avoids UTC offset issues)
+    return _localISO(new Date());
   }
 
   function _addDays(dateStr, n) {
@@ -594,6 +600,8 @@
     _getAccountScope: _getAccountScope,
     _getTimeZone: _getTimeZone,
     _today: _today,
+    _localISO: _localISO,
+    _migrateRecord: _migrateRecord,
     _addDays: _addDays,
     _normalizeText: _normalizeText,
   };

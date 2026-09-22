@@ -185,9 +185,25 @@ def run_viewport(browser, browser_name, width, height, label, base, screenshots)
                    page.locator('#mobileNav [aria-current="page"]').count() == 1)
             nav_items = page.locator("#mobileNav .app-mobile-nav-item")
             fab = page.locator("#mobileNav .app-mobile-nav-fab")
-            record(vp, "bottom nav", "6 slots (today/inbox/upcoming/+/projects/more)",
-                   nav_items.count() == 5 and fab.count() == 1,
+            record(vp, "bottom nav", "5 slots (today/upcoming/ADD-CENTER/projects/more)",
+                   nav_items.count() == 4 and fab.count() == 1,
                    f"(items={nav_items.count()}, fab={fab.count()})")
+            # FAB "Thêm việc" phải ở slot GIỮA thanh (Inbox chuyển vào More sheet):
+            # tâm FAB lệch tâm nav ≤ 1.5px và add cell là slot thứ 3 (index 2).
+            fab_mid = page.evaluate(
+                """() => {
+                  const nav = document.getElementById('mobileNav');
+                  const navR = nav.getBoundingClientRect();
+                  const fabR = nav.querySelector('.app-mobile-nav-fab').getBoundingClientRect();
+                  const navMid = navR.x + navR.width / 2;
+                  const fabMid = fabR.x + fabR.width / 2;
+                  const idx = Array.from(nav.children).findIndex((el) => el.classList.contains('app-mobile-nav-add'));
+                  return { mid: Math.round((fabMid - navMid) * 10) / 10, idx };
+                }"""
+            )
+            record(vp, "bottom nav", "add-task FAB centered",
+                   abs(fab_mid["mid"]) <= 1.5 and fab_mid["idx"] == 2,
+                   f"(lệch tâm {fab_mid['mid']}px, slot index={fab_mid['idx']})")
             # Regression guard: KHÔNG slot nào được rơi ra ngoài viewport.
             # Grid ít cột hơn số slot → slot cuối xuống implicit row 2, nằm dưới
             # bottom nav (đã từng làm mất nút Thêm → không mở được Cài đặt).
@@ -229,6 +245,36 @@ def run_viewport(browser, browser_name, width, height, label, base, screenshots)
             )
             record(vp, "bottom nav", "labels don't wrap", not wrap,
                    ", ".join(wrap) if wrap else "")
+            # Regression guard: nút + (Quick Add) phải CÙNG NHỊP với 5 tab kia.
+            # Lỗi cũ (2026-09-22): add cell justify-content flex-end + FAB margin-top:-10px
+            # → label "Thêm việc" thấp hơn các label khác 14px, chạm mép dưới nav và bị cắt.
+            add_fit = page.evaluate(
+                """() => {
+                  const nav = document.getElementById('mobileNav');
+                  const navRect = nav.getBoundingClientRect();
+                  const label = nav.querySelector('.app-mobile-nav-add-label');
+                  const labelRect = label.getBoundingClientRect();
+                  const fabRect = nav.querySelector('.app-mobile-nav-fab').getBoundingClientRect();
+                  const cellRect = nav.querySelector('.app-mobile-nav-add').getBoundingClientRect();
+                  const itemLabelYs = Array.from(
+                    nav.querySelectorAll('.app-mobile-nav-item span:last-child')
+                  ).map((s) => Math.round(s.getBoundingClientRect().y));
+                  const rows = new Set(itemLabelYs.concat([Math.round(labelRect.y)])).size;
+                  return {
+                    rows: rows,
+                    clipped: labelRect.bottom > navRect.bottom + 0.5,
+                    overlapsFab: fabRect.bottom > labelRect.top + 0.5,
+                    widerThanTrack: fabRect.width > cellRect.width + 0.5,
+                    gap: Math.round((labelRect.top - fabRect.bottom) * 10) / 10,
+                    protrude: Math.round((navRect.top - fabRect.top) * 10) / 10,
+                  };
+                }"""
+            )
+            record(vp, "bottom nav", "add-task label cùng hàng với 5 tab",
+                   add_fit["rows"] == 1, f"(số hàng label={add_fit['rows']})")
+            record(vp, "bottom nav", "add-task không cắt/đè label",
+                   not add_fit["clipped"] and not add_fit["overlapsFab"] and not add_fit["widerThanTrack"],
+                   f"(gap={add_fit['gap']}px, FAB nhô trên nav {add_fit['protrude']}px)")
             fixed = page.evaluate("getComputedStyle(document.getElementById('mobileNav')).position")
             record(vp, "bottom nav", "fixed to viewport bottom", fixed == "fixed", f"(position={fixed})")
         else:
@@ -286,6 +332,7 @@ def run_viewport(browser, browser_name, width, height, label, base, screenshots)
 
         # ---------- INBOX + schedule action (real empty-state flow) ----------
         if mobile:
+            # 2026-09-22: Inbox quay lại More sheet (bottom nav 5 slot, FAB ở giữa).
             open_more_sheet(page, vp)
             page.locator('#moreSheet [data-nav-view="inbox"]').click()
         else:
@@ -368,8 +415,14 @@ def run_viewport(browser, browser_name, width, height, label, base, screenshots)
         assert_no_overflow(page, vp, "calendar")
 
         # ---------- HABITS (overview widget reachable) ----------
-        habits_btn = page.locator('#mobileNav [data-action="habits"]') if mobile else page.locator('#desktopSidebar [data-action="habits"]')
-        habits_btn.click()
+        # Phase 13: nút Thói quen chỉ còn ở sidebar desktop. Trên mobile widget Thói
+        # quen nằm trong màn Tổng quan → mở More sheet → Tổng quan tháng (bước cũ
+        # `#mobileNav [data-action="habits"]` không còn tồn tại nên script chết ở đây).
+        if mobile:
+            open_more_sheet(page, vp)
+            page.locator('#moreSheet [data-nav-view="overview"]').click()
+        else:
+            page.locator('#desktopSidebar [data-action="habits"]').click()
         wait('[data-testid="overview-view"]', state="visible")
         try:
             wait('[data-widget-id="habits"]', state="visible", timeout=4000)

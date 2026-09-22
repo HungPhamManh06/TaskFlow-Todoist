@@ -1,10 +1,10 @@
 # P1.10 — Mobile Real-Device QA (simulated)
 
-> Simulated in Playwright (chromium, headless) at 2026-08-19 19:28 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
+> Simulated in Playwright (chromium, headless) at 2026-09-22 21:46 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
 
 Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 (large mobile), 768x1024 (tablet — the app's mobile layout is `max-width: 767px`, so 768 exercises the desktop/tablet layout).
 
-**0 FAIL / 318 checks**
+**0 FAIL / 333 checks**
 
 ## Results
 
@@ -12,14 +12,18 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 |---|---|---|---|---|
 | 360x800 (small Android) | header | topbar visible | PASS |  |
 | 360x800 (small Android) | header | view title non-empty | PASS | (Hôm nay) |
-| 360x800 (small Android) | header | period label set | PASS | (Tháng 8 · 2026) |
+| 360x800 (small Android) | header | period label set | PASS | (Tháng 9 · 2026) |
 | 360x800 (small Android) | header | search button visible | PASS |  |
 | 360x800 (small Android) | header | topbar sticky | PASS | (position=sticky) |
 | 360x800 (small Android) | bottom nav | visible | PASS |  |
 | 360x800 (small Android) | bottom nav | exactly one active tab | PASS |  |
-| 360x800 (small Android) | bottom nav | 5 columns (today/upcoming/+/habits/more) | PASS | (items=4, fab=1) |
+| 360x800 (small Android) | bottom nav | 5 slots (today/upcoming/ADD-CENTER/projects/more) | PASS | (items=4, fab=1) |
+| 360x800 (small Android) | bottom nav | add-task FAB centered | PASS | (lệch tâm -0.0px, slot index=2) |
+| 360x800 (small Android) | bottom nav | all slots inside viewport | PASS |  |
 | 360x800 (small Android) | bottom nav | touch targets >= 44px | PASS |  |
 | 360x800 (small Android) | bottom nav | labels don't wrap | PASS |  |
+| 360x800 (small Android) | bottom nav | add-task label cùng hàng với 5 tab | PASS | (số hàng label=1) |
+| 360x800 (small Android) | bottom nav | add-task không cắt/đè label | PASS | (gap=3px, FAB nhô trên nav 12.7px) |
 | 360x800 (small Android) | bottom nav | fixed to viewport bottom | PASS | (position=fixed) |
 | 360x800 (small Android) | overflow | initial layout | PASS |  |
 | 360x800 (small Android) | quick add | opens | PASS |  |
@@ -55,6 +59,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 360x800 (small Android) | more sheet | opens from bottom nav | PASS |  |
 | 360x800 (small Android) | calendar | view renders | PASS |  |
 | 360x800 (small Android) | overflow | calendar | PASS |  |
+| 360x800 (small Android) | more sheet | opens from bottom nav | PASS |  |
 | 360x800 (small Android) | habits | widget reachable from nav | PASS |  |
 | 360x800 (small Android) | more sheet | opens from bottom nav | PASS |  |
 | 360x800 (small Android) | focus | overlay opens (show-all mode) | PASS |  |
@@ -94,14 +99,18 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 360x800 (small Android) | overflow | final state | PASS |  |
 | 390x844 (common mobile) | header | topbar visible | PASS |  |
 | 390x844 (common mobile) | header | view title non-empty | PASS | (Hôm nay) |
-| 390x844 (common mobile) | header | period label set | PASS | (Tháng 8 · 2026) |
+| 390x844 (common mobile) | header | period label set | PASS | (Tháng 9 · 2026) |
 | 390x844 (common mobile) | header | search button visible | PASS |  |
 | 390x844 (common mobile) | header | topbar sticky | PASS | (position=sticky) |
 | 390x844 (common mobile) | bottom nav | visible | PASS |  |
 | 390x844 (common mobile) | bottom nav | exactly one active tab | PASS |  |
-| 390x844 (common mobile) | bottom nav | 5 columns (today/upcoming/+/habits/more) | PASS | (items=4, fab=1) |
+| 390x844 (common mobile) | bottom nav | 5 slots (today/upcoming/ADD-CENTER/projects/more) | PASS | (items=4, fab=1) |
+| 390x844 (common mobile) | bottom nav | add-task FAB centered | PASS | (lệch tâm -0.0px, slot index=2) |
+| 390x844 (common mobile) | bottom nav | all slots inside viewport | PASS |  |
 | 390x844 (common mobile) | bottom nav | touch targets >= 44px | PASS |  |
 | 390x844 (common mobile) | bottom nav | labels don't wrap | PASS |  |
+| 390x844 (common mobile) | bottom nav | add-task label cùng hàng với 5 tab | PASS | (số hàng label=1) |
+| 390x844 (common mobile) | bottom nav | add-task không cắt/đè label | PASS | (gap=3px, FAB nhô trên nav 13.5px) |
 | 390x844 (common mobile) | bottom nav | fixed to viewport bottom | PASS | (position=fixed) |
 | 390x844 (common mobile) | overflow | initial layout | PASS |  |
 | 390x844 (common mobile) | quick add | opens | PASS |  |
@@ -137,6 +146,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 390x844 (common mobile) | more sheet | opens from bottom nav | PASS |  |
 | 390x844 (common mobile) | calendar | view renders | PASS |  |
 | 390x844 (common mobile) | overflow | calendar | PASS |  |
+| 390x844 (common mobile) | more sheet | opens from bottom nav | PASS |  |
 | 390x844 (common mobile) | habits | widget reachable from nav | PASS |  |
 | 390x844 (common mobile) | more sheet | opens from bottom nav | PASS |  |
 | 390x844 (common mobile) | focus | overlay opens (show-all mode) | PASS |  |
@@ -176,14 +186,18 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 390x844 (common mobile) | overflow | final state | PASS |  |
 | 412x915 (large mobile) | header | topbar visible | PASS |  |
 | 412x915 (large mobile) | header | view title non-empty | PASS | (Hôm nay) |
-| 412x915 (large mobile) | header | period label set | PASS | (Tháng 8 · 2026) |
+| 412x915 (large mobile) | header | period label set | PASS | (Tháng 9 · 2026) |
 | 412x915 (large mobile) | header | search button visible | PASS |  |
 | 412x915 (large mobile) | header | topbar sticky | PASS | (position=sticky) |
 | 412x915 (large mobile) | bottom nav | visible | PASS |  |
 | 412x915 (large mobile) | bottom nav | exactly one active tab | PASS |  |
-| 412x915 (large mobile) | bottom nav | 5 columns (today/upcoming/+/habits/more) | PASS | (items=4, fab=1) |
+| 412x915 (large mobile) | bottom nav | 5 slots (today/upcoming/ADD-CENTER/projects/more) | PASS | (items=4, fab=1) |
+| 412x915 (large mobile) | bottom nav | add-task FAB centered | PASS | (lệch tâm 0px, slot index=2) |
+| 412x915 (large mobile) | bottom nav | all slots inside viewport | PASS |  |
 | 412x915 (large mobile) | bottom nav | touch targets >= 44px | PASS |  |
 | 412x915 (large mobile) | bottom nav | labels don't wrap | PASS |  |
+| 412x915 (large mobile) | bottom nav | add-task label cùng hàng với 5 tab | PASS | (số hàng label=1) |
+| 412x915 (large mobile) | bottom nav | add-task không cắt/đè label | PASS | (gap=3px, FAB nhô trên nav 13.5px) |
 | 412x915 (large mobile) | bottom nav | fixed to viewport bottom | PASS | (position=fixed) |
 | 412x915 (large mobile) | overflow | initial layout | PASS |  |
 | 412x915 (large mobile) | quick add | opens | PASS |  |
@@ -219,6 +233,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 412x915 (large mobile) | more sheet | opens from bottom nav | PASS |  |
 | 412x915 (large mobile) | calendar | view renders | PASS |  |
 | 412x915 (large mobile) | overflow | calendar | PASS |  |
+| 412x915 (large mobile) | more sheet | opens from bottom nav | PASS |  |
 | 412x915 (large mobile) | habits | widget reachable from nav | PASS |  |
 | 412x915 (large mobile) | more sheet | opens from bottom nav | PASS |  |
 | 412x915 (large mobile) | focus | overlay opens (show-all mode) | PASS |  |
@@ -258,7 +273,7 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 412x915 (large mobile) | overflow | final state | PASS |  |
 | 768x1024 (tablet) | header | topbar visible | PASS |  |
 | 768x1024 (tablet) | header | view title non-empty | PASS | (Hôm nay) |
-| 768x1024 (tablet) | header | period label set | PASS | (Tháng 8 · 2026) |
+| 768x1024 (tablet) | header | period label set | PASS | (Tháng 9 · 2026) |
 | 768x1024 (tablet) | header | search button visible | PASS |  |
 | 768x1024 (tablet) | header | topbar sticky | PASS | (position=sticky) |
 | 768x1024 (tablet) | sidebar | desktop sidebar visible | PASS |  |

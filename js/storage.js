@@ -26,9 +26,20 @@
 
   function saveMonthState(y, m, s) {
     if (s && typeof s === 'object') s.schemaVersion = 2;
-    try { localStorage.setItem('planner-' + y + '-' + (m + 1), JSON.stringify(s)); } catch (e) { return false; }
-    if (typeof window !== 'undefined' && window.Sync) window.Sync.push('planner-' + y + '-' + (m + 1));
-    return true;
+    const key = 'planner-' + y + '-' + (m + 1);
+    // P1.3: đi qua storageSet (js/util.js) để ghi có phòng vệ hết dung lượng — dọn slot
+    // sao lưu rồi ghi lại, bó tay thì BÁO người dùng thay vì im lặng không lưu.
+    // Tra cứu lúc GỌI (không destructure lúc nạp) để không phụ thuộc thứ tự script.
+    let ok = null;
+    try {
+      const util = (typeof globalThis !== 'undefined' && globalThis.TaskFlowUtil) || null;
+      if (util && util.storageSet) ok = util.storageSet(key, JSON.stringify(s)).ok;
+    } catch (e) { /* ẩn */ }
+    if (ok === null) {
+      try { localStorage.setItem(key, JSON.stringify(s)); ok = true; } catch (e) { ok = false; }
+    }
+    if (ok && typeof window !== 'undefined' && window.Sync) window.Sync.push(key);
+    return ok;
   }
 
   function loadPomoLog() {

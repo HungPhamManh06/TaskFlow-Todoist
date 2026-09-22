@@ -6,7 +6,9 @@
 // đúng 1 lần (cache theo URL); runLazyModule gọi fn sau khi nạp xong, fail loud nếu lỗi
 // mạng. Versioned URLs bust Service Worker stale cache (taskflow-v294+) — browser
 // tự động load bản mới nhất khi deploy mà KHÔNG cần user clear site data.
-const LAZY_ASSET_VERSION = 'v1';
+// Bump khi nội dung asset lazy đổi (phải khớp sw.js LAZY_V + i18n.js EN_ASSET_VERSION):
+// v1 → v2 ở P1.3 (util/app/i18n/export/ai-document-daily-plan đổi nội dung).
+const LAZY_ASSET_VERSION = 'v2';
 function lazyAsset(path) {
   // Phase 14.1: in dist builds, TaskFlowAssetMap maps source paths to hashed
   // filenames.  The map is injected before app.js by the build pipeline.
@@ -136,7 +138,8 @@ function loadYearState() {
 let yearState = bootYearState();
 
 function saveYear() {
-  try { localStorage.setItem(yearKey(), JSON.stringify(yearState)); } catch (e) { /* ẩn */ }
+  // P1.3: không nuốt lỗi quota — storageSet tự dọn slot sao lưu rồi ghi lại, hết cách thì báo người dùng
+  storageSet(yearKey(), JSON.stringify(yearState));
   if (window.Sync) window.Sync.push(yearKey());
 }
 
@@ -305,10 +308,11 @@ function quarterStats() {
 
 /* ============================ Tiện ích (tách js/util.js — P11) ============================ */
 
-// Các helper thuần (esc, localISODate, formatFocusTime, lineChartSVG) được tách sang
-// js/util.js (window.TaskFlowUtil). Giữ alias để call-sites trong file này không đổi.
+// Các helper thuần (esc, localISODate, formatFocusTime, lineChartSVG, storageSet) được tách
+// sang js/util.js (window.TaskFlowUtil). Giữ alias để call-sites trong file này không đổi.
+// storageSet: ghi localStorage có phòng vệ hết dung lượng (dọn slot sao lưu + báo người dùng).
 if (!window.TaskFlowUtil) throw new Error('js/util.js failed to load — app cannot boot');
-const { esc, localISODate, formatFocusTime, lineChartSVG } = window.TaskFlowUtil;
+const { esc, localISODate, formatFocusTime, lineChartSVG, storageSet } = window.TaskFlowUtil;
 
 /* ============================ Phase 8: Widget Dashboard System ============================ */
 
@@ -1438,7 +1442,8 @@ function removeContextAcrossStore(ctxId) {
             }
           });
         });
-        if (changed) { try { localStorage.setItem(`planner-${y}-${m}`, JSON.stringify(parsed)); } catch (e) { /* ẩn */ } fixed++; }
+        // P1.3: qua storageSet — hết dung lượng thì dọn slot sao lưu + báo, không im lặng
+        if (changed) { window.TaskFlowUtil.storageSet(`planner-${y}-${m}`, JSON.stringify(parsed)); fixed++; }
       }
     }
   }
@@ -1475,7 +1480,7 @@ function unlinkTaskMilestoneAcrossStore(projectId, milestoneId) {
         });
       });
       if (touched) {
-        try { localStorage.setItem(`planner-${y}-${m}`, JSON.stringify(s)); } catch (e) { /* ẩn */ }
+        window.TaskFlowUtil.storageSet(`planner-${y}-${m}`, JSON.stringify(s)); // P1.3
         months.push(`planner-${y}-${m}`);
       }
     }
@@ -1677,7 +1682,9 @@ function loadState() {
     if (blankRemoved > 0) tasksDirty = true;
     // Lưu uid mới sinh / blank đã xoá ngay (không gọi save() — state global đang trong TDZ lúc load khởi động)
     if (tasksDirty || schemaDirty) {
-      try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(s)); } catch (e) { /* ẩn */ }
+      // P1.3: dùng window.TaskFlowUtil (không dùng alias const — hàm này chạy lúc boot,
+      // trước khi alias ở dòng khai báo helper được khởi tạo).
+      window.TaskFlowUtil.storageSet(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(s));
     }
     // Đồng bộ streak với số tích ✓: khi xem tháng hiện tại, tự bỏ tick các ngày tương lai
     // (dữ liệu cũ / seed trước đây từng tick cả tháng) để số streak phản ánh đúng những gì đã tick.
@@ -1700,7 +1707,7 @@ function loadState() {
       });
       // Lưu lại dữ liệu đã vệ sinh (không gọi save() vì biến global state đang trong TDZ khi load lúc khởi động).
       if (dirty) {
-        try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(s)); } catch (e) { /* ẩn */ }
+        window.TaskFlowUtil.storageSet(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(s)); // P1.3
       }
     }
     return s;
@@ -1903,7 +1910,10 @@ function save() {
   if (window.TaskFlowPillars) window.TaskFlowPillars.ensurePillars(state);
   ensureWeeklyReviews(state, NUM_WEEKS);
   ensureMonthlyReview(state);
-  try { localStorage.setItem(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(state)); } catch (e) { /* ẩn */ }
+  // P1.3: đây là đường lưu dữ liệu chính. Trước đây lỗi hết dung lượng bị nuốt im lặng →
+  // người dùng mất dữ liệu mà không hề biết. storageSet dọn slot sao lưu rồi ghi lại và
+  // chỉ báo lỗi khi thật sự bó tay.
+  storageSet(monthKey(PLAN_YEAR, PLAN_MONTH), JSON.stringify(state));
   if (window.Sync) window.Sync.push(monthKey(PLAN_YEAR, PLAN_MONTH));
   backupAfterSave();
 }
@@ -4976,7 +4986,8 @@ function shellNavLabel(value) {
 }
 
 // View nằm trong More sheet: highlight nút "Thêm" khi đang xem (luôn đúng 1 active trên mobile)
-const MORE_SHEET_VIEWS = ['week', 'overview', 'year', 'calendar'];
+// Inbox cũng nằm sheet (2026-09-22): bottom nav còn 5 slot → FAB "Thêm việc" đứng slot giữa.
+const MORE_SHEET_VIEWS = ['inbox', 'week', 'overview', 'year', 'calendar'];
 
 function buildNav() {
   const desktop = document.getElementById('navTabs');
@@ -5043,14 +5054,16 @@ function buildNav() {
       id="mobile-${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
       ${item.week ? `data-week="${item.week}"` : ''}>
       ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
-    // Phase 13: Calm mobile nav — Today / Inbox / Upcoming / + / Projects / More
+    // 5 slot — FAB "Thêm việc" ở slot GIỮA (Today / Inbox-free / Upcoming / + / More):
+    // Inbox nằm trong More sheet (MORE_SHEET_VIEWS) nên thanh đối xứng: 2 tab | + | 2 tab.
     mobile.innerHTML =
       mobileItem(byView.today) +
-      mobileItem(byView.inbox) +
       mobileItem(byView.upcoming) +
       `<div class="app-mobile-nav-add">
-        <button type="button" class="app-mobile-nav-fab" data-action="shell-add-task"
-          aria-label="${esc(t('quickAddTitle'))}">${window.TaskFlowUI.icon('plus')}</button>
+        <span class="app-mobile-nav-add-slot">
+          <button type="button" class="app-mobile-nav-fab" data-action="shell-add-task"
+            aria-label="${esc(t('quickAddTitle'))}">${window.TaskFlowUI.icon('plus')}</button>
+        </span>
         <span class="app-mobile-nav-add-label">${esc(t('moreAdd'))}</span>
       </div>` +
       mobileItem(byView.projects) +

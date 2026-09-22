@@ -3,9 +3,10 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v301';
-// Lazy module version — must match LAZY_ASSET_VERSION in app.js
-const LAZY_V = 'v1';
+const CACHE = 'taskflow-v306';
+// Lazy module version — must match LAZY_ASSET_VERSION in app.js + EN_ASSET_VERSION in i18n.js.
+// Bump khi nội dung asset lazy đổi (P1.3: util/app/i18n/export/ai-document-daily-plan).
+const LAZY_V = 'v2';
 const APP_SHELL = [
   './',
   './index.html',

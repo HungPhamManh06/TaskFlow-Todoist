@@ -22,9 +22,18 @@
   function icon(name) {
     return (window.TaskFlowUI && window.TaskFlowUI.icon) ? window.TaskFlowUI.icon(name) : '';
   }
+  // Ngày dạng key 'YYYY-MM-DD' (giá trị của <input type="date">) phải parse theo giờ LOCAL:
+  // chuỗi date-key được spec hiểu là 00:00 UTC → ở múi giờ âm (Mỹ) sẽ hiển thị lùi một ngày.
+  // Cùng lớp lỗi với baseDate kế hoạch ngày và tên file export (audit 2026-09-22).
+  function parseDateKeyLocal(raw) {
+    const m = /^\s*(\d{4})-(\d{1,2})-(\d{1,2})\s*$/.exec(String(raw));
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+    return new Date(raw); // không phải date-key (ISO timestamp…) → giữ cách parse cũ
+  }
+
   function fmtDate(d) {
     if (!d) return '';
-    const p = new Date(d);
+    const p = parseDateKeyLocal(d);
     if (isNaN(p.getTime())) return String(d);
     const dd = String(p.getDate()).padStart(2, '0');
     const mm = String(p.getMonth() + 1).padStart(2, '0');

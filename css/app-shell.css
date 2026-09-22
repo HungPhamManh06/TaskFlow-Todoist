@@ -593,12 +593,13 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     z-index: 55;
     inset: auto 0 0;
     display: grid;
-    /* Bottom nav: ĐÚNG 6 slot, khớp thứ tự buildNav() render —
-       Hôm nay / Inbox / Sắp tới / + (FAB) / Dự án / Thêm (More sheet).
-       Số cột PHẢI bằng số con render (5 item + 1 FAB): lệch → slot cuối
+    /* Bottom nav: ĐÚNG 5 slot, khớp thứ tự buildNav() render —
+       Hôm nay / Sắp tới / + (FAB, slot GIỮA) / Dự án / Thêm (More sheet).
+       Inbox nằm trong More sheet (MORE_SHEET_VIEWS) từ 2026-09-22 → thanh đối xứng.
+       Số cột PHẢI bằng số con render (4 item + 1 FAB): lệch → slot cuối
        rơi xuống implicit row thứ 2, nằm ngoài viewport nên mất hẳn
        (đã từng làm mất nút Thêm → không mở được More sheet/Cài đặt). */
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     border-block-start: 1px solid var(--color-border);
@@ -693,29 +694,45 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     text-align: center;
   }
 
-  /* Nút + (Quick Add) — FAB tròn nhô lên ~14px, label nằm dưới (Option B) */
+  /* Nút + (Quick Add) — BẮT BUỘC cùng nhịp với 5 tab kia:
+     `.app-mobile-nav-add-slot` giữ đúng khe icon 22px như item thường, nên label tự
+     thẳng hàng với label các tab (trước đây add cell canh đáy + FAB "margin-top:-10px"
+     đẩy label xuống 14px, label chạm mép dưới nav và bị cắt trên máy thật).
+     FAB to hơn khe nên neo vào ĐÁY khe: dock lên mép trên của nav, chữ vẫn nằm trong thanh. */
   .app-mobile-nav-add {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-end;
-    gap: 2px;
+    justify-content: center;
+    gap: 3px;
+    height: 56px;
     min-width: 44px;
     min-height: 44px;
-    padding: 0 2px 1px;
+    padding: 0 2px;
+  }
+
+  /* Khe icon 22px — cùng kích thước icon của 5 tab để label thẳng hàng. */
+  .app-mobile-nav-add-slot {
+    position: relative;
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
   }
 
   .app-mobile-nav-fab {
     appearance: none;
+    position: absolute;
+    left: 50%;
+    bottom: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 54px;
-    height: 54px;
+    width: 48px;
+    height: 48px;
     border: 0;
     border-radius: 999px;
-    /* Nhô lên ~14px so với baseline icon các tab khác (không làm tăng chiều cao thanh) */
-    margin-top: -10px;
+    margin: 0;
+    transform: translateX(-50%);
     color: #fff;
     background: var(--color-accent);
     box-shadow: 0 6px 16px rgb(52 47 43 / .22);
@@ -723,8 +740,8 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
   }
 
   .app-mobile-nav-fab .ui-icon {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
   }
 
   @media (hover: hover) {
@@ -734,13 +751,18 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
   }
 
   .app-mobile-nav-fab:active {
-    transform: scale(.94);
+    transform: translateX(-50%) scale(.94);
   }
 
+  /* Cùng contract với label của item (`span:last-child`): label dài hơn track thì
+     ellipsis, KHÔNG tràn sang slot bên cạnh ("Thêm việc" = 52px > track 49.8px ở 320px). */
   .app-mobile-nav-add-label {
+    max-width: 100%;
+    overflow: hidden;
     color: var(--color-text-muted);
     font: 650 11px/1.1 var(--font-body);
     white-space: nowrap;
+    text-overflow: ellipsis;
     text-align: center;
   }
 
@@ -773,21 +795,23 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
   .tools-drawer-scroll {
     padding-inline: 16px;
   }
-}
+}  @media (max-width: 380px) {
+    .app-topbar {
+      padding-inline: 8px;
+    }
 
-@media (max-width: 380px) {
-  .app-topbar {
-    padding-inline: 8px;
-  }
+    .app-mobile-nav {
+      padding-inline: 2px;
+    }
 
-  .app-mobile-nav {
-    padding-inline: 2px;
+    /* Phải scope #mobileNav: rule legacy-shield ở trên (`#mobileNav .app-mobile-nav-item
+       { font: 650 11px/1.1 }`) có specificity ID nên thắng selector class thuần —
+       trước đây chữ ở màn ≤380px KHÔNG hề nhỏ lại. Thêm label FAB để cùng nhịp chữ. */
+    #mobileNav .app-mobile-nav-item,
+    .app-mobile-nav-add-label {
+      font-size: .5875rem;
+    }
   }
-
-  .app-mobile-nav-item {
-    font-size: .5875rem;
-  }
-}
 
 /* ============================================================
    More sheet (P2) — bottom sheet điều hướng còn lại trên mobile

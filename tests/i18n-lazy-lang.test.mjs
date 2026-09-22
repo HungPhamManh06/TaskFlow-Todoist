@@ -17,6 +17,7 @@ const EN_SRC = readFileSync(new URL('../js/i18n-en.js', import.meta.url), 'utf8'
 const SW_SRC = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
 const APP_HTML = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
 const APP_JS = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
+const LAZY_V = (SW_SRC.match(/const LAZY_V = '([^']+)'/) || [])[1];
 
 /** Sandbox kiểu trình duyệt: có window/document/localStorage, KHÔNG có module/require. */
 function browserSandbox({ lang = 'en', assetMap = null } = {}) {
@@ -65,7 +66,7 @@ test('ensureLang("en"): nạp đúng chunk, tự gắn I18N.en, chỉ nạp 1 l�
   const p1 = api.ensureLang('en');
   const p2 = api.ensureLang('en');
   assert.equal(injected.length, 1, 'chỉ 1 thẻ script cho 1 ngôn ngữ');
-  assert.equal(injected[0].src, 'js/i18n-en.min.js?v=v1', 'source/dev: .min + pin');
+  assert.equal(injected[0].src, 'js/i18n-en.min.js?v=' + LAZY_V, 'source/dev: .min + pin khớp LAZY_V của sw.js');
   assert.equal(p1, p2, 'nhiều lời gọi song song dùng chung promise');
   void p2;
 
@@ -108,6 +109,18 @@ test('Node/test: EN nạp đồng bộ nên hợp đồng I18N.en cũ giữ nguy
   assert.equal(api.hasLang('en'), true, 'Node luôn có I18N.en');
   assert.equal(api.I18N.en.navMonths, 'Navigate months');
   assert.equal(api.I18N.vi.navMonths, 'Chuyển tháng trong năm');
+});
+
+test('bất biến: version asset lazy khớp ở CẢ 3 nơi (app.js / i18n.js / sw.js)', () => {
+  // Lỗi lớp "sửa asset lazy mà quên bump": SW vẫn phục vụ bản cũ từ cache-first, nên
+  // bản sửa không tới được người dùng. Ba nơi phải luôn bằng nhau.
+  const read = (src, re) => (src.match(re) || [])[1];
+  const swV = read(SW_SRC, /const LAZY_V = '([^']+)'/);
+  const appV = read(APP_JS, /const LAZY_ASSET_VERSION = '([^']+)'/);
+  const i18nV = read(CORE_SRC, /const EN_ASSET_VERSION = '([^']+)'/);
+  assert.ok(swV && appV && i18nV, `phải đọc được cả 3 version (sw=${swV}, app=${appV}, i18n=${i18nV})`);
+  assert.equal(appV, swV, 'LAZY_ASSET_VERSION (app.js) phải khớp LAZY_V (sw.js)');
+  assert.equal(i18nV, swV, 'EN_ASSET_VERSION (i18n.js) phải khớp LAZY_V (sw.js)');
 });
 
 test('parity: mọi key VI đều có bản EN', () => {

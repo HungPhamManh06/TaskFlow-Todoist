@@ -393,6 +393,7 @@
     syncErrUsernameTaken: 'Tên người dùng đã tồn tại, thử tên khác.',
     syncErrBadCredentials: 'Sai tên người dùng hoặc mật khẩu.',
     syncErrNetwork: 'Không kết nối được máy chủ, kiểm tra lại URL trong js/api-config.js.',
+    storageFullWarn: 'Bộ nhớ trình duyệt đã đầy — thay đổi vừa rồi CHƯA được lưu. Hãy xuất JSON (sao lưu) rồi xoá bớt dữ liệu cũ.',
     syncErrServer: 'Máy chủ báo lỗi, thử lại sau.',
     syncErrRateLimited: 'Quá nhiều lần thử đăng nhập. Đợi 15 phút rồi thử lại.',
     homeTitle: 'Về trang giới thiệu',
@@ -1677,7 +1678,7 @@
   }
 
   const EN_ASSET = 'js/i18n-en.min.js';
-  const EN_ASSET_VERSION = 'v1'; // khớp LAZY_ASSET_VERSION (app.js) + LAZY_V (sw.js)
+  const EN_ASSET_VERSION = 'v2'; // khớp LAZY_ASSET_VERSION (app.js) + LAZY_V (sw.js)
   let _enLoad = null;
 
   // hasLang('en') = false cho tới khi chunk EN về (t() rơi về VI trong lúc chờ).

@@ -113,9 +113,16 @@
     }
   }
 
+  /* Tên file export dùng ngày LOCAL, không phải ngày UTC: export lúc 6h sáng ở VN (UTC+7)
+     trước đây bị đặt tên bằng ngày hôm qua → nhầm khi cần phục hồi ("file hôm qua hay hôm nay?"). */
+  function exportFileName(prefix, date) {
+    const d = date || new Date();
+    const p2 = (n) => String(n).padStart(2, '0');
+    return prefix + '-' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+  }
+
   function exportJSON(legacyKey) {
-    const date = new Date().toISOString().slice(0, 10);
-    downloadFile('taskflow-todoist-backup-' + date + '.json', JSON.stringify(collectAllData(legacyKey), null, 2), 'application/json');
+    downloadFile(exportFileName('taskflow-todoist-backup') + '.json', JSON.stringify(collectAllData(legacyKey), null, 2), 'application/json');
     const a = getAnalytics();
     if (a && a.trackEvent) a.trackEvent('export_json');
   }
@@ -127,7 +134,7 @@
   }
 
   function exportCSV() {
-    const date = new Date().toISOString().slice(0, 10);
+    const name = exportFileName('taskflow-todoist-data') + '.csv';
     let rows;
     if (window.PlanStats) {
       // Hàm thuần: dựng toàn bộ rows từ 12 state tháng + yearState (unit-test ở phase2)
@@ -136,7 +143,7 @@
     } else {
       rows = legacyCSVRows();
     }
-    downloadFile('taskflow-todoist-data-' + date + '.csv', rows.join('\r\n') + '\r\n', 'text/csv;charset=utf-8');
+    downloadFile(name, rows.join('\r\n') + '\r\n', 'text/csv;charset=utf-8');
     const a = getAnalytics();
     if (a && a.trackEvent) a.trackEvent('export_csv');
   }
@@ -154,7 +161,9 @@
   function exportICS() {
     const now = new Date();
     const p2 = (n) => String(n).padStart(2, '0');
-    const stamp = now.getFullYear() + p2(now.getMonth() + 1) + p2(now.getDate()) + 'T' + p2(now.getHours()) + p2(now.getMinutes()) + p2(now.getSeconds()) + 'Z';
+    // DTSTAMP của .ics BẮT BUỘC là giờ UTC (đuôi 'Z'); bản cũ dùng giờ local nhưng vẫn ghi 'Z'
+    // → trình lịch hiểu sai thời điểm (lệch đúng bằng offset, VN là 7 giờ).
+    const stamp = now.getUTCFullYear() // tz-utc-ok: DTSTAMP của .ics bắt buộc giờ UTC + p2(now.getUTCMonth() + 1) + p2(now.getUTCDate()) + 'T' + p2(now.getUTCHours()) + p2(now.getUTCMinutes()) + p2(now.getUTCSeconds()) + 'Z';
     const lines = [
       'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TaskFlow-Todoist//TaskFlow//VI',
       'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:TaskFlow ' + PLAN_YEAR,
@@ -250,5 +259,5 @@
     return rows;
   }
 
-  return { downloadFile, collectAllData, prepareImport, applySnapshotTransactional, exportJSON, exportCSV, exportICS };
+  return { downloadFile, collectAllData, prepareImport, applySnapshotTransactional, exportJSON, exportCSV, exportICS, exportFileName };
 });
