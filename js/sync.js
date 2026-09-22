@@ -17,6 +17,16 @@
   var TOKEN_KEY = 'planner-token';
   var DATA_KEY_RE = /^planner-[A-Za-z0-9._-]{1,120}$/;
   var MONTH_KEY_RE = /^planner-(\d{4})-(\d{1,2})$/;
+  // Dấu tài khoản đang sở hữu dữ liệu local + snapshot khi buộc phải xoá vì đổi
+  // tài khoản. Cả hai KHÔNG phải data key (xem isDataKey) nên không bao giờ lên cloud.
+  var ACCOUNT_KEY = 'planner-account';
+  var BACKUP_KEY = 'planner-account-backup';
+  // Server free tier ngủ đông: request đầu có thể treo lâu hoặc trả 502/503.
+  var SESSION_TIMEOUT_MS = 12000;
+  var SESSION_ATTEMPTS = 3;
+  var SESSION_RETRY_MS = 1500;
+  var RETRY_FIRST_MS = 5000;
+  var RETRY_MAX_MS = 60000;
 
   var cfg = (typeof API_CONFIG !== 'undefined' && API_CONFIG) || {};
   var base = String(cfg.url || '').replace(/\/+$/, '');
@@ -45,7 +55,8 @@
     try { localStorage.setItem(key, val); } catch (e) { /* ẩn */ }
   }
   function isDataKey(k) {
-    return k !== META_KEY && k !== TOKEN_KEY && DATA_KEY_RE.test(k);
+    return k !== META_KEY && k !== TOKEN_KEY && k !== ACCOUNT_KEY && k !== BACKUP_KEY
+      && DATA_KEY_RE.test(k);
   }
   function getToken() {
     try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
@@ -53,6 +64,80 @@
   function setToken(t) {
     try { localStorage.setItem(TOKEN_KEY, t); } catch (e) { /* ẩn */ }
   }
+  // ---- Danh tính tài khoản sở hữu dữ liệu trong máy này ----
+  // Dữ liệu localStorage thuộc tài khoản đăng nhập gần nhất. Nhớ id đó để lần đăng
+  // nhập LẠI cùng tài khoản không xoá mất việc đã làm trong lúc chưa đồng bộ được.
+  function getAccountId() {
+    try { return localStorage.getItem(ACCOUNT_KEY) || null; } catch (e) { return null; }
+  }
+  function setAccountId(id) {
+    try { localStorage.setItem(ACCOUNT_KEY, String(id)); } catch (e) { /* ẩn */ }
+  }
+  function delay(ms) {
+    return new Promise(function (resolve) { setTimeout(resolve, ms); });
+  }
+  // Snapshot trước khi xoá vì đổi tài khoản — "đăng nhập nhầm tài khoản" không bao giờ
+  // là mất trắng. Đọc lại bằng Sync.getAccountBackup(); không sync (xem isDataKey).
+  function backupLocalData(reason, ownerId) {
+    var snapshot = {};
+    var count = 0;
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!isDataKey(k)) continue;
+        snapshot[k] = localStorage.getItem(k);
+        count++;
+      }
+    } catch (e) { return null; }
+    if (!count) return null;
+    var payload = {
+      at: new Date().toISOString(),
+      reason: reason || 'account-switch',
+      accountId: ownerId !== undefined ? ownerId : getAccountId(),
+      data: snapshot,
+    };
+    try { localStorage.setItem(BACKUP_KEY, JSON.stringify(payload)); } catch (e) { return null; }
+    return payload;
+  }
+  // fetch có hạn chờ (AbortController) — server ngủ đông không được treo đồng bộ.
+  function timedInit(init, timeoutMs) {
+    if (!timeoutMs || typeof AbortController !== 'function') return { init: init, done: function () {} };
+    var ctrl = new AbortController();
+    init.signal = ctrl.signal;
+    var timer = setTimeout(function () { try { ctrl.abort(); } catch (e) { /* ẩn */ } }, timeoutMs);
+    return { init: init, done: function () { clearTimeout(timer); } };
+  }
+  // Tài khoản vừa xác thực có phải chủ của dữ liệu local? Khác → xoá (isolation tài
+  // khoản) nhưng luôn để lại snapshot. Cùng tài khoản → GIỮ NGUYÊN dữ liệu.
+  function adoptAccount(id) {
+    var prev = getAccountId();
+    var switched = prev !== String(id);
+    // Snapshot phải ghi chủ CŨ (dữ liệu là của tài khoản đó) → backup trước khi đổi dấu.
+    if (switched) clearLocalData('account-switch', prev);
+    setAccountId(id);
+    return switched;
+  }
+
+  // Lỗi tạm thời (server ngủ đông / mạng chập chờn) KHÔNG phải lỗi đăng nhập → thử lại
+  // theo backoff thay vì đẩy người dùng về màn hình login.
+  var retryTimer = null;
+  var retryDelay = 0;
+  var oauthSwitchPending = false;
+
+  function scheduleRetry() {
+    if (retryTimer || !started) return;
+    retryDelay = retryDelay ? Math.min(retryDelay * 2, RETRY_MAX_MS) : RETRY_FIRST_MS;
+    retryTimer = setTimeout(function () {
+      retryTimer = null;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) { scheduleRetry(); return; }
+      connect();
+    }, retryDelay);
+  }
+  function cancelRetry() {
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    retryDelay = 0;
+  }
+
   function emitStatus(s) {
     statusListeners.forEach(function (fn) { try { fn(s); } catch (e) { /* ẩn */ } });
   }
@@ -70,10 +155,15 @@
     if (opts.headers) Object.assign(headers, opts.headers);
     var init = { method: opts.method || 'GET', headers: headers };
     if (opts.body !== undefined) init.body = JSON.stringify(opts.body);
-    return fetch(base + path, init).then(function (res) {
+    var guarded = timedInit(init, opts.timeoutMs);
+    return fetch(base + path, guarded.init).then(function (res) {
       return res.json().catch(function () { return null; }).then(function (data) {
+        guarded.done();
         return { ok: res.ok, status: res.status, data: data };
       });
+    }, function (err) {
+      guarded.done();
+      throw err;
     });
   }
 
@@ -83,21 +173,34 @@
   }
 
   // ---- Session: token trong localStorage → xác thực với backend ----
+  // Kết quả: 'ok' (token hợp lệ) | 'invalid' (server TỪ CHỐI token) |
+  //          'transient' (chưa kết luận được: server ngủ đông/mạng lỗi) | 'none' (không có token).
+  // CHỈ 'invalid' mới được xoá token. Trước đây mọi lỗi (502/503 khi Render wake-up,
+  // mạng chập chờn) đều bị coi là hết phiên → token bị xoá → mỗi lần vào web đều thấy
+  // "chưa đăng nhập" dù chưa hề bấm đăng xuất.
   async function ensureSession() {
     var token = getToken();
-    if (!token) return false;
-    var res;
-    try {
-      res = await api('/api/auth/me');
-    } catch (e) { return false; }
-    if (!res.ok || !res.data || !res.data.id) {
-      try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ẩn */ }
-      return false;
+    if (!token) return 'none';
+    for (var attempt = 0; attempt < SESSION_ATTEMPTS; attempt++) {
+      var res = null;
+      try {
+        res = await api('/api/auth/me', { timeoutMs: SESSION_TIMEOUT_MS });
+      } catch (e) { res = null; }
+      if (res && res.ok && res.data && res.data.id) {
+        userId = res.data.id;
+        username = res.data.username || null;
+        authed = true;
+        // KHÔNG ghi dấu tài khoản ở đây: connect() quyết định (cần id trước khi so
+        // sánh với chủ sở hữu dữ liệu local, xem oauthSwitchPending).
+        return 'ok';
+      }
+      if (res && (res.status === 401 || res.status === 403)) {
+        try { localStorage.removeItem(TOKEN_KEY); } catch (e) { /* ẩn */ }
+        return 'invalid';
+      }
+      if (attempt < SESSION_ATTEMPTS - 1) await delay(SESSION_RETRY_MS * (attempt + 1));
     }
-    userId = res.data.id;
-    username = res.data.username || null;
-    authed = true;
-    return true;
+    return 'transient';
   }
 
   // ---- Hội tụ blank-task legacy lên cloud (P2/P3) ----
@@ -225,27 +328,57 @@
     writeMeta();
   }
 
+  // Một vòng kết nối: xác thực phiên rồi hội tụ dữ liệu hai chiều.
+  // Trả về true khi đã KẾT LUẬN được trạng thái phiên (đang đăng nhập hoặc đã đăng xuất).
+  async function connect() {
+    try {
+      var session = await ensureSession();
+      if (session === 'none' || session === 'invalid') {
+        setStatus('signedout');
+        return true;
+      }
+      if (session === 'transient') {
+        // Giữ token + giữ trạng thái đang đăng nhập, hẹn thử lại (backoff).
+        setStatus('connecting');
+        scheduleRetry();
+        return false;
+      }
+      // Google OAuth vừa trả token về: giờ mới biết id → cùng tài khoản thì giữ dữ liệu.
+      if (oauthSwitchPending) {
+        oauthSwitchPending = false;
+        adoptAccount(userId);
+      } else if (!getAccountId()) {
+        // Người dùng đã đăng nhập từ trước khi có dấu tài khoản (nâng cấp phiên bản):
+        // nhận luôn dữ liệu local làm của tài khoản này — KHÔNG xoá gì.
+        setAccountId(userId);
+      }
+      setStatus('syncing');
+      var remoteKeys = await pullAll();
+      migrateLocal(remoteKeys);
+      setStatus('ready');
+      cancelRetry();
+      return true;
+    } catch (e) {
+      setStatus('error');
+      scheduleRetry();
+      return false;
+    }
+  }
+
   async function init() {
     if (started) return;
     started = true;
     meta = readMeta();
     if (!base) { setStatus('off'); return; }
     setStatus('connecting');
-    try {
-      var ok = await ensureSession();
-      if (!ok) { setStatus('signedout'); return; }
-      setStatus('syncing');
-      var remoteKeys = await pullAll();
-      migrateLocal(remoteKeys);
-      setStatus('ready');
-    } catch (e) {
-      setStatus('error');
-    }
+    await connect();
   }
 
   // ---- Xoá toàn bộ dữ liệu local (tạo tài khoản mới / đăng nhập tài khoản khác) ----
   // Mục đích: dữ liệu của tài khoản này không được trộn vào tài khoản khác trên cùng thiết bị
-  function clearLocalData() {
+  function clearLocalData(reason, ownerId) {
+    // Luôn để lại snapshot trước khi xoá (đổi tài khoản / đăng nhập nhầm).
+    backupLocalData(reason || 'account-switch', ownerId);
     // Huỷ các push đang chờ debounce — tránh đẩy nhầm dữ liệu vừa xoá lên tài khoản mới
     Object.keys(pending).forEach(function (k) { clearTimeout(pending[k]); delete pending[k]; });
     for (var i = localStorage.length - 1; i >= 0; i--) {
@@ -278,11 +411,16 @@
     userId = res.data.user.id;
     username = res.data.user.username || null;
     authed = true;
-    // Xoá dữ liệu local của tài khoản trước → kéo dữ liệu ĐÚNG tài khoản đang đăng nhập
-    clearLocalData();
+    // Cùng tài khoản như lần trước (token cũ bị mất/hết hạn) → GIỮ dữ liệu local: rất có
+    // thể là việc đã làm trong lúc tưởng mình vẫn đăng nhập. Chỉ đổi tài khoản thật sự
+    // mới xoá (isolation), và luôn có snapshot trước khi xoá.
+    var sameAccount = getAccountId() === String(res.data.user.id);
+    adoptAccount(res.data.user.id);
     setStatus('syncing');
     try {
-      await pullAll();
+      var remoteKeys = await pullAll();
+      // Việc làm trong lúc chưa xác thực được (offline) chưa từng lên cloud → đẩy lên ngay.
+      if (sameAccount) migrateLocal(remoteKeys);
       setStatus('ready');
       return { ok: true };
     } catch (e) {
@@ -308,8 +446,9 @@
     userId = res.data.user.id;
     username = res.data.user.username || null;
     authed = true;
-    // Tài khoản mới → dữ liệu mới: xoá dữ liệu local cũ, KHÔNG migrate lên tài khoản mới
-    clearLocalData();
+    // Tài khoản mới → dữ liệu mới: xoá dữ liệu local cũ (có snapshot), KHÔNG migrate lên
+    // tài khoản mới. adoptAccount ghi luôn dấu chủ sở hữu dữ liệu local.
+    adoptAccount(userId);
     setStatus('syncing');
     try {
       await pullAll();
@@ -382,14 +521,22 @@
     var m = window.location.search.match(/[?&]token=([^&]+)/);
     if (!m) return false;
     setToken(decodeURIComponent(m[1]));
-    // Google OAuth = đăng nhập / chuyển tài khoản: xoá dữ liệu local của tài khoản cũ
-    // để KHÔNG migrate dữ liệu cũ lên tài khoản mới (giống signup/login)
-    clearLocalData();
+    // Google OAuth = đăng nhập, CÓ THỂ là chuyển tài khoản. Ở đây chỉ có token, chưa biết
+    // id tài khoản → không xoá dữ liệu local ngay; connect() quyết định sau khi
+    // /api/auth/me trả về id: cùng tài khoản thì giữ, khác tài khoản thì xoá (có snapshot).
+    oauthSwitchPending = true;
     var clean = window.DeepLink
       ? window.DeepLink.withoutParam(window.location.href, 'token')
       : window.location.origin + window.location.pathname;
     try { window.history.replaceState({}, '', clean); } catch (e) { /* ẩn */ }
     return true;
+  }
+
+  // Mạng trở lại → bỏ backoff, thử lại ngay thay vì chờ hết chu kỳ.
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('online', function () {
+      if (started && !authed) { cancelRetry(); connect(); }
+    });
   }
 
   window.Sync = {
@@ -408,5 +555,12 @@
     onRemoteChange: function (fn) { changeListeners.push(fn); },
     getStatus: function () { return currentStatus; },
     getUserId: function () { return userId; },
+    // Chủ sở hữu dữ liệu local + snapshot của lần đổi tài khoản gần nhất.
+    getAccount: function () { return getAccountId(); },
+    getAccountBackup: function () {
+      try { return JSON.parse(localStorage.getItem(BACKUP_KEY)) || null; } catch (e) { return null; }
+    },
+    // UI có thể gọi để thử kết nối lại ngay (không chờ backoff).
+    retryNow: function () { cancelRetry(); return connect(); },
   };
 })();

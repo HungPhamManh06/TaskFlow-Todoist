@@ -18,9 +18,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # lighthouse@13 khai báo engines.node >= 22.19 — chạy bằng Node 20 thì mọi lượt
+      # đo fail ngay (run #1 ngày 2026-09-22: 4/4 combo fail, không có report nào) và
+      # gate đỏ với thông báo "no reports to evaluate" dù sản phẩm không hề regression.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - uses: actions/setup-python@v5
         with:
@@ -32,6 +35,21 @@ jobs:
         run: |
           npm install
           npm run build
+
+      # Preflight: nói thẳng thiếu gì (lighthouse/Chrome) TRƯỚC khi đo, để lỗi hạ tầng
+      # không bị báo nhầm thành lỗi hiệu năng.
+      - name: Preflight — Lighthouse + Chrome
+        run: |
+          npx --yes lighthouse@13.4.1 --version
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          if [ -z "$CHROME" ]; then
+            echo "::error::Không tìm thấy Chrome trên runner — không thể đo hiệu năng"
+            exit 1
+          fi
+          "$CHROME" --version
+          # chrome_args() của scripts/measure-lighthouse.py đọc biến này (không có
+          # đường dẫn Windows /usr/bin/google-chrome của runner).
+          echo "CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
 
       - name: Measure landing + app against the budget floors
         run: python scripts/perf-budget.py --out perf-reports --serve dist --runs 2

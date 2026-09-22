@@ -11,9 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 22 (không phải 20): 20 đã hết hỗ trợ và lệch hẳn so với Node mà dev
+      # chạy ở máy (24) — mọi khác biệt "chỉ đỏ trên CI" đều đắt hơn giá trị của nó.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: server/package-lock.json
 
@@ -47,6 +49,12 @@ jobs:
 
       - name: Unit tests (phase0 + phase1 + phase2)
         run: node --test tests/*.test.mjs
+
+      # CI chạy ở UTC, máy dev ở VN là UTC+7 — lớp lỗi "chỉ đỏ trên CI" hầu như luôn
+      # là giả định về múi giờ/ngày (vd tzOffsetMinutes -0 của web push, xem P3.2).
+      # Chạy lại suite ở múi giờ lệch để bắt được CẢ HAI chiều.
+      - name: Unit tests under a non-UTC timezone (TZ hardening)
+        run: TZ=Asia/Ho_Chi_Minh node --test tests/*.test.mjs
 
       - name: Sync logic test (backend pg-mem + client sync engine)
         run: node test-sync.js

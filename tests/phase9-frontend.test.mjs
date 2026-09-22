@@ -2321,10 +2321,15 @@ test('release: offline app deep links resolve the cached app shell instead of la
   assert.match(String(matchCalls[0].request.url || matchCalls[0].request), /app\.html/);
 });
 
-test('release: sync.min.js cache-bust upgraded to v7 with no stale v6 reference', () => {
-  // P1: sync.min.js changed in Phase 6S.3 → bump ?v=7.
-  assert.match(APP, /js\/sync\.min\.js\?v=7/);
-  assert.doesNotMatch(APP, /js\/sync\.min\.js\?v=6/, 'không được để lại tham chiếu ?v=6 cũ');
+test('release: sync.min.js cache-bust pin is current with no stale reference', () => {
+  // P1: sync.min.js đổi từ Phase 6S.3 (v7) trở đi → mỗi lần sửa js/sync.js phải bump pin.
+  // Pin được đọc từ app.html (không hardcode) để tự bắt được cả việc quên bump.
+  const ver = APP.match(/js\/sync\.min\.js\?v=(\d+)/);
+  assert.ok(ver, 'app.html phải tham chiếu js/sync.min.js có ?v=');
+  const current = Number(ver[1]);
+  assert.ok(current >= 7, 'pin sync.min.js không được lùi về trước Phase 6S.3 (v7)');
+  assert.ok(!APP.includes(`js/sync.min.js?v=${current - 1}`),
+    `không được để lại tham chiếu js/sync.min.js?v=${current - 1} cũ`);
   // SW precache phải chứa sync.min.js để offline phục vụ được
   assert.ok(SW.includes("\'./js/sync.min.js\'"), 'sw.js phải precache js/sync.min.js');
 });

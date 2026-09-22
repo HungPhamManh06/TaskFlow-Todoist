@@ -238,6 +238,7 @@ def measure(out_dir, runs, serve_dir=None, only=None):
     print(f"Perf budget - measuring {base} - {runs} run(s) per combo\n")
 
     reports = {}
+    failures = {}
     try:
         combos = [("/", "landing"), ("/app", "app")]
         if only:
@@ -254,6 +255,7 @@ def measure(out_dir, runs, serve_dir=None, only=None):
                         if i < runs - 1:
                             time.sleep(2)
                 except RuntimeError as exc:
+                    failures[key] = str(exc)
                     print(f"{key}: FAILED - {str(exc).splitlines()[0]}")
                     continue
                 # Median per metric so one noisy run cannot pass or fail the gate.
@@ -268,6 +270,14 @@ def measure(out_dir, runs, serve_dir=None, only=None):
                 reports[key] = merged
     finally:
         httpd.shutdown()
+    # Không đo được combo nào → nói rõ lý do thật. Nếu không, main() chỉ báo
+    # "no reports to evaluate" và lỗi hạ tầng (Node quá cũ cho lighthouse, thiếu
+    # Chrome) bị đọc nhầm thành regression hiệu năng.
+    if not reports and failures:
+        for key, err in failures.items():
+            print(f"[error] {key}: {str(err).splitlines()[0]}", file=sys.stderr)
+        print("[error] could not measure any combo - check Chrome and Node >= 22.19 "
+              "(lighthouse 13 engines).", file=sys.stderr)
     return reports
 
 

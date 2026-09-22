@@ -163,7 +163,7 @@ async function main() {
     console.log('TEST 6 OK — trùng username + username không hợp lệ');
   }
 
-  // ---- TEST 7: Google OAuth callback (consumeRedirectToken) → xoá local cũ, tài khoản mới trống ----
+  // ---- TEST 7: Google OAuth callback — chỉ xoá local khi ĐỔI tài khoản, luôn có snapshot ----
   {
     // Tạo user mới (mô phỏng "tài khoản Google mới vừa tạo") để lấy token thật
     const signup = await fetch(base + '/api/auth/signup', {
@@ -193,15 +193,61 @@ async function main() {
     const Sync = loadSync();
     const consumed = Sync.consumeRedirectToken();
     assert.strictEqual(consumed, true, 'phải đọc được token từ URL');
-    // Dữ liệu local của tài khoản cũ phải bị xoá (tài khoản mới = dữ liệu mới)
-    assert.strictEqual(global.localStorage.getItem('planner-2026-8'), null, 'local tháng cũ phải bị xoá');
-    assert.strictEqual(global.localStorage.getItem('planner-year-2026'), null, 'local năm cũ phải bị xoá');
+    // Chỉ có token, chưa biết id tài khoản → chưa được xoá dữ liệu local ở bước này
+    assert.ok(global.localStorage.getItem('planner-2026-8'), 'chưa biết id thì chưa được xoá dữ liệu local');
     await Sync.init();
     assert.strictEqual(Sync.getStatus(), 'ready');
+    // Tài khoản xác thực KHÁC chủ dữ liệu local → phải xoá (isolation tài khoản)...
+    assert.strictEqual(global.localStorage.getItem('planner-2026-8'), null, 'local tháng cũ phải bị xoá');
+    assert.strictEqual(global.localStorage.getItem('planner-year-2026'), null, 'local năm cũ phải bị xoá');
+    // ...nhưng không mất trắng: snapshot đọc lại được sau này
+    const backup = Sync.getAccountBackup();
+    assert.ok(backup && backup.data, 'phải có snapshot trước khi xoá');
+    assert.ok(String(backup.data['planner-2026-8']).indexOf('mục tiêu cũ') >= 0, 'snapshot giữ nguyên dữ liệu cũ');
     await sleep(60); // chờ debounce — nếu migrateLocal đẩy nhầm dữ liệu cũ sẽ hiện ra đây
     const rows = await fetch(base + '/api/sync', { headers: { Authorization: 'Bearer ' + signup.token } }).then((x) => x.json());
     assert.strictEqual(rows.length, 0, 'tài khoản Google mới KHÔNG được nhận dữ liệu của tài khoản cũ');
-    console.log('TEST 7 OK — Google OAuth: consumeRedirectToken xoá local cũ, tài khoản mới trống');
+    assert.strictEqual(Sync.getAccount(), String(Sync.getUserId()), 'dấu tài khoản phải trỏ về tài khoản vừa xác thực');
+    console.log('TEST 7 OK — Google OAuth ĐỔI tài khoản: xoá local cũ (có snapshot), tài khoản mới trống');
+  }
+
+  // ---- TEST 7b: quay lại Google với ĐÚNG tài khoản trước → giữ + đẩy việc chưa đồng bộ ----
+  {
+    const me = await fetch(base + '/api/auth/me', {
+      headers: { Authorization: 'Bearer ' + lifecycleToken }
+    }).then((x) => x.json());
+    assert.ok(me.id, 'phải đọc được id tài khoản đang đăng nhập');
+
+    // Máy này thuộc tài khoản đó (có dấu), token cũ đã mất/hết hạn, còn 1 việc làm
+    // trong lúc chưa đồng bộ được → KHÔNG được mất.
+    global.localStorage = mockLocalStorage({
+      'planner-account': String(me.id),
+      'planner-token': 'token-cu-da-het-han',
+      'planner-2026-9': '{"weeklyGoals":["việc làm lúc chưa đồng bộ được"],"habits":[],"weeks":[]}'
+    });
+    global.window = {
+      location: {
+        search: '?token=' + encodeURIComponent(lifecycleToken),
+        origin: 'http://localhost',
+        pathname: '/app.html'
+      },
+      history: { replaceState: () => {} }
+    };
+    global.API_CONFIG = { url: base, pushDebounceMs: 5 };
+    const Sync = loadSync();
+    assert.strictEqual(Sync.consumeRedirectToken(), true, 'phải đọc được token từ URL');
+    await Sync.init();
+    assert.strictEqual(Sync.getStatus(), 'ready');
+    const kept = global.localStorage.getItem('planner-2026-9');
+    assert.ok(kept && kept.indexOf('chưa đồng bộ được') >= 0, 'cùng tài khoản thì dữ liệu local phải được giữ');
+    await sleep(80); // chờ debounce push
+    const rows = await fetch(base + '/api/sync', {
+      headers: { Authorization: 'Bearer ' + lifecycleToken }
+    }).then((x) => x.json());
+    const row = rows.find((r) => r.key === 'planner-2026-9');
+    assert.ok(row, 'việc chưa đồng bộ phải được đẩy lên cloud của chính tài khoản đó');
+    assert.ok(JSON.stringify(row.data).indexOf('chưa đồng bộ được') >= 0, 'nội dung phải giữ nguyên');
+    console.log('TEST 7b OK — Google OAuth CÙNG tài khoản: giữ dữ liệu + đẩy việc chưa đồng bộ, không mất');
   }
 
   // ---- TEST 8: hợp đồng P10 — key hợp lệ, giới hạn payload và state v2 ----

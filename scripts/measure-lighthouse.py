@@ -69,8 +69,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 def chrome_args():
-    """Point at the installed Chrome; omit the flag so chrome-launcher
-    auto-discovers on machines where Chrome lives elsewhere."""
+    """Chỉ định Chrome cho Lighthouse. Ưu tiên CHROME_PATH (CI: runner có Chrome ở
+    /usr/bin/google-chrome nhưng không phải đường dẫn Windows); nếu không có thì bỏ
+    flag để chrome-launcher tự dò."""
+    explicit = os.environ.get("CHROME_PATH")
+    if explicit and os.path.exists(explicit):
+        return [f"--chrome-path={explicit}"]
     return [f"--chrome-path={CHROME_DEFAULT}"] if os.path.exists(CHROME_DEFAULT) else []
 
 
@@ -93,7 +97,7 @@ def run_lighthouse(url, out_path, desktop, attempts=3):
         *chrome_args(),
         f"--only-categories={','.join(CATEGORIES)}",
         "--quiet",
-        "--chrome-flags=--headless=new --no-sandbox --disable-gpu",
+        "--chrome-flags=--headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage",
         "--max-wait-for-load=60000",
     ]
     if desktop:

@@ -23,6 +23,12 @@ const VAPID_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjB
 // trước khi deepStrictEqual (cùng lý do với cross-realm array trong tests/clock-fixtures).
 const plain = (obj) => Object.assign({}, obj);
 
+// Giá trị đi qua dây là body JSON → `JSON.stringify(-0)` là '0'. Ở máy UTC,
+// `-new Date().getTimezoneOffset()` chính là -0, và strictEqual dùng Object.is nên
+// -0 !== 0 (CI chạy UTC, máy dev UTC+7 nên lỗi chỉ hiện trên CI). So sánh với
+// chính phép biến đổi mà client gửi đi.
+const wireNumber = (n) => JSON.parse(JSON.stringify(n));
+
 function makeSandbox(options = {}) {
   const calls = [];
   const state = {
@@ -156,7 +162,7 @@ describe('Web Push client: enable()', () => {
     assert.equal(post.body.reminderHour, 7);
     assert.equal(post.body.lang, 'vi');
     assert.equal(typeof post.body.tzOffsetMinutes, 'number');
-    assert.equal(post.body.tzOffsetMinutes, -new Date().getTimezoneOffset());
+    assert.equal(post.body.tzOffsetMinutes, wireNumber(-new Date().getTimezoneOffset()));
 
     const key = state.subscribeOptions.applicationServerKey;
     assert.equal(Array.from(key).length, 65, 'applicationServerKey phải là 65 byte (P-256 uncompressed)');
