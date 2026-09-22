@@ -8,7 +8,7 @@
 // tự động load bản mới nhất khi deploy mà KHÔNG cần user clear site data.
 // Bump khi nội dung asset lazy đổi (phải khớp sw.js LAZY_V + i18n.js EN_ASSET_VERSION):
 // v1 → v2 ở P1.3 (util/app/i18n/export/ai-document-daily-plan đổi nội dung).
-const LAZY_ASSET_VERSION = 'v2';
+const LAZY_ASSET_VERSION = 'v3';
 function lazyAsset(path) {
   // Phase 14.1: in dist builds, TaskFlowAssetMap maps source paths to hashed
   // filenames.  The map is injected before app.js by the build pipeline.
@@ -48,7 +48,15 @@ function runLazyModule(url, fn) {
 // tách sang js/config.js (window.TaskFlowConfig) — P11 extraction 29. DAYS là dead
 // code (day names thuộc js/i18n.js) — xoá luôn. Giữ alias để call-sites không đổi.
 if (!window.TaskFlowConfig) throw new Error('TaskFlowConfig missing — js/config.js failed to load');
-const { HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK } = window.TaskFlowConfig;
+const {
+  HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK,
+  // NAV CONFIG — nguồn duy nhất cho bottom nav mobile + More sheet (xem js/config.js).
+  // Định nghĩa ở js/config.js để test tĩnh + e2e đọc cùng một object, khỏi lặp danh sách.
+  MOBILE_NAV_SLOTS, MORE_SHEET_VIEWS,
+} = window.TaskFlowConfig;
+if (!Array.isArray(MOBILE_NAV_SLOTS) || !Array.isArray(MORE_SHEET_VIEWS)) {
+  throw new Error('Nav config missing (MOBILE_NAV_SLOTS/MORE_SHEET_VIEWS) — js/config.js failed to load');
+}
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const LEGACY_KEY = 'january-planner-2026';
@@ -4985,9 +4993,23 @@ function shellNavLabel(value) {
   return String(value || '').replace(/^[\p{Extended_Pictographic}\uFE0F]+\s*/u, '');
 }
 
-// View nằm trong More sheet: highlight nút "Thêm" khi đang xem (luôn đúng 1 active trên mobile)
-// Inbox cũng nằm sheet (2026-09-22): bottom nav còn 5 slot → FAB "Thêm việc" đứng slot giữa.
-const MORE_SHEET_VIEWS = ['inbox', 'week', 'overview', 'year', 'calendar'];
+// MOBILE_NAV_SLOTS + MORE_SHEET_VIEWS nằm ở js/config.js (nav config — một nguồn duy nhất).
+// View trong sheet: highlight nút "Thêm" khi đang xem (luôn đúng 1 active trên mobile).
+
+// Số việc Inbox CHƯA xử lý (checkbox done=false) — hiển thị ở badge dòng Inbox trong
+// More sheet. Inbox giờ chỉ vào được từ sheet nên badge là chỗ duy nhất cho biết còn tồn.
+function inboxOpenCount() {
+  return Array.isArray(inbox) ? inbox.filter((tk) => tk && !tk.done).length : 0;
+}
+
+function updateInboxBadge() {
+  const badge = document.querySelector('#moreSheetNav [data-badge="inbox"]');
+  if (!badge) return;
+  const n = inboxOpenCount();
+  badge.textContent = n > 99 ? '99+' : String(n);
+  badge.hidden = n === 0;
+  badge.setAttribute('aria-label', t('moreInboxCount', { n }));
+}
 
 function buildNav() {
   const desktop = document.getElementById('navTabs');
@@ -5043,46 +5065,60 @@ function buildNav() {
     </div>`).join('');
   }
   if (mobile) {
-    // Bottom-nav mobile (redesign): Hôm nay / Sắp tới / + (FAB action) / Thói quen / Thêm (sheet).
-    // Chỉ view thật (Today/Upcoming) là tab có data-nav-view → updateNav active ĐÚNG MỘT tab.
-    // + / Thói quen / Thêm là ACTION (không data-nav-view) → không bao giờ active.
-    // More mở bottom sheet: Inbox, Tuần, Tổng quan, Năm, Lịch + Focus, Báo cáo, Cài đặt.
+    // Bottom-nav mobile: render THUẦN TÚY từ MOBILE_NAV_SLOTS (js/config.js) — thêm/bớt tab chỉ
+    // sửa mảng đó, không sửa hàm này lẫn số cột ở CSS (grid-auto-flow: column).
+    // Chỉ slot type 'view' có data-nav-view → updateNav active ĐÚNG MỘT tab; 'add' (FAB) và
+    // 'action' (mở More sheet) không bao giờ active. Vị trí FAB = vị trí slot 'add' trong mảng
+    // (đang đặt giữa để thanh đối xứng: 2 tab | + | 2 tab).
+    // More sheet: nhóm & thứ tự theo MORE_SHEET_VIEWS + nhóm Công cụ/Hệ thống bên dưới.
     // Không thêm class .tab (legacy pill-style trong styles.css) — nó ghi đè
     // border-radius 999px + border + surface background lên nav mobile mới.
-    // updateNav() active qua [data-nav-view], không cần .tab.
     const mobileItem = (item) => `<button type="button" class="app-mobile-nav-item" role="tab"
       id="mobile-${item.id}" aria-controls="${item.controls}" data-action="nav" ${navAttributes[item.view]}
       ${item.week ? `data-week="${item.week}"` : ''}>
       ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
-    // 5 slot — FAB "Thêm việc" ở slot GIỮA (Today / Inbox-free / Upcoming / + / More):
-    // Inbox nằm trong More sheet (MORE_SHEET_VIEWS) nên thanh đối xứng: 2 tab | + | 2 tab.
-    mobile.innerHTML =
-      mobileItem(byView.today) +
-      mobileItem(byView.upcoming) +
-      `<div class="app-mobile-nav-add">
+    // FAB "Thêm việc": giữ khe icon 22px như tab thường để label tự thẳng hàng.
+    const addSlotHTML = () => `<div class="app-mobile-nav-add">
         <span class="app-mobile-nav-add-slot">
           <button type="button" class="app-mobile-nav-fab" data-action="shell-add-task"
             aria-label="${esc(t('quickAddTitle'))}">${window.TaskFlowUI.icon('plus')}</button>
         </span>
         <span class="app-mobile-nav-add-label">${esc(t('moreAdd'))}</span>
-      </div>` +
-      mobileItem(byView.projects) +
-      `<button type="button" class="app-mobile-nav-item" data-action="more" aria-controls="moreSheet"
-        aria-expanded="false" aria-haspopup="dialog">${window.TaskFlowUI.icon('more')}<span>${esc(t('moreNav'))}</span></button>`;
+      </div>`;
+    const slotHTML = (slot) => {
+      if (slot.type === 'add') return addSlotHTML();
+      if (slot.type === 'view') return byView[slot.view] ? mobileItem(byView[slot.view]) : '';
+      // 'action': nút mở overlay/sheet — aria chỉ khai báo khi slot có `sheet`.
+      const label = esc(t(slot.labelKey));
+      const sheetAttrs = slot.sheet
+        ? ` aria-controls="${slot.sheet}" aria-expanded="false" aria-haspopup="dialog"`
+        : '';
+      return `<button type="button" class="app-mobile-nav-item" data-action="${slot.action}"${sheetAttrs}>
+        ${window.TaskFlowUI.icon(slot.icon)}<span>${label}</span></button>`;
+    };
+    mobile.innerHTML = MOBILE_NAV_SLOTS.map(slotHTML).join('');
     const moreSheetNav = document.getElementById('moreSheetNav');
     if (moreSheetNav) {
-      const sheetItem = (item) => `<button type="button" class="app-nav-item" data-action="nav" ${navAttributes[item.view]}
+      // badge: số việc chưa xử lý (chỉ dùng cho Inbox). Luôn render phần tử để
+      // updateInboxBadge() cập nhật tại chỗ khỏi phải dựng lại sheet; 0 thì ẩn.
+      const sheetItem = (item, badge) => `<button type="button" class="app-nav-item" data-action="nav" ${navAttributes[item.view]}
         ${item.week ? `data-week="${item.week}"` : ''}>
-        ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span></button>`;
+        ${window.TaskFlowUI.icon(item.icon)}<span>${esc(item.label)}</span>${badge ? `<span class="more-sheet-count" data-badge="inbox" hidden>0</span>` : ''}</button>`;
       // Mobile UI polish: More sheet chia 3 nhóm — Điều hướng / Công cụ (Focus,
       // Trợ lý, Báo cáo — thay cho 2 nút floating trên mobile) / Hệ thống.
       const moreGroups = [
-        { label: t('moreSheetTitle'), items: MORE_SHEET_VIEWS.map((v) => byView[v]).filter(Boolean).map((it) => sheetItem(it)) },
+        { label: t('moreSheetTitle'), items: MORE_SHEET_VIEWS.map((v) => byView[v]).filter(Boolean).map((it) => sheetItem(it, it.view === 'inbox')) },
+        // Công cụ xếp theo độ "sẵn dùng": Thói quen (việc HẰNG NGÀY — nhảy tới widget habits
+        // trong Tổng quan, đúng shortcut mà sidebar desktop có ở nhóm "Theo dõi") trước, rồi
+        // 2 chế độ bấm-là-chạy (Tập trung, Pomodoro), Trợ lý (nặng, mở panel), cuối là Báo cáo
+        // tháng (nhịp review theo tháng). Trước 2026-09-22 Thói quen không có entry nào trên
+        // điện thoại — chỉ vào được bằng cách mở Tổng quan rồi tìm widget.
         { label: t('moreGroupTools'), items: [
+          actionBtn('habits', 'habit', shellNavLabel(t('habitTitle'))),
           actionBtn('focus', 'focus', shellNavLabel(t('focusOpen'))),
+          actionBtn('pomo-toggle', 'bell', shellNavLabel(t('pomoWidgetTitle'))),
           actionBtn('chat-toggle', 'help', shellNavLabel(t('chatTitle'))),
           actionBtn('report', 'report', shellNavLabel(t('reportTitle'))),
-          actionBtn('pomo-toggle', 'bell', shellNavLabel(t('pomoWidgetTitle'))),
         ] },
         { label: t('moreGroupSystem'), items: [
           actionBtn('tools-open', 'settings', t('moreSettings')),
@@ -5093,6 +5129,7 @@ function buildNav() {
         ${g.items.join('')}
       </div>`).join('');
     }
+    updateInboxBadge();
   }
   renderShellIcons();
 }
@@ -5183,6 +5220,9 @@ function openMoreSheet(opener) {
   backdrop.hidden = false;
   document.body.classList.add('more-sheet-open');
   TaskFlowUI.openDrawer('moreSheet', opener);
+  // Badge Inbox phải đúng ngay lúc mở (mọi đường ghi inbox đều đi qua saveInbox(inbox)
+  // ở nhiều module, nên đọc lại tại điểm người dùng THẤY nó là cách chắc chắn nhất).
+  updateInboxBadge();
   const btn = document.querySelector('#mobileNav [data-action="more"]');
   if (btn) btn.setAttribute('aria-expanded', 'true');
 }
@@ -5890,6 +5930,9 @@ document.addEventListener('click', (e) => {
   else if (act === 'redo') { doRedo(); return; }
   else if (act === 'habits') {
     // Phase 6: mục TRACK "Thói quen" → mở overview rồi scroll tới widget habits
+    // Từ 2026-09-22 mục này cũng nằm trong More sheet (mobile) → phải đóng sheet trước,
+    // nếu không sheet che mất màn Tổng quan vừa mở (cùng pattern với nhánh 'nav').
+    if (el.closest && el.closest('#moreSheet')) closeMoreSheet();
     setView('overview');
     setTimeout(() => {
       const hw = document.querySelector('[data-widget-id="habits"]');
@@ -7230,6 +7273,9 @@ function saveYearSoon() {
 let inboxSaveTimer = null;
 function saveInboxSoon() {
   clearTimeout(inboxSaveTimer);
+  // Badge Inbox ở More sheet đọc thẳng mảng inbox → cập nhật ngay khi ghi, không chờ debounce
+  // (nếu chỉ cập nhật lúc buildNav thì badge đứng số cũ cho tới lần đổi view kế tiếp).
+  updateInboxBadge();
   inboxSaveTimer = setTimeout(() => saveInbox(inbox), 350);
 }
 let tdSaveTimer = null;

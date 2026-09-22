@@ -69,7 +69,7 @@
   <link rel="stylesheet" href="css/fonts.min.css?v=1" />
   <link rel="stylesheet" href="css/tokens.min.css?v=8" />
   <link rel="stylesheet" href="css/components.min.css?v=8" />
-  <link rel="stylesheet" href="css/app-shell.min.css?v=27" />
+  <link rel="stylesheet" href="css/app-shell.min.css?v=28" />
   <!-- styles-critical: tập con boot (shell + Today + modals + theme/dark) giữ trên critical path.
        styles-deferred (phần còn lại của styles.css): nạp sau first paint (media=print swap) — vẫn trong SW cache cho offline. -->
 <link rel="stylesheet" href="css/styles-critical.min.css?v=40" />
@@ -923,7 +923,7 @@
   <!-- Lazy-load (P1.5): chat/search/quick-add/year-report/digest nạp theo nhu cầu qua
        runLazyModule() trong app.js — không nằm trong chuỗi script boot. mood + remind-ui
        ở lại vì nằm trên đường render boot (moodCardHTML/insertBeforeTaskActions). -->
-  <script src="js/config.min.js?v=1"></script>
+  <script src="js/config.min.js?v=2"></script>
   <script src="js/data-migrations.min.js?v=3"></script>
   <script src="js/widget.min.js?v=2"></script>
   <script src="js/xp.min.js?v=2"></script>
@@ -951,7 +951,7 @@
   <script src="js/sync.min.js?v=8"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=2"></script>
-  <script src="js/i18n.min.js?v=66"></script>
+  <script src="js/i18n.min.js?v=67"></script>
   <script src="js/storage.min.js?v=4"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
@@ -969,7 +969,7 @@
   <script src="js/planmini.min.js?v=1"></script>
   <script src="js/clock.min.js?v=2"></script>
   <script src="js/shell.min.js?v=1"></script>
-  <script src="js/inbox.min.js?v=6"></script>
+  <script src="js/inbox.min.js?v=7"></script>
   <script src="js/mood.min.js?v=1"></script>
   <script src="js/remind-ui.min.js?v=3"></script>
   <!-- v3.2 P2.1 — Web Push client (nhắc khi app đã đóng) -->
@@ -993,7 +993,7 @@
   <!-- Phase 6T: AI feedback store -->
   <script src="js/ai-feedback.min.js?v=1"></script>
   <script src="js/ai-tool-contracts.generated.min.js?v=1"></script>
-  <script src="js/app.min.js?v=239"></script>
+  <script src="js/app.min.js?v=240"></script>
 </body>
 
 </html>

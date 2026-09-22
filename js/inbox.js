@@ -50,8 +50,16 @@
   }
 
   function saveInbox(inbox) {
-    try { localStorage.setItem(INBOX_KEY, JSON.stringify(inbox)); } catch (e) { /* ẩn */ }
+    // Cùng lớp phòng vệ quota với saveMonthState (P1.3): hết dung lượng → dọn slot sao lưu rồi
+    // ghi lại, cuối cùng mới cảnh báo người dùng. Inbox là đường capture chính, nuốt lỗi im lặng
+    // ở đây nghĩa là item vừa gõ biến mất sau khi reload.
+    const payload = JSON.stringify(inbox);
+    const util = typeof window !== 'undefined' ? window.TaskFlowUtil : null;
+    // Tra cứu lúc gọi (không destructure lúc nạp) — inbox.js không phụ thuộc thứ tự script.
+    const res = util && util.storageSet ? util.storageSet(INBOX_KEY, payload) : null;
+    if (!res) { try { localStorage.setItem(INBOX_KEY, payload); } catch (e) { /* ẩn */ } }
     if (typeof window !== 'undefined' && window.Sync) window.Sync.push(INBOX_KEY);
+    return res;
   }
 
   // Row Inbox: checkbox + text (sửa trực tiếp) + meta + hành động (lên lịch hôm nay / xoá).

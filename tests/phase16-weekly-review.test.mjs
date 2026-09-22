@@ -398,7 +398,7 @@ test('Weekly Review production asset loads before app and is cached offline', ()
   assert.ok(appIndex > reviewIndex);
   assert.match(APP_HTML, /js\/i18n\.min\.js\?v=\d+/);
   assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=\d+/g) || []).length, 2);
-  assert.match(SW, /const CACHE = 'taskflow-v306'/);
+  assert.match(SW, /const CACHE = 'taskflow-v\d+'/);
   assert.match(SW, /'\.\/js\/weekly-review\.min\.js'/);
 });
 

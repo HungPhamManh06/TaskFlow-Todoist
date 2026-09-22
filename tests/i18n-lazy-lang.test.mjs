@@ -121,6 +121,11 @@ test('bất biến: version asset lazy khớp ở CẢ 3 nơi (app.js / i18n.js 
   assert.ok(swV && appV && i18nV, `phải đọc được cả 3 version (sw=${swV}, app=${appV}, i18n=${i18nV})`);
   assert.equal(appV, swV, 'LAZY_ASSET_VERSION (app.js) phải khớp LAZY_V (sw.js)');
   assert.equal(i18nV, swV, 'EN_ASSET_VERSION (i18n.js) phải khớp LAZY_V (sw.js)');
+  // Định dạng: các test khác đã chuyển sang pin-agnostic (`?v=\d+` / `taskflow-v\d+`),
+  // nên phải chốt định dạng ở đây — kẻo regex kia xanh nhờ chuỗi rác.
+  assert.match(swV, /^v\d+$/, `LAZY_V phải có dạng v<N> (đang là "${swV}")`);
+  const cacheV = read(SW_SRC, /const CACHE = '([^']+)'/);
+  assert.match(cacheV, /^taskflow-v\d+$/, `CACHE phải có dạng taskflow-v<N> (đang là "${cacheV}")`);
 });
 
 test('parity: mọi key VI đều có bản EN', () => {

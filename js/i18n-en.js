@@ -29,6 +29,7 @@
     moreNav: 'More',
     moreAdd: 'Add',
     moreSheetTitle: 'More',
+    moreInboxCount: '{n} unprocessed tasks',
     moreGroupTools: 'Tools',
     moreGroupSystem: 'System',
     moreSettings: 'Settings',

@@ -185,11 +185,31 @@ def run_viewport(browser, browser_name, width, height, label, base, screenshots)
                    page.locator('#mobileNav [aria-current="page"]').count() == 1)
             nav_items = page.locator("#mobileNav .app-mobile-nav-item")
             fab = page.locator("#mobileNav .app-mobile-nav-fab")
-            record(vp, "bottom nav", "5 slots (today/upcoming/ADD-CENTER/projects/more)",
-                   nav_items.count() == 4 and fab.count() == 1,
+            # Slot/thứ tự KHÔNG hardcode ở đây: đọc chính MOBILE_NAV_SLOTS (js/config.js) mà
+            # buildNav dùng, rồi so với DOM thật. Nhờ vậy thêm/bớt tab không phải sửa script này
+            # (trước đây là chuỗi literal "5 slots (today/upcoming/ADD-CENTER/projects/more)").
+            slot_match = page.evaluate(
+                """() => {
+                  const cfg = window.TaskFlowConfig.MOBILE_NAV_SLOTS.map(
+                    (s) => (s.type === 'add' ? 'ADD' : (s.view || s.action || ''))
+                  );
+                  const dom = Array.from(document.getElementById('mobileNav').children).map(
+                    (el) => (el.classList.contains('app-mobile-nav-add')
+                      ? 'ADD'
+                      : (el.dataset.navView || el.dataset.action || ''))
+                  );
+                  return { cfg, dom, addIdx: cfg.indexOf('ADD') };
+                }"""
+            )
+            record(vp, "bottom nav", "slot khớp MOBILE_NAV_SLOTS (số lượng + thứ tự)",
+                   slot_match["dom"] == slot_match["cfg"],
+                   f"(config={slot_match['cfg']}, render={slot_match['dom']})")
+            record(vp, "bottom nav", "đúng 1 FAB + số item = số slot",
+                   fab.count() == 1 and nav_items.count() == len(slot_match["cfg"]) - 1,
                    f"(items={nav_items.count()}, fab={fab.count()})")
-            # FAB "Thêm việc" phải ở slot GIỮA thanh (Inbox chuyển vào More sheet):
-            # tâm FAB lệch tâm nav ≤ 1.5px và add cell là slot thứ 3 (index 2).
+            # FAB "Thêm việc" phải ở đúng slot 'add' của config và (với config hiện tại) ở GIỮA
+            # thanh → tâm FAB lệch tâm nav ≤ 1.5px. Index KHÔNG hardcode: lấy từ config; chỉ
+            # riêng kỳ vọng "nằm giữa" mới là hợp đồng thiết kế.
             fab_mid = page.evaluate(
                 """() => {
                   const nav = document.getElementById('mobileNav');
@@ -201,9 +221,60 @@ def run_viewport(browser, browser_name, width, height, label, base, screenshots)
                   return { mid: Math.round((fabMid - navMid) * 10) / 10, idx };
                 }"""
             )
-            record(vp, "bottom nav", "add-task FAB centered",
-                   abs(fab_mid["mid"]) <= 1.5 and fab_mid["idx"] == 2,
-                   f"(lệch tâm {fab_mid['mid']}px, slot index={fab_mid['idx']})")
+            center_idx = (len(slot_match["cfg"]) - 1) / 2
+            record(vp, "bottom nav", "add-task FAB ở slot 'add' của config + đúng tâm",
+                   abs(fab_mid["mid"]) <= 1.5 and fab_mid["idx"] == slot_match["addIdx"] and slot_match["addIdx"] == center_idx,
+                   f"(lệch tâm {fab_mid['mid']}px, slot index={fab_mid['idx']}, config addIdx={slot_match['addIdx']})")
+            # More sheet: nhóm + thứ tự theo tần suất dùng (Inbox trên cùng, kèm badge).
+            # Guard khoá HÀNG ĐÃ RENDER — test tĩnh chỉ khoá mảng nguồn MORE_SHEET_VIEWS.
+            open_more_sheet(page, vp)
+            sheet = page.evaluate(
+                """() => {
+                  const groups = Array.from(document.querySelectorAll('#moreSheetNav .more-sheet-group'));
+                  const keysOf = (g) => Array.from(g.querySelectorAll('.app-nav-item')).map(
+                    (b) => b.dataset.navView || b.dataset.action || '');
+                  const first = (groups[0] || document.createElement('div'));
+                  const inboxRow = first.querySelector('.app-nav-item[data-nav-view="inbox"]');
+                  return {
+                    groups: groups.length,
+                    navKeys: groups[0] ? keysOf(groups[0]) : [],
+                    toolKeys: groups[1] ? keysOf(groups[1]) : [],
+                    inboxFirst: !!inboxRow && first.querySelector('.app-nav-item') === inboxRow,
+                    inboxBadge: !!inboxRow && !!inboxRow.querySelector('[data-badge="inbox"]'),
+                  };
+                }"""
+            )
+            record(vp, "more sheet", "3 nhóm: Điều hướng / Công cụ / Hệ thống",
+                   sheet["groups"] == 3, f"(groups={sheet['groups']})")
+            record(vp, "more sheet", "Inbox lên đầu nhóm Điều hướng + có badge",
+                   sheet["inboxFirst"] and sheet["inboxBadge"],
+                   f"(navKeys={sheet['navKeys']})")
+            record(vp, "more sheet", "tab hay dùng trước Lịch, Lịch trước Năm",
+                   sheet["navKeys"][:5] == ["inbox", "week", "overview", "calendar", "year"],
+                   f"(navKeys={sheet['navKeys']})")
+            # Công cụ: Thói quen (việc hằng ngày) trước, rồi 2 chế độ bấm-là-chạy, cuối là Báo cáo.
+            record(vp, "more sheet", "Công cụ: Thói quen → Tập trung → Pomodoro → Trợ lý → Báo cáo",
+                   sheet["toolKeys"] == ["habits", "focus", "pomo-toggle", "chat-toggle", "report"],
+                   f"(toolKeys={sheet['toolKeys']})")
+            # Nhắm tới widget habits trong Tổng quan: sheet phải đóng, không che màn vừa mở.
+            page.locator('#moreSheet [data-action="habits"]').click()
+            page.wait_for_selector('[data-testid="more-sheet"]', state="hidden")
+            habits_ok = page.evaluate(
+                """() => ({
+                  sheetClosed: document.getElementById('moreSheet').hidden,
+                  onOverview: !document.getElementById('view-overview').hidden,
+                  hasGrid: !!document.querySelector('[data-widget-id="habits"]'),
+                })"""
+            )
+            record(vp, "more sheet", "Thói quen: đóng sheet + mở Tổng quan + có widget habits",
+                   habits_ok["sheetClosed"] and habits_ok["onOverview"] and habits_ok["hasGrid"],
+                   f"({habits_ok})")
+            # Trả state về Today rồi mở lại sheet — các check sau giả định đang ở Hôm nay.
+            page.locator('#mobileNav [data-nav-view="today"]').click()
+            page.wait_for_selector('[data-testid="today-view"]', state="visible")
+            page.locator('#mobileNav [data-action="more"]').click()
+            page.wait_for_selector('[data-testid="more-sheet"]', state="visible")
+            close_more_sheet(page, vp)
             # Regression guard: KHÔNG slot nào được rơi ra ngoài viewport.
             # Grid ít cột hơn số slot → slot cuối xuống implicit row 2, nằm dưới
             # bottom nav (đã từng làm mất nút Thêm → không mở được Cài đặt).
@@ -280,6 +351,34 @@ def run_viewport(browser, browser_name, width, height, label, base, screenshots)
         else:
             record(vp, "sidebar", "desktop sidebar visible", page.locator("#desktopSidebar").is_visible())
             record(vp, "sidebar", "mobile nav hidden", page.locator("#mobileNav").is_hidden())
+            # ---------- ĐỒNG BỘ BỀ MẶT NAV (tablet 768px+ dùng sidebar, KHÔNG dùng More sheet) ----------
+            # More sheet là bề mặt chỉ-mobile: ở đây không được có trigger nào hiện, và mọi
+            # view/shortcut phải nằm trong sidebar (ngược lại thì tablet mất đường vào).
+            parity = page.evaluate(
+                """() => {
+                  const vis = (el) => {
+                    if (!el) return false;
+                    const r = el.getBoundingClientRect();
+                    const cs = getComputedStyle(el);
+                    return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+                  };
+                  const views = ['today', 'inbox', 'upcoming', 'week', 'calendar', 'projects', 'overview', 'year'];
+                  return {
+                    missingViews: views.filter((v) => !vis(document.querySelector(`#desktopSidebar [data-nav-view="${v}"]`))),
+                    inboxDirect: vis(document.querySelector('#desktopSidebar [data-nav-view="inbox"]')),
+                    habitsShortcut: vis(document.querySelector('#desktopSidebar [data-action="habits"]')),
+                    moreTriggers: [...document.querySelectorAll('[data-action="more"]')].filter(vis).length,
+                    sheetHidden: document.getElementById('moreSheet').hidden,
+                  };
+                }"""
+            )
+            record(vp, "sidebar", "phủ đủ 8 view (không view nào rơi vào More sheet)",
+                   not parity["missingViews"], f"(thiếu={parity['missingViews']})")
+            record(vp, "sidebar", "Inbox vào trực tiếp (không qua sheet)", parity["inboxDirect"])
+            record(vp, "sidebar", "shortcut Thói quen có mặt", parity["habitsShortcut"])
+            record(vp, "sidebar", "More sheet là mobile-only (0 trigger, sheet ẩn)",
+                   parity["moreTriggers"] == 0 and parity["sheetHidden"],
+                   f"(triggers={parity['moreTriggers']}, hidden={parity['sheetHidden']})")
         assert_no_overflow(page, vp, "initial layout")
 
         # ---------- QUICK ADD ----------

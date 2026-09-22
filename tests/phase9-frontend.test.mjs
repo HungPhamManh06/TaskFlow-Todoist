@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import UI from '../js/ui.js';
 import DeepLink from '../js/deeplink.js';
+// NAV CONFIG — nguồn duy nhất cho bottom nav + More sheet (test đọc chính object này,
+// không lặp lại danh sách literal; UMD nên import được như CJS default).
+import Config from '../js/config.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
@@ -847,7 +850,7 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
   // Pin-agnostic: chỉ cần có pin ?v= — số bump theo mỗi release
   assert.match(APP, /js\/app\.min\.js\?v=\d+/);
-  assert.match(SW, /const CACHE = 'taskflow-v306';/);
+  assert.match(SW, /const CACHE = 'taskflow-v\d+';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1401,13 +1404,26 @@ test('P11: remind-ui extracted — scheduleItemReminder/syncReminderTimers/rende
   assert.match(rumod, /remind-off-item/);
 });
 
-test('Mobile bottom-nav redesign: Today/Upcoming/FAB-GIỮA/Projects/More + sheet chứa inbox/week/overview/year/calendar', () => {
-  // 2026-09-22: 5 mục — Inbox chuyển vào More sheet → FAB "Thêm việc" ở slot giữa.
-  assert.match(APP_JS, /mobileItem\(byView\.today\) \+/);
-  assert.match(APP_JS, /mobileItem\(byView\.upcoming\) \+/);
+test('Mobile bottom-nav: render từ MOBILE_NAV_SLOTS (config một nguồn) + sheet chứa inbox/week/overview/calendar/year', () => {
+  // 2026-09-22 (bước 2): danh sách/thứ tự slot + vị trí FAB rút vào js/config.js. Test này
+  // đọc CHÍNH object đó — thêm/bớt tab chỉ sửa một chỗ, không phải sửa hàm render lẫn CSS.
+  const slots = Config.MOBILE_NAV_SLOTS;
+  assert.deepEqual(slots.map((s) => s.type), ['view', 'view', 'add', 'view', 'action']);
+  assert.deepEqual(slots.filter((s) => s.type === 'view').map((s) => s.view), ['today', 'upcoming', 'projects']);
+  const addIdx = slots.findIndex((s) => s.type === 'add');
+  assert.equal(slots.filter((s) => s.type === 'add').length, 1, 'phải có đúng MỘT FAB "Thêm việc"');
+  assert.equal(addIdx, (slots.length - 1) / 2, 'FAB phải ở slot GIỮA để thanh đối xứng (2 | + | 2)');
+  assert.equal(slots[slots.length - 1].action, 'more', 'slot cuối là nút mở More sheet');
+  assert.equal(slots[slots.length - 1].sheet, 'moreSheet', 'slot "Thêm" phải khai báo sheet nó mở');
+  // app.js render THUẦN từ config — không ghép chuỗi slot thủ công nữa (đó chính là thứ
+  // khiến thêm/bớt tab phải sửa 2-3 nơi).
+  assert.match(APP_JS, /mobile\.innerHTML = MOBILE_NAV_SLOTS\.map\(slotHTML\)\.join\(''\)/);
+  assert.match(APP_JS, /MOBILE_NAV_SLOTS,\s*MORE_SHEET_VIEWS,\s*\} = window\.TaskFlowConfig;/,
+    'app.js phải lấy nav config từ js/config.js');
+  assert.doesNotMatch(APP_JS, /mobileItem\(byView\.(today|upcoming|projects)\) \+/,
+    'không còn ghép chuỗi slot thủ công trong buildNav');
   assert.match(APP_JS, /app-mobile-nav-fab" data-action="shell-add-task"/);
-  assert.match(APP_JS, /mobileItem\(byView\.projects\) \+/);
-  assert.match(APP_JS, /data-action="more" aria-controls="moreSheet"/);
+  assert.match(APP_JS, /aria-controls="\$\{slot\.sheet\}"/, 'nút "Thêm" lấy aria-controls từ config');
   // FAB là ACTION: không data-nav-view → updateNav không bao giờ active (chỉ 1 tab active)
   assert.match(APP_JS, /app-mobile-nav-fab/);
   assert.doesNotMatch(APP_JS, /app-mobile-nav-fab[\s\S]{0,80}data-nav-view/);
@@ -1424,9 +1440,31 @@ test('Mobile bottom-nav redesign: Today/Upcoming/FAB-GIỮA/Projects/More + shee
   // Week và Inbox không còn là tab chính mobile (Inbox chuyển vào sheet 2026-09-22)
   assert.doesNotMatch(APP_JS, /mobileItem\(byView\.week\)/);
   assert.doesNotMatch(APP_JS, /mobileItem\(byView\.inbox\)/);
-  // View trong More sheet → highlight nút Thêm (luôn ĐÚNG MỘT active trên mobile)
-  assert.match(APP_JS, /const MORE_SHEET_VIEWS = \['inbox', 'week', 'overview', 'year', 'calendar'\]/);
+  // View trong More sheet → highlight nút Thêm (luôn ĐÚNG MỘT active trên mobile).
+  // Thứ tự = thứ tự hàng trong sheet, xếp theo tần suất dùng (Inbox đầu, Năm cuối).
+  assert.deepEqual(Config.MORE_SHEET_VIEWS, ['inbox', 'week', 'overview', 'calendar', 'year']);
   assert.match(APP_JS, /moreBtn\.classList\.toggle\('active', moreActive\)/);
+  // Badge số việc Inbox chưa xử lý: render cùng dòng Inbox, cập nhật khi mở sheet + khi ghi inbox.
+  assert.match(APP_JS, /function inboxOpenCount\(\)[\s\S]{0,140}!tk\.done/, 'badge phải đếm item chưa xử lý');
+  assert.match(APP_JS, /function updateInboxBadge\(\)[\s\S]{0,320}data-badge="inbox"/, 'badge phải gắn với dòng Inbox');
+  assert.match(APP_JS, /inboxOpenCount\(\)[\s\S]{0,120}moreInboxCount/, 'badge phải có nhãn i18n cho screen reader');
+  assert.match(APP_JS, /sheetItem\(it, it\.view === 'inbox'\)/, 'chỉ dòng Inbox có badge');
+  const badgeCallers = (APP_JS.match(/updateInboxBadge\(\);/g) || []).length;
+  assert.ok(badgeCallers >= 3, `badge phải được refresh ở buildNav + mở sheet + ghi inbox (thấy ${badgeCallers})`);
+  // Nhóm Công cụ xếp theo độ sẵn dùng: 2 chế độ bấm-là-chạy trước, Báo cáo (nhịp tháng) cuối
+  const toolsBlock = APP_JS.slice(APP_JS.indexOf("label: t('moreGroupTools')"), APP_JS.indexOf("label: t('moreGroupSystem')"));
+  // 2026-09-22: Thói quen (việc hằng ngày, shortcut tới widget trong Tổng quan — đúng
+  // thứ mà sidebar desktop có ở nhóm "Theo dõi") lên đầu nhóm Công cụ.
+  const toolsOrder = ["actionBtn('habits'", "actionBtn('focus'", "actionBtn('pomo-toggle'", "actionBtn('chat-toggle'", "actionBtn('report'"];
+  for (let i = 0; i < toolsOrder.length - 1; i++) {
+    const a = toolsBlock.indexOf(toolsOrder[i]);
+    const b = toolsBlock.indexOf(toolsOrder[i + 1]);
+    assert.ok(a >= 0 && b >= 0 && a < b,
+      `thứ tự nhóm Công cụ sai: ${toolsOrder[i]} phải đứng trước ${toolsOrder[i + 1]}`);
+  }
+  // i18n VI+EN phải có nhãn badge (parity do i18n test lo, ở đây chặn key bị bỏ quên)
+  assert.match(readRequiredAsset('js/i18n.js'), /moreInboxCount:/);
+  assert.match(readRequiredAsset('js/i18n-en.js'), /moreInboxCount:/);
   // CSS: thanh dùng --mobile-nav-height (64px), active chỉ 1 tab accent 10%, hover hover-only
   const shell = readRequiredAsset('css/app-shell.css');
   assert.match(shell, /:root\s*{[^}]*--mobile-nav-height:\s*64px/s);
@@ -1449,6 +1487,14 @@ test('Mobile bottom-nav redesign: Today/Upcoming/FAB-GIỮA/Projects/More + shee
   assert.match(APP_JS, /<span class="app-mobile-nav-add-slot">[\s\S]{0,160}app-mobile-nav-fab/,
     'FAB phải nằm trong khe icon của add cell');
   assert.match(shell, /\.app-mobile-nav-add-label/);
+  // Số cột suy ra từ số con render: thêm/bớt slot không phải sửa CSS. Trước 2026-09-22
+  // là repeat(5, ...) hardcode — lệch số cột thì slot cuối rơi xuống implicit row 2
+  // (ngoài viewport 64px) và mất hẳn, từng làm mất nút Thêm.
+  assert.match(shell, /\.app-mobile-nav\s*{[^}]*grid-auto-flow:\s*column/s,
+    'bottom nav phải tự suy ra số cột từ số slot (grid-auto-flow: column)');
+  assert.match(shell, /\.app-mobile-nav\s*{[^}]*grid-auto-columns:\s*minmax\(0,\s*1fr\)/s);
+  assert.doesNotMatch(shell, /\.app-mobile-nav\s*{[^}]*grid-template-columns:\s*repeat\(/s,
+    'không được hardcode số cột slot trong CSS');
   // drag handle bottom sheet
   assert.match(APP, /more-sheet-grip/);
   assert.match(shell, /\.more-sheet-grip/);
@@ -1479,7 +1525,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v306';/);
+  assert.match(SW, /const CACHE = 'taskflow-v\d+';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -2067,15 +2113,20 @@ test('P11: config constants extracted — seed data lives in js/config.js (extra
   assert.ok(SW.includes("\'./js/config.min.js\'"), 'sw.js phải precache js/config.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowConfig\) throw new Error\('TaskFlowConfig missing/);
-  assert.match(APP_JS, /const \{ HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK \} = window\.TaskFlowConfig;/);
+  assert.match(APP_JS, /const \{\s*HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK,\s*[\s\S]{0,240}MOBILE_NAV_SLOTS, MORE_SHEET_VIEWS,\s*\} = window\.TaskFlowConfig;/,
+    'config seed-data VÀ nav config đều phải destructure từ window.TaskFlowConfig');
+  assert.match(APP_JS, /Nav config missing \(MOBILE_NAV_SLOTS\/MORE_SHEET_VIEWS\)/, 'phải fail-fast nếu thiếu nav config');
   assert.doesNotMatch(APP_JS, /^const HABIT_DEFS = /m);
+  assert.doesNotMatch(APP_JS, /^const MORE_SHEET_VIEWS = /m, 'MORE_SHEET_VIEWS chỉ được định nghĩa ở js/config.js');
   assert.doesNotMatch(APP_JS, /^const WEEK_PATTERNS = /m);
   assert.doesNotMatch(APP_JS, /^const DAYS = /m);
   // module export đủ API
   const mod = readRequiredAsset('js/config.js');
   assert.match(mod, /const HABIT_DEFS = \[/);
   assert.match(mod, /const WEEK_PATTERNS = \[/);
-  assert.match(mod, /return \{ HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK \}/);
+  assert.match(mod, /return \{\s*HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK,\s*MOBILE_NAV_SLOTS, MORE_SHEET_VIEWS,\s*\}/,
+    'js/config.js phải export cả nav config');
+  assert.match(mod, /const MOBILE_NAV_SLOTS = \[/, 'nav config nằm ở js/config.js');
 });
 
 test('P11: FAB drag/tuck helpers extracted — FAB core lives in js/fab.js', () => {
@@ -2142,7 +2193,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v306';/);
+  assert.match(SW, /const CACHE = 'taskflow-v\d+';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2220,7 +2271,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v306';/);
+  assert.match(SW, /const CACHE = 'taskflow-v\d+';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2463,7 +2514,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v293', 'taskflow-v306', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v293', 'taskflow-v307', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);
@@ -2796,17 +2847,18 @@ test('Phase 3: Today Dashboard is the default view with greeting, tasks, habits 
   // deeplink accepts today
   const deeplink = readRequiredAsset('js/deeplink.js');
   assert.match(deeplink, /view === 'today'/);
-  // mobile nav: 5-slot grid — Today / Upcoming / + FAB (slot GIỮA) / Projects / More.
-  // Inbox nằm trong More sheet (MORE_SHEET_VIEWS) → thanh đối xứng, FAB đúng tâm.
-  // Số cột phải khớp số slot buildNav() render, nếu không slot cuối (Thêm → Cài đặt)
-  // rơi xuống implicit row thứ 2 và mất khỏi viewport 64px của bottom nav.
+  // mobile nav: slot/thứ tự nằm ở MOBILE_NAV_SLOTS (js/config.js) — Today / Upcoming /
+  // + FAB (slot GIỮA) / Projects / More. Inbox nằm trong More sheet (MORE_SHEET_VIEWS).
+  // Số cột CSS suy ra từ số con (grid-auto-flow) nên không có con số nào phải khớp tay.
   const shell = readRequiredAsset('css/app-shell.css');
-  assert.match(shell, /\.app-mobile-nav\s*{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/s);
-  assert.match(shell, /\.app-mobile-nav-add/);;
-  assert.match(APP_JS, /const MORE_SHEET_VIEWS = \['inbox', 'week', 'overview', 'year', 'calendar'\]/,
-    'Inbox phải nằm trong More sheet (bottom nav chỉ còn 5 slot, FAB ở giữa)');
-  assert.match(APP_JS, /mobileItem\(byView\.today\) \+\s*mobileItem\(byView\.upcoming\)/,
-    'nav trái: Today rồi Upcoming — không còn Inbox tab');
+  assert.match(shell, /\.app-mobile-nav\s*{[^}]*grid-auto-flow:\s*column/s);
+  assert.match(shell, /\.app-mobile-nav-add/);
+  assert.deepEqual(Config.MOBILE_NAV_SLOTS.filter((s) => s.type === 'view').map((s) => s.view),
+    ['today', 'upcoming', 'projects'], 'nav trái/phải: Today, Upcoming (trước FAB), Projects');
+  assert.deepEqual(Config.MORE_SHEET_VIEWS[0], 'inbox',
+    'Inbox phải nằm trong More sheet và đứng đầu vì hay dùng nhất');
+  assert.match(APP_JS, /mobile\.innerHTML = MOBILE_NAV_SLOTS\.map\(slotHTML\)\.join\(''\)/,
+    'buildNav phải render từ config, không ghép chuỗi thủ công');
   assert.doesNotMatch(APP_JS, /mobileItem\(byView\.inbox\)/, 'Inbox không còn là tab trực tiếp trên mobile');
 });
 

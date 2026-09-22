@@ -87,5 +87,38 @@
   const REFLECT_PROMPTS_MONTH = () => [t('rm0'), t('rm1'), t('rm2'), t('rm3')];
   const REFLECT_PROMPTS_WEEK = () => [t('rm0'), t('rm1'), t('rm2'), t('rw3')];
 
-  return { HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK };
+  /* ==========================================================================
+     NAV CONFIG — MỘT NGUỒN DUY NHẤT cho bottom nav mobile + More sheet.
+
+     Thêm/bớt tab = sửa DUY NHẤT mảng dưới đây. Không phải sửa:
+       • js/app.js   (buildNav render từ mảng này)
+       • css/app-shell.css (số cột suy ra từ số con: grid-auto-flow: column)
+       • tests/ + scripts/e2e-mobile-qa.py (đọc chính object này)
+
+     Thứ tự phần tử = thứ tự trái→phải trên thanh. Vị trí FAB "Thêm việc" do vị trí
+     slot { type: 'add' } trong mảng quyết định (đặt giữa để thanh đối xứng) — KHÔNG
+     hardcode index ở CSS/JS/test.
+
+     type:
+       'view'   → tab điều hướng thật (data-nav-view), active do updateNav() quản
+       'add'    → FAB "Thêm việc" (không phải tab, không bao giờ active)
+       'action' → nút action (vd mở More sheet) — không bao giờ active kiểu "page"
+     ========================================================================== */
+  const MOBILE_NAV_SLOTS = [
+    { type: 'view', view: 'today' },
+    { type: 'view', view: 'upcoming' },
+    { type: 'add' }, // FAB — giữ ở giữa để thanh đối xứng (2 | + | 2)
+    { type: 'view', view: 'projects' },
+    { type: 'action', action: 'more', icon: 'more', labelKey: 'moreNav', sheet: 'moreSheet' },
+  ];
+
+  // View nằm trong More sheet — thứ tự phần tử = thứ tự hàng trong sheet
+  // (tần suất dùng giảm dần: Inbox vừa rời thanh chính nên hay dùng nhất,
+  // Lịch dùng thường xuyên hơn Năm). Tổng số view bottom nav + sheet = đủ 8 view app.
+  const MORE_SHEET_VIEWS = ['inbox', 'week', 'overview', 'calendar', 'year'];
+
+  return {
+    HABIT_DEFS, GOAL_DEFS, WEEK_PATTERNS, REFLECT_PROMPTS_MONTH, REFLECT_PROMPTS_WEEK,
+    MOBILE_NAV_SLOTS, MORE_SHEET_VIEWS,
+  };
 });

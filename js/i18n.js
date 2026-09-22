@@ -40,6 +40,7 @@
     moreNav: 'Thêm',
     moreAdd: 'Thêm việc',
     moreSheetTitle: 'Điều hướng',
+    moreInboxCount: '{n} việc chưa xử lý',
     moreGroupTools: 'Công cụ',
     moreGroupSystem: 'Hệ thống',
     moreSettings: 'Cài đặt',
@@ -1678,7 +1679,7 @@
   }
 
   const EN_ASSET = 'js/i18n-en.min.js';
-  const EN_ASSET_VERSION = 'v2'; // khớp LAZY_ASSET_VERSION (app.js) + LAZY_V (sw.js)
+  const EN_ASSET_VERSION = 'v3'; // khớp LAZY_ASSET_VERSION (app.js) + LAZY_V (sw.js)
   let _enLoad = null;
 
   // hasLang('en') = false cho tới khi chunk EN về (t() rơi về VI trong lúc chờ).

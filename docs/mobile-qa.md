@@ -1,10 +1,10 @@
 # P1.10 — Mobile Real-Device QA (simulated)
 
-> Simulated in Playwright (chromium, headless) at 2026-09-22 21:46 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
+> Simulated in Playwright (chromium, headless) at 2026-09-22 23:23 — **no physical device**. Software keyboard and real notch safe-area insets (`env(safe-area-inset-*)` = 0 headless) are not covered; everything else is real layout/geometry from the actual app.
 
 Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 (large mobile), 768x1024 (tablet — the app's mobile layout is `max-width: 767px`, so 768 exercises the desktop/tablet layout).
 
-**0 FAIL / 333 checks**
+**0 FAIL / 358 checks**
 
 ## Results
 
@@ -17,8 +17,15 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 360x800 (small Android) | header | topbar sticky | PASS | (position=sticky) |
 | 360x800 (small Android) | bottom nav | visible | PASS |  |
 | 360x800 (small Android) | bottom nav | exactly one active tab | PASS |  |
-| 360x800 (small Android) | bottom nav | 5 slots (today/upcoming/ADD-CENTER/projects/more) | PASS | (items=4, fab=1) |
-| 360x800 (small Android) | bottom nav | add-task FAB centered | PASS | (lệch tâm -0.0px, slot index=2) |
+| 360x800 (small Android) | bottom nav | slot khớp MOBILE_NAV_SLOTS (số lượng + thứ tự) | PASS | (config=['today', 'upcoming', 'ADD', 'projects', 'more'], render=['today', 'upcoming', 'ADD', 'projects', 'more']) |
+| 360x800 (small Android) | bottom nav | đúng 1 FAB + số item = số slot | PASS | (items=4, fab=1) |
+| 360x800 (small Android) | bottom nav | add-task FAB ở slot 'add' của config + đúng tâm | PASS | (lệch tâm -0.0px, slot index=2, config addIdx=2) |
+| 360x800 (small Android) | more sheet | opens from bottom nav | PASS |  |
+| 360x800 (small Android) | more sheet | 3 nhóm: Điều hướng / Công cụ / Hệ thống | PASS | (groups=3) |
+| 360x800 (small Android) | more sheet | Inbox lên đầu nhóm Điều hướng + có badge | PASS | (navKeys=['inbox', 'week', 'overview', 'calendar', 'year']) |
+| 360x800 (small Android) | more sheet | tab hay dùng trước Lịch, Lịch trước Năm | PASS | (navKeys=['inbox', 'week', 'overview', 'calendar', 'year']) |
+| 360x800 (small Android) | more sheet | Công cụ: Thói quen → Tập trung → Pomodoro → Trợ lý → Báo cáo | PASS | (toolKeys=['habits', 'focus', 'pomo-toggle', 'chat-toggle', 'report']) |
+| 360x800 (small Android) | more sheet | Thói quen: đóng sheet + mở Tổng quan + có widget habits | PASS | ({'sheetClosed': True, 'onOverview': True, 'hasGrid': True}) |
 | 360x800 (small Android) | bottom nav | all slots inside viewport | PASS |  |
 | 360x800 (small Android) | bottom nav | touch targets >= 44px | PASS |  |
 | 360x800 (small Android) | bottom nav | labels don't wrap | PASS |  |
@@ -104,8 +111,15 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 390x844 (common mobile) | header | topbar sticky | PASS | (position=sticky) |
 | 390x844 (common mobile) | bottom nav | visible | PASS |  |
 | 390x844 (common mobile) | bottom nav | exactly one active tab | PASS |  |
-| 390x844 (common mobile) | bottom nav | 5 slots (today/upcoming/ADD-CENTER/projects/more) | PASS | (items=4, fab=1) |
-| 390x844 (common mobile) | bottom nav | add-task FAB centered | PASS | (lệch tâm -0.0px, slot index=2) |
+| 390x844 (common mobile) | bottom nav | slot khớp MOBILE_NAV_SLOTS (số lượng + thứ tự) | PASS | (config=['today', 'upcoming', 'ADD', 'projects', 'more'], render=['today', 'upcoming', 'ADD', 'projects', 'more']) |
+| 390x844 (common mobile) | bottom nav | đúng 1 FAB + số item = số slot | PASS | (items=4, fab=1) |
+| 390x844 (common mobile) | bottom nav | add-task FAB ở slot 'add' của config + đúng tâm | PASS | (lệch tâm -0.0px, slot index=2, config addIdx=2) |
+| 390x844 (common mobile) | more sheet | opens from bottom nav | PASS |  |
+| 390x844 (common mobile) | more sheet | 3 nhóm: Điều hướng / Công cụ / Hệ thống | PASS | (groups=3) |
+| 390x844 (common mobile) | more sheet | Inbox lên đầu nhóm Điều hướng + có badge | PASS | (navKeys=['inbox', 'week', 'overview', 'calendar', 'year']) |
+| 390x844 (common mobile) | more sheet | tab hay dùng trước Lịch, Lịch trước Năm | PASS | (navKeys=['inbox', 'week', 'overview', 'calendar', 'year']) |
+| 390x844 (common mobile) | more sheet | Công cụ: Thói quen → Tập trung → Pomodoro → Trợ lý → Báo cáo | PASS | (toolKeys=['habits', 'focus', 'pomo-toggle', 'chat-toggle', 'report']) |
+| 390x844 (common mobile) | more sheet | Thói quen: đóng sheet + mở Tổng quan + có widget habits | PASS | ({'sheetClosed': True, 'onOverview': True, 'hasGrid': True}) |
 | 390x844 (common mobile) | bottom nav | all slots inside viewport | PASS |  |
 | 390x844 (common mobile) | bottom nav | touch targets >= 44px | PASS |  |
 | 390x844 (common mobile) | bottom nav | labels don't wrap | PASS |  |
@@ -191,8 +205,15 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 412x915 (large mobile) | header | topbar sticky | PASS | (position=sticky) |
 | 412x915 (large mobile) | bottom nav | visible | PASS |  |
 | 412x915 (large mobile) | bottom nav | exactly one active tab | PASS |  |
-| 412x915 (large mobile) | bottom nav | 5 slots (today/upcoming/ADD-CENTER/projects/more) | PASS | (items=4, fab=1) |
-| 412x915 (large mobile) | bottom nav | add-task FAB centered | PASS | (lệch tâm 0px, slot index=2) |
+| 412x915 (large mobile) | bottom nav | slot khớp MOBILE_NAV_SLOTS (số lượng + thứ tự) | PASS | (config=['today', 'upcoming', 'ADD', 'projects', 'more'], render=['today', 'upcoming', 'ADD', 'projects', 'more']) |
+| 412x915 (large mobile) | bottom nav | đúng 1 FAB + số item = số slot | PASS | (items=4, fab=1) |
+| 412x915 (large mobile) | bottom nav | add-task FAB ở slot 'add' của config + đúng tâm | PASS | (lệch tâm 0px, slot index=2, config addIdx=2) |
+| 412x915 (large mobile) | more sheet | opens from bottom nav | PASS |  |
+| 412x915 (large mobile) | more sheet | 3 nhóm: Điều hướng / Công cụ / Hệ thống | PASS | (groups=3) |
+| 412x915 (large mobile) | more sheet | Inbox lên đầu nhóm Điều hướng + có badge | PASS | (navKeys=['inbox', 'week', 'overview', 'calendar', 'year']) |
+| 412x915 (large mobile) | more sheet | tab hay dùng trước Lịch, Lịch trước Năm | PASS | (navKeys=['inbox', 'week', 'overview', 'calendar', 'year']) |
+| 412x915 (large mobile) | more sheet | Công cụ: Thói quen → Tập trung → Pomodoro → Trợ lý → Báo cáo | PASS | (toolKeys=['habits', 'focus', 'pomo-toggle', 'chat-toggle', 'report']) |
+| 412x915 (large mobile) | more sheet | Thói quen: đóng sheet + mở Tổng quan + có widget habits | PASS | ({'sheetClosed': True, 'onOverview': True, 'hasGrid': True}) |
 | 412x915 (large mobile) | bottom nav | all slots inside viewport | PASS |  |
 | 412x915 (large mobile) | bottom nav | touch targets >= 44px | PASS |  |
 | 412x915 (large mobile) | bottom nav | labels don't wrap | PASS |  |
@@ -278,6 +299,10 @@ Viewports (per plan): 360x800 (small Android), 390x844 (common mobile), 412x915 
 | 768x1024 (tablet) | header | topbar sticky | PASS | (position=sticky) |
 | 768x1024 (tablet) | sidebar | desktop sidebar visible | PASS |  |
 | 768x1024 (tablet) | sidebar | mobile nav hidden | PASS |  |
+| 768x1024 (tablet) | sidebar | phủ đủ 8 view (không view nào rơi vào More sheet) | PASS | (thiếu=[]) |
+| 768x1024 (tablet) | sidebar | Inbox vào trực tiếp (không qua sheet) | PASS |  |
+| 768x1024 (tablet) | sidebar | shortcut Thói quen có mặt | PASS |  |
+| 768x1024 (tablet) | sidebar | More sheet là mobile-only (0 trigger, sheet ẩn) | PASS | (triggers=0, hidden=True) |
 | 768x1024 (tablet) | overflow | initial layout | PASS |  |
 | 768x1024 (tablet) | quick add | opens | PASS |  |
 | 768x1024 (tablet) | quick add | field #quickAddInput present | PASS |  |

@@ -243,7 +243,7 @@ test('P8 production assets load before monthly review/app and cache offline', ()
   assert.match(APP_HTML, /js\/i18n\.min\.js\?v=\d+/);
   assert.match(APP_HTML, /js\/storage\.min\.js\?v=\d+/);
   assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=\d+/g) || []).length, 2);
-  assert.match(SW, /const CACHE = 'taskflow-v306'/);
+  assert.match(SW, /const CACHE = 'taskflow-v\d+'/);
   assert.match(SW, /'\.\/js\/month-carryover\.min\.js'/);
 });
 

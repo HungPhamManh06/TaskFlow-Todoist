@@ -593,13 +593,14 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     z-index: 55;
     inset: auto 0 0;
     display: grid;
-    /* Bottom nav: ĐÚNG 5 slot, khớp thứ tự buildNav() render —
-       Hôm nay / Sắp tới / + (FAB, slot GIỮA) / Dự án / Thêm (More sheet).
-       Inbox nằm trong More sheet (MORE_SHEET_VIEWS) từ 2026-09-22 → thanh đối xứng.
-       Số cột PHẢI bằng số con render (4 item + 1 FAB): lệch → slot cuối
-       rơi xuống implicit row thứ 2, nằm ngoài viewport nên mất hẳn
-       (đã từng làm mất nút Thêm → không mở được More sheet/Cài đặt). */
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    /* Bottom nav: thứ tự & số slot = MOBILE_NAV_SLOTS (js/config.js) — CSS không biết
+       con số cụ thể. Mỗi con là một cột bằng nhau, tự suy ra từ số con render, nên
+       thêm/bớt tab KHÔNG phải sửa file này.
+       (Trước 2026-09-22 ở đây là `repeat(5, ...)`: lệch số cột so với số con thì slot
+       cuối rơi xuống implicit row thứ 2, nằm ngoài viewport 64px → mất hẳn, đã từng
+       làm mất nút Thêm → không mở được More sheet/Cài đặt.) */
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     border-block-start: 1px solid var(--color-border);
@@ -936,6 +937,26 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
 
 .more-sheet-nav .app-nav-item .ui-icon {
   flex: 0 0 auto;
+}
+
+/* Badge số việc Inbox chưa xử lý (chỉ dòng Inbox trong More sheet) — đẩy về cuối hàng,
+   số căn đều (tabular-nums) để không nhảy bề rộng khi đổi 1 → 11 → 99.
+   Selector đặc hiệu hơn .app-nav-item > span bên dưới nên thắng ở mọi thuộc tính trùng. */
+.more-sheet-nav .app-nav-item > .more-sheet-count {
+  flex: 0 0 auto;
+  min-width: 22px;
+  margin-inline-start: auto;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  font: 800 11px/1.4 var(--font-body);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.more-sheet-nav .app-nav-item > .more-sheet-count[hidden] {
+  display: none;
 }
 
 .more-sheet-nav .app-nav-item > span {

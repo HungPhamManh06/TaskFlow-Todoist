@@ -220,6 +220,59 @@ test('guard tĩnh: không còn đường ghi state tháng nào nuốt lỗi quot
   assert.match(storageSrc, /util\.storageSet\(key, JSON\.stringify\(s\)\)/, 'saveMonthState phải đi qua storageSet');
 });
 
+/* ====== 3c. Đường capture Inbox (js/inbox.js) — cùng lớp, đường ghi hay dùng nhất ====== */
+
+/** Nạp js/util.js + js/inbox.js cùng sandbox (đúng thứ tự script của app.html). */
+function loadInbox({ store = {}, budget = Infinity, withUtil = true, withUi = true } = {}) {
+  const ls = fakeStorage({ seed: store, budget });
+  const toasts = [];
+  const sandbox = {
+    console: { log() {}, error() {}, warn() {}, info() {} },
+    JSON, Math, String, Number, Date, Object, Array,
+    localStorage: ls,
+    Sync: { push() {} },
+  };
+  if (withUi) sandbox.TaskFlowUI = { toast: (msg) => { toasts.push(msg); } };
+  sandbox.globalThis = sandbox;
+  sandbox.window = sandbox;
+  vm.createContext(sandbox);
+  if (withUtil) vm.runInContext(UTIL_SRC, sandbox);
+  vm.runInContext(readFileSync(new URL('../js/inbox.js', import.meta.url), 'utf8'), sandbox);
+  return { inbox: sandbox.TaskFlowInbox, ls, toasts };
+}
+
+/** Payload dùng chữ ASCII để ngân sách byte tính được chính xác (không phụ thuộc Unicode). */
+const INBOX_ITEM = [{ uid: 'u1', text: 'Call A', done: false }];
+
+test('saveInbox: hết chỗ → dọn slot sao lưu rồi vẫn lưu được item vừa capture', () => {
+  // 2 slot (18 byte mỗi cái) + payload (57 byte) = 93 > ngân sách 80; sau khi dọn còn 57 → vừa.
+  const { inbox, ls } = loadInbox({ store: { 'planner-backup-0': 'b0', 'planner-backup-1': 'b1' }, budget: 80 });
+  const res = inbox.saveInbox(INBOX_ITEM);
+  assert.equal(res && res.ok, true, 'phải lưu được sau khi dọn slot sao lưu');
+  assert.equal(JSON.parse(ls.getItem('planner-inbox')).length, 1, 'item vừa capture phải nằm trong localStorage');
+  assert.equal(ls.getItem('planner-backup-0'), null, 'slot sao lưu bị dọn để lấy chỗ');
+});
+
+test('saveInbox: bó tay → trả ok:false + BÁO người dùng (không nuốt lỗi quota)', () => {
+  const { inbox, toasts } = loadInbox({ budget: 5 });
+  const res = inbox.saveInbox(INBOX_ITEM);
+  assert.equal(res.ok, false, 'không ghi được phải nói thật');
+  assert.equal(toasts.length, 1, 'phải báo để người dùng biết item chưa được lưu');
+});
+
+test('saveInbox: thiếu js/util.js (thứ tự script sai) vẫn không throw', () => {
+  const { inbox, ls } = loadInbox({ withUtil: false });
+  assert.doesNotThrow(() => inbox.saveInbox(INBOX_ITEM));
+  assert.ok(ls.getItem('planner-inbox'), 'fallback localStorage vẫn ghi được');
+});
+
+test('guard tĩnh: saveInbox không còn nuốt lỗi quota', () => {
+  const src = readFileSync(new URL('../js/inbox.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /try \{ localStorage\.setItem\(INBOX_KEY, JSON\.stringify\(inbox\)\)/,
+    'saveInbox phải ghi qua storageSet để hết dung lượng còn báo được');
+  assert.match(src, /util\.storageSet\(INBOX_KEY, payload\)/, 'saveInbox phải đi qua storageSet');
+});
+
 test('pruneBackups: chỉ xoá planner-backup-* và con trỏ', () => {
   const { util, ls } = loadUtil({
     store: { 'planner-backup-0': 'b0', 'planner-backup-6': 'b6', 'planner-2026-9': 'keep', 'planner-token': 'tok' },
