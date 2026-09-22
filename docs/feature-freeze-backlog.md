@@ -17,7 +17,7 @@ None currently known.
 
 1. **A11y screen reader audit**: Formal audit with NVDA/VoiceOver for critical flows
 2. **Large dataset E2E**: Automated test with 1000+ tasks to verify performance
-3. **Monthly review date sensitivity**: Consider making test date-independent without clock freeze
+3. ~~**Monthly review date sensitivity**: Consider making test date-independent without clock freeze~~ — **done 2026-09-20**: `tests/helpers/clock.mjs` (isoDate/frozenDate) + `tests/clock-fixtures.test.mjs`; rule in `docs/testing-guide.md`. The same class of bug had turned `main` red (fixture `2026-09-10` expired).
 
 ## Future Ideas (post-freeze)
 

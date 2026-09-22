@@ -71,6 +71,20 @@
   function setLang(l) {
     setLangCore(l);
     if (window.Sync) window.Sync.push('planner-lang');
+    // P1.2 bước 2: dictionary EN là chunk lazy. Lần ĐẦU chuyển sang EN (dict chưa
+    // về) → render lại SAU khi chunk về; nếu render ngay, t() rơi về VI và UI kẹt
+    // ở tiếng Việt cho tới lần đổi ngôn ngữ kế tiếp.
+    const i18n = window.TaskFlowI18N;
+    if (i18n && typeof i18n.hasLang === 'function' && !i18n.hasLang(l) && typeof i18n.ensureLang === 'function') {
+      i18n.ensureLang(l).then(refreshLang, refreshLang);
+      return;
+    }
+    refreshLang();
+  }
+
+  // Render lại toàn bộ UI theo LANG hiện tại. Tách khỏi setLang để boot gọi được
+  // khi chunk EN về muộn (app.js boot hook) — trước đây phần này nằm trong setLang.
+  function refreshLang() {
     applyStaticI18N();
     applySidebarCollapse();
     setSyncMode(syncMode);
@@ -107,5 +121,5 @@
     });
   }
 
-  return { widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, setTheme, prefersReducedMotion, registerSW };
+  return { widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, refreshLang, setTheme, prefersReducedMotion, registerSW };
 });

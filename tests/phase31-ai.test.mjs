@@ -14,7 +14,7 @@ const {
 
 const APP = readFileSync('app.html', 'utf8');
 const SW = readFileSync('sw.js', 'utf8');
-const I18N = readFileSync('js/i18n.js', 'utf8');
+const I18N = readFileSync('js/i18n.js', 'utf8') + readFileSync('js/i18n-en.js', 'utf8');
 const AIJS = readFileSync('js/ai.js', 'utf8');
 
 const TASK = { uid: 't1', text: 'Learn Spring Boot', estimatedMinutes: 90, kind: 'priority', deadline: '2026-03-01', energy: 'medium', contexts: ['ctx_home'], done: false };
@@ -190,11 +190,11 @@ test('validDate: từ chối roll-over (2026-13-40)', () => {
 test('app.html: plannerAi host + ai.min.js script + app.min bump', () => {
   assert.ok(APP.includes('id="plannerAi"'), 'host #plannerAi');
   assert.ok(APP.includes('js/ai.min.js?v=7'), 'script ai.min.js');
-  assert.ok(APP.includes('js/app.min.js?v=235'), 'app.min.js v224');
+  assert.ok(APP.includes('js/app.min.js?v=236'), 'app.min.js v236');
 });
 
 test('sw.js: cache v241 + precache ai.min.js', () => {
-  assert.ok(SW.includes("const CACHE = 'taskflow-v299';"), 'cache v287');
+  assert.ok(SW.includes("const CACHE = 'taskflow-v301';"), 'cache v287');
   assert.ok(SW.includes("'./js/ai.min.js',"), 'precache ai.min.js');
 });
 

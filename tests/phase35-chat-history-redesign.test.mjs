@@ -9,7 +9,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFileSync(path.join(ROOT, file), 'utf8').replace(/\r\n/g, '\n');
 const APP_JS = read('js/app.js');
 const APP = read('app.html');
-const I18N = read('js/i18n.js');
+const I18N = (read('js/i18n.js') + read('js/i18n-en.js'));
 const CHAT = read('js/chat.js');
 const CSS = read('css/styles.css');
 const FRONTEND_E2E = read('scripts/e2e-frontend.py');

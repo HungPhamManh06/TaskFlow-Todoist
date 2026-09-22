@@ -113,6 +113,77 @@ function rewriteHtml(html, manifest) {
   return html;
 }
 
+// ── Boot-chain bundling (Lớp 1 / P1.2) ───────────────────────────────
+// app.html loads ~67 blocking scripts, one per module. dist/ served them as 67
+// separate hashed requests, and the browser can only finish booting after the
+// last one arrives — on mobile that is the dominant cost (Lighthouse app-mobile:
+// perf 76, LCP 6.3 s, xem docs/lighthouse/app-mobile.json).
+//
+// The bundle concatenates EXACTLY the boot chain, in document order:
+//   * order preserved → the shared global lexical scope (modules resolve
+//     t/state/PLAN_*/esc at call time) keeps working; nothing is wrapped in an
+//     IIFE, because wrapping would hide those bindings from sibling scripts;
+//   * esbuild parses the merged source, so a duplicate top-level declaration
+//     fails the build loudly instead of shipping a broken bundle (the
+//     "Identifier 'DAYS' already declared" class of bug);
+//   * per-file assets are still emitted — the runtime asset map and the lazy
+//     modules (chat/search/quick-add/backup/…) need them.
+function bootChain(html) {
+  const srcs = [...html.matchAll(/<script[^>]+src="(js\/[^"?]+\.js)(?:\?v=\d+)?"/g)].map((m) => m[1]);
+  const seen = new Set();
+  return srcs
+    .filter((s) => !seen.has(s) && seen.add(s))
+    .map((s) => s.replace(/\.min\.js$/, '.js'))
+    .filter((s) => existsSync(join(ROOT, s)));
+}
+
+async function buildBootBundle() {
+  const sources = bootChain(readFileSync(join(ROOT, 'app.html'), 'utf8'));
+  if (sources.length < 2) return null;
+
+  const combined = sources
+    .map((s) => `/* ==== ${s} ==== */\n${readFileSync(join(ROOT, s), 'utf8')}`)
+    .join('\n;\n');
+
+  // Một lượt minify cho cả chuỗi: nén tốt hơn từng file rời và kiểm cú pháp
+  // trên TOÀN BỘ chuỗi (phát hiện trùng khai báo top-level ngay lúc build).
+  const result = await esbuild.transform(combined, {
+    minify: true, target: 'es2020', charset: 'utf8', sourcefile: 'boot.bundle.js',
+  });
+
+  const hash = fileHash(Buffer.from(result.code));
+  const outName = `boot.${hash}.js`;
+  const outPath = join(DIST_ASSETS, outName);
+
+  const tmpOut = join(ROOT, '._build_boot_tmp.js');
+  writeFileSync(tmpOut, result.code, 'utf8');
+  try {
+    execSync(`node --check "${tmpOut}"`, { cwd: ROOT, encoding: 'utf8' });
+  } catch {
+    console.error('  FAIL node --check: boot bundle');
+    process.exit(1);
+  } finally {
+    try { unlinkSync(tmpOut); } catch {}
+  }
+
+  writeFileSync(outPath, result.code, 'utf8');
+  const bytes = statSync(outPath).size;
+  console.log(`  boot bundle → assets/${outName}  ${sources.length} script → 1  ${bytes} bytes`);
+  return { file: outName, hash, sources: sources.length, bytes };
+}
+
+/** Gộp các thẻ <script src="js/..."> của boot chain thành 1 thẻ bundle (giữ thẻ đầu). */
+function collapseBootTags(html, bootFile) {
+  const tagRe = /[ \t]*<script[^>]+src="js\/[^"?]+\.js(?:\?v=\d+)?"[^>]*><\/script>[ \t]*\r?\n?/g;
+  let first = true;
+  return html.replace(tagRe, (match) => {
+    if (!first) return '';
+    first = false;
+    const indent = (match.match(/^[ \t]*/) || ['  '])[0] || '  ';
+    return `${indent}<script src="assets/${bootFile}"></script>\n`;
+  });
+}
+
 // ── Build ────────────────────────────────────────────────────────────
 async function build() {
   const isCheck = process.argv.includes('--check');
@@ -182,6 +253,10 @@ async function build() {
     console.log(`  ${src} → assets/${outName}  ${srcSize}→${outSize} (${pct}% off)`);
   }
 
+  // Boot chain → một bundle duy nhất (dist). Danh sách nguồn để check() kiểm lại.
+  const boot = await buildBootBundle();
+  if (boot) manifest._boot = { file: boot.file, hash: boot.hash, sources: boot.sources, bytes: boot.bytes };
+
   // Write manifest to dist
   manifest._treeHash = treeHash;
   writeFileSync(join(DIST_ASSETS, 'asset-manifest.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
@@ -206,6 +281,9 @@ async function build() {
     const srcPath = join(ROOT, page);
     if (!existsSync(srcPath)) continue;
     let html = readFileSync(srcPath, 'utf8');
+    // Collapse TRƯỚC rewriteHtml để các thẻ boot chain (js/*.min.js) biến thành
+    // một thẻ assets/boot.<hash>.js; rewriteHtml chỉ còn xử lý css + thẻ lẻ.
+    if (page === 'app.html' && boot) html = collapseBootTags(html, boot.file);
     html = rewriteHtml(html, manifest);
     // Inject asset-map.js before the first hashed asset <script> so that
     // window.TaskFlowAssetMap is available for runtime lazy-module resolution.
@@ -294,6 +372,14 @@ function buildSW(manifest) {
     entries.push(`./assets/${info.file}`);
   }
 
+  // Add the boot bundle (manifest key `_boot` → skipped by asset-map/precache loops,
+  // nên phải thêm tường minh để offline vẫn boot được từ đầu).
+  const bootManifestPath = join(DIST_ASSETS, 'asset-manifest.json');
+  if (existsSync(bootManifestPath)) {
+    const manifest = JSON.parse(readFileSync(bootManifestPath, 'utf8'));
+    if (manifest._boot && manifest._boot.file) entries.push(`./assets/${manifest._boot.file}`);
+  }
+
   // Deterministic cache identity from manifest
   const manifestHash = fileHash(join(DIST_ASSETS, 'asset-manifest.json'));
 
@@ -367,6 +453,32 @@ function check() {
   if (!existsSync(join(DIST, 'asset-map.js'))) {
     console.error('  FAIL: dist/asset-map.js missing. Run: npm run build');
     ok = false;
+  }
+
+  // Verify boot bundle: tồn tại, hash khớp, và dist/app.html dùng ĐÚNG MỘT thẻ
+  // (bundle) — nếu ai đó lỡ đưa per-file script trở lại, boot chain lại thành N request.
+  if (!manifest._boot || !manifest._boot.file) {
+    console.error('  FAIL: manifest._boot missing (boot chain not bundled). Run: npm run build');
+    ok = false;
+  } else {
+    const bootPath = join(DIST_ASSETS, manifest._boot.file);
+    if (!existsSync(bootPath)) {
+      console.error(`  FAIL: assets/${manifest._boot.file} missing (boot bundle)`);
+      ok = false;
+    } else if (fileHash(bootPath) !== manifest._boot.hash) {
+      console.error(`  FAIL: assets/${manifest._boot.file} hash mismatch (boot bundle stale)`);
+      ok = false;
+    }
+    const distApp = readFileSync(join(DIST, 'app.html'), 'utf8');
+    if (!distApp.includes(`assets/${manifest._boot.file}`)) {
+      console.error('  FAIL: dist/app.html does not reference the boot bundle');
+      ok = false;
+    }
+    const perFileBoot = distApp.match(/<script[^>]+src="assets\/(?!boot\.)[^"]+\.js"/g) || [];
+    if (perFileBoot.length) {
+      console.error(`  FAIL: dist/app.html still loads ${perFileBoot.length} per-file module script(s): ${perFileBoot[0]}`);
+      ok = false;
+    }
   }
 
   // Verify no first-party ?v= pins in dist HTML

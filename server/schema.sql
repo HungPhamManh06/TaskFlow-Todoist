@@ -53,3 +53,29 @@ create table if not exists google_cal_mapping (
 
 create index if not exists google_cal_mapping_user_idx
   on google_cal_mapping (user_id);
+
+-- ============================================================
+-- v3.2 P2.1 — Web Push subscriptions (nhắc việc khi app đã đóng)
+-- Một endpoint = một trình duyệt/thiết bị (trình duyệt cấp endpoint mới khi
+-- subscribe lại) → unique(endpoint) để subscribe lặp là idempotent.
+-- reminder_hour + tz_offset_minutes: giờ nhắc theo giờ ĐỊA PHƯƠNG của người
+-- dùng (cron chạy theo UTC nên phải quy đổi); last_sent_at chặn gửi 2 lần/ngày.
+-- Idempotent: chạy nhiều lần không lỗi.
+-- ============================================================
+create table if not exists push_subscription (
+  id serial primary key,
+  user_id integer not null references users (id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  reminder_hour integer not null default 20,
+  tz_offset_minutes integer not null default 0,
+  lang text not null default 'vi',
+  user_agent text,
+  created_at timestamptz not null default now(),
+  last_sent_at timestamptz,
+  failures integer not null default 0
+);
+
+create index if not exists push_subscription_user_idx
+  on push_subscription (user_id);

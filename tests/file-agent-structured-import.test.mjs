@@ -356,7 +356,7 @@ describe('File-agent security — prompt injection', function () {
 /* ---- 7. i18n — error strings for long import ---- */
 
 describe('i18n — file-agent error strings', function () {
-  const i18nSource = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+  const i18nSource = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8') + readFileSync(new URL('../js/i18n-en.js', import.meta.url), 'utf8');
 
   it('has fileFailed error string', function () {
     assert.ok(i18nSource.includes('fileFailed'), 'Must have fileFailed');

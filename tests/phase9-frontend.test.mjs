@@ -11,7 +11,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
 const INBOX_JS = readFileSync(path.join(ROOT, 'js/inbox.js'), 'utf8');
-const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
+const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8') + readFileSync(path.join(ROOT, 'js/i18n-en.js'), 'utf8');
 const SYNC_JS = readFileSync(path.join(ROOT, 'js/sync.js'), 'utf8');
 const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 const LANDING = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -816,11 +816,21 @@ test('P11: i18n core extracted — helpers live in js/i18n.js, app.js keeps alia
   assert.doesNotMatch(APP_JS, /function applyStaticI18N\(\)/);
   assert.doesNotMatch(APP_JS, /^let LANG = /m);
   // module export đủ API
-  const mod = readRequiredAsset('js/i18n.js');
-  assert.match(mod, /return \{ I18N, t, monthLabel, dayLabel, fmtDeadline, dateLocale, getLang, setLangCore, applyStaticI18N, MONTH_NAMES \}/);
-  // dictionary đủ vi + en (2 bản I18N)
-  assert.equal((mod.match(/^  vi: \{/m) || []).length, 1, 'i18n.js phải có dictionary vi');
-  assert.equal((mod.match(/^  en: \{/m) || []).length, 1, 'i18n.js phải có dictionary en');
+  const core = readRequiredAsset('js/i18n.js');
+  assert.match(core, /return \{ I18N, t, monthLabel, dayLabel, fmtDeadline, dateLocale, getLang, setLangCore, applyStaticI18N, MONTH_NAMES, ensureLang, hasLang \}/);
+  // dictionary vi + en: VI nằm trong core (bundle boot), EN là chunk lazy riêng
+  // (P1.2 bước 2 — chỉ nạp ngôn ngữ đang dùng).
+  assert.equal((core.match(/^  vi: \{/m) || []).length, 1, 'i18n.js phải có dictionary vi');
+  assert.equal((core.match(/^  en: null,/m) || []).length, 1, 'i18n.js phải để en = null (nạp lazy, không ship trong bundle)');
+  assert.match(core, /I18N\.en = require\('\.\/i18n-en\.js'\)/, 'Node/test phải nạp EN đồng bộ để giữ hợp đồng I18N.en');
+  assert.match(core, /function ensureLang\(l\)/, 'core phải expose ensureLang để nạp chunk EN');
+  const enChunk = readRequiredAsset('js/i18n-en.js');
+  assert.match(enChunk, /root\.TaskFlowI18N_EN = dict/, 'chunk EN phải expose TaskFlowI18N_EN');
+  assert.match(enChunk, /root\.TaskFlowI18N\.I18N\.en = dict/, 'chunk EN phải tự gắn vào I18N.en khi core đã nạp');
+  // chunk EN là lazy: không được nằm trong boot chain, nhưng phải được SW precache
+  // (offline vẫn chạy được tiếng Anh).
+  assert.doesNotMatch(APP, /js\/i18n-en\.min\.js/, 'chunk EN không được nằm trong boot chain');
+  assert.ok(SW.includes("'./js/i18n-en.min.js?v=' + LAZY_V"), 'sw.js phải precache chunk EN');
 });
 
 test('P12: setView clears stale inactive view DOM after rendering the target', () => {
@@ -834,8 +844,8 @@ test('P12: setView clears stale inactive view DOM after rendering the target', (
   // setView vẫn re-render view đích (renderToday/renderWeek/... nguyên vẹn)
   assert.match(source, /if \(view === 'today'\)[\s\S]{0,80}renderToday\(\)/);
   // Version bumps: app.min.js + sw cache (P1.2 opt#1 min siblings)
-  assert.match(APP, /js\/app\.min\.js\?v=235/);
-  assert.match(SW, /const CACHE = 'taskflow-v299';/);
+  assert.match(APP, /js\/app\.min\.js\?v=236/);
+  assert.match(SW, /const CACHE = 'taskflow-v301';/);
 });
 
 test('P11: goal stats extracted — weekStats/monthlyStats live in js/stats.js', () => {
@@ -1152,7 +1162,7 @@ test('P11: chat FAB behavior — toggle aria-expanded, focus return, Escape, cli
   // Escape closes chat first (keeps conversation)
   assert.match(APP_JS, /if \(e\.key === 'Escape'\) \{\s*\/\/ Floating Chat: Escape đóng popover[\s\S]{0,80}if \(closeChatPanel\(\)\) return;/);
   // i18n keys for title/aria exist in both locales
-  const i18n = readRequiredAsset('js/i18n.js');
+  const i18n = (readRequiredAsset('js/i18n.js') + readRequiredAsset('js/i18n-en.js'));
   assert.match(i18n, /chatFabTitle: 'Trợ lý TaskFlow'/);
   assert.match(i18n, /chatFabAria: 'Mở Trợ lý TaskFlow'/);
   assert.match(i18n, /chatFabTitle: 'TaskFlow Assistant'/);
@@ -1447,7 +1457,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(MIN, /csso/);
   assert.match(MIN, /--check/);
   // app.html trỏ toàn bộ js/*.min.js + css/*.min.css (P1.2 opt#1)
-  assert.match(APP, /js\/app\.min\.js\?v=235/);
+  assert.match(APP, /js\/app\.min\.js\?v=236/);
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.ok(!/src="js\/[\w-]+\.js\?v=/.test(APP), 'app.html không còn trỏ js/*.js readable');
   assert.ok(!/href="css\/[\w-]+\.css\?v=/.test(APP), 'app.html không còn trỏ css/*.css readable');
@@ -1455,7 +1465,7 @@ test('P1.2 opt#1: minify.py + .min siblings — app.html/sw.js trỏ min, source
   assert.match(APP, /css\/styles-critical\.min\.css\?v=\d+/);
   assert.match(APP, /css\/styles-deferred\.min\.css\?v=\d+" media="print"/);
   // sw.js precache .min + CACHE bump
-  assert.match(SW, /const CACHE = 'taskflow-v299';/);
+  assert.match(SW, /const CACHE = 'taskflow-v301';/);
   assert.ok(SW.includes("'./js/app.min.js'"), 'sw.js phải precache js/app.min.js');
   assert.ok(SW.includes("'./css/styles-deferred.min.css'"), 'sw.js phải precache css/styles-deferred.min.css');
   assert.ok(SW.includes("'./css/styles-critical.min.css'"), 'sw.js phải precache css/styles-critical.min.css');
@@ -1612,7 +1622,7 @@ test('P11: widget config + bootstrap glue extracted — R4/R5 live in js/widget.
   assert.ok(SW.includes("\'./js/widget.min.js\'"), 'sw.js phải precache js/widget.js');
   // app.js dùng alias destructure thay vì định nghĩa lại (kèm fail-fast)
   assert.match(APP_JS, /if \(!window\.TaskFlowWidget\) throw new Error\('TaskFlowWidget missing/);
-  assert.match(APP_JS, /const \{ widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, setTheme, prefersReducedMotion, registerSW \} = window\.TaskFlowWidget;/);
+  assert.match(APP_JS, /const \{ widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, refreshLang, setTheme, prefersReducedMotion, registerSW \} = window\.TaskFlowWidget;/);
   assert.doesNotMatch(APP_JS, /^function widgetConfigKey\(/m);
   assert.doesNotMatch(APP_JS, /^function initWidgetConfig\(/m);
   assert.doesNotMatch(APP_JS, /^function saveWidgetConfig\(/m);
@@ -1628,7 +1638,7 @@ test('P11: widget config + bootstrap glue extracted — R4/R5 live in js/widget.
   assert.match(APP_JS, /const WIDGET_DEFS_YEAR/);
   // module export đủ API
   const mod = readRequiredAsset('js/widget.js');
-  assert.match(mod, /return \{ widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, setTheme, prefersReducedMotion, registerSW \}/);
+  assert.match(mod, /return \{ widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, refreshLang, setTheme, prefersReducedMotion, registerSW \}/);
 });
 
 test('P11: XP + render helpers extracted — R11 lives in js/xp.js', () => {
@@ -1755,7 +1765,7 @@ test('P11: month/week report UI extracted — R15 lives in js/report-ui.js', () 
 
 test('P3: Upcoming header density — summary counts derive from existing task data only', () => {
   const up = readRequiredAsset('js/upcoming.js');
-  const I18N = readRequiredAsset('js/i18n.js');
+  const I18N = (readRequiredAsset('js/i18n.js') + readRequiredAsset('js/i18n-en.js'));
   const STYLES = readRequiredAsset('css/styles.css');
   assert.match(up, /function upcomingSummaryCounts\(\)/);
   assert.match(up, /up-summary-chip/);
@@ -2117,7 +2127,7 @@ test('P11: storage core extracted — helpers live in js/storage.js, app.js keep
 });
 
 test('service worker caches the UI helper (min) with the reviewed cache version', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v299';/);
+  assert.match(SW, /const CACHE = 'taskflow-v301';/);
   assert.match(SW, /['"]\.\/js\/ui\.min\.js['"]/);
 });
 
@@ -2195,7 +2205,7 @@ test('design system local sprite provides the complete currentColor icon set', (
 });
 
 test('design system and landing assets are available in the v154 offline shell', () => {
-  assert.match(SW, /const CACHE = 'taskflow-v299';/);
+  assert.match(SW, /const CACHE = 'taskflow-v301';/);
   // Union: app dùng css min; landing/legal dùng css readable (index/privacy/terms/data-and-security)
   [
     './css/tokens.css', './css/landing.css', './css/legal.css',
@@ -2433,7 +2443,7 @@ test('release: SW upgrade cache — old v4 entry never satisfies new v5 request,
       },
       open() { return Promise.resolve({ put() {} }); },
       keys() {
-        return Promise.resolve(['taskflow-v220', 'taskflow-v293', 'taskflow-v299', 'taskflow-digest']);
+        return Promise.resolve(['taskflow-v220', 'taskflow-v293', 'taskflow-v301', 'taskflow-digest']);
       },
       delete(key) {
         deleteCalls.push(key);
@@ -2766,9 +2776,12 @@ test('Phase 3: Today Dashboard is the default view with greeting, tasks, habits 
   // deeplink accepts today
   const deeplink = readRequiredAsset('js/deeplink.js');
   assert.match(deeplink, /view === 'today'/);
-  // mobile nav (P2): 5-item grid with the Today tab; More sheet chứa view còn lại
+  // mobile nav (Phase 13): 6-slot grid — Today / Inbox / Upcoming / + FAB / Projects / More
+  // (More sheet chứa view còn lại). Số cột phải khớp số slot buildNav() render,
+  // nếu không slot cuối (Thêm → Cài đặt) rơi xuống implicit row thứ 2 và mất khỏi
+  // viewport 64px của bottom nav.
   const shell = readRequiredAsset('css/app-shell.css');
-  assert.match(shell, /\.app-mobile-nav\s*{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/s);
+  assert.match(shell, /\.app-mobile-nav\s*{[^}]*grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(shell, /\.app-mobile-nav-add/);;
 });
 

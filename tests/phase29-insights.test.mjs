@@ -11,7 +11,11 @@ const { computeInsights, MIN_SAMPLES } = TI;
 
 const APP = readFileSync('app.html', 'utf8');
 const SW = readFileSync('sw.js', 'utf8');
-const I18N = readFileSync('js/i18n.js', 'utf8');
+// P1.2 bước 2: VI sống trong js/i18n.js, EN là chunk lazy ở js/i18n-en.js — kiểm
+// từng ngôn ngữ trên đúng file của nó thay vì cắt chuỗi theo marker 'en: {'.
+const VI_I18N = readFileSync('js/i18n.js', 'utf8');
+const EN_I18N = readFileSync('js/i18n-en.js', 'utf8');
+const I18N = VI_I18N + EN_I18N;
 const REPORT = readFileSync('js/report-ui.js', 'utf8');
 
 const NOW = new Date(2026, 1, 15); // Feb 15 2026
@@ -225,11 +229,9 @@ test('i18n: every insight key exists in both VI and EN', () => {
     'insightProjectVelocity', 'insightProjectVelocityAction',
     'insightTimeOfDay', 'insightTimeOfDayAction',
     'insightEnergyCompletion', 'insightEnergyCompletionAction'];
-  const viIdx = I18N.indexOf('vi: {');
-  const enIdx = I18N.indexOf('en: {');
   for (const k of keys) {
-    assert.ok(I18N.indexOf(k + ':') > viIdx && I18N.indexOf(k + ':') < enIdx, `VI missing ${k}`);
-    assert.ok(I18N.lastIndexOf(k + ':') > enIdx, `EN missing ${k}`);
+    assert.ok(VI_I18N.includes(k + ':'), `VI missing ${k}`);
+    assert.ok(EN_I18N.includes(k + ':'), `EN missing ${k}`);
   }
 });
 
@@ -237,7 +239,7 @@ test('i18n: every insight key exists in both VI and EN', () => {
 test('wiring: script tag, SW precache + cache bump, report modal hook', () => {
   assert.match(APP, /js\/insights\.min\.js\?v=1/);
   assert.match(SW, /'\.\/js\/insights\.min\.js'/);
-  assert.match(SW, /const CACHE = 'taskflow-v299'/);
+  assert.match(SW, /const CACHE = 'taskflow-v301'/);
   assert.match(REPORT, /data-testid="report-insights"/);
   assert.ok(existsSync('js/insights.min.js'), 'insights.min.js must exist');
   assert.ok(existsSync('js/report-ui.min.js'), 'report-ui.min.js must exist');

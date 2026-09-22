@@ -5,19 +5,14 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import vm from 'vm';
+// Date-relative fixtures: a hardcoded "today" rots the moment the wall clock
+// passes it (runWindow clamps a past startDate; a deadline that was "today"
+// becomes "overdue"). Rule + seam: docs/testing-guide.md.
+import { isoDate } from './helpers/clock.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const require = createRequire(import.meta.url);
-
-// Date-relative fixtures. Hardcoded calendar dates silently rot once the wall
-// clock passes them: runWindow clamps a past startDate to today, and a deadline
-// that used to be "today" becomes "overdue". Keep every fixture relative to now.
-function isoDate(offsetDays) {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
 
 /* ===========================================================
    1. TOOL CONTRACTS: client/server canonical source

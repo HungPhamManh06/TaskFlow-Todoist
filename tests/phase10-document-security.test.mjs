@@ -397,7 +397,7 @@ describe('Phase 11: Streaming Chat Architecture', () => {
 
   test('SW cache bumped for streaming changes', () => {
     const sw = readFileSync(join(ROOT, 'sw.js'), 'utf8');
-    assert.ok(/taskflow-v299/.test(sw), 'SW cache bumped to v297');
+    assert.ok(/taskflow-v301/.test(sw), 'SW cache bumped to v297');
   });
 });
 

@@ -277,7 +277,7 @@ describe('Phase 6F — Agent Runtime Refinement', () => {
 /* =================================================================== */
 describe('Phase 6F — I18n Keys', () => {
   let i18n;
-  before(() => { i18n = read('js/i18n.js'); });
+  before(() => { i18n = (read('js/i18n.js') + read('js/i18n-en.js')); });
 
   it('VI: reviewRefineMode', () => {
     assert.ok(i18n.includes("reviewRefineMode: 'Đang chỉnh đề xuất AI'"));

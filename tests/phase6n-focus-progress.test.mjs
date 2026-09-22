@@ -16,7 +16,7 @@ describe('Phase 6N — Focus Session Execution & Verified Progress Capture', () 
   before(() => {
     focusSessionSrc = read('js/focus-session.js');
     aiIntentSrc = read('js/ai-intent.js');
-    i18nSrc = read('js/i18n.js');
+    i18nSrc = (read('js/i18n.js') + read('js/i18n-en.js'));
     swSrc = read('sw.js');
     appSrc = read('js/app.js');
   });

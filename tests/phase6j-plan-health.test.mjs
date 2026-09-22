@@ -51,7 +51,7 @@ try {
 
 let i18nSrc = '';
 try {
-  i18nSrc = readFileSync(resolve('js/i18n.js'), 'utf8');
+  i18nSrc = readFileSync(resolve('js/i18n.js'), 'utf8') + readFileSync(resolve('js/i18n-en.js'), 'utf8');
 } catch (e) { /* ok */ }
 
 // Extract functions from default export

@@ -351,14 +351,14 @@ describe('Phase 6B: Regression — Phase 6A Consent', () => {
 
 describe('Phase 6B: i18n Keys', () => {
   it('has VI memory keys', () => {
-    const src = read('js/i18n.js');
+    const src = (read('js/i18n.js') + read('js/i18n-en.js'));
     assert.ok(src.includes("memoryTitle: 'Ghi nhớ tùy chọn AI'"));
     assert.ok(src.includes("memoryEnable: 'Sử dụng tùy chọn đã lưu'"));
     assert.ok(src.includes("memoryReset: 'Xóa tất cả tùy chọn AI'"));
   });
 
   it('has EN memory keys', () => {
-    const src = read('js/i18n.js');
+    const src = (read('js/i18n.js') + read('js/i18n-en.js'));
     assert.ok(src.includes("memoryTitle: 'AI Saved Preferences'"));
     assert.ok(src.includes("memoryEnable: 'Use saved preferences'"));
     assert.ok(src.includes("memoryReset: 'Delete all AI preferences'"));

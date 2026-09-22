@@ -408,7 +408,7 @@ describe('6T.2: Snapshot integrity (source)', () => {
 // ====================================================================
 
 describe('6T.2: i18n edit strings', () => {
-  const I18N = readFileSync('js/i18n.js', 'utf8');
+  const I18N = readFileSync('js/i18n.js', 'utf8') + readFileSync('js/i18n-en.js', 'utf8');
 
   it('has aiEdit in VI', () => {
     assert.ok(I18N.includes("aiEdit: 'Sửa'"), 'VI aiEdit missing');

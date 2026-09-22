@@ -76,6 +76,10 @@ app.use('/api/calendar', require('./gcal'));
 // AI_MODEL, AI_TIMEOUT_MS. Thiếu key → /api/ai/plan trả 503 → client fallback
 // về planner quy tắc (V1.3) — AI không bao giờ bắt buộc.
 app.use('/api/ai', require('./ai').router);
+// v3.2 — Web Push (tùy chọn): nhắc việc khi app đã đóng. Env: VAPID_PUBLIC_KEY,
+// VAPID_PRIVATE_KEY, VAPID_SUBJECT. Thiếu key → /api/push/* trả 503
+// `push-not-configured`, client ẩn nút bật, app vẫn nhắc khi đang mở.
+app.use('/api/push', require('./push').router);
 
 module.exports = { app };
 

@@ -1,0 +1,47 @@
+# Perf budget gate (Lớp 3 — P3.1).
+#
+# Deliberately NOT part of ci.yml: Lighthouse needs Chrome + a live server and
+# takes minutes, while the PR feedback loop is currently ~2 minutes. Regression
+# floors are enforced here (nightly + on demand); the P1.2 targets are printed
+# on every run and only enforced by --strict, which is the "have we reached the
+# goal yet" switch (see docs/v3.2-three-layer-plan.md).
+name: Perf budget
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC nightly
+  workflow_dispatch:
+
+jobs:
+  perf-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Đo ĐÚNG artifact production (dist/ + boot bundle), không phải source tree:
+      # source phục vụ 68 file script riêng, dist phục vụ 1 bundle.
+      - name: Build dist
+        run: |
+          npm install
+          npm run build
+
+      - name: Measure landing + app against the budget floors
+        run: python scripts/perf-budget.py --out perf-reports --serve dist --runs 2
+
+      - name: Report the P1.2 target gap (non-blocking)
+        run: python scripts/perf-budget.py --from-dir perf-reports --strict || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-reports
+          path: perf-reports/
+          if-no-files-found: warn

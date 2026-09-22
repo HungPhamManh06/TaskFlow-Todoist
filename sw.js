@@ -3,7 +3,7 @@
    Chiến lược: network-first cho điều hướng, stale-while-revalidate cho tĩnh. */
 'use strict';
 
-const CACHE = 'taskflow-v299';
+const CACHE = 'taskflow-v301';
 // Lazy module version — must match LAZY_ASSET_VERSION in app.js
 const LAZY_V = 'v1';
 const APP_SHELL = [
@@ -51,6 +51,9 @@ const APP_SHELL = [
   './js/ui.min.js',
   './js/util.min.js',
   './js/i18n.min.js',
+  // P1.2 bước 2: dictionary EN là chunk lazy (js/i18n.js → ensureLang) nhưng vẫn
+  // precache để app chạy offline bằng tiếng Anh, và chunk về ngay từ cache.
+  './js/i18n-en.min.js?v=' + LAZY_V,
   './js/storage.min.js',
   './js/account.min.js',
   './js/dates.min.js',
@@ -119,6 +122,7 @@ const APP_SHELL = [
   './js/year-report.min.js?v=' + LAZY_V,
   './js/digest.min.js?v=' + LAZY_V,
   './js/remind-ui.min.js',
+  './js/push.min.js',
   './fonts/nunito-cyrillic-ext.woff2',
   './fonts/nunito-cyrillic.woff2',
   './fonts/nunito-latin-ext.woff2',
@@ -253,11 +257,36 @@ self.addEventListener('periodicsync', (e) => {
   }
 });
 
+/* ---------- Web Push (v3.2 P2.1): thông báo do server gửi khi app đã đóng ---------- */
+
+self.addEventListener('push', (e) => {
+  // Payload do server/push.js gửi: {title, body, url?, tag?}. Không có payload
+  // (một số trình duyệt chặn/hết hạn mã hoá) vẫn phải hiện thông báo — Web Push
+  // yêu cầu notification để không bị coi là push im lặng.
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch (err) { data = {}; }
+  const title = data.title || 'TaskFlow 🐥';
+  e.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || 'Nhắc việc TaskFlow',
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      tag: data.tag || 'taskflow-push',
+      renotify: true,
+      data: { url: data.url || './app?view=today' },
+    })
+  );
+});
+
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   // Deep-link vào app (không đưa về landing). Dùng ?view=today để mở màn hình chính.
   // Clean URL (Vercel cleanUrls): /app (không /app.html) là đường dẫn thật của app.
-  const APP_URL = './app?view=today';
+  // Push payload có thể chỉ định url riêng (server/push.js) — chỉ nhận đường dẫn
+  // nội bộ './...' để thông báo bị giả mạo không mở được URL ngoài.
+  let APP_URL = './app?view=today';
+  const payloadUrl = e.notification.data && e.notification.data.url;
+  if (typeof payloadUrl === 'string' && payloadUrl.startsWith('./')) APP_URL = payloadUrl;
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const c of list) {

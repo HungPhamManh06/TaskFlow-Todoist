@@ -47,7 +47,40 @@ services:
         value: gemini-3.6-flash
       - key: AI_TIMEOUT_MS
         value: "60000"
+      # v3.2 P2.1 — Web Push (nhắc việc khi app đã đóng).
+      # Sinh khoá bằng `npx web-push generate-vapid-keys` rồi nhập tay trên Render:
+      # VAPID_PUBLIC_KEY là khoá CÔNG KHAI (client cần), VAPID_PRIVATE_KEY là secret.
+      # Thiếu key → /api/push/* trả 503, client tự ẩn nút bật (không lỗi).
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:taskflow@example.com
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: true
+
+  # v3.2 P2.1 — gửi digest Web Push mỗi giờ. Tách thành cron job vì web service
+  # free của Render spin-down khi rảnh (không tự hẹn giờ trong app được).
+  # Chưa cấu hình VAPID → script tự thoát, không gửi gì.
+  - type: cron
+    name: taskflow-push-digest
+    runtime: node
+    rootDir: server
+    schedule: "0 * * * *"
+    buildCommand: npm install
+    startCommand: node push-digest.js
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: taskflow-db
+          property: connectionString
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:taskflow@example.com

@@ -590,7 +590,7 @@ describe('Phase 6K — Prompt injection resistance', () => {
 
 /* ─── I18n keys exist in source ─── */
 describe('Phase 6K — I18n keys', () => {
-  const i18nSrc = readFileSync(new URL('../js/i18n.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'utf8');
+  const i18nSrc = readFileSync(new URL('../js/i18n.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'utf8') + readFileSync(new URL('../js/i18n-en.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'utf8');
 
   it('has VI planWatch keys', () => {
     assert.ok(i18nSrc.includes("planWatchTitle: 'Theo dõi sức khỏe kế hoạch'"), 'VI planWatchTitle');

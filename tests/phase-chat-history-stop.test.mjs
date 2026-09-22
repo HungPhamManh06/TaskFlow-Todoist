@@ -442,7 +442,7 @@ describe('app.html — new chat history UI', function () {
 /* ---- 6. i18n — new strings present ---- */
 
 describe('i18n — chat history and stop strings', function () {
-  const i18nSource = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+  const i18nSource = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8') + readFileSync(new URL('../js/i18n-en.js', import.meta.url), 'utf8');
 
   const requiredKeys = [
     'chatNewConversation', 'chatHistory', 'chatHistoryEmpty', 'chatHistoryLocalNote',

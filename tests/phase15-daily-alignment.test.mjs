@@ -8,7 +8,7 @@ import Alignment from '../js/alignment.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TODAY_JS = readFileSync(path.join(ROOT, 'js/today.js'), 'utf8');
-const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
+const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8') + readFileSync(path.join(ROOT, 'js/i18n-en.js'), 'utf8');
 const STYLES = readFileSync(path.join(ROOT, 'css/styles.css'), 'utf8');
 const STYLES_DEFERRED = readFileSync(path.join(ROOT, 'css/styles-deferred.css'), 'utf8');
 const APP = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
@@ -129,7 +129,7 @@ test('Daily Alignment copy and responsive styles exist in both source stylesheet
 
 test('P5 production assets load alignment before Today and cache it offline', () => {    assert.ok(APP.indexOf('js/alignment.min.js?v=2') < APP.indexOf('js/today.min.js?v=12'));
   assert.match(APP_JS, /TaskFlowAlignment missing/);
-  assert.match(SW, /taskflow-v299/);
+  assert.match(SW, /taskflow-v301/);
   assert.match(SW, /\.\/js\/alignment\.min\.js/);
   assert.match(ALIGNMENT_MIN, /collectDailyAlignment/);
 });

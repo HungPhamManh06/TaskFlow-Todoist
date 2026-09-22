@@ -411,7 +411,7 @@ describe('Source code regression guards', () => {
 
   it('no old misleading "quá nhiều tin nhắn" in VI provider message', () => {
     const fs = require('fs');
-    const src = fs.readFileSync('js/i18n.js', 'utf8');
+    const src = fs.readFileSync('js/i18n.js', 'utf8') + fs.readFileSync('js/i18n-en.js', 'utf8');
     const rateLimitedIdx = src.indexOf('chatErrorRateLimited:', src.indexOf('vi:'));
     assert.ok(rateLimitedIdx > 0, 'VI chatErrorRateLimited exists');
     // Get just the VI value

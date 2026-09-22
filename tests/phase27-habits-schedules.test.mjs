@@ -13,7 +13,7 @@ const XP = (await import('../js/xp.js')).default || (await import('../js/xp.js')
 const APP = readFileSync('app.html', 'utf8');
 const SW = readFileSync('sw.js', 'utf8');
 const APPJS = readFileSync('js/app.js', 'utf8');
-const I18N = readFileSync('js/i18n.js', 'utf8');
+const I18N = readFileSync('js/i18n.js', 'utf8') + readFileSync('js/i18n-en.js', 'utf8');
 
 // Fixture: February 2024 (năm nhuận, 29 ngày). Thứ 2 = 5/2.
 const FEB = 2024, FEBM = 1, FEB_DAYS = 29;
@@ -254,7 +254,7 @@ test('wiring: app.html có modal habit-sched + xp habitPct delegate + SW v217', 
   assert.match(XPJS, /periodProgress/); // xp habitPct delegate schedule-aware
   assert.match(I18N, /habitSchedWeeklyLabel/);
   assert.match(I18N, /habitSchedMonthlyLabel/);
-  assert.match(SW, /const CACHE = 'taskflow-v299'/);
+  assert.match(SW, /const CACHE = 'taskflow-v301'/);
 });
 
 test('wiring: copyHabitsToNextMonth giữ schedule', () => {

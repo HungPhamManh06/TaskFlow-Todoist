@@ -71,6 +71,11 @@
         <button type="button" class="mini-btn" data-action="remind-off-item" data-kind="${r.kind}" ${r.kind === 'habit' ? `data-id="${esc(r.id)}"` : `data-week="${r.week}" data-day="${esc(r.day)}" data-task="${r.task}"`} title="${t('remindOffItem')}" aria-label="${t('remindOffItem')}">${window.TaskFlowUI.icon('close')}</button>
       </div>`).join('')
       : `<p class="pop-note">${t('remindListEmpty')}</p>`;
+    // v3.2 P2.1 — hàng Web Push (nhắc cả khi app đã đóng). Tự ẩn khi chưa đăng nhập
+    // hoặc server chưa cấu hình VAPID; resolve qua global tại thời điểm gọi.
+    if (typeof TaskFlowPush !== 'undefined' && TaskFlowPush.renderClosedAppRow) {
+      Promise.resolve(TaskFlowPush.renderClosedAppRow()).catch(() => { /* ẩn */ });
+    }
   }
 
   // Inline picker giờ nhắc (pattern beginTagEdit): nhấn 🔔 → input time + nút lưu ngay cạnh nút.

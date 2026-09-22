@@ -355,7 +355,7 @@ describe('Phase 6D — Agent Runtime handleExternalProposal', () => {
    =================================================================== */
 describe('Phase 6D — I18n Keys', () => {
   let i18nSrc;
-  before(() => { i18nSrc = read('js/i18n.js'); });
+  before(() => { i18nSrc = (read('js/i18n.js') + read('js/i18n-en.js')); });
 
   it('fileChipCreateTask exists in VI', () => {
     assert.ok(i18nSrc.includes("fileChipCreateTask: 'Tạo task'"), 'VI must have fileChipCreateTask');

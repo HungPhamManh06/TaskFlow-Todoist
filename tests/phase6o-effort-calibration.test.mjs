@@ -16,7 +16,7 @@ describe('Phase 6O — Opt-In Effort Calibration', () => {
   before(() => {
     calibrationSrc = read('js/effort-calibration.js');
     aiIntentSrc = read('js/ai-intent.js');
-    i18nSrc = read('js/i18n.js');
+    i18nSrc = (read('js/i18n.js') + read('js/i18n-en.js'));
     swSrc = read('sw.js');
     appSrc = read('js/app.js');
   });

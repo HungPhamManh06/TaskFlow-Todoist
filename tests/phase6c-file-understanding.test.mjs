@@ -217,7 +217,7 @@ describe('Phase 6C: CSS Styles', () => {
 });
 
 describe('Phase 6C: i18n Keys', () => {
-  const src = read('js/i18n.js');
+  const src = (read('js/i18n.js') + read('js/i18n-en.js'));
 
   it('has VI file keys', () => {
     assert.ok(src.includes("fileAttach: 'Đính kèm tệp'"));

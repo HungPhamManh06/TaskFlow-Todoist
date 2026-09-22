@@ -10,7 +10,7 @@ const root = resolve(__dirname, '..');
 const aiIntentSrc = readFileSync(resolve(root, 'js/ai-intent.js'), 'utf8');
 const runtimeSrc = readFileSync(resolve(root, 'js/ai-agent-runtime.js'), 'utf8');
 const serverSrc = readFileSync(resolve(root, 'server/ai.js'), 'utf8');
-const i18nSrc = readFileSync(resolve(root, 'js/i18n.js'), 'utf8');
+const i18nSrc = readFileSync(resolve(root, 'js/i18n.js'), 'utf8') + readFileSync(resolve(root, 'js/i18n-en.js'), 'utf8');
 
 /** Deterministic classifier built from source patterns */
 function classifyProposalMessage(msg) {

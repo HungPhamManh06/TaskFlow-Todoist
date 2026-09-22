@@ -185,9 +185,27 @@ def run_viewport(browser, browser_name, width, height, label, base, screenshots)
                    page.locator('#mobileNav [aria-current="page"]').count() == 1)
             nav_items = page.locator("#mobileNav .app-mobile-nav-item")
             fab = page.locator("#mobileNav .app-mobile-nav-fab")
-            record(vp, "bottom nav", "5 columns (today/upcoming/+/habits/more)",
-                   nav_items.count() == 4 and fab.count() == 1,
+            record(vp, "bottom nav", "6 slots (today/inbox/upcoming/+/projects/more)",
+                   nav_items.count() == 5 and fab.count() == 1,
                    f"(items={nav_items.count()}, fab={fab.count()})")
+            # Regression guard: KHÔNG slot nào được rơi ra ngoài viewport.
+            # Grid ít cột hơn số slot → slot cuối xuống implicit row 2, nằm dưới
+            # bottom nav (đã từng làm mất nút Thêm → không mở được Cài đặt).
+            offscreen = page.evaluate(
+                """() => {
+                  const nav = document.getElementById('mobileNav');
+                  const bad = [];
+                  for (const el of nav.children) {
+                    const r = el.getBoundingClientRect();
+                    if (r.bottom > window.innerHeight + 1 || r.width < 1 || r.height < 1) {
+                      bad.push((el.textContent || '').trim().slice(0, 16) + ':bottom=' + Math.round(r.bottom));
+                    }
+                  }
+                  return bad;
+                }"""
+            )
+            record(vp, "bottom nav", "all slots inside viewport", not offscreen,
+                   ", ".join(offscreen) if offscreen else "")
             small = page.evaluate(
                 """() => {
                   const bad = [];

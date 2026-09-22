@@ -142,7 +142,7 @@ test('P3: api-config-missing maps to the localized connection error', () => {
   const { ctx } = makeContext(false);
   const text = vm.runInContext('window.TaskFlowChat._mapError({ code: "api-config-missing" })', ctx);
   assert.equal(text, 'chatErrorApiConfig');
-  const i18n = read('i18n.js');
+  const i18n = (read('i18n.js') + read('i18n-en.js'));
   assert.match(i18n, /chatErrorApiConfig: 'Không thể kết nối tới dịch vụ AI\.'/);
   assert.match(i18n, /chatErrorApiConfig: 'Unable to connect to the AI service\.'/);
 });

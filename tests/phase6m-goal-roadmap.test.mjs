@@ -459,7 +459,7 @@ describe('Phase 6M — Prompt injection', () => {
 
 /* ─── I18n Keys ─── */
 describe('Phase 6M — I18n keys', () => {
-  const i18nSrc = readFileSync(new URL('../js/i18n.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'utf8');
+  const i18nSrc = readFileSync(new URL('../js/i18n.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'utf8') + readFileSync(new URL('../js/i18n-en.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'utf8');
 
   it('has VI roadmap keys', () => {
     assert.ok(i18nSrc.includes("roadmapTitle: 'Roadmap mục tiêu'"), 'VI roadmapTitle');

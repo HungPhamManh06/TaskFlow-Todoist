@@ -11,7 +11,7 @@ import Reflection from '../js/reflection.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
-const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
+const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8') + readFileSync(path.join(ROOT, 'js/i18n-en.js'), 'utf8');
 const SW = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 
 const { dailyKey, normalizeEntry, summaryFrom, groupByMonth } = Reflection;

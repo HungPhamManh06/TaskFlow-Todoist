@@ -18,7 +18,7 @@ const {
 const APP_HTML = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
 const APP_JS = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const MONTHLY_REVIEW_JS = readFileSync(new URL('../js/monthly-review.js', import.meta.url), 'utf8');
-const I18N = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+const I18N = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8') + readFileSync(new URL('../js/i18n-en.js', import.meta.url), 'utf8');
 const STYLES = readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
 const DEFERRED = readFileSync(new URL('../css/styles-deferred.css', import.meta.url), 'utf8');
 const SW = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
@@ -237,12 +237,12 @@ test('P8 has VI/EN copy and mirrored responsive styles', () => {
 test('P8 production assets load before monthly review/app and cache offline', () => {
   const carryIndex = APP_HTML.indexOf('js/month-carryover.min.js?v=1');
   const monthlyIndex = APP_HTML.indexOf('js/monthly-review.min.js?v=2');
-  const appIndex = APP_HTML.indexOf('js/app.min.js?v=235');
+  const appIndex = APP_HTML.indexOf('js/app.min.js?v=236');
   assert.ok(carryIndex >= 0 && monthlyIndex > carryIndex && appIndex > monthlyIndex);
-  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=63/);
+  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=65/);
   assert.match(APP_HTML, /js\/storage\.min\.js\?v=3/);
   assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=\d+/g) || []).length, 2);
-  assert.match(SW, /const CACHE = 'taskflow-v299'/);
+  assert.match(SW, /const CACHE = 'taskflow-v301'/);
   assert.match(SW, /'\.\/js\/month-carryover\.min\.js'/);
 });
 

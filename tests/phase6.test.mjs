@@ -7,7 +7,7 @@ import PlanStats from '../js/plan-stats.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP_JS = readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
-const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8');
+const I18N_JS = readFileSync(path.join(ROOT, 'js/i18n.js'), 'utf8') + readFileSync(path.join(ROOT, 'js/i18n-en.js'), 'utf8');
 const APP_HTML = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
 const CSS = readFileSync(path.join(ROOT, 'css/styles.css'), 'utf8');
 const SW_JS = readFileSync(path.join(ROOT, 'sw.js'), 'utf8');

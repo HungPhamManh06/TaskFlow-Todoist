@@ -343,7 +343,7 @@ const WIDGET_DEFS_YEAR = [
 // monthlyStats/yearGoalStats, setLangCore/applyStaticI18N, render/save/buildNav/...) resolve qua
 // global lexical tại thời điểm GỌI — pattern mood.js/popups.js. Giữ alias để call-sites không đổi.
 if (!window.TaskFlowWidget) throw new Error('TaskFlowWidget missing — js/widget.js failed to load');
-const { widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, setTheme, prefersReducedMotion, registerSW } = window.TaskFlowWidget;
+const { widgetConfigKey, initWidgetConfig, saveWidgetConfig, getVisibleWidgets, setLang, refreshLang, setTheme, prefersReducedMotion, registerSW } = window.TaskFlowWidget;
 
 // i18n core (I18N dictionary, LANG state, t(), label helpers, applyStaticI18N) được tách
 // sang js/i18n.js (window.TaskFlowI18N). Giữ alias để call-sites không đổi.
@@ -8127,6 +8127,15 @@ loadXP();
 prepareTodayState();
 renderXP();
 setView(state.view, state.currentWeek);
+// P1.2 bước 2: dictionary EN là chunk lazy. Boot khi LANG đang là 'en' mà chunk chưa
+// về (lần dùng đầu sau khi cài SW, hoặc SW chưa cache) → view đầu render bằng bản VI
+// (fallback của t()); chunk về thì render lại đúng EN. Không chặn boot.
+if (getLang() !== 'vi' && typeof window.TaskFlowI18N.hasLang === 'function'
+    && !window.TaskFlowI18N.hasLang(getLang())) {
+  window.TaskFlowI18N.ensureLang(getLang()).then(() => {
+    if (window.TaskFlowI18N.hasLang(getLang())) refreshLang();
+  });
+}
 setTimeout(() => runLazyModule(lazyAsset('js/digest.min.js'), () => window.TaskFlowDigest.updateDigestCache()), 2000);
 // Manifest shortcut "Thêm công việc" (?quick=1) → mở Quick Add ngay sau khi view đầu render.
 // V1.5 Quick Capture: nếu có payload share/quick-url, prefill input đã sanitize (preview trước Save).

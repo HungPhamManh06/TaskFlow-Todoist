@@ -203,7 +203,7 @@ test('transactional import rolls back every touched key after storage failure', 
 test('P10 production assets and privacy copy are registered', () => {
   const html = fs.readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   const sw = fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
-  const i18n = fs.readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+  const i18n = fs.readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8') + fs.readFileSync(new URL('../js/i18n-en.js', import.meta.url), 'utf8');
   assert.match(html, /js\/data-migrations\.min\.js\?v=3/);
   assert.match(sw, /js\/data-migrations\.min\.js/);
   assert.match(i18n, /syncPrivacy/);

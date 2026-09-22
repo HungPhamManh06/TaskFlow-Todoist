@@ -10,7 +10,7 @@ const root = resolve(__dirname, '..');
 const aiIntentSrc = readFileSync(resolve(root, 'js/ai-intent.js'), 'utf8');
 const aiPlanSrc = readFileSync(resolve(root, 'js/ai-plan.js'), 'utf8');
 const serverSrc = readFileSync(resolve(root, 'server/ai.js'), 'utf8');
-const i18nSrc = readFileSync(resolve(root, 'js/i18n.js'), 'utf8');
+const i18nSrc = readFileSync(resolve(root, 'js/i18n.js'), 'utf8') + readFileSync(resolve(root, 'js/i18n-en.js'), 'utf8');
 
 /* ─── Load ai-plan module for direct testing ─── */
 let Plan;

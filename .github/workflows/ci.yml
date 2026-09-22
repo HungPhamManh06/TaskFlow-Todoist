@@ -54,6 +54,9 @@ jobs:
       - name: Server security test (JWT fail-fast, CORS allowlist, headers, rate limit)
         run: node test-server-security.js
 
+      - name: Push notification test (VAPID config, subscribe validation, digest)
+        run: node test-server-push.js
+
   # Release-asset cache-bust consistency: every ?v=N pin in app.html must be at
   # least as new as the last commit that changed the asset, or a stale SW cache
   # could serve mismatched HTML/JS on first load after deploy (see 2824e39).

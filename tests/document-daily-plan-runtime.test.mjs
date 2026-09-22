@@ -758,7 +758,7 @@ describe('Phase 8: Document-aware chat', () => {
   });
 
   it('i18n has chatNoActiveDocument in VI and EN', () => {
-    const i18nSource = readFileSync(join(ROOT, 'js', 'i18n.js'), 'utf8');
+    const i18nSource = readFileSync(join(ROOT, 'js', 'i18n.js'), 'utf8') + readFileSync(join(ROOT, 'js', 'i18n-en.js'), 'utf8');
     assert.ok(i18nSource.includes('chatNoActiveDocument'), 'i18n has key');
     // Vietnamese version
     assert.ok(i18nSource.includes('chưa có tài liệu đang hoạt động'), 'VI translation present');

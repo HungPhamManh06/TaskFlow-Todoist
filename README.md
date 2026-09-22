@@ -168,6 +168,7 @@ Khi chưa đăng nhập, dữ liệu của bạn được lưu cục bộ trong 
 - 📲 **Cài đặt offline**: mở trang → chọn "Cài đặt ứng dụng" (Chrome/Edge) — app chạy ngoài cửa sổ trình duyệt, **hoạt động offline-first** (vẫn dùng được khi mất mạng)
 - 🔔 **Nhắc việc hằng ngày**: bật nút 🔔 trong header, chọn giờ — trình duyệt nhắc điểm danh thói quen mỗi ngày (kể cả khi app đã đóng, nhờ Periodic Background Sync)
 - 🔔 **Nhắc việc theo habit/task**: mỗi thói quen & task có giờ nhắc riêng (nút 🔔 cạnh tên) — chính xác khi app mở
+- 📲 **Web Push (tùy chọn, cần đăng nhập)**: nhắc cả khi app đã đóng — xem [Web Push](#-web-push--nhắc-việc-cả-khi-app-đã-đóng-tuỳ-chọn)
 - 🖼️ Icon pastel đầy đủ kích thước (192/512/maskable) cho Android & iOS
 
 ### 💾 Dữ liệu của bạn — sao lưu & in
@@ -315,6 +316,16 @@ Lỗi được chuẩn hoá (không lộ lỗi upstream thô): `ai-not-configure
 
 Gemini 3.x deprecated sampling params (`temperature`/`top_p`/`top_k`) — server không gửi các tham số này; output được ép theo schema `json_schema` (structured output) và vẫn qua `validateProposal` phía server. `reasoning_effort` KHÔNG được gửi — provider gateway chỉ gửi `model`, `max_tokens`, `messages`, `response_format`. Agent timeout có thể cấu hình riêng qua `AI_AGENT_TIMEOUT_MS` (mặc định 60000ms). Debug: mở app với `?debug=1` để xem mã lỗi + validation code trong console, và `POST /api/ai/plan?debug=1` trả thêm `meta.provider/model/latencyMs` (không bao gồm token usage). Server log `[ai] provider/model/status/latencyMs` — không bao giờ log prompt/context/reflection/mood/key.
 
+### 📲 Web Push — nhắc việc cả khi app đã đóng (tuỳ chọn)
+
+Mặc định app chỉ nhắc chắc chắn khi đang mở (hoặc qua Periodic Background Sync — Chromium-only). Bật **Web Push** thì server gửi thông báo theo giờ bạn chọn, kể cả khi đã đóng trình duyệt:
+
+1. Sinh khoá VAPID: `npx web-push generate-vapid-keys`
+2. Nhập `VAPID_PUBLIC_KEY` (public) + `VAPID_PRIVATE_KEY` (secret) + `VAPID_SUBJECT` vào Environment của Web Service trên Render (xem [`render.yaml`](render.yaml)); Blueprint cũng tạo sẵn **cron job** `taskflow-push-digest` chạy mỗi giờ.
+3. Trong app: mở 🔔 **Nhắc việc hằng ngày** → **Bật nhắc khi app đã đóng** (cần đăng nhập). Giờ nhắc lấy đúng giờ bạn đặt ở ô *Giờ nhắc*.
+
+Chưa cấu hình VAPID → `/api/push/*` trả `503 push-not-configured`, nút bật tự ẩn, app vẫn nhắc như cũ. Nội dung thông báo được tính từ dữ liệu đã đồng bộ (không có gì đáng nhắc thì **không gửi**), endpoint chết (404/410) bị xoá tự động. Server chỉ **gửi**, không bao giờ sửa dữ liệu người dùng.
+
 ### 🔒 Phân biệt PUBLIC / SECRET config
 
 | Biến | Loại | Ghi chú |
@@ -326,6 +337,9 @@ Gemini 3.x deprecated sampling params (`temperature`/`top_p`/`top_k`) — server
 | `JWT_SECRET` | secret | Render tự sinh (`generateValue`) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | secret | nhập tay trên Render (`sync: false`) |
 | `AI_API_KEY` | secret | nhập tay trên Render (`sync: false`) |
+| `VAPID_PUBLIC_KEY` | public | khoá công khai Web Push (client cần để subscribe) |
+| `VAPID_PRIVATE_KEY` | secret | nhập tay trên Render (`sync: false`) |
+| `VAPID_SUBJECT` | public | `mailto:...` gửi kèm VAPID |
 
 > Không bao giờ commit giá trị thật của biến secret vào repo — `render.yaml` chỉ khai báo chúng.
 

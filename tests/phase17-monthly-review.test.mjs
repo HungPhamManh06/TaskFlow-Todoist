@@ -19,7 +19,7 @@ const {
 
 const APP_JS = readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 const REPORT_UI = readFileSync(new URL('../js/report-ui.js', import.meta.url), 'utf8');
-const I18N = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8');
+const I18N = readFileSync(new URL('../js/i18n.js', import.meta.url), 'utf8') + readFileSync(new URL('../js/i18n-en.js', import.meta.url), 'utf8');
 const STYLES = readFileSync(new URL('../css/styles.css', import.meta.url), 'utf8');
 const DEFERRED = readFileSync(new URL('../css/styles-deferred.css', import.meta.url), 'utf8');
 const APP_HTML = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
@@ -207,11 +207,11 @@ test('Monthly Review has VI/EN copy and mirrored responsive styles', () => {
 test('Monthly Review production assets load before report/app and cache offline', () => {
   const monthlyIndex = APP_HTML.indexOf('js/monthly-review.min.js?v=2');
   const reportIndex = APP_HTML.indexOf('js/report-ui.min.js?v=5');
-  const appIndex = APP_HTML.indexOf('js/app.min.js?v=235');
+  const appIndex = APP_HTML.indexOf('js/app.min.js?v=236');
   assert.ok(monthlyIndex >= 0 && reportIndex > monthlyIndex && appIndex > reportIndex);
-  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=63/);
+  assert.match(APP_HTML, /js\/i18n\.min\.js\?v=65/);
   assert.equal((APP_HTML.match(/css\/styles-deferred\.min\.css\?v=\d+/g) || []).length, 2);
-  assert.match(SW, /const CACHE = 'taskflow-v299'/);
+  assert.match(SW, /const CACHE = 'taskflow-v301'/);
   assert.match(SW, /'\.\/js\/monthly-review\.min\.js'/);
 });
 

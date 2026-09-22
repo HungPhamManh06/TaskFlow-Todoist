@@ -379,7 +379,7 @@ describe('Phase 6L — Prompt injection', () => {
 
 /* ─── I18n Keys ─── */
 describe('Phase 6L — I18n keys', () => {
-  const i18nSrc = readFileSync(new URL('../js/i18n.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'utf8');
+  const i18nSrc = readFileSync(new URL('../js/i18n.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'utf8') + readFileSync(new URL('../js/i18n-en.js', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'utf8');
 
   it('has VI brief keys', () => {
     assert.ok(i18nSrc.includes("briefDailyTitle: 'Tổng quan hôm nay'"), 'VI briefDailyTitle');

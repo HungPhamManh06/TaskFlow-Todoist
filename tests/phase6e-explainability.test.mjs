@@ -410,7 +410,7 @@ describe('Phase 6E — Lazy Load Chain', () => {
 
 describe('Phase 6E — I18n Keys', () => {
   let i18n;
-  before(() => { i18n = read('js/i18n.js'); });
+  before(() => { i18n = (read('js/i18n.js') + read('js/i18n-en.js')); });
 
   it('VI has reviewWhy', () => {
     assert.ok(i18n.includes("reviewWhy: 'Tại sao?'"));

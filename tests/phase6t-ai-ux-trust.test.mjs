@@ -301,7 +301,7 @@ describe('Phase 6T: Feedback Store', () => {
    ============================================ */
 
 describe('Phase 6T: i18n Strings', () => {
-  const i18nSrc = readFileSync('js/i18n.js', 'utf8');
+  const i18nSrc = readFileSync('js/i18n.js', 'utf8') + readFileSync('js/i18n-en.js', 'utf8');
 
   it('VI adaptive planning strings present', () => {
     assert.ok(i18nSrc.includes("adaptivePlanning:"), 'adaptivePlanning VI');

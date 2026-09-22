@@ -44,10 +44,18 @@
   <meta name="twitter:image" content="https://taskflow-todoist.vercel.app/og-image.png" />
 
   <!-- ===== TaskFlow logo ===== -->
-  <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" />
-
-  <!-- Nunito tự lưu trữ (offline-first, không còn third-party render-blocking): @font-face trong css/fonts.min.css -->
+  <link rel="icon" type="image/svg+xml" href="icons/taskflow-mark.svg" /><!-- Nunito tự lưu trữ (offline-first, không còn third-party render-blocking): @font-face trong css/fonts.min.css.
+       Preload 4 font-face critical (weight 400 + 700 × hoán vị phổ biến nhất: vietnamese + latin);
+       font-face còn lại nạp theo nhu cầu trình duyệt (unicode-range).
+       Dùng crossorigin vì fonts served từ cùng origin nhưng trình duyệt yêu cầu crossorigin cho preload font.
+┌───────────────────────────────────────────────────┐
+│ weight 400 latin · weight 700 latin · weight 400 vietnamese · weight 700 vietnamese │
+└───────────────────────────────────────────────────┘
+  <link rel="preload" href="fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="fonts/nunito-vietnamese.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="fonts/nunito-vietnamese.woff2" as="font" type="font/woff2" crossorigin />
+
   <!-- Chống nháy trắng (FOUC): áp chế độ tối trước khi CSS vẽ (đặt TRƯỚC stylesheet) -->
   <script>
     (function () {
@@ -61,7 +69,7 @@
   <link rel="stylesheet" href="css/fonts.min.css?v=1" />
   <link rel="stylesheet" href="css/tokens.min.css?v=8" />
   <link rel="stylesheet" href="css/components.min.css?v=8" />
-  <link rel="stylesheet" href="css/app-shell.min.css?v=23" />
+  <link rel="stylesheet" href="css/app-shell.min.css?v=24" />
   <!-- styles-critical: tập con boot (shell + Today + modals + theme/dark) giữ trên critical path.
        styles-deferred (phần còn lại của styles.css): nạp sau first paint (media=print swap) — vẫn trong SW cache cho offline. -->
 <link rel="stylesheet" href="css/styles-critical.min.css?v=40" />
@@ -267,6 +275,11 @@
               <button type="button" class="pop-btn" data-action="remind-off" data-i18n="remindOff">Tắt</button>
             </div>
             <p class="pop-note" data-i18n="remindNote">Trình duyệt sẽ nhắc bạn một lần mỗi ngày để điểm danh thói quen.</p>
+            <!-- v3.2 P2.1 — Web Push: nhắc cả khi app đã đóng (ẩn khi chưa đăng nhập/chưa cấu hình) -->
+            <div class="pop-actions" id="pushClosedWrap" hidden>
+              <button type="button" class="pop-btn" id="pushClosedBtn">Bật nhắc khi app đã đóng</button>
+            </div>
+            <p class="pop-note" id="pushClosedNote" hidden></p>
             <div class="remind-list" id="remindList" aria-label="Nhắc việc habit/task"></div>
           </div>
         </div>
@@ -912,7 +925,7 @@
        ở lại vì nằm trên đường render boot (moodCardHTML/insertBeforeTaskActions). -->
   <script src="js/config.min.js?v=1"></script>
   <script src="js/data-migrations.min.js?v=3"></script>
-  <script src="js/widget.min.js?v=1"></script>
+  <script src="js/widget.min.js?v=2"></script>
   <script src="js/xp.min.js?v=2"></script>
   <script src="js/streak-ui.min.js?v=3"></script>
   <script src="js/alignment.min.js?v=2"></script>
@@ -938,7 +951,7 @@
   <script src="js/sync.min.js?v=7"></script>
   <script src="js/ui.min.js?v=6"></script>
   <script src="js/util.min.js?v=1"></script>
-  <script src="js/i18n.min.js?v=63"></script>
+  <script src="js/i18n.min.js?v=65"></script>
   <script src="js/storage.min.js?v=3"></script>
   <script src="js/account.min.js?v=1"></script>
   <script src="js/dates.min.js?v=1"></script>
@@ -958,7 +971,9 @@
   <script src="js/shell.min.js?v=1"></script>
   <script src="js/inbox.min.js?v=6"></script>
   <script src="js/mood.min.js?v=1"></script>
-  <script src="js/remind-ui.min.js?v=2"></script>
+  <script src="js/remind-ui.min.js?v=3"></script>
+  <!-- v3.2 P2.1 — Web Push client (nhắc khi app đã đóng) -->
+  <script src="js/push.min.js?v=1"></script>
   <script src="js/popups.min.js?v=1"></script>
   <script src="js/reflection.min.js?v=1"></script>
   <script src="js/pillars.min.js?v=5"></script>
@@ -971,14 +986,14 @@
   <script src="js/timeblocks-ui.min.js?v=7"></script>
   <script src="js/gcal.min.js?v=3"></script>
   <script src="js/gcal-ui.min.js?v=3"></script>
-  <script src="js/ai-review.min.js"></script>
+  <script src="js/ai-review.min.js?v=1"></script>
   <script src="js/ai.min.js?v=7"></script>
   <!-- Phase 6S: Adaptive planning — loaded early for Focus + Settings availability -->
-  <script src="js/ai-adaptation.min.js"></script>
+  <script src="js/ai-adaptation.min.js?v=1"></script>
   <!-- Phase 6T: AI feedback store -->
-  <script src="js/ai-feedback.min.js"></script>
+  <script src="js/ai-feedback.min.js?v=1"></script>
   <script src="js/ai-tool-contracts.generated.min.js?v=1"></script>
-  <script src="js/app.min.js?v=235"></script>
+  <script src="js/app.min.js?v=236"></script>
 </body>
 
 </html>

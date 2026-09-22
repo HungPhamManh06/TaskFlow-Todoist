@@ -593,8 +593,12 @@ body.tools-drawer-open :is(.pomo-fab-wrap, .fb-fab-wrap) {
     z-index: 55;
     inset: auto 0 0;
     display: grid;
-    /* Bottom nav (redesign): Hôm nay / Sắp tới / + (FAB) / Thói quen / Thêm — đủ rộng 360–430px */
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    /* Bottom nav: ĐÚNG 6 slot, khớp thứ tự buildNav() render —
+       Hôm nay / Inbox / Sắp tới / + (FAB) / Dự án / Thêm (More sheet).
+       Số cột PHẢI bằng số con render (5 item + 1 FAB): lệch → slot cuối
+       rơi xuống implicit row thứ 2, nằm ngoài viewport nên mất hẳn
+       (đã từng làm mất nút Thêm → không mở được More sheet/Cài đặt). */
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     border-block-start: 1px solid var(--color-border);
